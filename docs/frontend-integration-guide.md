@@ -78,18 +78,40 @@ Import DTOs from `@grubpac/shared-types` and form schemas from `@grubpac/validat
 - React Hook Form + Zod on login placeholder
 - TanStack Table: add per module when lists ship
 
-## Local run
+## Frontend developer — sync and local run
 
-```bash
-docker compose up -d
+Always integrate from **`develop`** (not old feature branches after their PRs are merged).
+
+```powershell
+cd <your-clone-path>\GrubFleet-ERP
+git checkout develop
+git pull origin develop
 npm install
+```
+
+Create `apps/frontend/.env.local` (see **Environment** above). For API smoke tests, import Postman files under `docs/api/postman/` per [`docs/api/README.md`](api/README.md).
+
+**Full stack locally** (backend + frontend):
+
+```powershell
+docker compose up -d
 npm run db:migrate -w backend
 npm run db:seed -w backend
 npm run start:dev -w backend
+```
+
+In a second terminal:
+
+```powershell
 npm run dev -w frontend
 ```
 
-Frontend: http://localhost:3000 — Backend: http://localhost:4000/api/v1/docs
+- Frontend: http://localhost:3000  
+- Backend Swagger: http://localhost:4000/api/v1/docs  
+
+Dev login: after seed, ask the backend owner for credentials (not stored in git). Frontend-only UI work can use a mocked API or a shared dev backend URL when provided.
+
+**Do not** commit `.env.local`, `.cursor/`, or `.project-tracking/`.
 
 ## Error / empty / loading
 
