@@ -1,0 +1,113 @@
+{
+  "info": {
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "GrubPac ERP API",
+    "description": "GrubPac ERP (GrubFleet-ERP) foundation API — live GET endpoints only.\n\nBase URL variable: `{{baseUrl}}` (default local: http://localhost:4000/api/v1).\n\nKeep in sync with `docs/api/openapi.yaml` when routes change.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Liveness and readiness probes for orchestration and local smoke checks.",
+      "item": [
+        {
+          "name": "Liveness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "GET /health — process liveness; no dependency checks."
+          },
+          "response": []
+        },
+        {
+          "name": "Readiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health/ready",
+            "description": "GET /health/ready — PostgreSQL (pool + Drizzle) and Redis. Returns 503 with ApiError body if any check is down."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Modules",
+      "description": "Module scaffold status endpoints (implemented flags until CRUD/auth land).",
+      "item": [
+        {
+          "name": "Status",
+          "item": [
+            {
+              "name": "Auth status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/auth/status",
+                "description": "GET /auth/status — auth module scaffold; JWT flows planned (see docs/architecture/auth-rbac-plan.md)."
+              },
+              "response": []
+            },
+            {
+              "name": "Users status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/users/status",
+                "description": "GET /users/status — users module scaffold."
+              },
+              "response": []
+            },
+            {
+              "name": "Organizations status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/organizations/status",
+                "description": "GET /organizations/status — organizations module scaffold."
+              },
+              "response": []
+            },
+            {
+              "name": "Roles status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/roles/status",
+                "description": "GET /roles/status — roles module scaffold."
+              },
+              "response": []
+            },
+            {
+              "name": "Permissions status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/permissions/status",
+                "description": "GET /permissions/status — permissions catalog scaffold."
+              },
+              "response": []
+            },
+            {
+              "name": "Audit status",
+              "request": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}/audit/status",
+                "description": "GET /audit/status — audit logging module scaffold."
+              },
+              "response": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api/v1"
+    }
+  ]
+}

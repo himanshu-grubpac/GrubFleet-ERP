@@ -33,6 +33,8 @@ There are **no** `POST`/`PUT`/`PATCH`/`DELETE` endpoints yet. **Do not** build l
 
 Route constants: `@grubpac/api-contracts`. Types: `@grubpac/shared-types`.
 
+**Postman / OpenAPI:** [`docs/api/README.md`](api/README.md) — import collection and environment example; pull latest after backend API updates.
+
 ## API client
 
 Use `src/lib/api/client.ts` — `apiFetch<T>(path, { token })` throws `ApiClientError` with parsed backend error body.

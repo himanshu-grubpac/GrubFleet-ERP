@@ -1,0 +1,241 @@
+openapi: 3.0.3
+info:
+  title: GrubPac ERP API
+  version: 0.1.0
+  description: |
+    Modular monolith ERP platform — foundation HTTP API for GrubPac ERP (GrubFleet-ERP).
+
+    All routes are served under the global prefix `/api/v1` (override via backend `API_PREFIX`).
+
+    Live Swagger UI when the backend is running: `/api/v1/docs`.
+
+    Auth login, refresh, logout, and `/auth/me` are planned; see `docs/architecture/auth-rbac-plan.md`.
+    They are not listed here until implemented.
+servers:
+  - url: http://localhost:4000/api/v1
+    description: Local development (default backend port 4000)
+tags:
+  - name: health
+    description: Liveness and readiness probes
+  - name: auth
+    description: Authentication module (scaffold)
+  - name: users
+    description: Users module (scaffold)
+  - name: organizations
+    description: Organizations module (scaffold)
+  - name: roles
+    description: Roles module (scaffold)
+  - name: permissions
+    description: Permissions catalog (scaffold)
+  - name: audit
+    description: Audit logging module (scaffold)
+paths:
+  /health:
+    get:
+      tags: [health]
+      summary: Liveness probe
+      description: Returns OK when the process is running. Does not check PostgreSQL or Redis.
+      operationId: getHealthLiveness
+      responses:
+        '200':
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthLiveness'
+              example:
+                status: ok
+                service: grubpac-erp-backend
+  /health/ready:
+    get:
+      tags: [health]
+      summary: Readiness probe (PostgreSQL + Redis)
+      description: |
+        Verifies PostgreSQL (pool + Drizzle), and Redis connectivity.
+        Returns 503 with standard error body when any dependency is down.
+      operationId: getHealthReadiness
+      responses:
+        '200':
+          description: All dependencies are up
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthReadiness'
+              example:
+                status: ready
+                checks:
+                  database: up
+                  redis: up
+                  drizzle: up
+        '503':
+          description: One or more dependencies failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              example:
+                message: Dependency check failed
+                code: NOT_READY
+                statusCode: 503
+                correlationId: 550e8400-e29b-41d4-a716-446655440000
+                details:
+                  database: up
+                  redis: down
+                  drizzle: up
+  /auth/status:
+    get:
+      tags: [auth]
+      summary: Auth module scaffold status
+      description: JWT login, refresh, guards, and token flows are planned but not implemented.
+      operationId: getAuthStatus
+      responses:
+        '200':
+          description: Scaffold status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthModuleStatus'
+              example:
+                module: auth
+                implemented: false
+                note: Login, refresh, and JWT guards are planned; see docs/architecture/auth-rbac-plan.md
+  /users/status:
+    get:
+      tags: [users]
+      summary: Users module scaffold status
+      operationId: getUsersStatus
+      responses:
+        '200':
+          description: Scaffold status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleStatus'
+              example:
+                module: users
+                implemented: false
+  /organizations/status:
+    get:
+      tags: [organizations]
+      summary: Organizations module scaffold status
+      operationId: getOrganizationsStatus
+      responses:
+        '200':
+          description: Scaffold status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleStatus'
+              example:
+                module: organizations
+                implemented: false
+  /roles/status:
+    get:
+      tags: [roles]
+      summary: Roles module scaffold status
+      operationId: getRolesStatus
+      responses:
+        '200':
+          description: Scaffold status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleStatus'
+              example:
+                module: roles
+                implemented: false
+  /permissions/status:
+    get:
+      tags: [permissions]
+      summary: Permissions catalog scaffold status
+      operationId: getPermissionsStatus
+      responses:
+        '200':
+          description: Scaffold status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleStatus'
+              example:
+                module: permissions
+                implemented: false
+  /audit/status:
+    get:
+      tags: [audit]
+      summary: Audit logging module scaffold status
+      operationId: getAuditStatus
+      responses:
+        '200':
+          description: Scaffold status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleStatus'
+              example:
+                module: audit
+                implemented: false
+components:
+  schemas:
+    HealthLiveness:
+      type: object
+      required: [status, service]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: grubpac-erp-backend
+    HealthReadiness:
+      type: object
+      required: [status, checks]
+      properties:
+        status:
+          type: string
+          example: ready
+        checks:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [up, down]
+          example:
+            database: up
+            redis: up
+            drizzle: up
+    ModuleStatus:
+      type: object
+      required: [module, implemented]
+      properties:
+        module:
+          type: string
+        implemented:
+          type: boolean
+    AuthModuleStatus:
+      allOf:
+        - $ref: '#/components/schemas/ModuleStatus'
+        - type: object
+          required: [note]
+          properties:
+            note:
+              type: string
+    ApiError:
+      type: object
+      required: [message, code, statusCode]
+      description: |
+        Standard error envelope from `GlobalHttpExceptionFilter`.
+        Optional `correlationId` mirrors request/response `X-Correlation-Id`.
+        Optional `details` carries structured context (e.g. readiness check map).
+      properties:
+        message:
+          type: string
+        code:
+          type: string
+          description: Application error code (e.g. NOT_READY, VALIDATION_ERROR)
+        statusCode:
+          type: integer
+          format: int32
+        correlationId:
+          type: string
+        details:
+          description: Optional structured details
+          nullable: true
