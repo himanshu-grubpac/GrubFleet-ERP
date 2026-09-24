@@ -38,12 +38,15 @@ jobs:
           --health-timeout 3s
           --health-retries 5
     env:
-      DATABASE_URL: postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp
-      REDIS_URL: redis://localhost:6379
+      # Use 127.0.0.1 — GitHub Actions service containers often fail on localhost (::1).
+      DATABASE_URL: postgresql://grubpac:grubpac_dev@127.0.0.1:5432/grubpac_erp
+      REDIS_URL: redis://127.0.0.1:6379
       NODE_ENV: test
       API_PREFIX: api/v1
       LOG_LEVEL: error
       CORS_ORIGIN: http://localhost:3000
+      JWT_ACCESS_SECRET: ci-access-secret-min-32-characters-long!!
+      JWT_REFRESH_SECRET: ci-refresh-secret-min-32-characters-long!
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -51,7 +54,20 @@ jobs:
           node-version: '20'
           cache: npm
       - name: Install
-        run: npm ci
+        run: npm ci --include=optional
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then
+              echo "Postgres is accepting connections"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in time"
+          exit 1
+      - name: Migrate database
+        run: npm run db:migrate -w backend
       - name: Lint backend
         run: npm run lint -w backend
       - name: Typecheck backend
@@ -70,7 +86,13 @@ jobs:
           node-version: '20'
           cache: npm
       - name: Install
-        run: npm ci
+        run: npm ci --include=optional
+      - name: Install Tailwind/Lightning native bindings (Linux CI)
+        run: |
+          npm install --no-save \
+            @tailwindcss/oxide-linux-x64-gnu@4.3.3 \
+            lightningcss-linux-x64-gnu@1.32.0 \
+            -w frontend
       - name: Lint frontend
         run: npm run lint -w frontend
       - name: Typecheck frontend

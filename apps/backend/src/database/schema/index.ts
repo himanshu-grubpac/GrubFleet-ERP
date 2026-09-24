@@ -107,10 +107,14 @@ export const permissions = pgTable(
   'permissions',
   {
     id: uuid('id').defaultRandom().primaryKey(),
-    /** Provisional catalog key, e.g. fleet:VIEW */
+    /** Catalog key, e.g. fleet_leasing.view */
     key: varchar('key', { length: 120 }).notNull(),
+    /** Sidebar module id (snake_case). */
     module: varchar('module', { length: 64 }).notNull(),
+    /** Legacy action column; mirrors kind for Phase 1. */
     action: varchar('action', { length: 32 }).notNull(),
+    /** view | manage | sub (Phase 2 sub-permissions). */
+    kind: varchar('kind', { length: 16 }),
     description: text('description'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()

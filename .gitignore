@@ -30,9 +30,6 @@ Thumbs.db
 .idea/
 *.swp
 
-# Drizzle
-apps/backend/drizzle/meta/
-
 # Test / cache
 .cache/
 .nyc_output/

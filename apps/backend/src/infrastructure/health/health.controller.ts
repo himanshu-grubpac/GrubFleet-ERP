@@ -5,6 +5,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Public } from '../../common/decorators/public.decorator';
 import { sql } from 'drizzle-orm';
 import Redis from 'ioredis';
 import { Pool } from 'pg';
@@ -13,6 +14,7 @@ import { DRIZZLE, PG_POOL } from '../../database/drizzle.tokens';
 import { REDIS_CLIENT } from '../redis/redis.tokens';
 
 @ApiTags('health')
+@Public()
 @Controller('health')
 export class HealthController {
   constructor(
