@@ -26,10 +26,12 @@ import {
 import { and, eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 
-const describeIfDb =
-  process.env.SKIP_DB_INTEGRATION === '1' ? describe.skip : describe;
+describe('RBAC admin (integration)', () => {
+  if (process.env.SKIP_DB_INTEGRATION === '1') {
+    it.todo('skipped when SKIP_DB_INTEGRATION=1');
+    return;
+  }
 
-describeIfDb('RBAC admin (integration)', () => {
   let app: INestApplication<App>;
   let pool: Pool;
   let organizationId: string;
@@ -123,7 +125,7 @@ describeIfDb('RBAC admin (integration)', () => {
       .limit(1);
     viewerRoleId = existingRole[0]?.id;
     if (!viewerRoleId) {
-      const inserted = await db
+      await db
         .insert(roles)
         .values({
           organizationId,
@@ -132,8 +134,21 @@ describeIfDb('RBAC admin (integration)', () => {
           description: 'Integration test view-only',
           isSystem: false,
         })
-        .returning({ id: roles.id });
-      viewerRoleId = inserted[0]?.id;
+        .onConflictDoNothing({
+          target: [roles.organizationId, roles.name],
+        });
+      viewerRoleId = (
+        await db
+          .select({ id: roles.id })
+          .from(roles)
+          .where(
+            and(
+              eq(roles.name, viewerRoleName),
+              eq(roles.organizationId, organizationId),
+            ),
+          )
+          .limit(1)
+      )[0]?.id;
     }
     if (!viewerRoleId) {
       throw new Error('Viewer role missing');
@@ -219,16 +234,28 @@ describeIfDb('RBAC admin (integration)', () => {
     )[0]?.id;
 
     if (!fleetRoleId) {
+      await db
+        .insert(roles)
+        .values({
+          organizationId,
+          name: fleetRoleName,
+          scope: 'organization',
+          isSystem: false,
+        })
+        .onConflictDoNothing({
+          target: [roles.organizationId, roles.name],
+        });
       fleetRoleId = (
         await db
-          .insert(roles)
-          .values({
-            organizationId,
-            name: fleetRoleName,
-            scope: 'organization',
-            isSystem: false,
-          })
-          .returning({ id: roles.id })
+          .select({ id: roles.id })
+          .from(roles)
+          .where(
+            and(
+              eq(roles.name, fleetRoleName),
+              eq(roles.organizationId, organizationId),
+            ),
+          )
+          .limit(1)
       )[0]?.id;
     }
     if (!fleetRoleId) {

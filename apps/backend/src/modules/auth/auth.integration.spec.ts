@@ -14,10 +14,12 @@ import {
 import { ensureTestSchema } from '../../../test/helpers/ensure-test-schema';
 import * as schema from '../../database/schema';
 
-const describeIfDb =
-  process.env.SKIP_DB_INTEGRATION === '1' ? describe.skip : describe;
+describe('Auth (integration)', () => {
+  if (process.env.SKIP_DB_INTEGRATION === '1') {
+    it.todo('skipped when SKIP_DB_INTEGRATION=1');
+    return;
+  }
 
-describeIfDb('Auth (integration)', () => {
   let app: INestApplication<App>;
   let pool: Pool;
 
