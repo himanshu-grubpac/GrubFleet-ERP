@@ -1,0 +1,75 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, staging]
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: grubpac
+          POSTGRES_PASSWORD: grubpac_dev
+          POSTGRES_DB: grubpac_erp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U grubpac -d grubpac_erp"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp
+      REDIS_URL: redis://localhost:6379
+      NODE_ENV: test
+      API_PREFIX: api/v1
+      LOG_LEVEL: error
+      CORS_ORIGIN: http://localhost:3000
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Lint backend
+        run: npm run lint -w backend
+      - name: Typecheck backend
+        run: npm run typecheck -w backend
+      - name: Test backend
+        run: npm run test -w backend
+      - name: Build backend
+        run: npm run build -w backend
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Lint frontend
+        run: npm run lint -w frontend
+      - name: Typecheck frontend
+        run: npm run typecheck -w frontend
+      - name: Build frontend
+        run: npm run build -w frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: http://localhost:4000/api/v1

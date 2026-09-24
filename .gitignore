@@ -1,0 +1,38 @@
+# Local agent / tracking (never commit)
+.cursor/
+.ai/
+.project-tracking/
+*.local.*
+*.local.md
+
+# Environment
+.env*
+!.env.example
+
+# Dependencies & build
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Logs & OS
+logs/
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# IDE (optional local)
+.idea/
+*.swp
+
+# Drizzle
+apps/backend/drizzle/meta/
+
+# Test / cache
+.cache/
+.nyc_output/
