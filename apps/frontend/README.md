@@ -9,3 +9,5 @@ npm run dev -w frontend
 ```
 
 Set `NEXT_PUBLIC_API_BASE_URL` in `.env.local` (see root `.env.example`).
+
+Branching and pull requests: **`docs/deployment/git-workflow.md`** (work from `develop`, open PRs to `develop`).

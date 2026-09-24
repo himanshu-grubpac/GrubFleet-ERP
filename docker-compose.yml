@@ -1,3 +1,4 @@
+# Local development only — PostgreSQL + Redis. App processes run on the host (see README).
 services:
   postgres:
     image: postgres:16-alpine

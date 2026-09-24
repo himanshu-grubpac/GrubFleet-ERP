@@ -35,6 +35,8 @@ Route constants: `@grubpac/api-contracts`. Types: `@grubpac/shared-types`.
 
 **Postman / OpenAPI:** [`docs/api/README.md`](api/README.md) — import collection and environment example; pull latest after backend API updates.
 
+**Hosted tiers:** API base URLs per environment — [`docs/deployment/environments.md`](deployment/environments.md).
+
 ## API client
 
 Use `src/lib/api/client.ts` — `apiFetch<T>(path, { token })` throws `ApiClientError` with parsed backend error body.

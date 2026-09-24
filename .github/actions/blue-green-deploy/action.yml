@@ -1,0 +1,94 @@
+name: Blue-green deploy (simulated)
+description: Deploy to inactive slot, smoke-test health, flip ACTIVE_SLOT marker artifact
+
+inputs:
+  deploy-label:
+    description: Environment label (staging, preprod, production)
+    required: true
+  backend-image:
+    description: Full GHCR backend image reference including tag
+    required: true
+  frontend-image:
+    description: Full GHCR frontend image reference including tag
+    required: true
+  health-base-url:
+    description: Base URL for smoke tests (e.g. https://api-staging.example.com/api/v1)
+    required: false
+    default: ''
+  deploy-target:
+    description: Placeholder for ECS/CodeDeploy target (cluster/service) or runner deploy hook
+    required: false
+    default: ''
+  active-slot-hint:
+    description: Current active slot (blue or green); empty defaults to blue
+    required: false
+    default: blue
+
+outputs:
+  active-slot:
+    description: Slot receiving traffic after successful deploy
+    value: ${{ steps.flip.outputs.active_slot }}
+
+runs:
+  using: composite
+  steps:
+    - name: Resolve inactive slot
+      id: slots
+      shell: bash
+      run: |
+        CURRENT="${{ inputs.active-slot-hint }}"
+        if [ -z "$CURRENT" ]; then
+          CURRENT="blue"
+        fi
+        if [ "$CURRENT" = "blue" ]; then
+          INACTIVE="green"
+        else
+          INACTIVE="blue"
+        fi
+        echo "current=$CURRENT" >> "$GITHUB_OUTPUT"
+        echo "inactive=$INACTIVE" >> "$GITHUB_OUTPUT"
+
+    - name: Deploy to inactive slot (simulated)
+      shell: bash
+      run: |
+        SLOT="${{ steps.slots.outputs.inactive }}"
+        echo "Deploy label: ${{ inputs.deploy-label }}"
+        echo "Target slot: $SLOT"
+        echo "Backend image: ${{ inputs.backend-image }}"
+        echo "Frontend image: ${{ inputs.frontend-image }}"
+        if [ -n "${{ inputs.deploy-target }}" ]; then
+          echo "DEPLOY_TARGET=${{ inputs.deploy-target }}"
+          echo "Wire this step to ECS/CodeDeploy, Kubernetes, or your runner when cloud infra is ready."
+        else
+          echo "DEPLOY_TARGET not set — image push only; configure per GitHub Environment secret."
+        fi
+
+    - name: Smoke test /api/v1/health
+      id: smoke
+      shell: bash
+      run: |
+        BASE="${{ inputs.health-base-url }}"
+        if [ -z "$BASE" ]; then
+          echo "health-base-url not set — skipping live smoke (set DEPLOY_HEALTH_URL in GitHub Environment)."
+          exit 0
+        fi
+        URL="${BASE%/}/health"
+        echo "GET $URL"
+        curl -fsS --retry 5 --retry-delay 3 --max-time 30 "$URL"
+
+    - name: Flip ACTIVE_SLOT traffic marker
+      id: flip
+      shell: bash
+      run: |
+        ACTIVE="${{ steps.slots.outputs.inactive }}"
+        echo "$ACTIVE" > active-slot.txt
+        echo "active_slot=$ACTIVE" >> "$GITHUB_OUTPUT"
+        echo "Traffic marker set to slot: $ACTIVE"
+
+    - name: Upload active slot artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: active-slot-${{ inputs.deploy-label }}
+        path: active-slot.txt
+        retention-days: 90
+        if-no-files-found: error

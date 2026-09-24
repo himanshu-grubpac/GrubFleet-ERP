@@ -20,4 +20,4 @@ npm run dev -w frontend
 - Swagger: http://localhost:4000/api/v1/docs  
 - Web: http://localhost:3000  
 
-Further documentation lives in [`docs/`](docs/). API catalog (OpenAPI + Postman): [`docs/api/README.md`](docs/api/README.md).
+Further documentation lives in [`docs/`](docs/). API catalog (OpenAPI + Postman): [`docs/api/README.md`](docs/api/README.md). Git and deploy: [`docs/deployment/git-workflow.md`](docs/deployment/git-workflow.md) (daily work on `develop` via PRs; promotion PRs to staging / pre-prod / main).

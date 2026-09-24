@@ -1,0 +1,22 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [staging]
+
+concurrency:
+  group: deploy-staging
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/reusable-container-deploy.yml
+    with:
+      deploy-label: staging
+      github-environment: staging
+      branch-ref: staging
+    secrets: inherit

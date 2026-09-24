@@ -14,6 +14,12 @@ info:
 servers:
   - url: http://localhost:4000/api/v1
     description: Local development (default backend port 4000)
+  - url: https://api-staging.example.com/api/v1
+    description: Staging (placeholder — set in GitHub Environment `staging`)
+  - url: https://api-preprod.example.com/api/v1
+    description: Pre-production (placeholder — set in GitHub Environment `pre-production`)
+  - url: https://api.example.com/api/v1
+    description: Production (placeholder — set in GitHub Environment `production`)
 tags:
   - name: health
     description: Liveness and readiness probes

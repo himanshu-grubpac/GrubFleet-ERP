@@ -1,0 +1,22 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/reusable-container-deploy.yml
+    with:
+      deploy-label: production
+      github-environment: production
+      branch-ref: main
+    secrets: inherit

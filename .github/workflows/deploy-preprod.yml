@@ -1,0 +1,22 @@
+name: Deploy Pre-Production
+
+on:
+  push:
+    branches: [pre-prod]
+
+concurrency:
+  group: deploy-pre-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/reusable-container-deploy.yml
+    with:
+      deploy-label: preprod
+      github-environment: pre-production
+      branch-ref: pre-prod
+    secrets: inherit

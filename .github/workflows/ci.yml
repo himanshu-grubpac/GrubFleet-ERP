@@ -1,9 +1,15 @@
 name: CI
 
+# Product work: feature/fix/chore → PR → develop (and promotion PRs between long-lived branches).
+# CI runs on those PRs and on pushes to long-lived branches after merge.
+# See docs/deployment/git-workflow.md
+
 on:
   push:
-    branches: [main, develop, staging]
+    branches: [develop, staging, pre-prod, main]
   pull_request:
+    branches: [develop, staging, pre-prod, main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:
   backend:

@@ -1,0 +1,139 @@
+name: Reusable container deploy
+
+on:
+  workflow_call:
+    secrets:
+      DEPLOY_HEALTH_URL:
+        required: false
+      DEPLOY_TARGET:
+        required: false
+    inputs:
+      deploy-label:
+        description: Short label for tags and artifacts (staging, preprod, production)
+        required: true
+        type: string
+      github-environment:
+        description: GitHub Environment name (staging, pre-production, production)
+        required: true
+        type: string
+      branch-ref:
+        description: Git ref suffix for image tags (e.g. staging, pre-prod, main)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    outputs:
+      backend-image: ${{ steps.out.outputs.backend_image }}
+      frontend-image: ${{ steps.out.outputs.frontend_image }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tags
+        id: vars
+        run: |
+          SHA="${GITHUB_SHA::7}"
+          echo "sha_tag=${{ inputs.branch-ref }}-${SHA}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push backend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/backend/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ steps.vars.outputs.sha_tag }}
+            ghcr.io/${{ github.repository }}/backend:${{ inputs.deploy-label }}-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build and push frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/frontend/Dockerfile
+          push: true
+          build-args: |
+            NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || 'https://api.example.com/api/v1' }}
+          tags: |
+            ghcr.io/${{ github.repository }}/frontend:${{ steps.vars.outputs.sha_tag }}
+            ghcr.io/${{ github.repository }}/frontend:${{ inputs.deploy-label }}-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Export image refs
+        id: out
+        run: |
+          echo "backend_image=ghcr.io/${{ github.repository }}/backend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=ghcr.io/${{ github.repository }}/frontend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
+
+  frontend-static-artifact:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - run: npm ci
+      - name: Build frontend (static artifact for Amplify/S3)
+        run: npm run build -w frontend
+        env:
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL || 'https://api.example.com/api/v1' }}
+      - name: Upload Next.js build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-${{ inputs.deploy-label }}-${{ github.sha }}
+          path: apps/frontend/.next
+          retention-days: 14
+      # Placeholder: deploy to AWS Amplify or S3+CloudFront using environment secrets
+      # AMPLIFY_APP_ID, AWS_ROLE_ARN, S3_BUCKET, CLOUDFRONT_DISTRIBUTION_ID
+
+  deploy-blue-green:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Blue-green deploy
+        id: deploy
+        uses: ./.github/actions/blue-green-deploy
+        with:
+          deploy-label: ${{ inputs.deploy-label }}
+          backend-image: ${{ needs.build-and-push.outputs.backend-image }}
+          frontend-image: ${{ needs.build-and-push.outputs.frontend-image }}
+          health-base-url: ${{ secrets.DEPLOY_HEALTH_URL }}
+          deploy-target: ${{ secrets.DEPLOY_TARGET }}
+          active-slot-hint: ${{ vars.ACTIVE_SLOT || 'blue' }}
+
+      - name: Post-deploy ACTIVE_SLOT note
+        shell: bash
+        run: |
+          echo "After traffic switch, set GitHub Environment variable ACTIVE_SLOT=${{ steps.deploy.outputs.active-slot }}"
+          echo "Drain the previous slot once connections complete (see docs/deployment/blue-green.md)."
+
+  rollback-on-failure:
+    needs: deploy-blue-green
+    if: failure()
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    steps:
+      - name: Rollback placeholder
+        shell: bash
+        run: |
+          echo "Deploy failed — revert traffic to previous ACTIVE_SLOT and redeploy prior image tag."
+          echo "Implement rollback via ECS/CodeDeploy or re-run workflow on last known-good SHA."

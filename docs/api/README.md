@@ -8,7 +8,10 @@ Committed catalog for the live GrubPac ERP foundation API. Source of truth for *
 |------|---------|
 | [`openapi.yaml`](openapi.yaml) | OpenAPI 3.0.3 — all current GET endpoints |
 | [`postman/GrubFleet-ERP.postman_collection.json`](postman/GrubFleet-ERP.postman_collection.json) | Postman Collection v2.1 |
-| [`postman/GrubFleet-ERP.development.postman_environment.example.json`](postman/GrubFleet-ERP.development.postman_environment.example.json) | Example env (`baseUrl` only; copy locally, do not commit secrets) |
+| [`postman/GrubFleet-ERP.development.postman_environment.example.json`](postman/GrubFleet-ERP.development.postman_environment.example.json) | Example env — local (`baseUrl` only) |
+| [`postman/GrubFleet-ERP.staging.postman_environment.example.json`](postman/GrubFleet-ERP.staging.postman_environment.example.json) | Example env — staging placeholder URL |
+| [`postman/GrubFleet-ERP.preprod.postman_environment.example.json`](postman/GrubFleet-ERP.preprod.postman_environment.example.json) | Example env — pre-production placeholder URL |
+| [`postman/GrubFleet-ERP.production.postman_environment.example.json`](postman/GrubFleet-ERP.production.postman_environment.example.json) | Example env — production placeholder URL |
 | [`standards.md`](standards.md) | Base URL, errors, headers |
 
 ## Live Swagger

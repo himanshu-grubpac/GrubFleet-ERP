@@ -1,0 +1,12 @@
+node_modules
+.git
+.cursor
+.project-tracking
+.ai
+**/.next
+**/dist
+**/coverage
+*.log
+.env*
+!.env.example
+**/*.tsbuildinfo
