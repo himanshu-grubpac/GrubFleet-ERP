@@ -11,5 +11,11 @@ export const DEV_JWT_ACCESS_SECRET =
 export const DEV_JWT_REFRESH_SECRET =
   'dev-only-refresh-secret-min-32-characters!';
 
-export const LOGIN_RATE_LIMIT_MAX = 10;
-export const LOGIN_RATE_LIMIT_WINDOW_SEC = 900;
+// Original defaults (commented out for testing):
+// export const LOGIN_RATE_LIMIT_MAX = 10;
+// export const LOGIN_RATE_LIMIT_WINDOW_SEC = 900; // 15 minutes
+
+// Temporary settings for testing:
+export const LOGIN_RATE_LIMIT_MAX = 20;
+export const LOGIN_RATE_LIMIT_WINDOW_SEC = 900; // 15 minutes (adjust as needed for testing)
+

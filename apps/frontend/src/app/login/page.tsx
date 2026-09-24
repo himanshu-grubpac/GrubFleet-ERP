@@ -75,7 +75,7 @@ export default function LoginPage() {
           {/* Email */}
           <EmailInput
             label="Email address"
-            placeholder="admin@grubpac.com"
+            placeholder="admin@grubpac.local"
             value={email}
             onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
               setEmail(e.target.value)
@@ -108,7 +108,7 @@ export default function LoginPage() {
             </Button>
           </div>
 
-          {/* Temporary Dashboard Link */}
+          {/* Temporary Dashboard Link 
           <div className="pt-2 text-center">
             <Link
               href="/dashboard"
@@ -117,7 +117,7 @@ export default function LoginPage() {
               Skip to dashboard →
             </Link>
           </div>
-
+*/}
         </form>
       </div>
     </div>

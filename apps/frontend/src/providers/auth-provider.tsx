@@ -5,11 +5,15 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useCallback,
 } from "react";
 import { useRouter } from "next/navigation";
+import { loginApi, refreshApi, logoutApi, getMeApi } from "@/lib/api/auth";
+import { ApiClientError } from "@/lib/api/client";
+import type { AuthMeUser, AuthMeResponse } from "@grubpac/shared-types";
 
 export interface GrubpacAuthContextType {
-  authService?: any;
+  authService?: unknown;
 
   showSuccess?: (
     message: string,
@@ -19,20 +23,24 @@ export interface GrubpacAuthContextType {
 
   showError?: (message?: string) => void;
 
-  getApiError?: (error: any) => string;
+  getApiError?: (error: unknown) => string;
 
   setToken?: (token: string) => void;
 
   setAuthCookie?: (
     email: string,
     token: string,
-    days: number
+    days?: number
   ) => void;
 
   login?: (data: {
     email: string;
     password: string;
-  }) => Promise<any>;
+  }) => Promise<{
+    success: boolean;
+    token: string;
+    user: AuthMeUser | { id: string; email: string; name?: string };
+  }>;
 
   refreshSession?: () => Promise<boolean>;
 
@@ -46,9 +54,14 @@ export interface GrubpacAuthContextType {
     email?: string;
     id?: string;
     name?: string;
+    fullName?: string | null;
   } | null;
 
-  logout?: () => void;
+  organizationId?: string | null;
+
+  moduleAccess?: Record<string, string>;
+
+  logout?: () => Promise<void>;
 
   // Navigation permissions
   permissions: Set<string>;
@@ -63,68 +76,149 @@ export function GrubpacAuthProvider({
   children: React.ReactNode;
 }) {
   const [token, setTokenState] = useState<string | null>(null);
-
   const [user, setUser] = useState<{
     email?: string;
     id?: string;
     name?: string;
+    fullName?: string | null;
   } | null>(null);
 
+  const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [moduleAccess, setModuleAccess] = useState<Record<string, string>>({});
+  const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
-
-  // Currently no backend permissions are being loaded.
-  // Empty Set means all navigation items are allowed.
-  const [permissions] = useState<Set<string>>(new Set());
 
   const router = useRouter();
 
-  useEffect(() => {
-    try {
-      const savedToken = localStorage.getItem("access_token");
-      const savedUser = localStorage.getItem("auth_user");
+  const applyMeData = useCallback((me: AuthMeResponse) => {
+    const userObj = {
+      id: me.user.id,
+      email: me.user.email,
+      fullName: me.user.fullName,
+      name: me.user.fullName || me.user.email.split("@")[0],
+    };
+    setUser(userObj);
 
-      if (savedToken) {
-        setTokenState(savedToken);
+    const activeOrgId = me.memberships?.[0]?.organizationId || null;
+    setOrganizationId(activeOrgId);
 
-        if (savedUser) {
-          setUser(JSON.parse(savedUser));
-        }
+    const modMap: Record<string, string> = {};
+    const permSet = new Set<string>(me.permissionKeys || []);
+
+    if (me.moduleAccess && Array.isArray(me.moduleAccess)) {
+      for (const entry of me.moduleAccess) {
+        modMap[entry.moduleId] = entry.accessLevel;
+        // Map module levels to nav permission format (e.g. 'fleet:VIEW' or 'fleet_leasing:VIEW')
+        permSet.add(`${entry.moduleId}:VIEW`);
+        permSet.add(`${entry.moduleId.replace('_', '-')}:VIEW`);
       }
+    }
+
+    setModuleAccess(modMap);
+    setPermissions(permSet);
+
+    try {
+      localStorage.setItem("auth_user", JSON.stringify(userObj));
     } catch {
-      // Ignore localStorage read errors
-    } finally {
-      setIsLoading(false);
+      // Ignore localStorage errors
     }
   }, []);
 
+  const refreshSession = useCallback(async (): Promise<boolean> => {
+    try {
+      const savedRefreshToken = localStorage.getItem("refresh_token");
+      if (!savedRefreshToken) return false;
+
+      const tokenRes = await refreshApi(savedRefreshToken);
+      setTokenState(tokenRes.accessToken);
+      localStorage.setItem("access_token", tokenRes.accessToken);
+      localStorage.setItem("refresh_token", tokenRes.refreshToken);
+
+      const me = await getMeApi(tokenRes.accessToken);
+      applyMeData(me);
+      return true;
+    } catch {
+      return false;
+    }
+  }, [applyMeData]);
+
+  // Initial session hydration
+  useEffect(() => {
+    let mounted = true;
+
+    async function hydrateSession() {
+      try {
+        const savedToken = localStorage.getItem("access_token");
+        const savedUser = localStorage.getItem("auth_user");
+
+        if (savedUser) {
+          try {
+            setUser(JSON.parse(savedUser));
+          } catch {
+            // Ignore parse errors
+          }
+        }
+
+        if (savedToken) {
+          setTokenState(savedToken);
+          try {
+            const me = await getMeApi(savedToken);
+            if (mounted) {
+              applyMeData(me);
+            }
+          } catch (err) {
+            // If access token is expired (401), try refreshing
+            if (err instanceof ApiClientError && err.status === 401) {
+              const refreshed = await refreshSession();
+              if (!refreshed && mounted) {
+                // Refresh failed; clear credentials
+                setTokenState(null);
+                setUser(null);
+                localStorage.removeItem("access_token");
+                localStorage.removeItem("refresh_token");
+                localStorage.removeItem("auth_user");
+              }
+            }
+          }
+        }
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    void hydrateSession();
+
+    return () => {
+      mounted = false;
+    };
+  }, [applyMeData, refreshSession]);
+
   const setToken = (newToken: string) => {
     setTokenState(newToken);
-
     try {
       localStorage.setItem("access_token", newToken);
-    } catch { }
+    } catch {
+      // Ignore localStorage write error
+    }
   };
 
   const setAuthCookie = (
     email: string,
     tokenVal: string,
-    days: number = 7
   ) => {
+    setToken(tokenVal);
+    const userObj = {
+      email,
+      name: email.split("@")[0],
+    };
+    setUser(userObj);
     try {
-      setToken(tokenVal);
-
-      const userObj = {
-        email,
-        name: email.split("@")[0],
-      };
-
-      setUser(userObj);
-
-      localStorage.setItem(
-        "auth_user",
-        JSON.stringify(userObj)
-      );
-    } catch { }
+      localStorage.setItem("auth_user", JSON.stringify(userObj));
+    } catch {
+      // Ignore localStorage write error
+    }
   };
 
   const login = async (data: {
@@ -134,48 +228,75 @@ export function GrubpacAuthProvider({
     setIsLoading(true);
 
     try {
-      // Mock login for frontend development
-      const mockToken = "mock-jwt-token-grubpac";
+      // 1. Authenticate with backend
+      const tokenPair = await loginApi(data);
 
-      const mockUser = {
+      setTokenState(tokenPair.accessToken);
+      try {
+        localStorage.setItem("access_token", tokenPair.accessToken);
+        localStorage.setItem("refresh_token", tokenPair.refreshToken);
+      } catch {
+        // Ignore localStorage write error
+      }
+
+      // 2. Fetch authenticated user profile & permissions
+      let userObj = {
+        id: "",
         email: data.email,
-        id: "1",
         name: data.email.split("@")[0],
       };
 
-      setTokenState(mockToken);
-      setUser(mockUser);
-
-      localStorage.setItem(
-        "access_token",
-        mockToken
-      );
-
-      localStorage.setItem(
-        "auth_user",
-        JSON.stringify(mockUser)
-      );
+      try {
+        const me = await getMeApi(tokenPair.accessToken);
+        applyMeData(me);
+        userObj = {
+          id: me.user.id,
+          email: me.user.email,
+          name: me.user.fullName || me.user.email.split("@")[0],
+        };
+      } catch {
+        setUser(userObj);
+      }
 
       router.push("/dashboard");
 
       return {
         success: true,
-        token: mockToken,
-        user: mockUser,
+        token: tokenPair.accessToken,
+        user: userObj,
       };
     } finally {
       setIsLoading(false);
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    const currentToken = token;
+    const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") || undefined : undefined;
+
+    // Reset local state first
     setTokenState(null);
     setUser(null);
+    setOrganizationId(null);
+    setModuleAccess({});
+    setPermissions(new Set());
 
     try {
       localStorage.removeItem("access_token");
+      localStorage.removeItem("refresh_token");
       localStorage.removeItem("auth_user");
-    } catch { }
+    } catch {
+      // Ignore localStorage removal errors
+    }
+
+    // Attempt server logout in the background
+    if (currentToken) {
+      try {
+        await logoutApi(currentToken, refreshToken);
+      } catch {
+        // Ignore backend logout network error
+      }
+    }
 
     router.push("/login");
   };
@@ -185,15 +306,19 @@ export function GrubpacAuthProvider({
   };
 
   const showError = (message?: string) => {
-    console.error("[Auth Error]:", message);
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("[Auth Warning]:", message);
+    }
   };
 
-  const getApiError = (error: any): string => {
-    return (
-      error?.response?.data?.message ||
-      error?.message ||
-      "An error occurred"
-    );
+  const getApiError = (error: unknown): string => {
+    if (error instanceof ApiClientError) {
+      return error.message;
+    }
+    if (error instanceof Error) {
+      return error.message;
+    }
+    return "An unexpected error occurred";
   };
 
   return (
@@ -203,14 +328,15 @@ export function GrubpacAuthProvider({
         isLoading,
         token,
         user,
-
-        // Permissions
+        organizationId,
+        moduleAccess,
         permissions,
 
         setToken,
         setAuthCookie,
         login,
         logout,
+        refreshSession,
         showSuccess,
         showError,
         getApiError,
