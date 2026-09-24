@@ -16,20 +16,32 @@ Backend `CORS_ORIGIN` must include `http://localhost:3000` (default in `.env.exa
 
 **Base:** `NEXT_PUBLIC_API_BASE_URL` (e.g. `http://localhost:4000/api/v1`)  
 **Swagger:** `{origin}/api/v1/docs`  
-**Auth on all routes:** none yet (no JWT guards).
+**Auth:** JWT Bearer on protected routes. **Public:** health, `POST /auth/login`, `POST /auth/refresh`, `GET /auth/status`.
 
-| Method | Path | Use |
-|--------|------|-----|
-| GET | `/health` | **Real** — liveness (`status`, `service`) |
-| GET | `/health/ready` | **Real** — Postgres + Redis + Drizzle (503 if down) |
-| GET | `/auth/status` | Stub — `implemented: false` |
-| GET | `/users/status` | Stub |
-| GET | `/organizations/status` | Stub |
-| GET | `/roles/status` | Stub |
-| GET | `/permissions/status` | Stub |
-| GET | `/audit/status` | Stub |
+| Method | Path | Permission / notes |
+|--------|------|------------------|
+| GET | `/health` | Public — liveness |
+| GET | `/health/ready` | Public — readiness (503 if down) |
+| POST | `/auth/login` | Public |
+| POST | `/auth/refresh` | Public |
+| POST | `/auth/logout` | Bearer |
+| GET | `/auth/me` | Bearer |
+| GET | `/organizations` | Bearer — paginated orgs for caller |
+| GET | `/organizations/:id` | Bearer — member or system admin |
+| GET | `/users?organizationId=` | `administration.view` + org context |
+| POST | `/users` | `administration.manage` — body includes `organizationId` |
+| PATCH | `/users/:id` | `administration.manage` — `X-Organization-Id` or query |
+| GET | `/permissions?organizationId=` | `administration.view` |
+| GET | `/modules?organizationId=` | `administration.view` — sidebar module list |
+| GET | `/roles?organizationId=` | `administration.view` |
+| GET | `/roles/editor-matrix?organizationId=` | `administration.view` — role editor rows |
+| POST | `/roles` | `administration.manage` — body `moduleAccess[]` preferred |
+| PATCH | `/roles/:id` | `administration.manage` — org header/query |
+| POST | `/roles/:id/assign` | `administration.manage` |
+| DELETE | `/roles/:id/assign` | `administration.manage` |
+| GET | `/audit?organizationId=` | `administration.view` |
 
-There are **no** `POST`/`PUT`/`PATCH`/`DELETE` endpoints yet. **Do not** build list/CRUD or login submit against invented shapes — wait for Auth MVP (`POST /auth/login`, `GET /auth/me`, etc.).
+Org context: `X-Organization-Id` header and/or `organizationId` query (POST bodies may include `organizationId`). Shapes: Swagger, OpenAPI, Postman.
 
 Route constants: `@grubpac/api-contracts`. Types: `@grubpac/shared-types`.
 
@@ -41,18 +53,19 @@ Route constants: `@grubpac/api-contracts`. Types: `@grubpac/shared-types`.
 
 Use `src/lib/api/client.ts` — `apiFetch<T>(path, { token })` throws `ApiClientError` with parsed backend error body.
 
-## Auth expectations (planned)
+## Auth flow
 
-1. Login POST → access token + refresh (shape TBD).
-2. Attach Bearer token to mutating requests.
-3. On `401`, attempt refresh once, then redirect to `/login`.
-4. Load permissions from `/auth/me` and pass into `filterNavByPermissions`.
+1. `POST /auth/login` with email/password → store `accessToken` (memory) + `refreshToken` (secure storage strategy TBD with FE).
+2. Send `Authorization: Bearer <accessToken>` on protected calls.
+3. On `401`, `POST /auth/refresh` once, then retry or redirect to `/login`.
+4. `GET /auth/me` → `moduleAccess` for sidebar modules (level ≠ NONE) and `permissionKeys` for route guards.
+5. `POST /auth/logout` when signing out.
 
-Until auth ships, dashboard health check calls public `GET /health`.
+Local dev API user: run `npm run db:seed -w backend` (credentials not in repo — ask backend owner).
 
 ## Permissions
 
-Nav items declare provisional keys (`fleet:VIEW`, etc.) matching backend seed catalog. Names may change after product sign-off.
+Nav items should use `moduleAccess` from `/auth/me` (Phase 1 module ids: `fleet_leasing`, `asset_register`, etc.). Route guards use dot keys such as `administration.manage`.
 
 ## Shared types
 

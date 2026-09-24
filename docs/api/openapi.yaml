@@ -9,8 +9,8 @@ info:
 
     Live Swagger UI when the backend is running: `/api/v1/docs`.
 
-    Auth login, refresh, logout, and `/auth/me` are planned; see `docs/architecture/auth-rbac-plan.md`.
-    They are not listed here until implemented.
+    Authentication: login, refresh, logout, and `/auth/me` (Bearer JWT access token).
+    Org-scoped admin routes require Bearer JWT plus organization context (`X-Organization-Id` and/or `organizationId` query/body). Permission keys use `module:VIEW` / `module:MANAGE` (Administration TSV Edit/Approve/Admin deferred — see auth-rbac-plan).
 servers:
   - url: http://localhost:4000/api/v1
     description: Local development (default backend port 4000)
@@ -24,17 +24,17 @@ tags:
   - name: health
     description: Liveness and readiness probes
   - name: auth
-    description: Authentication module (scaffold)
+    description: Authentication (JWT access + rotating refresh tokens)
   - name: users
-    description: Users module (scaffold)
+    description: Organization-scoped user administration
   - name: organizations
-    description: Organizations module (scaffold)
+    description: Organization listing and detail
   - name: roles
-    description: Roles module (scaffold)
+    description: Organization roles and assignments
   - name: permissions
-    description: Permissions catalog (scaffold)
+    description: Global permission catalog
   - name: audit
-    description: Audit logging module (scaffold)
+    description: Organization audit log queries
 paths:
   /health:
     get:
@@ -91,96 +91,507 @@ paths:
   /auth/status:
     get:
       tags: [auth]
-      summary: Auth module scaffold status
-      description: JWT login, refresh, guards, and token flows are planned but not implemented.
+      summary: Auth module implementation status
       operationId: getAuthStatus
       responses:
         '200':
-          description: Scaffold status
+          description: Module status
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthModuleStatus'
               example:
                 module: auth
-                implemented: false
-                note: Login, refresh, and JWT guards are planned; see docs/architecture/auth-rbac-plan.md
-  /users/status:
-    get:
-      tags: [users]
-      summary: Users module scaffold status
-      operationId: getUsersStatus
+                implemented: true
+                note: Login, refresh, logout, JWT guards, and /auth/me are available.
+  /auth/login:
+    post:
+      tags: [auth]
+      summary: Email and password login
+      operationId: postAuthLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
       responses:
-        '200':
-          description: Scaffold status
+        '201':
+          description: Access and refresh tokens issued
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModuleStatus'
-              example:
-                module: users
-                implemented: false
-  /organizations/status:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '429':
+          description: Login rate limit exceeded (Redis-backed when available)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate refresh token
+      operationId: postAuthRefresh
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '201':
+          description: New token pair; prior refresh token is revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPairResponse'
+        '401':
+          description: Invalid or expired refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoke refresh session(s)
+      operationId: postAuthLogout
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '201':
+          description: Refresh token(s) revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /auth/me:
+    get:
+      tags: [auth]
+      summary: Current user profile and effective permissions
+      operationId: getAuthMe
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User, org memberships, and permission key union
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthMeResponse'
+        '401':
+          description: Missing or invalid access token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /organizations:
     get:
       tags: [organizations]
-      summary: Organizations module scaffold status
-      operationId: getOrganizationsStatus
+      summary: List organizations the caller can access
+      operationId: listOrganizations
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Scaffold status
+          description: Paginated organizations
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModuleStatus'
-              example:
-                module: organizations
-                implemented: false
-  /roles/status:
+                $ref: '#/components/schemas/PaginatedOrganizations'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /organizations/{id}:
     get:
-      tags: [roles]
-      summary: Roles module scaffold status
-      operationId: getRolesStatus
+      tags: [organizations]
+      summary: Organization detail
+      operationId: getOrganizationById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
       responses:
         '200':
-          description: Scaffold status
+          description: Organization
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModuleStatus'
-              example:
-                module: roles
-                implemented: false
-  /permissions/status:
+                $ref: '#/components/schemas/Organization'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /users:
+    get:
+      tags: [users]
+      summary: List members in an organization
+      operationId: listUsersInOrganization
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated members
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedUsers'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [users]
+      summary: Create user and active membership
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserRequest'
+      responses:
+        '201':
+          description: Created user (may include temporaryPassword in non-production)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: Email conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /users/{id}:
+    patch:
+      tags: [users]
+      summary: Update user in organization scope
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMember'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /modules:
+    get:
+      tags: [modules]
+      summary: List sidebar modules for role editor (Phase 1)
+      operationId: listModules
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Module registry
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleRegistryResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /permissions:
     get:
       tags: [permissions]
-      summary: Permissions catalog scaffold status
-      operationId: getPermissionsStatus
+      summary: List permission catalog
+      operationId: listPermissions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Scaffold status
+          description: Paginated permission catalog
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModuleStatus'
-              example:
-                module: permissions
-                implemented: false
-  /audit/status:
+                $ref: '#/components/schemas/PaginatedPermissions'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /roles/editor-matrix:
+    get:
+      tags: [roles]
+      summary: Role editor module rows (NONE/VIEW/FULL)
+      operationId: getRoleEditorMatrix
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: roleId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Editor matrix for actor and optional role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleEditorMatrixResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /roles:
+    get:
+      tags: [roles]
+      summary: List organization roles
+      operationId: listRoles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated roles
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedRoles'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [roles]
+      summary: Create organization role
+      operationId: createRole
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleRequest'
+      responses:
+        '201':
+          description: Created role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /roles/{id}:
+    patch:
+      tags: [roles]
+      summary: Update organization role
+      operationId: updateRole
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Updated role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /roles/{id}/assign:
+    post:
+      tags: [roles]
+      summary: Assign role to user
+      operationId: assignRole
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleAssignmentRequest'
+      responses:
+        '201':
+          description: Assignment created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessFlag'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      tags: [roles]
+      summary: Remove role assignment
+      operationId: unassignRole
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoleAssignmentRequest'
+      responses:
+        '200':
+          description: Assignment removed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessFlag'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /audit:
     get:
       tags: [audit]
-      summary: Audit logging module scaffold status
-      operationId: getAuditStatus
+      summary: List audit logs for an organization
+      operationId: listAuditLogs
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Scaffold status
+          description: Paginated audit entries
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModuleStatus'
-              example:
-                module: audit
-                implemented: false
+                $ref: '#/components/schemas/PaginatedAuditLogs'
+        '403':
+          $ref: '#/components/responses/Forbidden'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    PageSizeParam:
+      name: pageSize
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 50
+        default: 20
+    OrganizationIdQuery:
+      name: organizationId
+      in: query
+      required: true
+      schema:
+        type: string
+        format: uuid
+    OrganizationIdHeader:
+      name: X-Organization-Id
+      in: header
+      required: true
+      schema:
+        type: string
+        format: uuid
+  responses:
+    Unauthorized:
+      description: Missing or invalid access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    Forbidden:
+      description: Permission or organization access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
   schemas:
     HealthLiveness:
       type: object
@@ -224,6 +635,476 @@ components:
           properties:
             note:
               type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+    RefreshRequest:
+      type: object
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 16
+    LogoutRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+          minLength: 16
+          description: When omitted, all active refresh tokens for the user are revoked.
+    TokenPairResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, expiresIn]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds
+    LogoutResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+    AuthMeResponse:
+      type: object
+      required: [user, memberships, permissionKeys, moduleAccess]
+      properties:
+        user:
+          type: object
+          required: [id, email, isActive]
+          properties:
+            id:
+              type: string
+              format: uuid
+            email:
+              type: string
+              format: email
+            fullName:
+              type: string
+              nullable: true
+            isActive:
+              type: boolean
+            emailVerifiedAt:
+              type: string
+              format: date-time
+              nullable: true
+        memberships:
+          type: array
+          items:
+            type: object
+            required:
+              - organizationId
+              - organizationName
+              - organizationSlug
+              - status
+              - roles
+              - permissionKeys
+            properties:
+              organizationId:
+                type: string
+                format: uuid
+              organizationName:
+                type: string
+              organizationSlug:
+                type: string
+              status:
+                type: string
+                enum: [invited, active, suspended]
+              joinedAt:
+                type: string
+                format: date-time
+                nullable: true
+              roles:
+                type: array
+                items:
+                  type: object
+                  required: [id, name, scope]
+                  properties:
+                    id:
+                      type: string
+                      format: uuid
+                    name:
+                      type: string
+                    scope:
+                      type: string
+                      enum: [system, organization]
+              permissionKeys:
+                type: array
+                items:
+                  type: string
+              moduleAccess:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ModuleAccessNavItem'
+        permissionKeys:
+          type: array
+          items:
+            type: string
+        moduleAccess:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleAccessNavItem'
+    ModuleAccessNavItem:
+      type: object
+      required: [moduleId, accessLevel]
+      properties:
+        moduleId:
+          type: string
+        accessLevel:
+          type: string
+          enum: [VIEW, FULL, CUSTOM]
+    ModuleAccessEntry:
+      type: object
+      required: [moduleId, accessLevel]
+      properties:
+        moduleId:
+          type: string
+        accessLevel:
+          type: string
+          enum: [NONE, VIEW, FULL]
+    ModuleRegistryResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, label, sortOrder, supportsManage]
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+              sortOrder:
+                type: integer
+              supportsManage:
+                type: boolean
+    RoleEditorMatrixResponse:
+      type: object
+      required: [organizationId, roleId, modules]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        roleId:
+          type: string
+          format: uuid
+          nullable: true
+        modules:
+          type: array
+          items:
+            type: object
+            required:
+              - moduleId
+              - label
+              - sortOrder
+              - allowedLevels
+              - actorMaxLevel
+              - roleLevel
+            properties:
+              moduleId:
+                type: string
+              label:
+                type: string
+              sortOrder:
+                type: integer
+              allowedLevels:
+                type: array
+                items:
+                  type: string
+                  enum: [NONE, VIEW, FULL]
+              actorMaxLevel:
+                type: string
+                enum: [NONE, VIEW, FULL, CUSTOM]
+              roleLevel:
+                type: string
+                enum: [NONE, VIEW, FULL, CUSTOM]
+    PaginationMeta:
+      type: object
+      required: [page, pageSize, total, totalPages]
+      properties:
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        total:
+          type: integer
+        totalPages:
+          type: integer
+    Organization:
+      type: object
+      required: [id, name, slug, isActive, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        isActive:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaginatedOrganizations:
+      allOf:
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Organization'
+        - $ref: '#/components/schemas/PaginationMeta'
+    UserMember:
+      type: object
+      required: [id, email, isActive, membershipStatus]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        fullName:
+          type: string
+          nullable: true
+        isActive:
+          type: boolean
+        membershipStatus:
+          type: string
+          enum: [invited, active, suspended]
+        joinedAt:
+          type: string
+          format: date-time
+          nullable: true
+    PaginatedUsers:
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserMember'
+        - $ref: '#/components/schemas/PaginationMeta'
+    CreateUserRequest:
+      type: object
+      required: [organizationId, email]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        fullName:
+          type: string
+        password:
+          type: string
+          minLength: 8
+        isActive:
+          type: boolean
+    CreateUserResponse:
+      allOf:
+        - $ref: '#/components/schemas/UserMember'
+        - type: object
+          properties:
+            temporaryPassword:
+              type: string
+              description: Returned once in non-production when password omitted
+    UpdateUserRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+        isActive:
+          type: boolean
+    PermissionCatalogItem:
+      type: object
+      required: [id, key, module, action]
+      properties:
+        id:
+          type: string
+          format: uuid
+        key:
+          type: string
+        module:
+          type: string
+        action:
+          type: string
+        description:
+          type: string
+          nullable: true
+    PaginatedPermissions:
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/PermissionCatalogItem'
+        - $ref: '#/components/schemas/PaginationMeta'
+    Role:
+      type: object
+      required: [id, name, scope, isSystem, permissionKeys, moduleAccess]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+        name:
+          type: string
+        scope:
+          type: string
+          enum: [system, organization]
+        description:
+          type: string
+          nullable: true
+        isSystem:
+          type: boolean
+        permissionKeys:
+          type: array
+          items:
+            type: string
+        moduleAccess:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleAccessEntry'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PaginatedRoles:
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/Role'
+        - $ref: '#/components/schemas/PaginationMeta'
+    CreateRoleRequest:
+      type: object
+      required: [organizationId, name]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        moduleAccess:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleAccessEntry'
+        permissionKeys:
+          type: array
+          items:
+            type: string
+          description: Alternate contract; ignored when moduleAccess is set
+    UpdateRoleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        moduleAccess:
+          type: array
+          items:
+            $ref: '#/components/schemas/ModuleAccessEntry'
+        permissionKeys:
+          type: array
+          items:
+            type: string
+    RoleAssignmentRequest:
+      type: object
+      required: [organizationId, userId]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+    SuccessFlag:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+    AuditLogEntry:
+      type: object
+      required: [id, action, status, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+          nullable: true
+        userId:
+          type: string
+          format: uuid
+          nullable: true
+        action:
+          type: string
+        resourceType:
+          type: string
+          nullable: true
+        resourceId:
+          type: string
+          nullable: true
+        status:
+          type: string
+        metadata:
+          type: object
+          nullable: true
+        ipAddress:
+          type: string
+          nullable: true
+        correlationId:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+    PaginatedAuditLogs:
+      allOf:
+        - type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AuditLogEntry'
+        - $ref: '#/components/schemas/PaginationMeta'
     ApiError:
       type: object
       required: [message, code, statusCode]
