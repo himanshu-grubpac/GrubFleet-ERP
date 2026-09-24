@@ -20,4 +20,4 @@ npm run dev -w frontend
 - Swagger: http://localhost:4000/api/v1/docs  
 - Web: http://localhost:3000  
 
-Documentation: `docs/`. Local agent files: `.cursor/`, `.project-tracking/` (gitignored).
+Further documentation lives in [`docs/`](docs/).

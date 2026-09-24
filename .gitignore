@@ -1,4 +1,4 @@
-# Local agent / tracking (never commit)
+# Local-only paths
 .cursor/
 .ai/
 .project-tracking/

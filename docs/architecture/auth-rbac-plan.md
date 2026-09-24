@@ -24,7 +24,7 @@
 2. **Roles** — org-scoped or `system` scope; linked via `role_permissions`.
 3. **Assignments** — `user_roles` with optional `organization_id` for tenant scope.
 
-Open product questions are tracked in `.project-tracking/REQUIREMENTS_GAPS.local.md` (local, gitignored).
+Open product questions (e.g. refresh-token storage, SSO timeline) should be captured in the team backlog or issue tracker before implementation.
 
 ## Backend implementation steps
 
