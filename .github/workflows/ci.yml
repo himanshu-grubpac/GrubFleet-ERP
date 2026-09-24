@@ -55,6 +55,17 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci --include=optional
+      - name: Wait for Postgres
+        run: |
+          for i in $(seq 1 30); do
+            if (echo > /dev/tcp/127.0.0.1/5432) >/dev/null 2>&1; then
+              echo "Postgres is accepting connections"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Postgres did not become ready in time"
+          exit 1
       - name: Migrate database
         run: npm run db:migrate -w backend
       - name: Lint backend
@@ -76,8 +87,12 @@ jobs:
           cache: npm
       - name: Install
         run: npm ci --include=optional
-      - name: Install Lightning CSS native binding (Linux CI)
-        run: npm install --no-save lightningcss-linux-x64-gnu@1.32.0 -w frontend
+      - name: Install Tailwind/Lightning native bindings (Linux CI)
+        run: |
+          npm install --no-save \
+            @tailwindcss/oxide-linux-x64-gnu@4.3.3 \
+            lightningcss-linux-x64-gnu@1.32.0 \
+            -w frontend
       - name: Lint frontend
         run: npm run lint -w frontend
       - name: Typecheck frontend
