@@ -94,7 +94,7 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
 
   let roleId = roleRows[0]?.id;
   if (!roleId) {
-    const insertedRole = await db
+    await db
       .insert(roles)
       .values({
         organizationId,
@@ -103,8 +103,21 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
         description: 'Dev bootstrap admin with provisional module permissions',
         isSystem: false,
       })
-      .returning({ id: roles.id });
-    roleId = insertedRole[0]?.id;
+      .onConflictDoNothing({
+        target: [roles.organizationId, roles.name],
+      });
+
+    const resolvedRole = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(
+        and(
+          eq(roles.name, DEV_ADMIN_ROLE_NAME),
+          eq(roles.organizationId, organizationId),
+        ),
+      )
+      .limit(1);
+    roleId = resolvedRole[0]?.id;
   }
 
   if (!roleId) {
