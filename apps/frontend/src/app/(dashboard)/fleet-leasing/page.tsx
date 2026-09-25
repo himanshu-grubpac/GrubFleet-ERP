@@ -1,10 +1,5 @@
-import { ModuleShell } from '@/components/modules/module-shell';
+import { FleetLeasingModule } from '@/components/modules/fleet-leasing';
 
 export default function FleetLeasingPage() {
-  return (
-    <ModuleShell
-      title="Fleet & leasing"
-      description="Fleet operations shell — no leasing business logic in this foundation."
-    />
-  );
+  return <FleetLeasingModule />;
 }

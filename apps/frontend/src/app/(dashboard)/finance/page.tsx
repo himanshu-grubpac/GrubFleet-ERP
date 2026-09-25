@@ -1,5 +1,5 @@
-import { ModuleShell } from '@/components/modules/module-shell';
+import { FinanceModule } from '@/components/modules/finance';
 
 export default function FinancePage() {
-  return <ModuleShell title="Finance" description="Ledger and billing shells (planned)." />;
+  return <FinanceModule />;
 }
