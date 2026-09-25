@@ -409,6 +409,84 @@
             "description": "GET .../confirmation — allocationByLine, infoMessages; active, awaiting_assets, or approved."
           },
           "response": []
+        },
+        {
+          "name": "Get lease contract detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}?organizationId={{organizationId}}",
+            "description": "GET .../{id} — subtitle, statusTags, statusBanner, lifecycleLogs, availableActions, returnProgress, terminatedAt."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/deactivate?organizationId={{organizationId}}",
+            "description": "POST .../deactivate — active only; onHold true, billing continues."
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivate lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/reactivate?organizationId={{organizationId}}",
+            "description": "POST .../reactivate — direct to active/awaiting_assets; no approval."
+          },
+          "response": []
+        },
+        {
+          "name": "Pause lease contract billing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/pause-billing?organizationId={{organizationId}}",
+            "description": "POST .../pause-billing — requires returnProgress.canPauseBilling."
+          },
+          "response": []
+        },
+        {
+          "name": "Request lease contract termination",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/request-termination?organizationId={{organizationId}}",
+            "description": "POST .../request-termination — from deactivated/billing_paused; pending Contract Admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve lease contract termination",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/approve-termination?organizationId={{organizationId}}",
+            "description": "POST .../approve-termination — closes contract; deposit settle is messaging stub until Finance integration."
+          },
+          "response": []
         }
       ]
     }

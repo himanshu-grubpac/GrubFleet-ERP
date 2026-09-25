@@ -1,14 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import {
-  and,
-  desc,
-  eq,
-  exists,
-  ilike,
-  inArray,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, desc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
 import {
@@ -21,6 +12,7 @@ import {
   leaseContractEvents,
   leaseContracts,
   leaseContractVehicles,
+  users,
 } from '../../../database/schema';
 import type { LeaseContractStatus } from '../constants/lease-contract-status';
 
@@ -173,6 +165,25 @@ export class FleetLeasingRepository {
       .limit(limit);
   }
 
+  async findUserDisplayLabels(userIds: string[]): Promise<Map<string, string>> {
+    const unique = [...new Set(userIds.filter(Boolean))];
+    const out = new Map<string, string>();
+    if (unique.length === 0) return out;
+    const rows = await this.db
+      .select({
+        id: users.id,
+        fullName: users.fullName,
+        email: users.email,
+      })
+      .from(users)
+      .where(inArray(users.id, unique));
+    for (const row of rows) {
+      const label = row.fullName?.trim() || row.email?.trim() || 'Unknown user';
+      out.set(row.id, label);
+    }
+    return out;
+  }
+
   async countRegisteredReturns(contractId: string): Promise<number> {
     const [row] = await this.db
       .select({ count: sql<number>`count(*)::int` })
@@ -253,7 +264,10 @@ export class FleetLeasingRepository {
   async insertContract(
     values: typeof leaseContracts.$inferInsert,
   ): Promise<typeof leaseContracts.$inferSelect> {
-    const [row] = await this.db.insert(leaseContracts).values(values).returning();
+    const [row] = await this.db
+      .insert(leaseContracts)
+      .values(values)
+      .returning();
     return row;
   }
 
@@ -297,9 +311,9 @@ export class FleetLeasingRepository {
       .delete(leaseContractVehicles)
       .where(eq(leaseContractVehicles.contractId, contractId));
     if (vehicleIds.length === 0) return;
-    await this.db.insert(leaseContractVehicles).values(
-      vehicleIds.map((vehicleId) => ({ contractId, vehicleId })),
-    );
+    await this.db
+      .insert(leaseContractVehicles)
+      .values(vehicleIds.map((vehicleId) => ({ contractId, vehicleId })));
   }
 
   async insertEvent(values: typeof leaseContractEvents.$inferInsert) {
@@ -310,9 +324,7 @@ export class FleetLeasingRepository {
     return row;
   }
 
-  async insertApproval(
-    values: typeof fleetApprovalRequests.$inferInsert,
-  ) {
+  async insertApproval(values: typeof fleetApprovalRequests.$inferInsert) {
     const [row] = await this.db
       .insert(fleetApprovalRequests)
       .values(values)
@@ -320,7 +332,10 @@ export class FleetLeasingRepository {
     return row;
   }
 
-  async findPendingApproval(contractId: string, sourceType: 'contract_rate_exception' | 'contract_termination') {
+  async findPendingApproval(
+    contractId: string,
+    sourceType: 'contract_rate_exception' | 'contract_termination',
+  ) {
     const [row] = await this.db
       .select()
       .from(fleetApprovalRequests)
@@ -519,11 +534,17 @@ export class FleetLeasingRepository {
   }
 
   async insertVehicle(values: typeof fleetVehicles.$inferInsert) {
-    const [row] = await this.db.insert(fleetVehicles).values(values).returning();
+    const [row] = await this.db
+      .insert(fleetVehicles)
+      .values(values)
+      .returning();
     return row;
   }
 
-  async updateVehicleStatus(vehicleId: string, status: 'available' | 'leased' | 'returned') {
+  async updateVehicleStatus(
+    vehicleId: string,
+    status: 'available' | 'leased' | 'returned',
+  ) {
     await this.db
       .update(fleetVehicles)
       .set({ status, updatedAt: new Date() })

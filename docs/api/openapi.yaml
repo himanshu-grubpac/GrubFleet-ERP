@@ -777,9 +777,144 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Contract detail with lines and logs
+          description: Contract detail with lines, lifecycle logs, status banner, and available actions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
         '404':
           $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [fleet-leasing]
+      summary: Update draft/active contract fields and lines
+      operationId: updateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/deactivate:
+    post:
+      tags: [fleet-leasing]
+      summary: Deactivate active contract (on hold; billing continues)
+      operationId: deactivateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deactivated contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/reactivate:
+    post:
+      tags: [fleet-leasing]
+      summary: Reactivate deactivated contract (direct — no approval)
+      operationId: reactivateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Reactivated contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/pause-billing:
+    post:
+      tags: [fleet-leasing]
+      summary: Pause billing after all vehicles returned and registered
+      operationId: pauseLeaseContractBilling
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract detail with billing paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/request-termination:
+    post:
+      tags: [fleet-leasing]
+      summary: Request contract termination (Contract Admin approval required)
+      operationId: requestLeaseContractTermination
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract pending termination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/approve-termination:
+    post:
+      tags: [fleet-leasing]
+      summary: Approve termination — closes contract (deposit settle stub)
+      operationId: approveLeaseContractTermination
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Closed contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
   /fleet-leasing/clients:
     get:
       tags: [fleet-leasing]
@@ -1439,6 +1574,163 @@ components:
               items:
                 $ref: '#/components/schemas/AuditLogEntry'
         - $ref: '#/components/schemas/PaginationMeta'
+    LeaseContractAvailableAction:
+      type: object
+      required: [allowed]
+      properties:
+        allowed:
+          type: boolean
+        disabledReason:
+          type: string
+          nullable: true
+    LeaseContractStatusBanner:
+      type: object
+      required: [level, text]
+      properties:
+        level:
+          type: string
+          enum: [success, info, warning]
+        text:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+        actorLabel:
+          type: string
+          nullable: true
+    LeaseContractLifecycleLog:
+      type: object
+      required: [id, eventType, message, occurredAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        message:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        actorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        actorLabel:
+          type: string
+          nullable: true
+    LeaseContractDetail:
+      type: object
+      required:
+        - id
+        - contractNumber
+        - status
+        - rawStatus
+        - subtitle
+        - statusTags
+        - availableActions
+        - lifecycleLogs
+        - logs
+        - returnProgress
+        - assetLines
+      properties:
+        id:
+          type: string
+          format: uuid
+        contractNumber:
+          type: string
+        status:
+          type: string
+          description: Public status label (e.g. Active, Deactivated, Closed)
+        rawStatus:
+          type: string
+        subtitle:
+          type: string
+        statusTags:
+          type: array
+          items:
+            type: string
+        statusBanner:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/LeaseContractStatusBanner'
+        availableActions:
+          type: object
+          required:
+            - editContract
+            - deactivate
+            - reactivate
+            - pauseBilling
+            - requestTermination
+            - approveTermination
+            - renew
+          properties:
+            editContract:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            deactivate:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            reactivate:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            pauseBilling:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            requestTermination:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            approveTermination:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            renew:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+        lifecycleLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaseContractLifecycleLog'
+        logs:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/LeaseContractLifecycleLog'
+              - type: object
+                properties:
+                  createdAt:
+                    type: string
+                    format: date-time
+        returnProgress:
+          type: object
+          required:
+            - returnedRegisteredCount
+            - committedVehicleCount
+            - canPauseBilling
+          properties:
+            returnedRegisteredCount:
+              type: integer
+            committedVehicleCount:
+              type: integer
+            canPauseBilling:
+              type: boolean
+        deactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        terminatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        terminationApprovedAt:
+          type: string
+          format: date-time
+          nullable: true
+        billingPaused:
+          type: boolean
+        onHold:
+          type: boolean
+        assetLines:
+          type: array
+          items:
+            type: object
     ApiError:
       type: object
       required: [message, code, statusCode]
