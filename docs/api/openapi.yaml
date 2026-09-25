@@ -10,7 +10,7 @@ info:
     Live Swagger UI when the backend is running: `/api/v1/docs`.
 
     Authentication: login, refresh, logout, and `/auth/me` (Bearer JWT access token).
-    Org-scoped admin routes require Bearer JWT plus organization context (`X-Organization-Id` and/or `organizationId` query/body). Permission keys use `module:VIEW` / `module:MANAGE` (Administration TSV Edit/Approve/Admin deferred — see auth-rbac-plan).
+    Org-scoped admin routes require Bearer JWT plus organization context (`X-Organization-Id` and/or `organizationId` query/body). Module access levels are NONE / VIEW / MANAGE / FULL; permission keys use dot notation (e.g. `administration.view`, `administration.create`). MANAGE expands to view plus CRUD keys; FULL adds legacy `{module}.manage`. Admin mutations accept `{module}.manage` or the matching CRUD key. TSV Edit/Approve/Admin types deferred — see auth-rbac-plan.
 servers:
   - url: http://localhost:4000/api/v1
     description: Local development (default backend port 4000)
@@ -368,7 +368,7 @@ paths:
   /roles/editor-matrix:
     get:
       tags: [roles]
-      summary: Role editor module rows (NONE/VIEW/FULL)
+      summary: Role editor module rows (NONE/VIEW/MANAGE/FULL)
       operationId: getRoleEditorMatrix
       security:
         - bearerAuth: []
@@ -747,6 +747,12 @@ components:
                 type: array
                 items:
                   type: string
+              permissionRevision:
+                type: integer
+                minimum: 0
+                description: >
+                  Org-scoped permission revision; increases when roles or assignments
+                  change. Clients may refetch /auth/me when this value changes.
               moduleAccess:
                 type: array
                 items:
@@ -767,7 +773,7 @@ components:
           type: string
         accessLevel:
           type: string
-          enum: [VIEW, FULL, CUSTOM]
+          enum: [VIEW, MANAGE, FULL, CUSTOM]
     ModuleAccessEntry:
       type: object
       required: [moduleId, accessLevel]
@@ -776,7 +782,7 @@ components:
           type: string
         accessLevel:
           type: string
-          enum: [NONE, VIEW, FULL]
+          enum: [NONE, VIEW, MANAGE, FULL]
     ModuleRegistryResponse:
       type: object
       required: [items]
@@ -828,13 +834,13 @@ components:
                 type: array
                 items:
                   type: string
-                  enum: [NONE, VIEW, FULL]
+                  enum: [NONE, VIEW, MANAGE, FULL]
               actorMaxLevel:
                 type: string
-                enum: [NONE, VIEW, FULL, CUSTOM]
+                enum: [NONE, VIEW, MANAGE, FULL, CUSTOM]
               roleLevel:
                 type: string
-                enum: [NONE, VIEW, FULL, CUSTOM]
+                enum: [NONE, VIEW, MANAGE, FULL, CUSTOM]
     PaginationMeta:
       type: object
       required: [page, pageSize, total, totalPages]

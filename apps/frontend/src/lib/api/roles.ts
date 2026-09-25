@@ -9,7 +9,7 @@ export type RoleEditorMatrixRow = {
   moduleId: string;
   label: string;
   sortOrder: number;
-  allowedLevels: Array<'NONE' | 'VIEW' | 'FULL'>;
+  allowedLevels: Array<'NONE' | 'VIEW' | 'MANAGE' | 'FULL'>;
   actorMaxLevel: ModuleAccessLevel;
   roleLevel: ModuleAccessLevel;
 };
@@ -26,7 +26,7 @@ export interface CreateRolePayload {
   description?: string;
   moduleAccess?: Array<{
     moduleId: string;
-    accessLevel: 'VIEW' | 'FULL';
+    accessLevel: 'VIEW' | 'MANAGE' | 'FULL';
   }>;
 }
 
@@ -35,7 +35,7 @@ export interface UpdateRolePayload {
   description?: string;
   moduleAccess?: Array<{
     moduleId: string;
-    accessLevel: 'VIEW' | 'FULL';
+    accessLevel: 'VIEW' | 'MANAGE' | 'FULL';
   }>;
 }
 

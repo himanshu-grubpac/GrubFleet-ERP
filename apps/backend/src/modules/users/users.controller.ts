@@ -13,8 +13,12 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { RequireOrganizationContext } from '../auth/authorization/decorators/require-organization-context.decorator';
+import { RequireAnyPermissions } from '../auth/authorization/decorators/require-any-permissions.decorator';
 import { RequirePermissions } from '../auth/authorization/decorators/require-permissions.decorator';
-import { PermissionKeys } from '../auth/authorization/constants/permission-keys';
+import {
+  AdministrationWriteAny,
+  PermissionKeys,
+} from '../auth/authorization/constants/permission-keys';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ListUsersQueryDto } from './dto/list-users-query.dto';
@@ -41,7 +45,7 @@ export class UsersController {
 
   @Post()
   @RequireOrganizationContext()
-  @RequirePermissions(PermissionKeys.ADMINISTRATION_MANAGE)
+  @RequireAnyPermissions(...AdministrationWriteAny.CREATE)
   @ApiOperation({ summary: 'Create user and active membership' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateUserDto) {
     return this.usersService.createUser(user.userId, dto);
@@ -49,7 +53,7 @@ export class UsersController {
 
   @Patch(':id')
   @RequireOrganizationContext()
-  @RequirePermissions(PermissionKeys.ADMINISTRATION_MANAGE)
+  @RequireAnyPermissions(...AdministrationWriteAny.UPDATE)
   @ApiOperation({ summary: 'Update user profile fields in org scope' })
   update(
     @CurrentUser() user: AuthenticatedUser,

@@ -10,6 +10,7 @@ import type { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../../../../common/decorators/public.decorator';
 import { AuthorizationService } from '../authorization.service';
 import { REQUIRE_ORGANIZATION_CONTEXT_KEY } from '../decorators/require-organization-context.decorator';
+import { REQUIRED_ANY_PERMISSIONS_KEY } from '../decorators/require-any-permissions.decorator';
 import { REQUIRED_PERMISSIONS_KEY } from '../decorators/require-permissions.decorator';
 
 @Injectable()
@@ -34,13 +35,21 @@ export class PermissionsGuard implements CanActivate {
         context.getClass(),
       ]) ?? [];
 
+    const requiredAnyPermissions =
+      this.reflector.getAllAndOverride<string[]>(REQUIRED_ANY_PERMISSIONS_KEY, [
+        context.getHandler(),
+        context.getClass(),
+      ]) ?? [];
+
     const requireOrgContext = this.reflector.getAllAndOverride<boolean>(
       REQUIRE_ORGANIZATION_CONTEXT_KEY,
       [context.getHandler(), context.getClass()],
     );
 
     const needsOrgContext =
-      requireOrgContext === true || requiredPermissions.length > 0;
+      requireOrgContext === true ||
+      requiredPermissions.length > 0 ||
+      requiredAnyPermissions.length > 0;
 
     const request = context.switchToHttp().getRequest<Request>();
     const user = request.user;
@@ -69,18 +78,27 @@ export class PermissionsGuard implements CanActivate {
       });
     }
 
-    if (requiredPermissions.length > 0) {
+    if (requiredPermissions.length > 0 || requiredAnyPermissions.length > 0) {
       if (!organizationId) {
         throw new ForbiddenException({
           message: 'Organization context is required for permission checks',
           code: 'ORGANIZATION_CONTEXT_REQUIRED',
         });
       }
-      await this.authorizationService.assertPermissions(
-        user.userId,
-        organizationId,
-        requiredPermissions,
-      );
+      if (requiredPermissions.length > 0) {
+        await this.authorizationService.assertPermissions(
+          user.userId,
+          organizationId,
+          requiredPermissions,
+        );
+      }
+      if (requiredAnyPermissions.length > 0) {
+        await this.authorizationService.assertAnyPermission(
+          user.userId,
+          organizationId,
+          requiredAnyPermissions,
+        );
+      }
     }
 
     return true;

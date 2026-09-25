@@ -412,6 +412,28 @@ describe('RBAC admin (integration)', () => {
     expect(created.permissionKeys).toEqual(['fleet_leasing.view']);
     expect(created.permissionKeys).not.toContain('fleet_leasing.manage');
 
+    const manageRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: `Fleet Manage Role ${Date.now()}`,
+        moduleAccess: [{ moduleId: 'fleet_leasing', accessLevel: 'MANAGE' }],
+      })
+      .expect(201);
+
+    const manageBody = manageRes.body as { permissionKeys: string[] };
+    expect(manageBody.permissionKeys).toEqual(
+      expect.arrayContaining([
+        'fleet_leasing.view',
+        'fleet_leasing.create',
+        'fleet_leasing.update',
+        'fleet_leasing.delete',
+      ]),
+    );
+    expect(manageBody.permissionKeys).not.toContain('fleet_leasing.manage');
+
     await request(app.getHttpServer())
       .post('/api/v1/users')
       .query({ organizationId })
@@ -449,6 +471,7 @@ describe('RBAC admin (integration)', () => {
     };
     expect(body.modules.length).toBeGreaterThan(5);
     const fleetRow = body.modules.find((m) => m.moduleId === 'fleet_leasing');
+    expect(fleetRow?.allowedLevels).toContain('MANAGE');
     expect(fleetRow?.allowedLevels).toContain('FULL');
   });
 
@@ -477,6 +500,83 @@ describe('RBAC admin (integration)', () => {
       .expect(200);
   });
 
+  it('administration MANAGE tier allows user create without administration.manage', async () => {
+    const roleName = `Admin Manage Only ${Date.now()}`;
+    const createRoleRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: roleName,
+        moduleAccess: [
+          { moduleId: 'dashboard', accessLevel: 'VIEW' },
+          { moduleId: 'administration', accessLevel: 'MANAGE' },
+        ],
+      })
+      .expect(201);
+
+    const manageRole = createRoleRes.body as {
+      id: string;
+      permissionKeys: string[];
+    };
+    expect(manageRole.permissionKeys).toContain('administration.create');
+    expect(manageRole.permissionKeys).not.toContain('administration.manage');
+
+    const operatorEmail = `admin.manage.op.${Date.now()}@grubpac.local`;
+    const operatorPassword = 'AdminManageOp123!';
+    const createUserRes = await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        email: operatorEmail,
+        password: operatorPassword,
+        fullName: 'Admin Manage Operator',
+      })
+      .expect(201);
+
+    const operatorId = (createUserRes.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/roles/${manageRole.id}/assign`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ organizationId, userId: operatorId })
+      .expect(201);
+
+    const operatorLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: operatorEmail, password: operatorPassword })
+      .expect(201);
+    const operatorToken = (operatorLogin.body as { accessToken: string })
+      .accessToken;
+
+    await request(app.getHttpServer())
+      .post('/api/v1/users')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${operatorToken}`)
+      .send({
+        organizationId,
+        email: `created.by.manage.${Date.now()}@grubpac.local`,
+        fullName: 'Created By Manage Tier',
+      })
+      .expect(201);
+
+    const meRes = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${operatorToken}`)
+      .expect(200);
+    const meBody = meRes.body as {
+      moduleAccess: Array<{ moduleId: string; accessLevel: string }>;
+    };
+    const adminMod = meBody.moduleAccess.find(
+      (m) => m.moduleId === 'administration',
+    );
+    expect(adminMod?.accessLevel).toBe('MANAGE');
+  });
+
   it('GET /auth/me includes moduleAccess', async () => {
     const res = await request(app.getHttpServer())
       .get('/api/v1/auth/me')
@@ -485,9 +585,89 @@ describe('RBAC admin (integration)', () => {
 
     const body = res.body as {
       moduleAccess: Array<{ moduleId: string }>;
-      memberships: Array<{ moduleAccess: unknown[] }>;
+      memberships: Array<{
+        moduleAccess: unknown[];
+        permissionRevision: number;
+      }>;
     };
     expect(body.moduleAccess.length).toBeGreaterThan(0);
     expect(body.memberships[0]?.moduleAccess.length).toBeGreaterThan(0);
+    expect(typeof body.memberships[0]?.permissionRevision).toBe('number');
+  });
+
+  it('invalidates permission cache after role update and assign', async () => {
+    const rolesRes = await request(app.getHttpServer())
+      .get('/api/v1/roles')
+      .query({ organizationId, page: 1, pageSize: 50 })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+    const viewerRole = (
+      rolesRes.body as { items: Array<{ id: string; name: string }> }
+    ).items.find((r) => r.name === 'RBAC Viewer Only');
+    expect(viewerRole).toBeDefined();
+
+    await request(app.getHttpServer())
+      .get('/api/v1/audit')
+      .query({ organizationId, page: 1 })
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(200);
+
+    const meBefore = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(200);
+    const membershipBefore = (
+      meBefore.body as {
+        memberships: Array<{
+          organizationId: string;
+          permissionKeys: string[];
+          permissionRevision: number;
+        }>;
+      }
+    ).memberships.find((m) => m.organizationId === organizationId);
+    expect(membershipBefore?.permissionKeys).toContain('administration.view');
+    const revisionBefore = membershipBefore?.permissionRevision ?? 0;
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${viewerRole!.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/audit')
+      .query({ organizationId, page: 1 })
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(403);
+
+    const meAfter = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(200);
+    const membershipAfter = (
+      meAfter.body as {
+        memberships: Array<{
+          organizationId: string;
+          permissionKeys: string[];
+          permissionRevision: number;
+        }>;
+      }
+    ).memberships.find((m) => m.organizationId === organizationId);
+    expect(membershipAfter?.permissionKeys).not.toContain(
+      'administration.view',
+    );
+    expect(membershipAfter?.permissionRevision).toBeGreaterThan(revisionBefore);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${viewerRole!.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        moduleAccess: [{ moduleId: 'administration', accessLevel: 'VIEW' }],
+      })
+      .expect(200);
   });
 });

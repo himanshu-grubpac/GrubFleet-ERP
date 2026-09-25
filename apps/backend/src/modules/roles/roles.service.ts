@@ -15,6 +15,7 @@ import {
   isKnownErpModuleId,
 } from '../auth/authorization/constants/erp-module-registry';
 import {
+  allowedLevelsForActor,
   deriveModuleAccessFromKeys,
   deriveModuleAccessFromKeysDetailed,
   expandModuleAccess,
@@ -48,7 +49,7 @@ export type RoleEditorMatrixRow = {
   moduleId: string;
   label: string;
   sortOrder: number;
-  allowedLevels: Array<'NONE' | 'VIEW' | 'FULL'>;
+  allowedLevels: Array<'NONE' | 'VIEW' | 'MANAGE' | 'FULL'>;
   actorMaxLevel: ModuleAccessLevel;
   roleLevel: ModuleAccessLevel;
 };
@@ -120,28 +121,38 @@ export class RolesService {
       const actorMaxLevel = resolveModuleAccessLevel(actorKeys, mod.id);
       const roleRow = roleLevels.find((r) => r.moduleId === mod.id);
       const roleLevel = roleRow?.accessLevel ?? 'NONE';
-      const allowedLevels: Array<'NONE' | 'VIEW' | 'FULL'> = ['NONE'];
-      if (actorMaxLevel === 'FULL' || actorMaxLevel === 'CUSTOM') {
-        allowedLevels.push('VIEW', 'FULL');
-      } else if (actorMaxLevel === 'VIEW') {
-        allowedLevels.push('VIEW');
-      }
       if (roleLevel === 'CUSTOM') {
+        const allowedLevels = allowedLevelsForActor(
+          actorMaxLevel,
+          mod.supportsManage,
+        );
+        const actorMaxForUi =
+          actorMaxLevel === 'CUSTOM'
+            ? ('FULL' as ModuleAccessLevel)
+            : actorMaxLevel;
         return {
           moduleId: mod.id,
           label: mod.label,
           sortOrder: mod.sortOrder,
-          allowedLevels: [],
-          actorMaxLevel,
+          allowedLevels,
+          actorMaxLevel: actorMaxForUi,
           roleLevel: 'CUSTOM',
         };
       }
+      const allowedLevels = allowedLevelsForActor(
+        actorMaxLevel,
+        mod.supportsManage,
+      );
+      const actorMaxForUi =
+        actorMaxLevel === 'CUSTOM'
+          ? ('FULL' as ModuleAccessLevel)
+          : actorMaxLevel;
       return {
         moduleId: mod.id,
         label: mod.label,
         sortOrder: mod.sortOrder,
         allowedLevels,
-        actorMaxLevel: actorMaxLevel === 'CUSTOM' ? 'FULL' : actorMaxLevel,
+        actorMaxLevel: actorMaxForUi,
         roleLevel,
       };
     });
@@ -274,8 +285,14 @@ export class RolesService {
       });
     }
 
+    const affectedUserIds =
+      await this.rolesRepository.listUserIdsWithRoleInOrganization(
+        roleId,
+        organizationId,
+      );
     await this.authorizationService.invalidateOrganizationPermissions(
       organizationId,
+      affectedUserIds,
     );
 
     await this.auditService.log({
@@ -344,6 +361,7 @@ export class RolesService {
     });
     await this.authorizationService.invalidateOrganizationPermissions(
       dto.organizationId,
+      [dto.userId],
     );
 
     await this.auditService.log({
@@ -396,6 +414,7 @@ export class RolesService {
 
     await this.authorizationService.invalidateOrganizationPermissions(
       dto.organizationId,
+      [dto.userId],
     );
 
     await this.auditService.log({
@@ -416,7 +435,7 @@ export class RolesService {
       const keys = expandModuleAccess(dto.moduleAccess);
       if (keys.length === 0) {
         throw new BadRequestException({
-          message: 'At least one module must have VIEW or FULL access',
+          message: 'At least one module must have VIEW, MANAGE, or FULL access',
           code: 'MODULE_ACCESS_EMPTY',
         });
       }
@@ -457,13 +476,29 @@ export class RolesService {
       }
     }
     const hasGrant = entries.some(
-      (e) => e.accessLevel === 'VIEW' || e.accessLevel === 'FULL',
+      (e) =>
+        e.accessLevel === 'VIEW' ||
+        e.accessLevel === 'MANAGE' ||
+        e.accessLevel === 'FULL',
     );
     if (requireGrant && !hasGrant) {
       throw new BadRequestException({
-        message: 'At least one module must have VIEW or FULL access',
+        message: 'At least one module must have VIEW, MANAGE, or FULL access',
         code: 'MODULE_ACCESS_EMPTY',
       });
+    }
+    for (const entry of entries) {
+      const mod = ERP_MODULES.find((m) => m.id === entry.moduleId);
+      if (
+        mod &&
+        !mod.supportsManage &&
+        (entry.accessLevel === 'MANAGE' || entry.accessLevel === 'FULL')
+      ) {
+        throw new BadRequestException({
+          message: `Module ${entry.moduleId} does not support MANAGE or FULL`,
+          code: 'INVALID_MODULE_ACCESS_LEVEL',
+        });
+      }
     }
   }
 

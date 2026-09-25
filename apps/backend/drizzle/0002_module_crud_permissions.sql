@@ -1,0 +1,31 @@
+INSERT INTO "permissions" ("key", "module", "action", "kind", "description")
+VALUES
+  ('fleet_leasing.create', 'fleet_leasing', 'create', 'create', 'Create records in Fleet & Leasing module'),
+  ('fleet_leasing.update', 'fleet_leasing', 'update', 'update', 'Update records in Fleet & Leasing module'),
+  ('fleet_leasing.delete', 'fleet_leasing', 'delete', 'delete', 'Delete records in Fleet & Leasing module'),
+  ('asset_register.create', 'asset_register', 'create', 'create', 'Create records in Asset Register module'),
+  ('asset_register.update', 'asset_register', 'update', 'update', 'Update records in Asset Register module'),
+  ('asset_register.delete', 'asset_register', 'delete', 'delete', 'Delete records in Asset Register module'),
+  ('workshop.create', 'workshop', 'create', 'create', 'Create records in Workshop module'),
+  ('workshop.update', 'workshop', 'update', 'update', 'Update records in Workshop module'),
+  ('workshop.delete', 'workshop', 'delete', 'delete', 'Delete records in Workshop module'),
+  ('inventory.create', 'inventory', 'create', 'create', 'Create records in Inventory module'),
+  ('inventory.update', 'inventory', 'update', 'update', 'Update records in Inventory module'),
+  ('inventory.delete', 'inventory', 'delete', 'delete', 'Delete records in Inventory module'),
+  ('organisation.create', 'organisation', 'create', 'create', 'Create records in Organisation module'),
+  ('organisation.update', 'organisation', 'update', 'update', 'Update records in Organisation module'),
+  ('organisation.delete', 'organisation', 'delete', 'delete', 'Delete records in Organisation module'),
+  ('finance.create', 'finance', 'create', 'create', 'Create records in Finance module'),
+  ('finance.update', 'finance', 'update', 'update', 'Update records in Finance module'),
+  ('finance.delete', 'finance', 'delete', 'delete', 'Delete records in Finance module'),
+  ('administration.create', 'administration', 'create', 'create', 'Create records in Administration module'),
+  ('administration.update', 'administration', 'update', 'update', 'Update records in Administration module'),
+  ('administration.delete', 'administration', 'delete', 'delete', 'Delete records in Administration module'),
+  ('platform.create', 'platform', 'create', 'create', 'Create records in Platform module'),
+  ('platform.update', 'platform', 'update', 'update', 'Update records in Platform module'),
+  ('platform.delete', 'platform', 'delete', 'delete', 'Delete records in Platform module')
+ON CONFLICT ("key") DO UPDATE SET
+  "module" = EXCLUDED."module",
+  "action" = EXCLUDED."action",
+  "kind" = EXCLUDED."kind",
+  "description" = EXCLUDED."description";

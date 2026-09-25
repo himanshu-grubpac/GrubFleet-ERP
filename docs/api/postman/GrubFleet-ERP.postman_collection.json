@@ -72,7 +72,7 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "url": "{{baseUrl}}/auth/me",
-            "description": "GET /auth/me — user, memberships, permissionKeys, moduleAccess."
+            "description": "GET /auth/me — user, memberships (permissionKeys, moduleAccess, permissionRevision per org), union permissionKeys/moduleAccess. Refetch after RBAC changes; revision bumps when roles/assignments change."
           },
           "response": []
         },
@@ -197,7 +197,7 @@
               "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Fleet View Only\",\n  \"description\": \"Phase 1 module access example\",\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"VIEW\" },\n    { \"moduleId\": \"administration\", \"accessLevel\": \"NONE\" }\n  ]\n}"
             },
             "url": "{{baseUrl}}/roles?organizationId={{organizationId}}",
-            "description": "POST /roles — administration.manage; moduleAccess NONE|VIEW|FULL expands to permission keys."
+            "description": "POST /roles — administration.manage; moduleAccess NONE|VIEW|MANAGE|FULL expands to permission keys (MANAGE = view + CRUD; FULL adds legacy .manage)."
           },
           "response": []
         },
@@ -263,7 +263,7 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "url": "{{baseUrl}}/roles/editor-matrix?organizationId={{organizationId}}",
-            "description": "GET /roles/editor-matrix — NONE/VIEW/FULL rows per sidebar module."
+            "description": "GET /roles/editor-matrix — NONE/VIEW/MANAGE/FULL rows per sidebar module."
           },
           "response": []
         },

@@ -54,11 +54,17 @@ export class MeMembershipDto {
   permissionKeys!: string[];
 
   @ApiProperty({
+    description:
+      'Monotonic org permission revision; refetch /auth/me when this changes after role updates',
+  })
+  permissionRevision!: number;
+
+  @ApiProperty({
     description: 'Module-level access for sidebar nav (accessLevel !== NONE)',
   })
   moduleAccess!: Array<{
     moduleId: string;
-    accessLevel: 'VIEW' | 'FULL' | 'CUSTOM';
+    accessLevel: 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM';
   }>;
 }
 
@@ -81,6 +87,6 @@ export class MeResponseDto {
   })
   moduleAccess!: Array<{
     moduleId: string;
-    accessLevel: 'VIEW' | 'FULL' | 'CUSTOM';
+    accessLevel: 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM';
   }>;
 }

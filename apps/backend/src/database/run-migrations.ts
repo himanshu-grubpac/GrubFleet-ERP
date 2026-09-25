@@ -1,14 +1,20 @@
+import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import { pgPoolOptions } from './pg-pool-options';
 
+dotenv.config({ path: path.resolve(__dirname, '../../.env.development') });
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+
 async function main(): Promise<void> {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) {
-    console.error('DATABASE_URL is required');
-    process.exit(1);
+  const connectionString =
+    process.env.DATABASE_URL ??
+    'postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp';
+
+  if (!process.env.DATABASE_URL) {
+    console.warn('DATABASE_URL unset; using local Docker default.');
   }
 
   const pool = new Pool(pgPoolOptions(connectionString));
