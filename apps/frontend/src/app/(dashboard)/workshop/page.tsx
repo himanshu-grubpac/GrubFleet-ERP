@@ -1,5 +1,5 @@
-import { ModuleShell } from '@/components/modules/module-shell';
+import { WorkshopModule } from '@/components/modules/workshop';
 
 export default function WorkshopPage() {
-  return <ModuleShell title="Workshop" description="Workshop jobs and service orders (planned)." />;
+  return <WorkshopModule />;
 }

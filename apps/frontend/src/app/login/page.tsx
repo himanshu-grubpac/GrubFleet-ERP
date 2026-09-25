@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   EmailInput,
   PasswordInput,
@@ -15,7 +15,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const { login, isLoading, showError } = useGrubpacAuth();
+  const { login, isLoading, showError, setToken } = useGrubpacAuth();
+  const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,16 +109,8 @@ export default function LoginPage() {
             </Button>
           </div>
 
-          {/* Temporary Dashboard Link 
-          <div className="pt-2 text-center">
-            <Link
-              href="/dashboard"
-              className="text-xs font-medium text-[#FE5720] hover:underline"
-            >
-              Skip to dashboard →
-            </Link>
-          </div>
-*/}
+          {/* Temporary Dashboard Link removed */}
+
         </form>
       </div>
     </div>

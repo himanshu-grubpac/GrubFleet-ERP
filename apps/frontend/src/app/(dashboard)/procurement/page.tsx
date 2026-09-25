@@ -1,5 +1,5 @@
-import { ModuleShell } from '@/components/modules/module-shell';
+import { ProcurementModule } from '@/components/modules/procurement';
 
 export default function ProcurementPage() {
-  return <ModuleShell title="Procurement" description="Purchase requests and vendors (planned)." />;
+  return <ProcurementModule />;
 }

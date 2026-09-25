@@ -1,5 +1,5 @@
-import { ModuleShell } from '@/components/modules/module-shell';
+import { InventoryModule } from '@/components/modules/inventory';
 
 export default function InventoryPage() {
-  return <ModuleShell title="Inventory" description="Stock and warehouses (planned)." />;
+  return <InventoryModule />;
 }

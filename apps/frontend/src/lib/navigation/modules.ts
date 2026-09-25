@@ -1,4 +1,5 @@
 import type { LucideIcon } from 'lucide-react';
+
 import {
   Building2,
   Car,
@@ -9,54 +10,81 @@ import {
   ShoppingCart,
   Wallet,
   Wrench,
+  Settings,
 } from 'lucide-react';
 
 export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Provisional permission key for future nav gating */
   requiredPermission?: string;
 };
 
 export const mainNavItems: NavItem[] = [
-  { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, requiredPermission: 'platform:VIEW' },
   {
-    label: 'Organization',
-    href: '/organization',
-    icon: Building2,
-    requiredPermission: 'organization:VIEW',
+    label: 'Dashboard',
+    href: '/dashboard',
+    icon: LayoutDashboard,
+    requiredPermission: 'dashboard.view',
   },
-  {
-    label: 'Roles & permissions',
-    href: '/roles-permissions',
-    icon: Shield,
-    requiredPermission: 'roles:VIEW',
-  },
+
   {
     label: 'Fleet & leasing',
     href: '/fleet-leasing',
     icon: Car,
-    requiredPermission: 'fleet:VIEW',
+    requiredPermission: 'fleet_leasing.view',
   },
+
   {
-    label: 'Asset management',
-    href: '/asset-management',
+    label: 'Asset Register',
+    href: '/asset-register',
     icon: ClipboardList,
-    requiredPermission: 'assets:VIEW',
+    requiredPermission: 'asset_register.view',
   },
-  { label: 'Workshop', href: '/workshop', icon: Wrench, requiredPermission: 'workshop:VIEW' },
-  { label: 'Inventory', href: '/inventory', icon: Package, requiredPermission: 'inventory:VIEW' },
+
   {
-    label: 'Procurement',
-    href: '/procurement',
-    icon: ShoppingCart,
-    requiredPermission: 'procurement:VIEW',
+    label: 'Workshop',
+    href: '/workshop',
+    icon: Wrench,
+    requiredPermission: 'workshop.view',
   },
-  { label: 'Finance', href: '/finance', icon: Wallet, requiredPermission: 'finance:VIEW' },
+
+  {
+    label: 'Inventory',
+    href: '/inventory',
+    icon: Package,
+    requiredPermission: 'inventory.view',
+  },
+
+  {
+    label: 'Organization',
+    href: '/organization',
+    icon: Building2,
+    requiredPermission: 'organisation.view',
+  },
+
+  {
+    label: 'Finance',
+    href: '/finance',
+    icon: Wallet,
+    requiredPermission: 'finance.view',
+  },
+
+  {
+    label: 'Administration',
+    href: '/administration',
+    icon: Shield,
+    requiredPermission: 'administration.view',
+  },
+
+  {
+    label: 'Platform',
+    href: '/platform',
+    icon: Settings,
+    requiredPermission: 'platform.view',
+  },
 ];
 
-/** Placeholder — wire to auth session + permission set from API. */
 export function filterNavByPermissions(
   items: NavItem[],
   permissions: Set<string> | null,
@@ -64,7 +92,10 @@ export function filterNavByPermissions(
   if (!permissions) {
     return items;
   }
+
   return items.filter(
-    (item) => !item.requiredPermission || permissions.has(item.requiredPermission),
+    (item) =>
+      !item.requiredPermission ||
+      permissions.has(item.requiredPermission),
   );
 }

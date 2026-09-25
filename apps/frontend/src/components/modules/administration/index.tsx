@@ -28,7 +28,7 @@ import {
 import { LoadingState, ErrorState } from "@/components/states/async-states";
 import type { Role, ModuleAccessLevel } from "@grubpac/shared-types";
 
-export default function RolesPermissionsPage() {
+export function AdministrationModule() {
   const { token, organizationId } = useAuth();
   const queryClient = useQueryClient();
 
@@ -216,7 +216,7 @@ export default function RolesPermissionsPage() {
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Roles & Permissions
+            Administration
           </h1>
           <p className="text-sm text-slate-500">
             Configure Role-Based Access Control (RBAC) and granular module permissions.
