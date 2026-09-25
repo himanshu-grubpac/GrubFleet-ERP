@@ -172,6 +172,10 @@ export const leaseContracts = pgTable(
       .notNull()
       .default(false),
     description: text('description'),
+    /** Flow 04 — renewal draft links to prior contract. */
+    renewedFromContractId: uuid('renewed_from_contract_id'),
+    /** Flow 03 — set when a material edit is logged. */
+    requiresEditReview: boolean('requires_edit_review').notNull().default(false),
     createdByUserId: uuid('created_by_user_id'),
     updatedByUserId: uuid('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -297,6 +301,44 @@ export const fleetVehicleAllocations = pgTable(
   (t) => [
     index('fleet_vehicle_allocations_contract_id_idx').on(t.contractId),
     index('fleet_vehicle_allocations_vehicle_id_idx').on(t.vehicleId),
+  ],
+);
+
+/** Asset Register damage stub until Asset module ships (Flow 06 optional link). */
+export const fleetDamageRecords = pgTable(
+  'fleet_damage_records',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    organizationId: uuid('organization_id').notNull(),
+    summary: varchar('summary', { length: 255 }),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [index('fleet_damage_records_organization_id_idx').on(t.organizationId)],
+);
+
+/** Flow 03 — per-edit field diff audit. */
+export const leaseContractEditLogs = pgTable(
+  'lease_contract_edit_logs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    organizationId: uuid('organization_id').notNull(),
+    contractId: uuid('contract_id')
+      .notNull()
+      .references(() => leaseContracts.id, { onDelete: 'cascade' }),
+    actorUserId: uuid('actor_user_id'),
+    classification: varchar('classification', { length: 32 })
+      .notNull()
+      .default('clerical'),
+    changedFields: jsonb('changed_fields').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('lease_contract_edit_logs_contract_id_idx').on(t.contractId),
+    index('lease_contract_edit_logs_organization_id_idx').on(t.organizationId),
   ],
 );
 

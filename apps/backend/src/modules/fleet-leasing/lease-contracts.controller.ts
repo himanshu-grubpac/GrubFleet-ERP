@@ -271,6 +271,21 @@ export class LeaseContractsController {
     return this.leaseContracts.approveTermination(user.userId, organizationId, id);
   }
 
+  @Post(':id/renew')
+  @RequireOrganizationContext()
+  @RequireAnyPermissions(...FleetLeasingWriteAny.CREATE)
+  @ApiOperation({
+    summary:
+      'Flow 04 — create renewal draft (blank end date until terms are set)',
+  })
+  renew(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.leaseContracts.renewContract(user.userId, organizationId, id);
+  }
+
   @Post(':id/register-return')
   @RequireOrganizationContext()
   @RequireAnyPermissions(...FleetLeasingWriteAny.UPDATE)

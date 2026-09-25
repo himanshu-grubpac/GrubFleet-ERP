@@ -1,4 +1,7 @@
-import type { LeaseContractStatus } from '../constants/lease-contract-status';
+import {
+  RENEWABLE_CONTRACT_STATUSES,
+  type LeaseContractStatus,
+} from '../constants/lease-contract-status';
 import { getContractEditBlockReason } from './contract-edit.util';
 
 export type ContractEventRow = {
@@ -258,7 +261,11 @@ export function buildAvailableActions(input: {
       ? allow()
       : deny('No termination pending approval');
 
-  const renew = deny('Contract renewal is not available yet');
+  const renew = RENEWABLE_CONTRACT_STATUSES.includes(rawStatus)
+    ? allow()
+    : deny(
+        'Renewal is available for active, awaiting assets, or completed contracts',
+      );
 
   return {
     editContract,

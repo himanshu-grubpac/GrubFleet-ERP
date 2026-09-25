@@ -10,10 +10,17 @@ import {
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
 import { AuditService } from '../audit/audit.service';
+import { AMC_TIER_STUB_VALUES } from './constants/amc-tier-stub';
+import { normalizeEditClassification } from './constants/contract-edit-classification';
 import {
   LIST_STATUS_FILTER,
+  RENEWABLE_CONTRACT_STATUSES,
   type LeaseContractStatus,
 } from './constants/lease-contract-status';
+import {
+  computeContractFieldDiff,
+  contractRowToSnapshot,
+} from './utils/contract-field-diff.util';
 import { computeAssetLineAvailability } from './utils/asset-class-availability.util';
 import {
   buildContractReviewMessages,
@@ -107,6 +114,7 @@ export class LeaseContractsService {
   }
 
   async create(userId: string, dto: CreateLeaseContractDto) {
+    this.validateAmcTierOptional(dto.amcTier);
     const contractNumber = await this.repo.nextContractNumber(dto.organizationId);
     const row = await this.repo.insertContract({
       organizationId: dto.organizationId,
@@ -336,6 +344,7 @@ export class LeaseContractsService {
       awaitingFutureAssets: nextStatus === 'awaiting_assets' || hasAwaitingLine,
       updatedByUserId: userId,
     });
+    await this.markLinkedVehiclesLeased(contractId);
     await this.logEvent(
       contractId,
       organizationId,
@@ -385,6 +394,7 @@ export class LeaseContractsService {
         'Terms can only be edited on draft or pre-active contracts',
       );
     }
+    this.validateAmcTierOptional(dto.amcTier);
     const startDate = new Date(dto.startDate);
     const endDate = addMonthsUtc(startDate, dto.termMonths);
     await this.repo.updateContract(contractId, organizationId, {
@@ -431,6 +441,31 @@ export class LeaseContractsService {
     if (editBlockReason) {
       throw new ConflictException(editBlockReason);
     }
+    if (dto.amcTier !== undefined) {
+      this.validateAmcTierOptional(dto.amcTier);
+    }
+    const classification = normalizeEditClassification(dto.editClassification);
+    const [beforeLines, beforeVehicleIds] = await Promise.all([
+      this.repo.listAssetLines(contractId),
+      this.repo.listContractVehicleIds(contractId),
+    ]);
+    const beforeSnapshot = contractRowToSnapshot({
+      clientId: existing.clientId,
+      startDate: existing.startDate,
+      endDate: existing.endDate,
+      termMonths: existing.termMonths,
+      securityDeposit: existing.securityDeposit,
+      billingFrequency: existing.billingFrequency,
+      additionalTerms: existing.additionalTerms,
+      amcTier: existing.amcTier,
+      description: existing.description,
+      assetLines: beforeLines.map((l) => ({
+        assetClass: l.assetClass,
+        committedQuantity: l.committedQuantity,
+        ratePerVehicleMonth: l.ratePerVehicleMonth,
+      })),
+      vehicleIds: beforeVehicleIds,
+    });
     if (dto.clientId) {
       const client = await this.repo.getClientInOrg(organizationId, dto.clientId);
       if (!client) throw new BadRequestException('Invalid client for organization');
@@ -514,12 +549,62 @@ export class LeaseContractsService {
       });
     }
 
+    const updatedRow = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
+    const [afterLines, afterVehicleIds] = await Promise.all([
+      this.repo.listAssetLines(contractId),
+      this.repo.listContractVehicleIds(contractId),
+    ]);
+    const afterSnapshot = contractRowToSnapshot({
+      clientId: updatedRow?.clientId ?? existing.clientId,
+      startDate: updatedRow?.startDate ?? existing.startDate,
+      endDate: updatedRow?.endDate ?? existing.endDate,
+      termMonths: updatedRow?.termMonths ?? existing.termMonths,
+      securityDeposit: updatedRow?.securityDeposit ?? existing.securityDeposit,
+      billingFrequency:
+        updatedRow?.billingFrequency ?? existing.billingFrequency,
+      additionalTerms: updatedRow?.additionalTerms ?? existing.additionalTerms,
+      amcTier: updatedRow?.amcTier ?? existing.amcTier,
+      description: updatedRow?.description ?? existing.description,
+      assetLines: afterLines.map((l) => ({
+        assetClass: l.assetClass,
+        committedQuantity: l.committedQuantity,
+        ratePerVehicleMonth: l.ratePerVehicleMonth,
+      })),
+      vehicleIds: afterVehicleIds,
+    });
+    const changedFields = computeContractFieldDiff(
+      beforeSnapshot,
+      afterSnapshot,
+    );
+    if (changedFields.length > 0) {
+      await this.repo.insertEditLog({
+        organizationId,
+        contractId,
+        actorUserId: userId,
+        classification,
+        changedFields,
+      });
+      if (classification === 'material') {
+        await this.repo.updateContract(contractId, organizationId, {
+          requiresEditReview: true,
+          updatedByUserId: userId,
+        });
+      }
+    }
+
     await this.logEvent(
       contractId,
       organizationId,
       userId,
       'contract.edited',
       `Contract ${existing.contractNumber} edited`,
+      {
+        classification,
+        changedFields,
+      },
     );
     await this.audit.log({
       organizationId,
@@ -528,6 +613,7 @@ export class LeaseContractsService {
       resourceType: 'lease_contract',
       resourceId: contractId,
       status: 'SUCCESS',
+      metadata: { classification, fieldCount: changedFields.length },
     });
 
     const detail = await this.getById(organizationId, contractId);
@@ -660,6 +746,7 @@ export class LeaseContractsService {
       awaitingFutureAssets: status === 'awaiting_assets',
       updatedByUserId: userId,
     });
+    await this.markLinkedVehiclesLeased(contractId);
     await this.logEvent(
       contractId,
       organizationId,
@@ -848,6 +935,15 @@ export class LeaseContractsService {
     if (!linked.includes(dto.vehicleId)) {
       throw new BadRequestException('Vehicle is not on this contract');
     }
+    if (dto.damageRecordId) {
+      const damage = await this.repo.findDamageRecordInOrg(
+        organizationId,
+        dto.damageRecordId,
+      );
+      if (!damage) {
+        throw new NotFoundException('Damage record not found');
+      }
+    }
     await this.repo.insertReturnInspection({
       organizationId,
       contractId,
@@ -866,6 +962,83 @@ export class LeaseContractsService {
       `Vehicle ${vehicle.registrationNo} registered as returned`,
     );
     return this.getById(organizationId, contractId);
+  }
+
+  async renewContract(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+  ) {
+    const source = await this.requireContract(organizationId, contractId);
+    const rawStatus = source.status as LeaseContractStatus;
+    if (!RENEWABLE_CONTRACT_STATUSES.includes(rawStatus)) {
+      throw new BadRequestException(
+        'Renewal is available for active, awaiting assets, or completed contracts',
+      );
+    }
+    const lines = await this.repo.listAssetLines(contractId);
+    const contractNumber = await this.repo.nextContractNumber(organizationId);
+    const draft = await this.repo.insertContract({
+      organizationId,
+      contractNumber,
+      clientId: source.clientId,
+      status: 'draft',
+      startDate: null,
+      endDate: null,
+      termMonths: null,
+      securityDeposit: source.securityDeposit,
+      billingFrequency: source.billingFrequency,
+      additionalTerms: source.additionalTerms,
+      amcTier: source.amcTier,
+      description: source.description,
+      renewedFromContractId: source.id,
+      awaitingFutureAssets: false,
+      createdByUserId: userId,
+      updatedByUserId: userId,
+    });
+    if (lines.length > 0) {
+      await this.repo.replaceAssetLines(
+        draft.id,
+        lines.map((l) => ({
+          assetClass: l.assetClass,
+          committedQuantity: l.committedQuantity,
+          ratePerVehicleMonth: l.ratePerVehicleMonth,
+          availabilityCovered: l.availabilityCovered,
+          availabilityStatus: l.availabilityStatus,
+          availableNowCount: l.availableNowCount,
+          inboundCount: l.inboundCount,
+          shortfallCount: l.shortfallCount,
+          awaitingAssetsLine: l.awaitingAssetsLine,
+          sortOrder: l.sortOrder,
+        })),
+      );
+    }
+    await this.logEvent(
+      source.id,
+      organizationId,
+      userId,
+      'contract.renewal_started',
+      `Renewal draft ${draft.contractNumber} created from ${source.contractNumber}`,
+      { renewalDraftId: draft.id },
+    );
+    await this.logEvent(
+      draft.id,
+      organizationId,
+      userId,
+      'contract.created',
+      `Renewal draft created from ${source.contractNumber} — set terms to compute end date`,
+      { renewedFromContractId: source.id },
+    );
+    await this.audit.log({
+      organizationId,
+      userId,
+      action: 'lease_contract.renew',
+      resourceType: 'lease_contract',
+      resourceId: draft.id,
+      status: 'SUCCESS',
+      metadata: { sourceContractId: source.id },
+    });
+    return this.getById(organizationId, draft.id);
   }
 
   async approveTermination(
@@ -1050,6 +1223,7 @@ export class LeaseContractsService {
     userId: string,
     eventType: string,
     message: string,
+    metadata?: Record<string, unknown>,
   ) {
     await this.repo.insertEvent({
       contractId,
@@ -1057,7 +1231,22 @@ export class LeaseContractsService {
       eventType,
       message,
       actorUserId: userId,
+      metadata: metadata ?? null,
     });
+  }
+
+  private validateAmcTierOptional(tier: string | null | undefined) {
+    if (tier == null || tier === '') return;
+    if (!(AMC_TIER_STUB_VALUES as readonly string[]).includes(tier)) {
+      throw new BadRequestException(
+        `AMC tier must be one of: ${AMC_TIER_STUB_VALUES.join(', ')}`,
+      );
+    }
+  }
+
+  private async markLinkedVehiclesLeased(contractId: string) {
+    const ids = await this.repo.listContractVehicleIds(contractId);
+    await this.repo.markVehiclesLeased(ids);
   }
 
   private async toListItem(
@@ -1103,18 +1292,35 @@ export class LeaseContractsService {
   ) {
     if (!contract) throw new NotFoundException();
     const rawStatus = contract.status as LeaseContractStatus;
-    const [lines, vehicleIds, events, client, returned, committed, pendingTermination] =
-      await Promise.all([
-        this.repo.listAssetLines(contract.id),
-        this.repo.listContractVehicleIds(contract.id),
-        this.repo.listEvents(contract.id, 100),
-        contract.clientId
-          ? this.repo.getClientWithPocs(organizationId, contract.clientId)
-          : Promise.resolve(null),
-        this.repo.countRegisteredReturns(contract.id),
-        this.repo.countCommittedVehicles(contract.id),
-        this.repo.findPendingApproval(contract.id, 'contract_termination'),
-      ]);
+    const [
+      lines,
+      vehicleIds,
+      events,
+      client,
+      returned,
+      committed,
+      pendingTermination,
+      editLogs,
+    ] = await Promise.all([
+      this.repo.listAssetLines(contract.id),
+      this.repo.listContractVehicleIds(contract.id),
+      this.repo.listEvents(contract.id, 100),
+      contract.clientId
+        ? this.repo.getClientWithPocs(organizationId, contract.clientId)
+        : Promise.resolve(null),
+      this.repo.countRegisteredReturns(contract.id),
+      this.repo.countCommittedVehicles(contract.id),
+      this.repo.findPendingApproval(contract.id, 'contract_termination'),
+      this.repo.listEditLogs(contract.id, 50),
+    ]);
+    const vehicles = (
+      await this.repo.getVehiclesByIds(organizationId, vehicleIds)
+    ).map((v) => ({
+      id: v.id,
+      registrationNo: v.registrationNo,
+      assetClass: v.assetClass,
+      status: v.status,
+    }));
     const actorIds = events
       .map((e) => e.actorUserId)
       .filter((id): id is string => Boolean(id));
@@ -1207,6 +1413,16 @@ export class LeaseContractsService {
         awaitingAssetsLine: l.awaitingAssetsLine,
       })),
       vehicleIds,
+      vehicles,
+      renewedFromContractId: contract.renewedFromContractId ?? null,
+      requiresEditReview: contract.requiresEditReview,
+      editLogs: editLogs.map((log) => ({
+        id: log.id,
+        classification: log.classification,
+        changedFields: log.changedFields,
+        actorUserId: log.actorUserId,
+        createdAt: log.createdAt.toISOString(),
+      })),
       returnProgress,
       availableActions,
       lifecycleLogs,

@@ -19,7 +19,25 @@ export const LIST_STATUS_FILTER = {
   draft: ['draft'] as LeaseContractStatus[],
   /** Figma "Completed". */
   completed: ['closed', 'concluded'] as LeaseContractStatus[],
+  deactivated: ['deactivated'] as LeaseContractStatus[],
+  billing_paused: ['billing_paused'] as LeaseContractStatus[],
+  pending_termination: ['pending_termination'] as LeaseContractStatus[],
 } as const;
+
+/** Flow 04 — renew creates a new draft from these lifecycle states. */
+export const RENEWABLE_CONTRACT_STATUSES: LeaseContractStatus[] = [
+  'active',
+  'awaiting_assets',
+  'closed',
+  'concluded',
+];
+
+/** Flow 02 — allocate vehicles while contract is live or pre-active. */
+export const ALLOCATION_ELIGIBLE_CONTRACT_STATUSES: LeaseContractStatus[] = [
+  'approved',
+  'active',
+  'awaiting_assets',
+];
 
 export type ListStatusFilterKey = keyof typeof LIST_STATUS_FILTER;
 

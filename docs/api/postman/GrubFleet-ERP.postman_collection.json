@@ -505,6 +505,63 @@
             "description": "POST .../approve-termination — closes contract; deposit settle is messaging stub until Finance integration."
           },
           "response": []
+        },
+        {
+          "name": "Renew lease contract (Flow 04)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/renew?organizationId={{organizationId}}",
+            "description": "POST .../renew — draft renewal with null end date until terms set."
+          },
+          "response": []
+        },
+        {
+          "name": "List vehicle allocations (hub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/vehicle-allocations?organizationId={{organizationId}}&page=1",
+            "description": "GET /fleet-leasing/vehicle-allocations — org allocation hub."
+          },
+          "response": []
+        },
+        {
+          "name": "Allocate vehicle to contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"{{fleetVehicleId}}\",\n  \"notifiedStakeholders\": [\"ops@example.com\"]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/vehicle-allocations?organizationId={{organizationId}}",
+            "description": "POST .../vehicle-allocations — Flow 02 allocate/reassign."
+          },
+          "response": []
+        },
+        {
+          "name": "List returns hub",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/returns?organizationId={{organizationId}}&page=1",
+            "description": "GET /fleet-leasing/returns — Flow 06 hub."
+          },
+          "response": []
         }
       ]
     }

@@ -1,14 +1,28 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, desc, eq, exists, ilike, inArray, or, sql } from 'drizzle-orm';
+import {
+  and,
+  desc,
+  eq,
+  exists,
+  ilike,
+  inArray,
+  ne,
+  notInArray,
+  or,
+  sql,
+} from 'drizzle-orm';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
 import {
   fleetApprovalRequests,
   fleetClientPocs,
   fleetClients,
+  fleetDamageRecords,
   fleetReturnInspections,
+  fleetVehicleAllocations,
   fleetVehicles,
   leaseContractAssetLines,
+  leaseContractEditLogs,
   leaseContractEvents,
   leaseContracts,
   leaseContractVehicles,
@@ -571,5 +585,264 @@ export class FleetLeasingRepository {
       })
       .returning();
     return row;
+  }
+
+  async getVehiclesByIds(organizationId: string, vehicleIds: string[]) {
+    if (vehicleIds.length === 0) return [];
+    return this.db
+      .select()
+      .from(fleetVehicles)
+      .where(
+        and(
+          eq(fleetVehicles.organizationId, organizationId),
+          inArray(fleetVehicles.id, vehicleIds),
+        ),
+      );
+  }
+
+  async findDamageRecordInOrg(organizationId: string, damageRecordId: string) {
+    const [row] = await this.db
+      .select()
+      .from(fleetDamageRecords)
+      .where(
+        and(
+          eq(fleetDamageRecords.id, damageRecordId),
+          eq(fleetDamageRecords.organizationId, organizationId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async findOtherContractForVehicle(
+    organizationId: string,
+    vehicleId: string,
+    excludeContractId: string,
+  ) {
+    const [row] = await this.db
+      .select({
+        contractId: leaseContractVehicles.contractId,
+        contractNumber: leaseContracts.contractNumber,
+        status: leaseContracts.status,
+      })
+      .from(leaseContractVehicles)
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractVehicles.contractId, leaseContracts.id),
+      )
+      .where(
+        and(
+          eq(leaseContractVehicles.vehicleId, vehicleId),
+          eq(leaseContracts.organizationId, organizationId),
+          ne(leaseContractVehicles.contractId, excludeContractId),
+          notInArray(leaseContracts.status, ['closed', 'concluded']),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async addContractVehicleIfMissing(contractId: string, vehicleId: string) {
+    await this.db
+      .insert(leaseContractVehicles)
+      .values({ contractId, vehicleId })
+      .onConflictDoNothing({
+        target: [
+          leaseContractVehicles.contractId,
+          leaseContractVehicles.vehicleId,
+        ],
+      });
+  }
+
+  async removeContractVehicle(contractId: string, vehicleId: string) {
+    await this.db
+      .delete(leaseContractVehicles)
+      .where(
+        and(
+          eq(leaseContractVehicles.contractId, contractId),
+          eq(leaseContractVehicles.vehicleId, vehicleId),
+        ),
+      );
+  }
+
+  async insertVehicleAllocation(
+    values: typeof fleetVehicleAllocations.$inferInsert,
+  ) {
+    const [row] = await this.db
+      .insert(fleetVehicleAllocations)
+      .values(values)
+      .returning();
+    return row;
+  }
+
+  async listVehicleAllocations(params: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    contractId?: string;
+  }) {
+    const { organizationId, page, pageSize, contractId } = params;
+    const offset = (page - 1) * pageSize;
+    const conditions = [
+      eq(fleetVehicleAllocations.organizationId, organizationId),
+    ];
+    if (contractId) {
+      conditions.push(eq(fleetVehicleAllocations.contractId, contractId));
+    }
+    const where = and(...conditions);
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          allocation: fleetVehicleAllocations,
+          contractNumber: leaseContracts.contractNumber,
+          registrationNo: fleetVehicles.registrationNo,
+          vehicleStatus: fleetVehicles.status,
+          assetClass: fleetVehicles.assetClass,
+        })
+        .from(fleetVehicleAllocations)
+        .innerJoin(
+          leaseContracts,
+          eq(fleetVehicleAllocations.contractId, leaseContracts.id),
+        )
+        .innerJoin(
+          fleetVehicles,
+          eq(fleetVehicleAllocations.vehicleId, fleetVehicles.id),
+        )
+        .where(where)
+        .orderBy(desc(fleetVehicleAllocations.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(fleetVehicleAllocations)
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async findVehicleAllocationInOrg(organizationId: string, allocationId: string) {
+    const [row] = await this.db
+      .select({
+        allocation: fleetVehicleAllocations,
+        contractNumber: leaseContracts.contractNumber,
+        registrationNo: fleetVehicles.registrationNo,
+        vehicleStatus: fleetVehicles.status,
+        assetClass: fleetVehicles.assetClass,
+      })
+      .from(fleetVehicleAllocations)
+      .innerJoin(
+        leaseContracts,
+        eq(fleetVehicleAllocations.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(fleetVehicleAllocations.vehicleId, fleetVehicles.id),
+      )
+      .where(
+        and(
+          eq(fleetVehicleAllocations.id, allocationId),
+          eq(fleetVehicleAllocations.organizationId, organizationId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async insertEditLog(values: typeof leaseContractEditLogs.$inferInsert) {
+    const [row] = await this.db
+      .insert(leaseContractEditLogs)
+      .values(values)
+      .returning();
+    return row;
+  }
+
+  async listEditLogs(contractId: string, limit = 50) {
+    return this.db
+      .select()
+      .from(leaseContractEditLogs)
+      .where(eq(leaseContractEditLogs.contractId, contractId))
+      .orderBy(desc(leaseContractEditLogs.createdAt))
+      .limit(limit);
+  }
+
+  async listReturnInspections(params: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    contractId?: string;
+  }) {
+    const { organizationId, page, pageSize, contractId } = params;
+    const offset = (page - 1) * pageSize;
+    const conditions = [
+      eq(fleetReturnInspections.organizationId, organizationId),
+    ];
+    if (contractId) {
+      conditions.push(eq(fleetReturnInspections.contractId, contractId));
+    }
+    const where = and(...conditions);
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          inspection: fleetReturnInspections,
+          contractNumber: leaseContracts.contractNumber,
+          registrationNo: fleetVehicles.registrationNo,
+        })
+        .from(fleetReturnInspections)
+        .innerJoin(
+          leaseContracts,
+          eq(fleetReturnInspections.contractId, leaseContracts.id),
+        )
+        .innerJoin(
+          fleetVehicles,
+          eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
+        )
+        .where(where)
+        .orderBy(desc(fleetReturnInspections.createdAt))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(fleetReturnInspections)
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async findReturnInspectionInOrg(
+    organizationId: string,
+    inspectionId: string,
+  ) {
+    const [row] = await this.db
+      .select({
+        inspection: fleetReturnInspections,
+        contractNumber: leaseContracts.contractNumber,
+        registrationNo: fleetVehicles.registrationNo,
+        assetClass: fleetVehicles.assetClass,
+      })
+      .from(fleetReturnInspections)
+      .innerJoin(
+        leaseContracts,
+        eq(fleetReturnInspections.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
+      )
+      .where(
+        and(
+          eq(fleetReturnInspections.id, inspectionId),
+          eq(fleetReturnInspections.organizationId, organizationId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async markVehiclesLeased(vehicleIds: string[]) {
+    if (vehicleIds.length === 0) return;
+    await this.db
+      .update(fleetVehicles)
+      .set({ status: 'leased', updatedAt: new Date() })
+      .where(inArray(fleetVehicles.id, vehicleIds));
   }
 }

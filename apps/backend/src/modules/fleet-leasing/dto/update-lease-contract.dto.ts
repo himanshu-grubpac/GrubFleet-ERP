@@ -12,8 +12,14 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { LeaseContractAssetLineDto } from './lease-contract-asset-line.dto';
+import { CONTRACT_EDIT_CLASSIFICATIONS } from '../constants/contract-edit-classification';
 
 export class UpdateLeaseContractDto {
+  @ApiPropertyOptional({ enum: CONTRACT_EDIT_CLASSIFICATIONS })
+  @IsOptional()
+  @IsEnum(CONTRACT_EDIT_CLASSIFICATIONS)
+  editClassification?: 'clerical' | 'material';
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsUUID()

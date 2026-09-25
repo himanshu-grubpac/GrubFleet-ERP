@@ -568,7 +568,18 @@ paths:
           in: query
           schema:
             type: string
-            enum: [all, active, awaiting_assets, pending_approval, draft, completed]
+            enum:
+              [
+                all,
+                active,
+                awaiting_assets,
+                pending_approval,
+                draft,
+                completed,
+                deactivated,
+                billing_paused,
+                pending_termination,
+              ]
         - name: search
           in: query
           schema:
@@ -948,6 +959,176 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/renew:
+    post:
+      tags: [fleet-leasing]
+      summary: Create renewal draft (Flow 04)
+      description: |
+        Copies client and asset lines into a new draft contract with null start/end/term
+        until terms are set. Links renewedFromContractId to the source contract.
+      operationId: renewLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: New renewal draft contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+        '400':
+          description: Source contract not eligible for renewal
+  /fleet-leasing/lease-contracts/{id}/register-return:
+    post:
+      tags: [fleet-leasing]
+      summary: Register vehicle return and inspection (Flow 06)
+      operationId: registerLeaseContractReturn
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterReturnBody'
+      responses:
+        '200':
+          description: Updated contract detail after return registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{contractId}/vehicle-allocations:
+    get:
+      tags: [fleet-leasing]
+      summary: List vehicle allocations for a contract (Flow 02)
+      operationId: listContractVehicleAllocations
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Allocation rows for contract
+    post:
+      tags: [fleet-leasing]
+      summary: Allocate or reassign vehicle to contract (Flow 02)
+      operationId: allocateVehicleToContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVehicleAllocationBody'
+      responses:
+        '200':
+          description: Created allocation record
+  /fleet-leasing/vehicle-allocations:
+    get:
+      tags: [fleet-leasing]
+      summary: Org-wide vehicle allocation hub (Flow 02)
+      operationId: listVehicleAllocationsHub
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: contractId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated allocations
+  /fleet-leasing/vehicle-allocations/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Vehicle allocation detail
+      operationId: getVehicleAllocation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Allocation detail
+  /fleet-leasing/returns:
+    get:
+      tags: [fleet-leasing]
+      summary: Returns and inspections hub (Flow 06)
+      operationId: listFleetReturns
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: contractId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated return inspections
+  /fleet-leasing/returns/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Return inspection detail (Flow 06)
+      operationId: getFleetReturnInspection
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Inspection detail
   /fleet-leasing/clients:
     get:
       tags: [fleet-leasing]
@@ -1688,6 +1869,45 @@ components:
           items:
             type: string
             format: uuid
+        editClassification:
+          type: string
+          enum: [clerical, material]
+          description: Flow 03 edit audit classification (defaults to clerical)
+    RegisterReturnBody:
+      type: object
+      required: [vehicleId, odometerReading, conditionChecklist]
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+        odometerReading:
+          type: integer
+          minimum: 0
+        conditionChecklist:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [pass, fail]
+        damageRecordId:
+          type: string
+          format: uuid
+          description: Optional link to fleet_damage_records stub when Asset module not shipped
+    CreateVehicleAllocationBody:
+      type: object
+      required: [vehicleId, notifiedStakeholders]
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+        reassignmentConfirmation:
+          type: string
+          description: Required when vehicle is reassigned from another contract
+        notifiedStakeholders:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: User ids or emails (logged in audit/event metadata for v1)
     LeaseContractAssetLineInput:
       type: object
       required: [assetClass, committedQuantity, ratePerVehicleMonth]
@@ -1826,6 +2046,52 @@ components:
           type: array
           items:
             type: object
+        vehicleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        vehicles:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              registrationNo:
+                type: string
+              assetClass:
+                type: string
+              status:
+                type: string
+        renewedFromContractId:
+          type: string
+          format: uuid
+          nullable: true
+        requiresEditReview:
+          type: boolean
+        editLogs:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              classification:
+                type: string
+              changedFields:
+                type: array
+                items:
+                  type: object
+              actorUserId:
+                type: string
+                format: uuid
+                nullable: true
+              createdAt:
+                type: string
+                format: date-time
     ApiError:
       type: object
       required: [message, code, statusCode]
