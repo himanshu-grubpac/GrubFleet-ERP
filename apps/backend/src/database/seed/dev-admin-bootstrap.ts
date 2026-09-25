@@ -33,15 +33,21 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
 
   let organizationId = orgRows[0]?.id;
   if (!organizationId) {
-    const inserted = await db
+    await db
       .insert(organizations)
       .values({
         name: DEV_ORG_NAME,
         slug: DEV_ORG_SLUG,
         isActive: true,
       })
-      .returning({ id: organizations.id });
-    organizationId = inserted[0]?.id;
+      .onConflictDoNothing({ target: organizations.slug });
+
+    const resolvedOrg = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.slug, DEV_ORG_SLUG))
+      .limit(1);
+    organizationId = resolvedOrg[0]?.id;
   }
 
   if (!organizationId) {
@@ -192,7 +198,7 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
 
   let systemRoleId = systemRoleRows[0]?.id;
   if (!systemRoleId) {
-    const insertedSystem = await db
+    await db
       .insert(roles)
       .values({
         organizationId: null,
@@ -201,8 +207,22 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
         description: 'System-wide administrator (delegation bypass)',
         isSystem: true,
       })
-      .returning({ id: roles.id });
-    systemRoleId = insertedSystem[0]?.id;
+      .onConflictDoNothing({
+        target: [roles.organizationId, roles.name],
+      });
+
+    const resolvedSystemRole = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(
+        and(
+          eq(roles.name, DEV_SYSTEM_ADMIN_ROLE_NAME),
+          isNull(roles.organizationId),
+          eq(roles.scope, 'system'),
+        ),
+      )
+      .limit(1);
+    systemRoleId = resolvedSystemRole[0]?.id;
   }
 
   if (systemRoleId) {
