@@ -55,7 +55,8 @@ export function evaluateVehicleAllocation(input: {
     return {
       allowed: false,
       reason: 'VEHICLE_UNAVAILABLE',
-      message: 'Vehicle must be available unless reassigning from another contract',
+      message:
+        'Vehicle must be available unless reassigning from another contract',
       requiresReassignmentConfirmation: false,
     };
   }

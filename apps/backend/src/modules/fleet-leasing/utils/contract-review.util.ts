@@ -73,22 +73,21 @@ export function buildContractReviewMessages(input: {
       messages.push({
         level: 'info',
         code: 'CONTRACT_AWAITING_ASSETS_ON_CONFIRM',
-        text:
-          'Confirming will approve and activate the contract. Status will be Awaiting Assets until shortfall units are available; billing follows allocation rules once vehicles are assigned.',
+        text: 'Confirming will approve and activate the contract. Status will be Awaiting Assets until shortfall units are available; billing follows allocation rules once vehicles are assigned.',
       });
     } else if (allFullyAllocatedToday && input.assetLines.length > 0) {
       messages.push({
         level: 'info',
         code: 'BILLING_ON_START',
-        text:
-          'All committed units are fully allocated today. Confirming will activate the contract; billing starts on the contract start date per terms.',
+        text: 'All committed units are fully allocated today. Confirming will activate the contract; billing starts on the contract start date per terms.',
       });
-    } else if (input.assetLines.some((l) => l.availabilityStatus === 'partial_today')) {
+    } else if (
+      input.assetLines.some((l) => l.availabilityStatus === 'partial_today')
+    ) {
       messages.push({
         level: 'info',
         code: 'BILLING_WHEN_FULLY_ALLOCATED',
-        text:
-          'Some lines rely on inbound vehicles. Billing applies when each line is fully allocated and vehicles are assigned, per contract start date and billing frequency.',
+        text: 'Some lines rely on inbound vehicles. Billing applies when each line is fully allocated and vehicles are assigned, per contract start date and billing frequency.',
       });
     }
   }

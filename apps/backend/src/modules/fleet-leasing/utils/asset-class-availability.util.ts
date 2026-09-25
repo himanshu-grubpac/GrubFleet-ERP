@@ -1,7 +1,5 @@
 export type AssetLineAvailabilityStatus =
-  | 'covered'
-  | 'partial_today'
-  | 'shortfall';
+  'covered' | 'partial_today' | 'shortfall';
 
 export type AssetClassAvailabilitySnapshot = {
   assetClass: string;

@@ -45,10 +45,10 @@ export const fleetVehicleStatusEnum = pgEnum('fleet_vehicle_status', [
   'retired',
 ]);
 
-export const fleetApprovalSourceTypeEnum = pgEnum('fleet_approval_source_type', [
-  'contract_rate_exception',
-  'contract_termination',
-]);
+export const fleetApprovalSourceTypeEnum = pgEnum(
+  'fleet_approval_source_type',
+  ['contract_rate_exception', 'contract_termination'],
+);
 
 export const fleetApprovalStatusEnum = pgEnum('fleet_approval_status', [
   'pending',
@@ -74,7 +74,10 @@ export const fleetClients = pgTable(
       .defaultNow(),
   },
   (t) => [
-    uniqueIndex('fleet_clients_org_code_uidx').on(t.organizationId, t.clientCode),
+    uniqueIndex('fleet_clients_org_code_uidx').on(
+      t.organizationId,
+      t.clientCode,
+    ),
     index('fleet_clients_organization_id_idx').on(t.organizationId),
     index('fleet_clients_company_name_idx').on(t.companyName),
   ],
@@ -175,7 +178,9 @@ export const leaseContracts = pgTable(
     /** Flow 04 — renewal draft links to prior contract. */
     renewedFromContractId: uuid('renewed_from_contract_id'),
     /** Flow 03 — set when a material edit is logged. */
-    requiresEditReview: boolean('requires_edit_review').notNull().default(false),
+    requiresEditReview: boolean('requires_edit_review')
+      .notNull()
+      .default(false),
     createdByUserId: uuid('created_by_user_id'),
     updatedByUserId: uuid('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -211,14 +216,18 @@ export const leaseContractAssetLines = pgTable(
       scale: 2,
     }).notNull(),
     /** UI "Covered" when fleet pool can satisfy committed qty. */
-    availabilityCovered: boolean('availability_covered').notNull().default(false),
+    availabilityCovered: boolean('availability_covered')
+      .notNull()
+      .default(false),
     availabilityStatus: varchar('availability_status', { length: 32 })
       .notNull()
       .default('covered'),
     availableNowCount: integer('available_now_count').notNull().default(0),
     inboundCount: integer('inbound_count').notNull().default(0),
     shortfallCount: integer('shortfall_count').notNull().default(0),
-    awaitingAssetsLine: boolean('awaiting_assets_line').notNull().default(false),
+    awaitingAssetsLine: boolean('awaiting_assets_line')
+      .notNull()
+      .default(false),
     sortOrder: integer('sort_order').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -315,7 +324,9 @@ export const fleetDamageRecords = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [index('fleet_damage_records_organization_id_idx').on(t.organizationId)],
+  (t) => [
+    index('fleet_damage_records_organization_id_idx').on(t.organizationId),
+  ],
 );
 
 /** Flow 03 — per-edit field diff audit. */
@@ -400,12 +411,15 @@ export const fleetClientsRelations = relations(fleetClients, ({ many }) => ({
   pointsOfContact: many(fleetClientPocs),
 }));
 
-export const fleetClientPocsRelations = relations(fleetClientPocs, ({ one }) => ({
-  client: one(fleetClients, {
-    fields: [fleetClientPocs.clientId],
-    references: [fleetClients.id],
+export const fleetClientPocsRelations = relations(
+  fleetClientPocs,
+  ({ one }) => ({
+    client: one(fleetClients, {
+      fields: [fleetClientPocs.clientId],
+      references: [fleetClients.id],
+    }),
   }),
-}));
+);
 
 export const leaseContractsRelations = relations(
   leaseContracts,

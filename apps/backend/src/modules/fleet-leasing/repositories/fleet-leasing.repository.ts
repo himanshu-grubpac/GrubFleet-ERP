@@ -720,7 +720,10 @@ export class FleetLeasingRepository {
     return { rows, total: countRows[0]?.count ?? 0 };
   }
 
-  async findVehicleAllocationInOrg(organizationId: string, allocationId: string) {
+  async findVehicleAllocationInOrg(
+    organizationId: string,
+    allocationId: string,
+  ) {
     const [row] = await this.db
       .select({
         allocation: fleetVehicleAllocations,

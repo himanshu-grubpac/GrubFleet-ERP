@@ -15,7 +15,11 @@ describe('contract-field-diff.util', () => {
     amcTier: 'Gold',
     description: 'x',
     assetLines: [
-      { assetClass: 'Sedan', committedQuantity: 2, ratePerVehicleMonth: '500.00' },
+      {
+        assetClass: 'Sedan',
+        committedQuantity: 2,
+        ratePerVehicleMonth: '500.00',
+      },
     ],
     vehicleIds: ['v1'],
   });

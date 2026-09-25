@@ -68,18 +68,19 @@ export function computeContractFieldDiff(
   after: ContractSnapshotForDiff,
 ): ContractFieldChange[] {
   const changes: ContractFieldChange[] = [];
-  const scalarKeys: Array<keyof Omit<ContractSnapshotForDiff, 'assetLines' | 'vehicleIds'>> =
-    [
-      'clientId',
-      'startDate',
-      'endDate',
-      'termMonths',
-      'securityDeposit',
-      'billingFrequency',
-      'additionalTerms',
-      'amcTier',
-      'description',
-    ];
+  const scalarKeys: Array<
+    keyof Omit<ContractSnapshotForDiff, 'assetLines' | 'vehicleIds'>
+  > = [
+    'clientId',
+    'startDate',
+    'endDate',
+    'termMonths',
+    'securityDeposit',
+    'billingFrequency',
+    'additionalTerms',
+    'amcTier',
+    'description',
+  ];
   for (const key of scalarKeys) {
     if (before[key] !== after[key]) {
       changes.push({

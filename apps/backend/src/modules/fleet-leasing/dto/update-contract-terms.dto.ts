@@ -18,7 +18,10 @@ export class UpdateContractTermsDto {
   @Min(1)
   termMonths!: number;
 
-  @ApiProperty({ example: '96000.00', description: 'Whole-contract security deposit' })
+  @ApiProperty({
+    example: '96000.00',
+    description: 'Whole-contract security deposit',
+  })
   @IsString()
   securityDeposit!: string;
 

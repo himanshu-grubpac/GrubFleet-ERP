@@ -114,7 +114,7 @@ export class VehicleAllocationsService {
       contractId,
       vehicleId: dto.vehicleId,
       reassignmentConfirmation: precheck.requiresReassignmentConfirmation
-        ? dto.reassignmentConfirmation?.trim() ?? null
+        ? (dto.reassignmentConfirmation?.trim() ?? null)
         : null,
       notifiedStakeholders: dto.notifiedStakeholders,
     });
@@ -187,7 +187,10 @@ export class VehicleAllocationsService {
   }
 
   private async requireContract(organizationId: string, contractId: string) {
-    const contract = await this.repo.findContractInOrg(organizationId, contractId);
+    const contract = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
     if (!contract) throw new NotFoundException('Lease contract not found');
     return contract;
   }

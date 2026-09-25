@@ -6,7 +6,10 @@ describe('evaluateContractPricing', () => {
   ];
 
   it('requires deposit before review', () => {
-    const r = evaluateContractPricing({ securityDeposit: null, assetLines: lines });
+    const r = evaluateContractPricing({
+      securityDeposit: null,
+      assetLines: lines,
+    });
     expect(r.depositRequired).toBe(true);
     expect(r.canProceedToReview).toBe(false);
   });
@@ -24,7 +27,11 @@ describe('evaluateContractPricing', () => {
     const r = evaluateContractPricing({
       securityDeposit: '103500',
       assetLines: [
-        { assetClass: 'Sedan', committedQuantity: 3, ratePerVehicleMonth: '32000' },
+        {
+          assetClass: 'Sedan',
+          committedQuantity: 3,
+          ratePerVehicleMonth: '32000',
+        },
       ],
     });
     expect(r.requiresApproval).toBe(true);

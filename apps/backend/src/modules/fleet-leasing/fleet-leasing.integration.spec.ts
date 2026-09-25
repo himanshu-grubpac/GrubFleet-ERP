@@ -31,6 +31,11 @@ type LeaseContractResponse = {
 };
 type FleetClientResponse = { id: string };
 type PaginatedClientsResponse = { items: FleetClientResponse[] };
+type LeaseContractDetailResponse = {
+  rawStatus: string;
+  client: { companyName: string } | null;
+  availableActions: { editContract: { allowed: boolean } };
+};
 
 describe('Fleet leasing lease contracts (integration)', () => {
   if (process.env.SKIP_DB_INTEGRATION === '1') {
@@ -141,5 +146,16 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('x-organization-id', organizationId)
       .send({ clientId: clientBody.id })
       .expect(200);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/fleet-leasing/lease-contracts/${createdBody.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const detailBody = detail.body as LeaseContractDetailResponse;
+    expect(detailBody.rawStatus).toBe('draft');
+    expect(detailBody.client?.companyName).toContain('Meridian');
+    expect(detailBody.availableActions.editContract.allowed).toBe(true);
   });
 });

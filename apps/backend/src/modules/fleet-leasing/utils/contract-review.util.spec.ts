@@ -9,14 +9,22 @@ describe('contract-review.util', () => {
   const standardPricing = evaluateContractPricing({
     securityDeposit: '69000',
     assetLines: [
-      { assetClass: 'Sedan', committedQuantity: 2, ratePerVehicleMonth: '34500' },
+      {
+        assetClass: 'Sedan',
+        committedQuantity: 2,
+        ratePerVehicleMonth: '34500',
+      },
     ],
   });
 
   const approvalPricing = evaluateContractPricing({
     securityDeposit: '50000',
     assetLines: [
-      { assetClass: 'Sedan', committedQuantity: 2, ratePerVehicleMonth: '1000' },
+      {
+        assetClass: 'Sedan',
+        committedQuantity: 2,
+        ratePerVehicleMonth: '1000',
+      },
     ],
   });
 
@@ -70,14 +78,20 @@ describe('contract-review.util', () => {
         },
       ],
     });
-    expect(messages.some((m) => m.level === 'warning' && m.code === 'PRICING_REQUIRES_APPROVAL')).toBe(
-      true,
-    );
-    expect(messages.some((m) => m.code === 'LINE_AWAITING_ASSETS' && m.text.includes('Pickup'))).toBe(
-      true,
-    );
     expect(
-      messages.some((m) => m.code === 'LINE_PARTIALLY_ALLOCATED' && m.text.includes('SUV')),
+      messages.some(
+        (m) => m.level === 'warning' && m.code === 'PRICING_REQUIRES_APPROVAL',
+      ),
+    ).toBe(true);
+    expect(
+      messages.some(
+        (m) => m.code === 'LINE_AWAITING_ASSETS' && m.text.includes('Pickup'),
+      ),
+    ).toBe(true);
+    expect(
+      messages.some(
+        (m) => m.code === 'LINE_PARTIALLY_ALLOCATED' && m.text.includes('SUV'),
+      ),
     ).toBe(true);
   });
 

@@ -1,4 +1,7 @@
-import { isContractEditable, getContractEditBlockReason } from './contract-edit.util';
+import {
+  isContractEditable,
+  getContractEditBlockReason,
+} from './contract-edit.util';
 
 describe('contract-edit.util', () => {
   it('allows edit on active and other non-terminal editable statuses', () => {

@@ -12,7 +12,10 @@ export type ContractPricingEvaluation = {
   depositRequired: boolean;
   depositFloor: string | null;
   monthlyCommitmentTotal: string;
-  lineRateExceptions: Array<{ assetClass: string; ratePerVehicleMonth: string }>;
+  lineRateExceptions: Array<{
+    assetClass: string;
+    ratePerVehicleMonth: string;
+  }>;
   messages: Array<{ level: PricingMessageLevel; text: string }>;
 };
 
@@ -45,8 +48,7 @@ export function evaluateContractPricing(input: {
     depositBelowFloor = Number(input.securityDeposit) < Number(depositFloor);
   }
 
-  const requiresApproval =
-    lineRateExceptions.length > 0 || depositBelowFloor;
+  const requiresApproval = lineRateExceptions.length > 0 || depositBelowFloor;
 
   if (depositRequired) {
     messages.push({
@@ -56,19 +58,17 @@ export function evaluateContractPricing(input: {
   } else if (requiresApproval) {
     messages.push({
       level: 'warning',
-      text: 'Outside standard pricing limits. One or more lines\' rate, or the deposit, falls below the pricing engine\'s floor and does not match a sanctioned discount — confirming will raise a single approval request covering the whole contract, to the Fleet/Leasing Manager, instead of activating directly.',
+      text: "Outside standard pricing limits. One or more lines' rate, or the deposit, falls below the pricing engine's floor and does not match a sanctioned discount — confirming will raise a single approval request covering the whole contract, to the Fleet/Leasing Manager, instead of activating directly.",
     });
   } else {
     messages.push({
       level: 'success',
-      text: 'Every line\'s rate, and the deposit, are within the pricing engine\'s standard limits — no approval needed. Confirming will activate the contract directly.',
+      text: "Every line's rate, and the deposit, are within the pricing engine's standard limits — no approval needed. Confirming will activate the contract directly.",
     });
   }
 
   const canProceedToReview =
-    !depositRequired &&
-    input.assetLines.length > 0 &&
-    monthlyTotal > 0;
+    !depositRequired && input.assetLines.length > 0 && monthlyTotal > 0;
 
   return {
     withinStandardLimits: !requiresApproval && !depositRequired,

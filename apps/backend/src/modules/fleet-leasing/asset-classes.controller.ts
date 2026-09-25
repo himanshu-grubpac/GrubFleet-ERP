@@ -17,7 +17,8 @@ export class AssetClassesController {
   @RequireOrganizationContext()
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
   @ApiOperation({
-    summary: 'Preview availability for wizard step 2 (asset class + committed qty)',
+    summary:
+      'Preview availability for wizard step 2 (asset class + committed qty)',
   })
   async preview(
     @Query('organizationId', ParseUUIDPipe) organizationId: string,

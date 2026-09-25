@@ -1,7 +1,5 @@
 export type ContractLineAllocationStatus =
-  | 'allocated'
-  | 'partially_allocated'
-  | 'awaiting_assets';
+  'allocated' | 'partially_allocated' | 'awaiting_assets';
 
 export type ContractLineAllocationInput = {
   assetClass: string;
@@ -120,35 +118,30 @@ export function buildContractConfirmationInfoMessages(input: {
     messages.push({
       level: 'info',
       code: 'ALL_LINES_ALLOCATED',
-      text:
-        'All committed units are fully allocated. Billing follows contract start date and billing frequency per line.',
+      text: 'All committed units are fully allocated. Billing follows contract start date and billing frequency per line.',
     });
   } else if (input.hasAwaitingLines || input.hasPartialLines) {
     messages.push({
       level: 'info',
       code: 'ALLOCATION_IN_PROGRESS',
-      text:
-        'Some lines are awaiting vehicles or partially allocated. Billing applies per line only when that line is fully allocated.',
+      text: 'Some lines are awaiting vehicles or partially allocated. Billing applies per line only when that line is fully allocated.',
     });
   }
 
   messages.push({
     level: 'info',
     code: 'BILLING_WHEN_LINE_FULLY_ALLOCATED',
-    text:
-      'Billing starts for a line only when committed quantity equals allocated vehicles for that line.',
+    text: 'Billing starts for a line only when committed quantity equals allocated vehicles for that line.',
   });
   messages.push({
     level: 'info',
     code: 'VEHICLE_STATUS_ON_ALLOCATION',
-    text:
-      'When a vehicle is allocated to this contract, fleet status moves from Available to Leased.',
+    text: 'When a vehicle is allocated to this contract, fleet status moves from Available to Leased.',
   });
   messages.push({
     level: 'info',
     code: 'AUTO_ALLOCATION_FROM_REGISTER_GAP',
-    text:
-      'Automatic allocation when new vehicles enter the Asset Register is not implemented yet — assign vehicles via contract vehicle links until auto-allocation ships.',
+    text: 'Automatic allocation when new vehicles enter the Asset Register is not implemented yet — assign vehicles via contract vehicle links until auto-allocation ships.',
   });
 
   return messages;

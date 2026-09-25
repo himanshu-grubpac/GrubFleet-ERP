@@ -44,7 +44,9 @@ export class LeaseContractsController {
   @Get()
   @RequireOrganizationContext()
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
-  @ApiOperation({ summary: 'List lease contracts with search and status filter' })
+  @ApiOperation({
+    summary: 'List lease contracts with search and status filter',
+  })
   list(@Query() query: ListLeaseContractsQueryDto) {
     return this.leaseContracts.list(query);
   }
@@ -140,7 +142,9 @@ export class LeaseContractsController {
   @Get(':id')
   @RequireOrganizationContext()
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
-  @ApiOperation({ summary: 'Lease contract detail with lines, logs, return progress' })
+  @ApiOperation({
+    summary: 'Lease contract detail with lines, logs, return progress',
+  })
   getOne(
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
@@ -176,7 +180,11 @@ export class LeaseContractsController {
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.leaseContracts.submitForApproval(user.userId, organizationId, id);
+    return this.leaseContracts.submitForApproval(
+      user.userId,
+      organizationId,
+      id,
+    );
   }
 
   @Post(':id/confirm')
@@ -257,7 +265,11 @@ export class LeaseContractsController {
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.leaseContracts.requestTermination(user.userId, organizationId, id);
+    return this.leaseContracts.requestTermination(
+      user.userId,
+      organizationId,
+      id,
+    );
   }
 
   @Post(':id/approve-termination')
@@ -268,7 +280,11 @@ export class LeaseContractsController {
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.leaseContracts.approveTermination(user.userId, organizationId, id);
+    return this.leaseContracts.approveTermination(
+      user.userId,
+      organizationId,
+      id,
+    );
   }
 
   @Post(':id/renew')
