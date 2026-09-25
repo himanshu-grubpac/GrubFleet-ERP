@@ -12,7 +12,6 @@ import {
 import { AuditService } from '../audit/audit.service';
 import {
   LIST_STATUS_FILTER,
-  TERMINAL_STATUSES,
   type LeaseContractStatus,
 } from './constants/lease-contract-status';
 import { computeAssetLineAvailability } from './utils/asset-class-availability.util';
@@ -21,7 +20,10 @@ import {
   computeCanSubmitReview,
   resolveReviewAction,
 } from './utils/contract-review.util';
-import { evaluateContractPricing } from './utils/contract-pricing-engine.util';
+import {
+  evaluateContractPricing,
+  type ContractPricingEvaluation,
+} from './utils/contract-pricing-engine.util';
 import {
   buildContractConfirmationInfoMessages,
   buildContractLineAllocationRow,
@@ -41,6 +43,7 @@ import {
   mapAllLogs,
   mapLifecycleLogs,
 } from './utils/contract-detail.presentation.util';
+import { getContractEditBlockReason } from './utils/contract-edit.util';
 
 @Injectable()
 export class LeaseContractsService {
@@ -420,43 +423,114 @@ export class LeaseContractsService {
   ) {
     const existing = await this.repo.findContractInOrg(organizationId, contractId);
     if (!existing) throw new NotFoundException('Lease contract not found');
-    if (TERMINAL_STATUSES.includes(existing.status as LeaseContractStatus)) {
-      throw new ConflictException('Cannot update a closed contract');
-    }
-    if (!['draft', 'pending_approval', 'approved', 'active'].includes(existing.status)) {
-      throw new ConflictException('Contract cannot be edited in current status');
+    const rawStatus = existing.status as LeaseContractStatus;
+    const editBlockReason = getContractEditBlockReason(rawStatus);
+    if (editBlockReason) {
+      throw new ConflictException(editBlockReason);
     }
     if (dto.clientId) {
       const client = await this.repo.getClientInOrg(organizationId, dto.clientId);
       if (!client) throw new BadRequestException('Invalid client for organization');
     }
-    await this.repo.updateContract(contractId, organizationId, {
-      clientId: dto.clientId,
-      startDate: dto.startDate ? new Date(dto.startDate) : undefined,
-      endDate: dto.endDate ? new Date(dto.endDate) : undefined,
-      termMonths: dto.termMonths,
-      securityDeposit: dto.securityDeposit,
-      billingFrequency: dto.billingFrequency,
-      additionalTerms: dto.additionalTerms,
-      amcTier: dto.amcTier,
+
+    const nextStartDate =
+      dto.startDate !== undefined
+        ? new Date(dto.startDate)
+        : existing.startDate;
+    const nextTermMonths =
+      dto.termMonths !== undefined ? dto.termMonths : existing.termMonths;
+    const recomputeEndDate =
+      (dto.startDate !== undefined || dto.termMonths !== undefined) &&
+      nextStartDate !== null &&
+      nextTermMonths !== null &&
+      nextTermMonths > 0;
+
+    const contractPatch: Parameters<
+      FleetLeasingRepository['updateContract']
+    >[2] = {
       updatedByUserId: userId,
-    });
+    };
+    if (dto.clientId !== undefined) contractPatch.clientId = dto.clientId;
+    if (dto.startDate !== undefined) contractPatch.startDate = nextStartDate;
+    if (dto.termMonths !== undefined) contractPatch.termMonths = dto.termMonths;
+    if (recomputeEndDate) {
+      contractPatch.endDate = addMonthsUtc(nextStartDate!, nextTermMonths!);
+    } else if (dto.endDate !== undefined) {
+      contractPatch.endDate = new Date(dto.endDate);
+    }
+    if (dto.securityDeposit !== undefined) {
+      contractPatch.securityDeposit = dto.securityDeposit;
+    }
+    if (dto.billingFrequency !== undefined) {
+      contractPatch.billingFrequency = dto.billingFrequency;
+    }
+    if (dto.additionalTerms !== undefined) {
+      contractPatch.additionalTerms = dto.additionalTerms;
+    }
+    if (dto.amcTier !== undefined) contractPatch.amcTier = dto.amcTier;
+
+    await this.repo.updateContract(contractId, organizationId, contractPatch);
+
+    const pricingTouched =
+      dto.clientId !== undefined ||
+      dto.startDate !== undefined ||
+      dto.termMonths !== undefined ||
+      dto.securityDeposit !== undefined ||
+      dto.billingFrequency !== undefined ||
+      dto.additionalTerms !== undefined ||
+      dto.amcTier !== undefined ||
+      dto.assetLines !== undefined;
+
     if (dto.assetLines) {
-      await this.applyAssetLines(organizationId, contractId, dto.assetLines, {
-        confirmShortfall: false,
+      const snapshots = await this.applyAssetLines(
+        organizationId,
+        contractId,
+        dto.assetLines,
+        { confirmShortfall: false },
+      );
+      const hasAwaitingLine = snapshots.some((s) => s.awaitingAssetsLine);
+      await this.repo.updateContract(contractId, organizationId, {
+        awaitingFutureAssets: hasAwaitingLine,
+        updatedByUserId: userId,
       });
     }
     if (dto.vehicleIds) {
       await this.applyVehicles(organizationId, contractId, dto.vehicleIds);
     }
+
+    let pricingEvaluation: ContractPricingEvaluation | undefined;
+    if (pricingTouched) {
+      pricingEvaluation = await this.buildPricingEvaluation(
+        organizationId,
+        contractId,
+      );
+      await this.repo.updateContract(contractId, organizationId, {
+        rateRequiresApproval: pricingEvaluation.requiresApproval,
+        updatedByUserId: userId,
+      });
+    }
+
     await this.logEvent(
       contractId,
       organizationId,
       userId,
-      'contract.updated',
-      `Contract ${existing.contractNumber} updated`,
+      'contract.edited',
+      `Contract ${existing.contractNumber} edited`,
     );
-    return this.getById(organizationId, contractId);
+    await this.audit.log({
+      organizationId,
+      userId,
+      action: 'lease_contract.update',
+      resourceType: 'lease_contract',
+      resourceId: contractId,
+      status: 'SUCCESS',
+    });
+
+    const detail = await this.getById(organizationId, contractId);
+    if (pricingEvaluation) {
+      return { ...detail, pricingEvaluation };
+    }
+    return detail;
   }
 
   async submitForApproval(userId: string, organizationId: string, contractId: string) {

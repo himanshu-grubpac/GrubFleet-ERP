@@ -786,7 +786,13 @@ paths:
           $ref: '#/components/responses/NotFound'
     patch:
       tags: [fleet-leasing]
-      summary: Update draft/active contract fields and lines
+      summary: Edit contract (client, terms, asset lines, vehicles)
+      description: |
+        Single payload edit for non-closed contracts. Allowed raw statuses include
+        draft, pending_approval, approved, active, awaiting_assets, deactivated,
+        and billing_paused. Blocked on closed, concluded, and pending_termination.
+        When startDate or termMonths change, endDate is recomputed from start + term.
+        Terms or asset-line rate changes refresh rateRequiresApproval in place (no auto status demotion).
       operationId: updateLeaseContract
       security:
         - bearerAuth: []
@@ -798,13 +804,40 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeaseContractBody'
+            example:
+              clientId: "11111111-1111-4111-8111-111111111111"
+              startDate: "2026-09-15"
+              termMonths: 24
+              securityDeposit: "96000.00"
+              billingFrequency: monthly
+              additionalTerms: "Standard fleet SLA applies."
+              amcTier: "Gold"
+              assetLines:
+                - assetClass: Sedan
+                  committedQuantity: 10
+                  ratePerVehicleMonth: "34500.00"
       responses:
         '200':
-          description: Updated contract detail
+          description: Updated contract detail; pricingEvaluation when terms or lines changed
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LeaseContractDetail'
+                allOf:
+                  - $ref: '#/components/schemas/LeaseContractDetail'
+                  - type: object
+                    properties:
+                      pricingEvaluation:
+                        $ref: '#/components/schemas/ContractPricingEvaluation'
+        '409':
+          description: Contract not editable in current status or ASSET_SHORTFALL on lines
+        '404':
+          $ref: '#/components/responses/NotFound'
   /fleet-leasing/lease-contracts/{id}/deactivate:
     post:
       tags: [fleet-leasing]
@@ -1620,6 +1653,68 @@ components:
         actorLabel:
           type: string
           nullable: true
+    UpdateLeaseContractBody:
+      type: object
+      description: Partial edit — omit fields to leave unchanged
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        startDate:
+          type: string
+          format: date
+        termMonths:
+          type: integer
+          minimum: 1
+        endDate:
+          type: string
+          format: date
+          description: Ignored when startDate or termMonths is sent (endDate recomputed)
+        securityDeposit:
+          type: string
+        billingFrequency:
+          type: string
+          enum: [monthly, quarterly, annual]
+        additionalTerms:
+          type: string
+        amcTier:
+          type: string
+        assetLines:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaseContractAssetLineInput'
+        vehicleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+    LeaseContractAssetLineInput:
+      type: object
+      required: [assetClass, committedQuantity, ratePerVehicleMonth]
+      properties:
+        assetClass:
+          type: string
+          example: Sedan
+        committedQuantity:
+          type: integer
+          minimum: 1
+        ratePerVehicleMonth:
+          type: string
+          example: "34500.00"
+    ContractPricingEvaluation:
+      type: object
+      description: Pricing engine output after terms or asset-line edits
+      properties:
+        withinStandardLimits:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        canProceedToReview:
+          type: boolean
+        messages:
+          type: array
+          items:
+            type: object
     LeaseContractDetail:
       type: object
       required:

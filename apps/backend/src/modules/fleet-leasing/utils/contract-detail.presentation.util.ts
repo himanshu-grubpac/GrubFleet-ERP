@@ -1,4 +1,5 @@
 import type { LeaseContractStatus } from '../constants/lease-contract-status';
+import { getContractEditBlockReason } from './contract-edit.util';
 
 export type ContractEventRow = {
   id: string;
@@ -215,15 +216,8 @@ export function buildAvailableActions(input: {
   });
   const allow = (): AvailableAction => ({ allowed: true });
 
-  const editStatuses: LeaseContractStatus[] = [
-    'draft',
-    'pending_approval',
-    'approved',
-    'active',
-  ];
-  const editContract = editStatuses.includes(rawStatus)
-    ? allow()
-    : deny('Contract cannot be edited in the current status');
+  const editBlockReason = getContractEditBlockReason(rawStatus);
+  const editContract = editBlockReason ? deny(editBlockReason) : allow();
 
   const deactivate =
     rawStatus === 'active'

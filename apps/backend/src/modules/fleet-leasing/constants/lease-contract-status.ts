@@ -24,3 +24,14 @@ export const LIST_STATUS_FILTER = {
 export type ListStatusFilterKey = keyof typeof LIST_STATUS_FILTER;
 
 export const TERMINAL_STATUSES: LeaseContractStatus[] = ['closed', 'concluded'];
+
+/** Detail edit (PATCH) and availableActions.editContract — all non-terminal lifecycle states except pending termination. */
+export const EDITABLE_CONTRACT_STATUSES: LeaseContractStatus[] = [
+  'draft',
+  'pending_approval',
+  'approved',
+  'active',
+  'awaiting_assets',
+  'deactivated',
+  'billing_paused',
+];

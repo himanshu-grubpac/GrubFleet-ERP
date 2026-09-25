@@ -151,7 +151,10 @@ export class LeaseContractsController {
   @Patch(':id')
   @RequireOrganizationContext()
   @RequireAnyPermissions(...FleetLeasingWriteAny.UPDATE)
-  @ApiOperation({ summary: 'Update draft/active contract fields and lines' })
+  @ApiOperation({
+    summary:
+      'Edit contract — client, terms, asset lines, vehicles (non-closed statuses)',
+  })
   update(
     @CurrentUser() user: AuthenticatedUser,
     @Query('organizationId', ParseUUIDPipe) organizationId: string,

@@ -424,6 +424,24 @@
           "response": []
         },
         {
+          "name": "Edit lease contract",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{fleetClientId}}\",\n  \"startDate\": \"2026-09-15\",\n  \"termMonths\": 24,\n  \"securityDeposit\": \"96000.00\",\n  \"billingFrequency\": \"monthly\",\n  \"additionalTerms\": \"Standard fleet SLA applies.\",\n  \"amcTier\": \"Gold\",\n  \"assetLines\": [\n    {\n      \"assetClass\": \"Sedan\",\n      \"committedQuantity\": 10,\n      \"ratePerVehicleMonth\": \"34500.00\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}?organizationId={{organizationId}}",
+            "description": "PATCH .../{id} — edit client, terms, asset lines, optional vehicleIds. Blocked on closed/concluded/pending_termination. Returns detail + pricingEvaluation when terms/lines change."
+          },
+          "response": []
+        },
+        {
           "name": "Deactivate lease contract",
           "request": {
             "method": "POST",

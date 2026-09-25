@@ -46,6 +46,7 @@ describe('contract-detail.presentation.util', () => {
         canPauseBilling: false,
         hasPendingTerminationApproval: false,
       });
+      expect(deactivated.editContract.allowed).toBe(true);
       expect(deactivated.reactivate.allowed).toBe(true);
       expect(deactivated.deactivate.allowed).toBe(false);
       expect(deactivated.requestTermination.allowed).toBe(true);
@@ -57,6 +58,8 @@ describe('contract-detail.presentation.util', () => {
         canPauseBilling: true,
         hasPendingTerminationApproval: false,
       });
+      expect(closed.editContract.allowed).toBe(false);
+      expect(closed.editContract.disabledReason).toMatch(/closed contract/i);
       expect(closed.reactivate.allowed).toBe(false);
       expect(closed.reactivate.disabledReason).toMatch(
         /cannot be reactivated/i,
