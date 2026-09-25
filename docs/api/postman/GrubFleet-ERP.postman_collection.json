@@ -304,6 +304,100 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Fleet & Leasing",
+      "description": "Lease contract wizard and lifecycle. Set leaseContractId from Create draft response.",
+      "item": [
+        {
+          "name": "Create draft lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts?organizationId={{organizationId}}",
+            "description": "POST /fleet-leasing/lease-contracts — wizard entry (draft)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get contract review (wizard step 4)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/review?organizationId={{organizationId}}",
+            "description": "GET .../review — client, lines, terms, pricingEvaluation, reviewAction, messages, canSubmit."
+          },
+          "response": []
+        },
+        {
+          "name": "Terms evaluation (wizard step 3)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/terms/evaluation?organizationId={{organizationId}}",
+            "description": "GET .../terms/evaluation — pricing engine preview."
+          },
+          "response": []
+        },
+        {
+          "name": "Update contract terms (wizard step 3)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startDate\": \"2026-09-15\",\n  \"termMonths\": 24,\n  \"securityDeposit\": \"210000.00\",\n  \"billingFrequency\": \"monthly\"\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/terms?organizationId={{organizationId}}",
+            "description": "PUT .../terms — saves step 3; returns contract + pricingEvaluation."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit for approval (wizard step 4)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/submit?organizationId={{organizationId}}",
+            "description": "POST .../submit — when reviewAction is submit_for_approval; status pending_approval + approval request."
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm contract (wizard step 4)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirm?organizationId={{organizationId}}",
+            "description": "POST .../confirm — when reviewAction is confirm_contract; activates or awaiting_assets."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -329,6 +423,10 @@
     },
     {
       "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "leaseContractId",
       "value": ""
     }
   ]

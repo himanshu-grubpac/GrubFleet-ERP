@@ -35,6 +35,8 @@ tags:
     description: Global permission catalog
   - name: audit
     description: Organization audit log queries
+  - name: fleet-leasing
+    description: Fleet & leasing — lease contracts, clients, vehicles
 paths:
   /health:
     get:
@@ -537,6 +539,305 @@ paths:
                 $ref: '#/components/schemas/PaginatedAuditLogs'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/lease-contracts/summary:
+    get:
+      tags: [fleet-leasing]
+      summary: Lease contract KPI counts (list header)
+      operationId: getLeaseContractSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Summary counts
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/lease-contracts:
+    get:
+      tags: [fleet-leasing]
+      summary: List lease contracts
+      operationId: listLeaseContracts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: statusFilter
+          in: query
+          schema:
+            type: string
+            enum: [all, active, awaiting_assets, pending_approval, draft, completed]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated lease contracts
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [fleet-leasing]
+      summary: Create draft lease contract
+      operationId: createLeaseContract
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Created draft contract
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/asset-classes/availability:
+    get:
+      tags: [fleet-leasing]
+      summary: Preview asset-class availability (wizard step 2)
+      operationId: previewAssetClassAvailability
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: assetClass
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: committedQuantity
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: covered | partial_today | shortfall snapshot
+  /fleet-leasing/lease-contracts/{id}/terms/evaluation:
+    get:
+      tags: [fleet-leasing]
+      summary: Pricing engine preview for wizard step 3
+      operationId: getLeaseContractTermsEvaluation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: withinStandardLimits, requiresApproval, messages
+  /fleet-leasing/lease-contracts/{id}/terms:
+    put:
+      tags: [fleet-leasing]
+      summary: Save wizard step 3 contract terms
+      operationId: updateLeaseContractTerms
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: contract + pricingEvaluation (canProceedToReview gates Review step)
+  /fleet-leasing/lease-contracts/{id}/asset-lines:
+    put:
+      tags: [fleet-leasing]
+      summary: Save wizard step 2 asset-class lines
+      operationId: updateLeaseContractAssetLines
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Saved lines with lineAvailability
+        '409':
+          description: ASSET_SHORTFALL — confirmShortfall required
+  /fleet-leasing/lease-contracts/{id}/review:
+    get:
+      tags: [fleet-leasing]
+      summary: Wizard step 4 — review contract (client, lines, terms, pricing, messages)
+      operationId: getLeaseContractReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            reviewAction submit_for_approval | confirm_contract, messages (info|warning),
+            canSubmit, pricingEvaluation
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}/confirm:
+    post:
+      tags: [fleet-leasing]
+      summary: Wizard step 4 — confirm when within standard limits (no rate approval)
+      operationId: confirmLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: contract activated or awaiting_assets; confirm_contract messages
+        '400':
+          description: TERMS_INCOMPLETE or PRICING_REQUIRES_APPROVAL — use submit instead
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}/submit:
+    post:
+      tags: [fleet-leasing]
+      summary: Submit draft for approval when rates/deposit outside standard limits
+      operationId: submitLeaseContractForApproval
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: pending_approval when rate exception; includes reviewAction and messages
+        '400':
+          description: TERMS_INCOMPLETE
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Lease contract detail
+      operationId: getLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract detail with lines and logs
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/clients:
+    get:
+      tags: [fleet-leasing]
+      summary: List/search fleet clients (wizard step 1 — company or POC)
+      operationId: listFleetClients
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Company name or point-of-contact name/email
+      responses:
+        '200':
+          description: Paginated clients with primary POC and contractCount
+    post:
+      tags: [fleet-leasing]
+      summary: Create client with one or more POCs (exactly one primary)
+      operationId: createFleetClient
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Client created
+  /fleet-leasing/clients/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Client detail with all POCs
+      operationId: getFleetClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Client with pointsOfContact
+    patch:
+      tags: [fleet-leasing]
+      summary: Update client and POC rows
+      operationId: updateFleetClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated client
+  /fleet-leasing/vehicles:
+    get:
+      tags: [fleet-leasing]
+      summary: List fleet vehicles
+      operationId: listFleetVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: assetClass
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated vehicles
 components:
   securitySchemes:
     bearerAuth:
