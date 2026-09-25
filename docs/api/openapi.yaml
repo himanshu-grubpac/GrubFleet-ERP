@@ -10,7 +10,7 @@ info:
     Live Swagger UI when the backend is running: `/api/v1/docs`.
 
     Authentication: login, refresh, logout, and `/auth/me` (Bearer JWT access token).
-    Org-scoped admin routes require Bearer JWT plus organization context (`X-Organization-Id` and/or `organizationId` query/body). Permission keys use `module:VIEW` / `module:MANAGE` (Administration TSV Edit/Approve/Admin deferred — see auth-rbac-plan).
+    Org-scoped admin routes require Bearer JWT plus organization context (`X-Organization-Id` and/or `organizationId` query/body). Module access levels are NONE / VIEW / MANAGE / FULL; permission keys use dot notation (e.g. `administration.view`, `administration.create`). MANAGE expands to view plus CRUD keys; FULL adds legacy `{module}.manage`. Admin mutations accept `{module}.manage` or the matching CRUD key. TSV Edit/Approve/Admin types deferred — see auth-rbac-plan.
 servers:
   - url: http://localhost:4000/api/v1
     description: Local development (default backend port 4000)
@@ -35,6 +35,8 @@ tags:
     description: Global permission catalog
   - name: audit
     description: Organization audit log queries
+  - name: fleet-leasing
+    description: Fleet & leasing — lease contracts, clients, vehicles
 paths:
   /health:
     get:
@@ -368,7 +370,7 @@ paths:
   /roles/editor-matrix:
     get:
       tags: [roles]
-      summary: Role editor module rows (NONE/VIEW/FULL)
+      summary: Role editor module rows (NONE/VIEW/MANAGE/FULL)
       operationId: getRoleEditorMatrix
       security:
         - bearerAuth: []
@@ -537,6 +539,681 @@ paths:
                 $ref: '#/components/schemas/PaginatedAuditLogs'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/lease-contracts/summary:
+    get:
+      tags: [fleet-leasing]
+      summary: Lease contract KPI counts (list header)
+      operationId: getLeaseContractSummary
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Summary counts
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/lease-contracts:
+    get:
+      tags: [fleet-leasing]
+      summary: List lease contracts
+      operationId: listLeaseContracts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: statusFilter
+          in: query
+          schema:
+            type: string
+            enum:
+              [
+                all,
+                active,
+                awaiting_assets,
+                pending_approval,
+                draft,
+                completed,
+                deactivated,
+                billing_paused,
+                pending_termination,
+              ]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated lease contracts
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [fleet-leasing]
+      summary: Create draft lease contract
+      operationId: createLeaseContract
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Created draft contract
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/asset-classes/availability:
+    get:
+      tags: [fleet-leasing]
+      summary: Preview asset-class availability (wizard step 2)
+      operationId: previewAssetClassAvailability
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: assetClass
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: committedQuantity
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: covered | partial_today | shortfall snapshot
+  /fleet-leasing/lease-contracts/{id}/terms/evaluation:
+    get:
+      tags: [fleet-leasing]
+      summary: Pricing engine preview for wizard step 3
+      operationId: getLeaseContractTermsEvaluation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: withinStandardLimits, requiresApproval, messages
+  /fleet-leasing/lease-contracts/{id}/terms:
+    put:
+      tags: [fleet-leasing]
+      summary: Save wizard step 3 contract terms
+      operationId: updateLeaseContractTerms
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: contract + pricingEvaluation (canProceedToReview gates Review step)
+  /fleet-leasing/lease-contracts/{id}/asset-lines:
+    put:
+      tags: [fleet-leasing]
+      summary: Save wizard step 2 asset-class lines
+      operationId: updateLeaseContractAssetLines
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Saved lines with lineAvailability
+        '409':
+          description: ASSET_SHORTFALL — confirmShortfall required
+  /fleet-leasing/lease-contracts/{id}/confirmation:
+    get:
+      tags: [fleet-leasing]
+      summary: Post-wizard confirmation — allocation table and info messages
+      operationId: getLeaseContractConfirmation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            contractNumber, clientCompanyName, publicStatus, rawStatus, headline,
+            infoMessages, allocationByLine (lineStatus allocated|partially_allocated|awaiting_assets),
+            contractFullyAllocated
+        '400':
+          description: Contract not yet confirmed or activated
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}/review:
+    get:
+      tags: [fleet-leasing]
+      summary: Wizard step 4 — review contract (client, lines, terms, pricing, messages)
+      operationId: getLeaseContractReview
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            reviewAction submit_for_approval | confirm_contract, messages (info|warning),
+            canSubmit, pricingEvaluation
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}/confirm:
+    post:
+      tags: [fleet-leasing]
+      summary: Wizard step 4 — confirm when within standard limits (no rate approval)
+      operationId: confirmLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            contract, pricingEvaluation, activatedStatus; confirmation summary embedded;
+            confirmationUrl for refresh
+        '400':
+          description: TERMS_INCOMPLETE or PRICING_REQUIRES_APPROVAL — use submit instead
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}/submit:
+    post:
+      tags: [fleet-leasing]
+      summary: Submit draft for approval when rates/deposit outside standard limits
+      operationId: submitLeaseContractForApproval
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: pending_approval when rate exception; includes reviewAction and messages
+        '400':
+          description: TERMS_INCOMPLETE
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Lease contract detail
+      operationId: getLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract detail with lines, lifecycle logs, status banner, and available actions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [fleet-leasing]
+      summary: Edit contract (client, terms, asset lines, vehicles)
+      description: |
+        Single payload edit for non-closed contracts. Allowed raw statuses include
+        draft, pending_approval, approved, active, awaiting_assets, deactivated,
+        and billing_paused. Blocked on closed, concluded, and pending_termination.
+        When startDate or termMonths change, endDate is recomputed from start + term.
+        Terms or asset-line rate changes refresh rateRequiresApproval in place (no auto status demotion).
+      operationId: updateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLeaseContractBody'
+            example:
+              clientId: "11111111-1111-4111-8111-111111111111"
+              startDate: "2026-09-15"
+              termMonths: 24
+              securityDeposit: "96000.00"
+              billingFrequency: monthly
+              additionalTerms: "Standard fleet SLA applies."
+              amcTier: "Gold"
+              assetLines:
+                - assetClass: Sedan
+                  committedQuantity: 10
+                  ratePerVehicleMonth: "34500.00"
+      responses:
+        '200':
+          description: Updated contract detail; pricingEvaluation when terms or lines changed
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/LeaseContractDetail'
+                  - type: object
+                    properties:
+                      pricingEvaluation:
+                        $ref: '#/components/schemas/ContractPricingEvaluation'
+        '409':
+          description: Contract not editable in current status or ASSET_SHORTFALL on lines
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}/deactivate:
+    post:
+      tags: [fleet-leasing]
+      summary: Deactivate active contract (on hold; billing continues)
+      operationId: deactivateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deactivated contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/reactivate:
+    post:
+      tags: [fleet-leasing]
+      summary: Reactivate deactivated contract (direct — no approval)
+      operationId: reactivateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Reactivated contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/pause-billing:
+    post:
+      tags: [fleet-leasing]
+      summary: Pause billing after all vehicles returned and registered
+      operationId: pauseLeaseContractBilling
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract detail with billing paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/request-termination:
+    post:
+      tags: [fleet-leasing]
+      summary: Request contract termination (Contract Admin approval required)
+      operationId: requestLeaseContractTermination
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract pending termination
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/approve-termination:
+    post:
+      tags: [fleet-leasing]
+      summary: Approve termination — closes contract (deposit settle stub)
+      operationId: approveLeaseContractTermination
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Closed contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/renew:
+    post:
+      tags: [fleet-leasing]
+      summary: Create renewal draft (Flow 04)
+      description: |
+        Copies client and asset lines into a new draft contract with null start/end/term
+        until terms are set. Links renewedFromContractId to the source contract.
+      operationId: renewLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: New renewal draft contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+        '400':
+          description: Source contract not eligible for renewal
+  /fleet-leasing/lease-contracts/{id}/register-return:
+    post:
+      tags: [fleet-leasing]
+      summary: Register vehicle return and inspection (Flow 06)
+      operationId: registerLeaseContractReturn
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterReturnBody'
+      responses:
+        '200':
+          description: Updated contract detail after return registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{contractId}/vehicle-allocations:
+    get:
+      tags: [fleet-leasing]
+      summary: List vehicle allocations for a contract (Flow 02)
+      operationId: listContractVehicleAllocations
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Allocation rows for contract
+    post:
+      tags: [fleet-leasing]
+      summary: Allocate or reassign vehicle to contract (Flow 02)
+      operationId: allocateVehicleToContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVehicleAllocationBody'
+      responses:
+        '200':
+          description: Created allocation record
+  /fleet-leasing/vehicle-allocations:
+    get:
+      tags: [fleet-leasing]
+      summary: Org-wide vehicle allocation hub (Flow 02)
+      operationId: listVehicleAllocationsHub
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: contractId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated allocations
+  /fleet-leasing/vehicle-allocations/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Vehicle allocation detail
+      operationId: getVehicleAllocation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Allocation detail
+  /fleet-leasing/returns:
+    get:
+      tags: [fleet-leasing]
+      summary: Returns and inspections hub (Flow 06)
+      operationId: listFleetReturns
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: contractId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated return inspections
+  /fleet-leasing/returns/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Return inspection detail (Flow 06)
+      operationId: getFleetReturnInspection
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Inspection detail
+  /fleet-leasing/clients:
+    get:
+      tags: [fleet-leasing]
+      summary: List/search fleet clients (wizard step 1 — company or POC)
+      operationId: listFleetClients
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Company name or point-of-contact name/email
+      responses:
+        '200':
+          description: Paginated clients with primary POC and contractCount
+    post:
+      tags: [fleet-leasing]
+      summary: Create client with one or more POCs (exactly one primary)
+      operationId: createFleetClient
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Client created
+  /fleet-leasing/clients/{id}:
+    get:
+      tags: [fleet-leasing]
+      summary: Client detail with all POCs
+      operationId: getFleetClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Client with pointsOfContact
+    patch:
+      tags: [fleet-leasing]
+      summary: Update client and POC rows
+      operationId: updateFleetClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated client
+  /fleet-leasing/vehicles:
+    get:
+      tags: [fleet-leasing]
+      summary: List fleet vehicles
+      operationId: listFleetVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: assetClass
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated vehicles
 components:
   securitySchemes:
     bearerAuth:
@@ -747,6 +1424,12 @@ components:
                 type: array
                 items:
                   type: string
+              permissionRevision:
+                type: integer
+                minimum: 0
+                description: >
+                  Org-scoped permission revision; increases when roles or assignments
+                  change. Clients may refetch /auth/me when this value changes.
               moduleAccess:
                 type: array
                 items:
@@ -767,7 +1450,7 @@ components:
           type: string
         accessLevel:
           type: string
-          enum: [VIEW, FULL, CUSTOM]
+          enum: [VIEW, MANAGE, FULL, CUSTOM]
     ModuleAccessEntry:
       type: object
       required: [moduleId, accessLevel]
@@ -776,7 +1459,7 @@ components:
           type: string
         accessLevel:
           type: string
-          enum: [NONE, VIEW, FULL]
+          enum: [NONE, VIEW, MANAGE, FULL]
     ModuleRegistryResponse:
       type: object
       required: [items]
@@ -828,13 +1511,13 @@ components:
                 type: array
                 items:
                   type: string
-                  enum: [NONE, VIEW, FULL]
+                  enum: [NONE, VIEW, MANAGE, FULL]
               actorMaxLevel:
                 type: string
-                enum: [NONE, VIEW, FULL, CUSTOM]
+                enum: [NONE, VIEW, MANAGE, FULL, CUSTOM]
               roleLevel:
                 type: string
-                enum: [NONE, VIEW, FULL, CUSTOM]
+                enum: [NONE, VIEW, MANAGE, FULL, CUSTOM]
     PaginationMeta:
       type: object
       required: [page, pageSize, total, totalPages]
@@ -1105,6 +1788,310 @@ components:
               items:
                 $ref: '#/components/schemas/AuditLogEntry'
         - $ref: '#/components/schemas/PaginationMeta'
+    LeaseContractAvailableAction:
+      type: object
+      required: [allowed]
+      properties:
+        allowed:
+          type: boolean
+        disabledReason:
+          type: string
+          nullable: true
+    LeaseContractStatusBanner:
+      type: object
+      required: [level, text]
+      properties:
+        level:
+          type: string
+          enum: [success, info, warning]
+        text:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+        actorLabel:
+          type: string
+          nullable: true
+    LeaseContractLifecycleLog:
+      type: object
+      required: [id, eventType, message, occurredAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventType:
+          type: string
+        message:
+          type: string
+        occurredAt:
+          type: string
+          format: date-time
+        actorUserId:
+          type: string
+          format: uuid
+          nullable: true
+        actorLabel:
+          type: string
+          nullable: true
+    UpdateLeaseContractBody:
+      type: object
+      description: Partial edit — omit fields to leave unchanged
+      properties:
+        clientId:
+          type: string
+          format: uuid
+        startDate:
+          type: string
+          format: date
+        termMonths:
+          type: integer
+          minimum: 1
+        endDate:
+          type: string
+          format: date
+          description: Ignored when startDate or termMonths is sent (endDate recomputed)
+        securityDeposit:
+          type: string
+        billingFrequency:
+          type: string
+          enum: [monthly, quarterly, annual]
+        additionalTerms:
+          type: string
+        amcTier:
+          type: string
+        assetLines:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaseContractAssetLineInput'
+        vehicleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        editClassification:
+          type: string
+          enum: [clerical, material]
+          description: Flow 03 edit audit classification (defaults to clerical)
+    RegisterReturnBody:
+      type: object
+      required: [vehicleId, odometerReading, conditionChecklist]
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+        odometerReading:
+          type: integer
+          minimum: 0
+        conditionChecklist:
+          type: object
+          additionalProperties:
+            type: string
+            enum: [pass, fail]
+        damageRecordId:
+          type: string
+          format: uuid
+          description: Optional link to fleet_damage_records stub when Asset module not shipped
+    CreateVehicleAllocationBody:
+      type: object
+      required: [vehicleId, notifiedStakeholders]
+      properties:
+        vehicleId:
+          type: string
+          format: uuid
+        reassignmentConfirmation:
+          type: string
+          description: Required when vehicle is reassigned from another contract
+        notifiedStakeholders:
+          type: array
+          minItems: 1
+          items:
+            type: string
+          description: User ids or emails (logged in audit/event metadata for v1)
+    LeaseContractAssetLineInput:
+      type: object
+      required: [assetClass, committedQuantity, ratePerVehicleMonth]
+      properties:
+        assetClass:
+          type: string
+          example: Sedan
+        committedQuantity:
+          type: integer
+          minimum: 1
+        ratePerVehicleMonth:
+          type: string
+          example: "34500.00"
+    ContractPricingEvaluation:
+      type: object
+      description: Pricing engine output after terms or asset-line edits
+      properties:
+        withinStandardLimits:
+          type: boolean
+        requiresApproval:
+          type: boolean
+        canProceedToReview:
+          type: boolean
+        messages:
+          type: array
+          items:
+            type: object
+    LeaseContractDetail:
+      type: object
+      required:
+        - id
+        - contractNumber
+        - status
+        - rawStatus
+        - subtitle
+        - statusTags
+        - availableActions
+        - lifecycleLogs
+        - logs
+        - returnProgress
+        - assetLines
+      properties:
+        id:
+          type: string
+          format: uuid
+        contractNumber:
+          type: string
+        status:
+          type: string
+          description: Public status label (e.g. Active, Deactivated, Closed)
+        rawStatus:
+          type: string
+        subtitle:
+          type: string
+        statusTags:
+          type: array
+          items:
+            type: string
+        statusBanner:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/LeaseContractStatusBanner'
+        availableActions:
+          type: object
+          required:
+            - editContract
+            - deactivate
+            - reactivate
+            - pauseBilling
+            - requestTermination
+            - approveTermination
+            - renew
+          properties:
+            editContract:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            deactivate:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            reactivate:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            pauseBilling:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            requestTermination:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            approveTermination:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+            renew:
+              $ref: '#/components/schemas/LeaseContractAvailableAction'
+        lifecycleLogs:
+          type: array
+          items:
+            $ref: '#/components/schemas/LeaseContractLifecycleLog'
+        logs:
+          type: array
+          items:
+            allOf:
+              - $ref: '#/components/schemas/LeaseContractLifecycleLog'
+              - type: object
+                properties:
+                  createdAt:
+                    type: string
+                    format: date-time
+        returnProgress:
+          type: object
+          required:
+            - returnedRegisteredCount
+            - committedVehicleCount
+            - canPauseBilling
+          properties:
+            returnedRegisteredCount:
+              type: integer
+            committedVehicleCount:
+              type: integer
+            canPauseBilling:
+              type: boolean
+        deactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reactivatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        terminatedAt:
+          type: string
+          format: date-time
+          nullable: true
+        terminationApprovedAt:
+          type: string
+          format: date-time
+          nullable: true
+        billingPaused:
+          type: boolean
+        onHold:
+          type: boolean
+        assetLines:
+          type: array
+          items:
+            type: object
+        vehicleIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        vehicles:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              registrationNo:
+                type: string
+              assetClass:
+                type: string
+              status:
+                type: string
+        renewedFromContractId:
+          type: string
+          format: uuid
+          nullable: true
+        requiresEditReview:
+          type: boolean
+        editLogs:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              classification:
+                type: string
+              changedFields:
+                type: array
+                items:
+                  type: object
+              actorUserId:
+                type: string
+                format: uuid
+                nullable: true
+              createdAt:
+                type: string
+                format: date-time
     ApiError:
       type: object
       required: [message, code, statusCode]

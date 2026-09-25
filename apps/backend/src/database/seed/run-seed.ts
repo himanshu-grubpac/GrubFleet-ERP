@@ -2,6 +2,7 @@ import * as dotenv from 'dotenv';
 import * as path from 'path';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
+import { pgPoolOptions } from '../pg-pool-options';
 import * as schema from '../schema';
 import { permissions } from '../schema';
 import { buildPhase1PermissionCatalog } from './permission-catalog';
@@ -15,7 +16,7 @@ async function main(): Promise<void> {
     process.env.DATABASE_URL ??
     'postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp';
 
-  const pool = new Pool({ connectionString });
+  const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });
 
   const catalog = buildPhase1PermissionCatalog();

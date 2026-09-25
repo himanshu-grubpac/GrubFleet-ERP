@@ -2,15 +2,18 @@ import {
   ERP_MODULES,
   type ErpModuleDefinition,
 } from '../../modules/auth/authorization/constants/erp-module-registry';
-import { buildModulePermissionKey } from '../../modules/auth/authorization/module-access.util';
+import {
+  buildModulePermissionKey,
+  type ModulePermissionKind,
+} from '../../modules/auth/authorization/module-access.util';
 
-export type PermissionKind = 'view' | 'manage';
+export type PermissionKind = ModulePermissionKind;
 
 export type PermissionSeed = {
   key: string;
   module: string;
-  action: PermissionKind;
-  kind: PermissionKind;
+  action: string;
+  kind: string;
   description: string;
 };
 
@@ -21,16 +24,30 @@ function seedForModule(mod: ErpModuleDefinition): PermissionSeed[] {
       module: mod.id,
       action: 'view',
       kind: 'view',
-      description: `View access for ${mod.label} module`,
+      description: `View (read/list) for ${mod.label}`,
     },
   ];
   if (mod.supportsManage) {
+    const crud: Array<{ kind: ModulePermissionKind; label: string }> = [
+      { kind: 'create', label: 'Create records' },
+      { kind: 'update', label: 'Update records' },
+      { kind: 'delete', label: 'Delete records' },
+    ];
+    for (const { kind, label } of crud) {
+      seeds.push({
+        key: buildModulePermissionKey(mod.id, kind),
+        module: mod.id,
+        action: kind,
+        kind,
+        description: `${label} in ${mod.label}`,
+      });
+    }
     seeds.push({
       key: buildModulePermissionKey(mod.id, 'manage'),
       module: mod.id,
       action: 'manage',
       kind: 'manage',
-      description: `Manage access for ${mod.label} module`,
+      description: `Full module control (admin/approve) for ${mod.label}`,
     });
   }
   return seeds;

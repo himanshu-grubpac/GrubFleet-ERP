@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsString } from 'class-validator';
 
-export const MODULE_ACCESS_LEVELS = ['NONE', 'VIEW', 'FULL'] as const;
+export const MODULE_ACCESS_LEVELS = ['NONE', 'VIEW', 'MANAGE', 'FULL'] as const;
 export type ModuleAccessLevelDto = (typeof MODULE_ACCESS_LEVELS)[number];
 
 export class ModuleAccessEntryDto {

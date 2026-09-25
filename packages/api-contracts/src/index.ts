@@ -57,5 +57,8 @@ export const liveRoutes = [
 
 export const administrationPermissionKeys = [
   'administration.view',
+  'administration.create',
+  'administration.update',
+  'administration.delete',
   'administration.manage',
 ] as const;

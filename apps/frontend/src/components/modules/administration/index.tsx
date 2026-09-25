@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Shield,
@@ -13,6 +13,7 @@ import {
   Search,
   Eye,
   Sliders,
+  PenLine,
   XCircle,
   X,
   Info,
@@ -26,10 +27,12 @@ import {
   type RoleEditorMatrixRow,
 } from "@/lib/api/roles";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
-import type { Role, ModuleAccessLevel } from "@grubpac/shared-types";
+import type { Role } from "@grubpac/shared-types";
+import { canMutateAdministration } from "@/lib/auth/administration-access";
 
 export function AdministrationModule() {
-  const { token, organizationId } = useAuth();
+  const { token, organizationId, permissions, refetchMe } = useAuth();
+  const canWriteAdmin = canMutateAdministration(permissions);
   const queryClient = useQueryClient();
 
   const [selectedRole, setSelectedRole] = useState<Role | null>(null);
@@ -44,12 +47,12 @@ export function AdministrationModule() {
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDescription, setNewRoleDescription] = useState("");
   const [newRoleAccessMap, setNewRoleAccessMap] = useState<
-    Record<string, "NONE" | "VIEW" | "FULL">
+    Record<string, "NONE" | "VIEW" | "MANAGE" | "FULL">
   >({});
 
   // Active matrix edit state for selected role
   const [editingAccessMap, setEditingAccessMap] = useState<
-    Record<string, "NONE" | "VIEW" | "FULL">
+    Record<string, "NONE" | "VIEW" | "MANAGE" | "FULL">
   >({});
   const [isEditingMatrixDirty, setIsEditingMatrixDirty] = useState(false);
 
@@ -83,10 +86,17 @@ export function AdministrationModule() {
         selectedRole?.id
       );
       // Synchronize edit map with backend response
-      const initialMap: Record<string, "NONE" | "VIEW" | "FULL"> = {};
+      const initialMap: Record<string, "NONE" | "VIEW" | "MANAGE" | "FULL"> =
+        {};
       res.modules.forEach((mod) => {
-        const lvl = mod.roleLevel === "CUSTOM" ? "VIEW" : mod.roleLevel;
-        initialMap[mod.moduleId] = lvl as "NONE" | "VIEW" | "FULL";
+        if (
+          mod.roleLevel === "NONE" ||
+          mod.roleLevel === "VIEW" ||
+          mod.roleLevel === "MANAGE" ||
+          mod.roleLevel === "FULL"
+        ) {
+          initialMap[mod.moduleId] = mod.roleLevel;
+        }
       });
       setEditingAccessMap(initialMap);
       setIsEditingMatrixDirty(false);
@@ -101,18 +111,39 @@ export function AdministrationModule() {
       if (!token || !organizationId || !selectedRole) {
         throw new Error("No role selected");
       }
-      const moduleAccess = Object.entries(editingAccessMap)
-        .filter(([, level]) => level !== "NONE")
-        .map(([moduleId, accessLevel]) => ({
-          moduleId,
-          accessLevel: accessLevel as "VIEW" | "FULL",
+      if (!matrixData?.modules?.length) {
+        throw new Error("Permission matrix not loaded");
+      }
+      const moduleAccess = matrixData.modules
+        .map((mod) => {
+          const fromEdit = editingAccessMap[mod.moduleId];
+          const level =
+            fromEdit ??
+            (mod.roleLevel === "VIEW" ||
+            mod.roleLevel === "MANAGE" ||
+            mod.roleLevel === "FULL"
+              ? mod.roleLevel
+              : mod.roleLevel === "NONE"
+              ? "NONE"
+              : null);
+          if (level === null) {
+            throw new Error(
+              `Module "${mod.label}" has a custom permission set. Pick View, Manage, or Full before saving.`,
+            );
+          }
+          return { moduleId: mod.moduleId, accessLevel: level };
+        })
+        .filter((entry) => entry.accessLevel !== "NONE")
+        .map((entry) => ({
+          moduleId: entry.moduleId,
+          accessLevel: entry.accessLevel as "VIEW" | "MANAGE" | "FULL",
         }));
 
       return updateRoleApi(token, organizationId, selectedRole.id, {
         moduleAccess,
       });
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       setFeedback({
         type: "success",
         message: `Role "${selectedRole?.name}" updated successfully!`,
@@ -122,6 +153,7 @@ export function AdministrationModule() {
       queryClient.invalidateQueries({
         queryKey: ["role-matrix", organizationId, selectedRole?.id],
       });
+      await refetchMe?.();
     },
     onError: (err: Error) => {
       setFeedback({
@@ -139,7 +171,7 @@ export function AdministrationModule() {
         .filter(([, level]) => level !== "NONE")
         .map(([moduleId, accessLevel]) => ({
           moduleId,
-          accessLevel: accessLevel as "VIEW" | "FULL",
+          accessLevel: accessLevel as "VIEW" | "MANAGE" | "FULL",
         }));
 
       return createRoleApi(token, {
@@ -149,7 +181,7 @@ export function AdministrationModule() {
         moduleAccess,
       });
     },
-    onSuccess: (newRole) => {
+    onSuccess: async (newRole) => {
       setFeedback({
         type: "success",
         message: `New role "${newRole.name}" created successfully!`,
@@ -160,6 +192,7 @@ export function AdministrationModule() {
       setNewRoleAccessMap({});
       queryClient.invalidateQueries({ queryKey: ["roles", organizationId] });
       setSelectedRole(newRole);
+      await refetchMe?.();
     },
     onError: (err: Error) => {
       setFeedback({
@@ -169,7 +202,7 @@ export function AdministrationModule() {
     },
   });
 
-  const roles = rolesData?.items || [];
+  const roles = useMemo(() => rolesData?.items ?? [], [rolesData?.items]);
   const filteredRoles = roles.filter(
     (r) =>
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -185,7 +218,7 @@ export function AdministrationModule() {
 
   const handleAccessChange = (
     moduleId: string,
-    level: "NONE" | "VIEW" | "FULL"
+    level: "NONE" | "VIEW" | "MANAGE" | "FULL"
   ) => {
     setEditingAccessMap((prev) => ({
       ...prev,
@@ -234,18 +267,20 @@ export function AdministrationModule() {
             <RefreshCw className="h-4 w-4 text-slate-500" />
             Refresh
           </button>
-          <button
-            onClick={() => {
-              setNewRoleName("");
-              setNewRoleDescription("");
-              setNewRoleAccessMap({});
-              setIsCreateModalOpen(true);
-            }}
-            className="inline-flex items-center gap-2 rounded-lg bg-[#FE5720] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#e04815]"
-          >
-            <Plus className="h-4 w-4" />
-            Create Role
-          </button>
+          {canWriteAdmin && (
+            <button
+              onClick={() => {
+                setNewRoleName("");
+                setNewRoleDescription("");
+                setNewRoleAccessMap({});
+                setIsCreateModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 rounded-lg bg-[#FE5720] px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#e04815]"
+            >
+              <Plus className="h-4 w-4" />
+              Create Role
+            </button>
+          )}
         </div>
       </div>
 
@@ -397,7 +432,7 @@ export function AdministrationModule() {
                       </p>
                     </div>
 
-                    {!selectedRole.isSystem && (
+                    {!selectedRole.isSystem && canWriteAdmin && (
                       <button
                         onClick={() => updateRoleMutation.mutate()}
                         disabled={
@@ -431,9 +466,18 @@ export function AdministrationModule() {
                     ) : matrixData?.modules ? (
                       <div className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200">
                         {matrixData.modules.map((mod: RoleEditorMatrixRow) => {
+                          const isCustomRoleLevel =
+                            mod.roleLevel === "CUSTOM" &&
+                            editingAccessMap[mod.moduleId] === undefined;
                           const currentLevel =
-                            editingAccessMap[mod.moduleId] || "NONE";
-                          const isSystemLocked = selectedRole.isSystem;
+                            editingAccessMap[mod.moduleId] ??
+                            (mod.roleLevel === "VIEW" ||
+                            mod.roleLevel === "MANAGE" ||
+                            mod.roleLevel === "FULL"
+                              ? mod.roleLevel
+                              : "NONE");
+                          const isSystemLocked =
+                            selectedRole.isSystem || !canWriteAdmin;
 
                           return (
                             <div
@@ -446,13 +490,19 @@ export function AdministrationModule() {
                                 </h4>
                                 <p className="text-xs text-slate-400">
                                   Module ID: <code className="text-slate-600">{mod.moduleId}</code>
+                                  {isCustomRoleLevel && (
+                                    <span className="ml-2 text-amber-700">
+                                      Custom keys — choose a standard level to edit
+                                    </span>
+                                  )}
                                 </p>
                               </div>
 
-                              {/* Access Level Selector (NONE | VIEW | FULL) */}
-                              <div className="flex items-center gap-1 rounded-lg bg-slate-100 p-1">
-                                {(["NONE", "VIEW", "FULL"] as const).map(
-                                  (level) => {
+                              {/* Access Level Selector (NONE | VIEW | MANAGE | FULL) */}
+                              <div className="flex flex-wrap items-center gap-1 rounded-lg bg-slate-100 p-1">
+                                {(
+                                  ["NONE", "VIEW", "MANAGE", "FULL"] as const
+                                ).map((level) => {
                                     const isSelected = currentLevel === level;
                                     const isLevelAllowed =
                                       mod.allowedLevels.includes(level);
@@ -470,12 +520,14 @@ export function AdministrationModule() {
                                             level
                                           )
                                         }
-                                        className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition ${
+                                        className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-semibold transition ${
                                           isSelected
                                             ? level === "NONE"
                                               ? "bg-white text-slate-700 shadow-xs"
                                               : level === "VIEW"
                                               ? "bg-blue-600 text-white shadow-xs"
+                                              : level === "MANAGE"
+                                              ? "bg-amber-600 text-white shadow-xs"
                                               : "bg-emerald-600 text-white shadow-xs"
                                             : "text-slate-600 hover:text-slate-900"
                                         } ${
@@ -490,18 +542,22 @@ export function AdministrationModule() {
                                         {level === "VIEW" && (
                                           <Eye className="h-3.5 w-3.5" />
                                         )}
+                                        {level === "MANAGE" && (
+                                          <PenLine className="h-3.5 w-3.5" />
+                                        )}
                                         {level === "FULL" && (
                                           <Sliders className="h-3.5 w-3.5" />
                                         )}
                                         {level === "NONE"
-                                          ? "No Access"
+                                          ? "None"
                                           : level === "VIEW"
-                                          ? "View Only"
-                                          : "Full Access"}
+                                          ? "View"
+                                          : level === "MANAGE"
+                                          ? "Manage"
+                                          : "Full"}
                                       </button>
                                     );
-                                  }
-                                )}
+                                  })}
                               </div>
                             </div>
                           );
@@ -591,7 +647,8 @@ export function AdministrationModule() {
                           {mod.label}
                         </span>
                         <div className="flex items-center gap-1 rounded bg-slate-100 p-0.5">
-                          {(["NONE", "VIEW", "FULL"] as const).map((lvl) => (
+                          {(["NONE", "VIEW", "MANAGE", "FULL"] as const).map(
+                            (lvl) => (
                             <button
                               key={lvl}
                               type="button"
@@ -607,6 +664,8 @@ export function AdministrationModule() {
                                     ? "bg-white text-slate-700 shadow-xs"
                                     : lvl === "VIEW"
                                     ? "bg-blue-600 text-white shadow-xs"
+                                    : lvl === "MANAGE"
+                                    ? "bg-amber-600 text-white shadow-xs"
                                     : "bg-emerald-600 text-white shadow-xs"
                                   : "text-slate-600 hover:text-slate-900"
                               }`}
@@ -615,9 +674,12 @@ export function AdministrationModule() {
                                 ? "None"
                                 : lvl === "VIEW"
                                 ? "View"
+                                : lvl === "MANAGE"
+                                ? "Manage"
                                 : "Full"}
                             </button>
-                          ))}
+                          ),
+                          )}
                         </div>
                       </div>
                     );

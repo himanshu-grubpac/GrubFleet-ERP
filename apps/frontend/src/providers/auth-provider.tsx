@@ -44,6 +44,9 @@ export interface GrubpacAuthContextType {
 
   refreshSession?: () => Promise<boolean>;
 
+  /** Refetch `/auth/me` with the current access token (RBAC changes). */
+  refetchMe?: () => Promise<boolean>;
+
   isAuthenticated?: boolean;
 
   isLoading?: boolean;
@@ -87,6 +90,7 @@ export function GrubpacAuthProvider({
   const [moduleAccess, setModuleAccess] = useState<Record<string, string>>({});
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const permissionRevisionRef = React.useRef<number | null>(null);
 
   const router = useRouter();
 
@@ -108,14 +112,18 @@ export function GrubpacAuthProvider({
     if (me.moduleAccess && Array.isArray(me.moduleAccess)) {
       for (const entry of me.moduleAccess) {
         modMap[entry.moduleId] = entry.accessLevel;
-        // Map module levels to nav permission format (e.g. 'fleet:VIEW' or 'fleet_leasing:VIEW')
-        permSet.add(`${entry.moduleId}:VIEW`);
-        permSet.add(`${entry.moduleId.replace('_', '-')}:VIEW`);
       }
     }
 
     setModuleAccess(modMap);
     setPermissions(permSet);
+
+    const activeMembership =
+      me.memberships?.find((m) => m.organizationId === activeOrgId) ??
+      me.memberships?.[0];
+    if (activeMembership && typeof activeMembership.permissionRevision === "number") {
+      permissionRevisionRef.current = activeMembership.permissionRevision;
+    }
 
     try {
       localStorage.setItem("auth_user", JSON.stringify(userObj));
@@ -141,6 +149,42 @@ export function GrubpacAuthProvider({
       return false;
     }
   }, [applyMeData]);
+
+  const refetchMe = useCallback(async (): Promise<boolean> => {
+    const accessToken = token ?? localStorage.getItem("access_token");
+    if (!accessToken) {
+      return false;
+    }
+    try {
+      const me = await getMeApi(accessToken);
+      applyMeData(me);
+      return true;
+    } catch (err) {
+      if (err instanceof ApiClientError && err.status === 401) {
+        return refreshSession();
+      }
+      return false;
+    }
+  }, [token, applyMeData, refreshSession]);
+
+  useEffect(() => {
+    if (!token || isLoading) {
+      return;
+    }
+
+    const onFocus = () => {
+      void refetchMe();
+    };
+    window.addEventListener("focus", onFocus);
+    const intervalId = window.setInterval(() => {
+      void refetchMe();
+    }, 10_000);
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      window.clearInterval(intervalId);
+    };
+  }, [token, isLoading, refetchMe]);
 
   // Initial session hydration
   useEffect(() => {
@@ -337,6 +381,7 @@ export function GrubpacAuthProvider({
         login,
         logout,
         refreshSession,
+        refetchMe,
         showSuccess,
         showError,
         getApiError,

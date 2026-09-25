@@ -73,6 +73,12 @@ export class AuthorizationService {
     }
   }
 
+  async getOrganizationPermissionRevision(
+    organizationId: string,
+  ): Promise<number> {
+    return this.permissionCache.getOrgRevision(organizationId);
+  }
+
   async getEffectivePermissionKeys(
     userId: string,
     organizationId: string,
@@ -91,6 +97,11 @@ export class AuthorizationService {
       userId,
       organizationId,
     );
+    const writeRevision =
+      await this.permissionCache.getOrgRevision(organizationId);
+    if (writeRevision !== revision) {
+      return keys;
+    }
     await this.permissionCache.setCachedPermissionKeys(
       userId,
       organizationId,
@@ -120,6 +131,26 @@ export class AuthorizationService {
     }
   }
 
+  async assertAnyPermission(
+    userId: string,
+    organizationId: string,
+    alternativeKeys: string[],
+  ): Promise<void> {
+    if (alternativeKeys.length === 0) {
+      return;
+    }
+    const held = await this.getEffectivePermissionKeys(userId, organizationId);
+    const heldSet = new Set(held);
+    const satisfied = alternativeKeys.some((k) => heldSet.has(k));
+    if (!satisfied) {
+      throw new ForbiddenException({
+        message: 'Insufficient permissions',
+        code: 'PERMISSION_DENIED',
+        details: { requiredAny: alternativeKeys },
+      });
+    }
+  }
+
   async canBypassDelegation(userId: string): Promise<boolean> {
     return this.authorizationRepository.userHasSystemScopeRole(userId);
   }
@@ -133,7 +164,7 @@ export class AuthorizationService {
     organizationId: string,
     moduleAccess: Array<{
       moduleId: string;
-      accessLevel: 'NONE' | 'VIEW' | 'FULL';
+      accessLevel: 'NONE' | 'VIEW' | 'MANAGE' | 'FULL';
     }>,
   ): Promise<void> {
     const grantable = moduleAccess.filter((e) => e.accessLevel !== 'NONE');
@@ -179,10 +210,21 @@ export class AuthorizationService {
     }
   }
 
+  /**
+   * Bumps org permission revision (cache keys include revision) and deletes
+   * per-user Redis entries for affected members when provided.
+   */
   async invalidateOrganizationPermissions(
     organizationId: string,
+    affectedUserIds?: string[],
   ): Promise<void> {
     await this.permissionCache.bumpOrgRevision(organizationId);
+    if (affectedUserIds?.length) {
+      await this.permissionCache.invalidateCachedPermissionKeysForUsers(
+        affectedUserIds,
+        organizationId,
+      );
+    }
   }
 
   assertOrganizationResourceExists(

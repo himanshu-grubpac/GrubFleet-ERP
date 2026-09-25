@@ -130,6 +130,22 @@ export class RolesRepository {
     });
   }
 
+  async listUserIdsWithRoleInOrganization(
+    roleId: string,
+    organizationId: string,
+  ): Promise<string[]> {
+    const rows = await this.db
+      .select({ userId: userRoles.userId })
+      .from(userRoles)
+      .where(
+        and(
+          eq(userRoles.roleId, roleId),
+          eq(userRoles.organizationId, organizationId),
+        ),
+      );
+    return [...new Set(rows.map((r) => r.userId))];
+  }
+
   async assignRoleToUser(params: {
     userId: string;
     roleId: string;

@@ -55,13 +55,15 @@ export type AuthMeMembership = {
     scope: 'system' | 'organization';
   }>;
   permissionKeys: string[];
+  /** Increments when org role permissions or assignments change (server cache invalidation). */
+  permissionRevision: number;
   moduleAccess: Array<{
     moduleId: string;
-    accessLevel: 'VIEW' | 'FULL' | 'CUSTOM';
+    accessLevel: 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM';
   }>;
 };
 
-export type ModuleAccessLevel = 'NONE' | 'VIEW' | 'FULL' | 'CUSTOM';
+export type ModuleAccessLevel = 'NONE' | 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM';
 
 export type ModuleAccessEntry = {
   moduleId: string;
@@ -74,7 +76,7 @@ export type AuthMeResponse = {
   permissionKeys: string[];
   moduleAccess: Array<{
     moduleId: string;
-    accessLevel: 'VIEW' | 'FULL' | 'CUSTOM';
+    accessLevel: 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM';
   }>;
 };
 

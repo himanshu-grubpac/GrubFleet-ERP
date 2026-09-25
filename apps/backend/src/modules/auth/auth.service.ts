@@ -16,6 +16,7 @@ import {
   moduleAccessForNav,
   type ModuleAccessLevel,
 } from './authorization/module-access.util';
+import { AuthorizationService } from './authorization/authorization.service';
 import type { MeResponseDto } from './dto/me-response.dto';
 import type { TokenPairResponseDto } from './dto/token-response.dto';
 import { LoginRateLimiterService } from './login-rate-limiter.service';
@@ -26,6 +27,7 @@ import { generateOpaqueToken, hashOpaqueToken } from './utils/token-hash.util';
 export class AuthService {
   constructor(
     private readonly authRepository: AuthRepository,
+    private readonly authorizationService: AuthorizationService,
     private readonly jwtService: JwtService,
     private readonly auditService: AuditService,
     private readonly loginRateLimiter: LoginRateLimiterService,
@@ -166,8 +168,41 @@ export class AuthService {
       });
     }
 
+    const memberships = await Promise.all(
+      profile.memberships.map(async (m) => {
+        const permissionKeys =
+          await this.authorizationService.getEffectivePermissionKeys(
+            userId,
+            m.organizationId,
+          );
+        const permissionRevision =
+          await this.authorizationService.getOrganizationPermissionRevision(
+            m.organizationId,
+          );
+        return {
+          organizationId: m.organizationId,
+          organizationName: m.organizationName,
+          organizationSlug: m.organizationSlug,
+          status: m.status,
+          joinedAt: m.joinedAt?.toISOString() ?? null,
+          roles: m.roles,
+          permissionKeys,
+          permissionRevision,
+          moduleAccess: moduleAccessForNav(permissionKeys).map((row) => ({
+            moduleId: row.moduleId,
+            accessLevel: row.accessLevel as
+              'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM',
+          })),
+        };
+      }),
+    );
+
+    const globalPermissionKeys = [
+      ...new Set(memberships.flatMap((m) => m.permissionKeys)),
+    ].sort();
+
     const globalModuleAccess = this.mergeModuleAccessAcrossOrgs(
-      profile.memberships.map((m) => m.permissionKeys),
+      memberships.map((m) => m.permissionKeys),
     );
 
     return {
@@ -178,27 +213,15 @@ export class AuthService {
         isActive: profile.user.isActive,
         emailVerifiedAt: profile.user.emailVerifiedAt?.toISOString() ?? null,
       },
-      memberships: profile.memberships.map((m) => ({
-        organizationId: m.organizationId,
-        organizationName: m.organizationName,
-        organizationSlug: m.organizationSlug,
-        status: m.status,
-        joinedAt: m.joinedAt?.toISOString() ?? null,
-        roles: m.roles,
-        permissionKeys: m.permissionKeys,
-        moduleAccess: moduleAccessForNav(m.permissionKeys).map((row) => ({
-          moduleId: row.moduleId,
-          accessLevel: row.accessLevel as 'VIEW' | 'FULL' | 'CUSTOM',
-        })),
-      })),
-      permissionKeys: profile.permissionKeys,
+      memberships,
+      permissionKeys: globalPermissionKeys,
       moduleAccess: globalModuleAccess,
     };
   }
 
   private mergeModuleAccessAcrossOrgs(permissionKeySets: string[][]): Array<{
     moduleId: string;
-    accessLevel: 'VIEW' | 'FULL' | 'CUSTOM';
+    accessLevel: 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM';
   }> {
     const merged = new Map<string, ModuleAccessLevel>();
     for (const keys of permissionKeySets) {
@@ -214,7 +237,7 @@ export class AuthService {
       .filter(([, level]) => level !== 'NONE')
       .map(([moduleId, accessLevel]) => ({
         moduleId,
-        accessLevel: accessLevel as 'VIEW' | 'FULL' | 'CUSTOM',
+        accessLevel: accessLevel as 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM',
       }))
       .sort((a, b) => a.moduleId.localeCompare(b.moduleId));
   }

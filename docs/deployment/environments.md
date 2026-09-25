@@ -68,7 +68,7 @@ Configure under **Settings → Environments** for `staging`, `pre-production`, a
 | `JWT_REFRESH_SECRET` | Backend | Required when `APP_ENV=production` |
 | `DEPLOY_HEALTH_URL` | Deploy workflow | API base for smoke test, e.g. `https://api-staging.example.com/api/v1` |
 | `DEPLOY_TARGET` | Deploy workflow | Placeholder for ECS service, CodeDeploy app, or host target |
-| `AWS_ROLE_ARN` | Future | OIDC role for AWS deploy (optional until wired) |
+| `AWS_ROLE_ARN` | Portal + optional SAM | OIDC role for S3 sync / CloudFront invalidation (attach `scripts/iam-grubfleet-gha-portal-deploy-policy.json`) |
 
 Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permission in workflows).
 
@@ -77,8 +77,11 @@ Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permissio
 | Variable | Example | Description |
 |----------|---------|-------------|
 | `NEXT_PUBLIC_API_BASE_URL` | `https://api-staging.example.com/api/v1` | Frontend build-time API URL |
+| `PORTAL_S3_BUCKET` | `grubfleet-portal-staging-662252246711` | Static export sync target (from portal stack output) |
+| `CLOUDFRONT_DISTRIBUTION_ID` | e.g. `E2P1321QJMJTG0` | Invalidation target after S3 sync |
+| `AWS_REGION` | `ap-south-1` | Optional; default in workflow |
 | `ACTIVE_SLOT` | `blue` or `green` | Blue-green traffic marker (updated after each deploy) |
-| `CORS_ORIGIN` | `https://staging.example.com` | Injected into backend runtime env at deploy |
+| `CORS_ORIGIN` | `https://staging.example.com` | Legacy name; SAM uses `ClientOrigin` parameter — match CloudFront `PortalUrl` |
 
 ## CI vs deploy
 

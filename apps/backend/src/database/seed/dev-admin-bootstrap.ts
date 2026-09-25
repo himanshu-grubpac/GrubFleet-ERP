@@ -14,7 +14,7 @@ import {
 import { buildPhase1PermissionCatalog } from './permission-catalog';
 
 export const DEV_ADMIN_EMAIL = 'admin@grubpac.local';
-export const DEV_ADMIN_PASSWORD = 'ChangeMeDev123!';
+export const DEV_ADMIN_PASSWORD = 'Grubpac123';
 export const DEV_ORG_SLUG = 'grubpac-dev';
 export const DEV_ORG_NAME = 'GrubPac Dev Organization';
 export const DEV_ADMIN_ROLE_NAME = 'Organization Admin';
@@ -33,15 +33,21 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
 
   let organizationId = orgRows[0]?.id;
   if (!organizationId) {
-    const inserted = await db
+    await db
       .insert(organizations)
       .values({
         name: DEV_ORG_NAME,
         slug: DEV_ORG_SLUG,
         isActive: true,
       })
-      .returning({ id: organizations.id });
-    organizationId = inserted[0]?.id;
+      .onConflictDoNothing({ target: organizations.slug });
+
+    const resolvedOrg = await db
+      .select({ id: organizations.id })
+      .from(organizations)
+      .where(eq(organizations.slug, DEV_ORG_SLUG))
+      .limit(1);
+    organizationId = resolvedOrg[0]?.id;
   }
 
   if (!organizationId) {
@@ -57,7 +63,15 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
       isActive: true,
       emailVerifiedAt: new Date(),
     })
-    .onConflictDoNothing({ target: users.email });
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        passwordHash,
+        fullName: 'Dev Admin',
+        isActive: true,
+        emailVerifiedAt: new Date(),
+      },
+    });
 
   const userRows = await db
     .select({ id: users.id })
@@ -184,7 +198,7 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
 
   let systemRoleId = systemRoleRows[0]?.id;
   if (!systemRoleId) {
-    const insertedSystem = await db
+    await db
       .insert(roles)
       .values({
         organizationId: null,
@@ -193,8 +207,22 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
         description: 'System-wide administrator (delegation bypass)',
         isSystem: true,
       })
-      .returning({ id: roles.id });
-    systemRoleId = insertedSystem[0]?.id;
+      .onConflictDoNothing({
+        target: [roles.organizationId, roles.name],
+      });
+
+    const resolvedSystemRole = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(
+        and(
+          eq(roles.name, DEV_SYSTEM_ADMIN_ROLE_NAME),
+          isNull(roles.organizationId),
+          eq(roles.scope, 'system'),
+        ),
+      )
+      .limit(1);
+    systemRoleId = resolvedSystemRole[0]?.id;
   }
 
   if (systemRoleId) {

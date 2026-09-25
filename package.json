@@ -8,6 +8,7 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "build": "npm run build -w backend && npm run build -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
     "test": "npm run test -w backend",
@@ -17,9 +18,15 @@
     "db:seed": "npm run db:seed -w backend",
     "prepare:lambda": "node scripts/prepare-lambda.mjs",
     "sam:build": "sam build",
-    "deploy:staging:api": "npm run prepare:lambda && sam build && sam deploy --config-file samconfig.staging.toml",
-    "deploy:preprod:api": "npm run prepare:lambda && sam build && sam deploy --config-file samconfig.preprod.toml",
-    "deploy:production:api": "npm run prepare:lambda && sam build && sam deploy --config-file samconfig.production.toml"
+    "deploy:staging:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs staging",
+    "deploy:preprod:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs preprod",
+    "deploy:production:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs production",
+    "deploy:staging:portal-stack": "powershell -File scripts/deploy-portal-stack.ps1 -Tier staging",
+    "deploy:preprod:portal-stack": "powershell -File scripts/deploy-portal-stack.ps1 -Tier preprod",
+    "deploy:production:portal-stack": "powershell -File scripts/deploy-portal-stack.ps1 -Tier production",
+    "sync:staging:portal": "powershell -File scripts/sync-portal.ps1 -Tier staging",
+    "sync:preprod:portal": "powershell -File scripts/sync-portal.ps1 -Tier preprod",
+    "sync:production:portal": "powershell -File scripts/sync-portal.ps1 -Tier production"
   },
   "engines": {
     "node": ">=20"

@@ -13,8 +13,12 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { RequireOrganizationContext } from '../auth/authorization/decorators/require-organization-context.decorator';
+import { RequireAnyPermissions } from '../auth/authorization/decorators/require-any-permissions.decorator';
 import { RequirePermissions } from '../auth/authorization/decorators/require-permissions.decorator';
-import { PermissionKeys } from '../auth/authorization/constants/permission-keys';
+import {
+  AdministrationWriteAny,
+  PermissionKeys,
+} from '../auth/authorization/constants/permission-keys';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CreateRoleDto } from './dto/create-role.dto';
@@ -34,7 +38,8 @@ export class RolesController {
   @RequireOrganizationContext()
   @RequirePermissions(PermissionKeys.ADMINISTRATION_VIEW)
   @ApiOperation({
-    summary: 'Module rows for role editor (NONE/VIEW/FULL per sidebar module)',
+    summary:
+      'Module rows for role editor (NONE/VIEW/MANAGE/FULL per sidebar module)',
   })
   editorMatrix(
     @CurrentUser() user: AuthenticatedUser,
@@ -61,7 +66,7 @@ export class RolesController {
 
   @Post()
   @RequireOrganizationContext()
-  @RequirePermissions(PermissionKeys.ADMINISTRATION_MANAGE)
+  @RequireAnyPermissions(...AdministrationWriteAny.CREATE)
   @ApiOperation({ summary: 'Create organization role' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateRoleDto) {
     return this.rolesService.createRole(user.userId, dto);
@@ -69,7 +74,7 @@ export class RolesController {
 
   @Patch(':id')
   @RequireOrganizationContext()
-  @RequirePermissions(PermissionKeys.ADMINISTRATION_MANAGE)
+  @RequireAnyPermissions(...AdministrationWriteAny.UPDATE)
   @ApiOperation({ summary: 'Update organization role' })
   update(
     @CurrentUser() user: AuthenticatedUser,
@@ -86,7 +91,7 @@ export class RolesController {
 
   @Post(':id/assign')
   @RequireOrganizationContext()
-  @RequirePermissions(PermissionKeys.ADMINISTRATION_MANAGE)
+  @RequireAnyPermissions(...AdministrationWriteAny.UPDATE)
   @ApiOperation({ summary: 'Assign role to user in organization' })
   assign(
     @CurrentUser() user: AuthenticatedUser,
@@ -98,7 +103,7 @@ export class RolesController {
 
   @Delete(':id/assign')
   @RequireOrganizationContext()
-  @RequirePermissions(PermissionKeys.ADMINISTRATION_MANAGE)
+  @RequireAnyPermissions(...AdministrationWriteAny.UPDATE)
   @ApiOperation({ summary: 'Remove role assignment' })
   unassign(
     @CurrentUser() user: AuthenticatedUser,

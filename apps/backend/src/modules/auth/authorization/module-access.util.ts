@@ -4,7 +4,7 @@ import {
   isKnownErpModuleId,
 } from './constants/erp-module-registry';
 
-export type ModuleAccessLevel = 'NONE' | 'VIEW' | 'FULL' | 'CUSTOM';
+export type ModuleAccessLevel = 'NONE' | 'VIEW' | 'MANAGE' | 'FULL' | 'CUSTOM';
 
 export type ModuleAccessEntry = {
   moduleId: string;
@@ -14,21 +14,27 @@ export type ModuleAccessEntry = {
 const LEVEL_RANK: Record<ModuleAccessLevel, number> = {
   NONE: 0,
   VIEW: 1,
-  FULL: 2,
-  CUSTOM: 3,
+  MANAGE: 2,
+  FULL: 3,
+  CUSTOM: 4,
 };
 
-/** Permission key format: `{module_id}.view` | `{module_id}.manage` */
+export type ModulePermissionKind =
+  'view' | 'create' | 'update' | 'delete' | 'manage';
+
+/** Permission key format: `{module_id}.{kind}` */
 export function buildModulePermissionKey(
   moduleId: string,
-  kind: 'view' | 'manage',
+  kind: ModulePermissionKind,
 ): string {
   return `${moduleId}.${kind}`;
 }
 
+const CRUD_KINDS: ModulePermissionKind[] = ['create', 'update', 'delete'];
+
 export function parseModulePermissionKey(key: string): {
   moduleId: string;
-  kind: 'view' | 'manage' | 'sub';
+  kind: ModulePermissionKind | 'sub';
 } | null {
   const dot = key.lastIndexOf('.');
   if (dot <= 0) {
@@ -36,7 +42,13 @@ export function parseModulePermissionKey(key: string): {
   }
   const moduleId = key.slice(0, dot);
   const suffix = key.slice(dot + 1);
-  if (suffix === 'view' || suffix === 'manage') {
+  if (
+    suffix === 'view' ||
+    suffix === 'manage' ||
+    suffix === 'create' ||
+    suffix === 'update' ||
+    suffix === 'delete'
+  ) {
     return { moduleId, kind: suffix };
   }
   return { moduleId, kind: 'sub' };
@@ -47,6 +59,9 @@ export function allCatalogPermissionKeys(): string[] {
   for (const mod of ERP_MODULES) {
     keys.push(buildModulePermissionKey(mod.id, 'view'));
     if (mod.supportsManage) {
+      for (const kind of CRUD_KINDS) {
+        keys.push(buildModulePermissionKey(mod.id, kind));
+      }
       keys.push(buildModulePermissionKey(mod.id, 'manage'));
     }
   }
@@ -65,7 +80,15 @@ export function keysForModuleLevel(
     return [buildModulePermissionKey(moduleId, 'view')];
   }
   const keys = [buildModulePermissionKey(moduleId, 'view')];
-  if (mod.supportsManage) {
+  if (!mod.supportsManage) {
+    return keys;
+  }
+  if (level === 'MANAGE' || level === 'FULL') {
+    for (const kind of CRUD_KINDS) {
+      keys.push(buildModulePermissionKey(moduleId, kind));
+    }
+  }
+  if (level === 'FULL') {
     keys.push(buildModulePermissionKey(moduleId, 'manage'));
   }
   return keys;
@@ -97,17 +120,30 @@ function moduleLevelFromKeys(
   const mod = getErpModuleById(moduleId);
   const viewKey = buildModulePermissionKey(moduleId, 'view');
   const manageKey = buildModulePermissionKey(moduleId, 'manage');
+  const crudKeys = CRUD_KINDS.map((k) => buildModulePermissionKey(moduleId, k));
+
   const hasView = keysForModule.includes(viewKey);
   const hasManage =
     Boolean(mod?.supportsManage) && keysForModule.includes(manageKey);
-  const extras = keysForModule.filter((k) => k !== viewKey && k !== manageKey);
+  const hasCrud = crudKeys.every((k) => keysForModule.includes(k));
+
+  const known = new Set([viewKey, manageKey, ...crudKeys]);
+  const extras = keysForModule.filter((k) => !known.has(k));
   if (extras.length > 0) {
     return 'CUSTOM';
   }
-  if (hasManage) {
+
+  /** Legacy roles: view + manage only (before CRUD keys existed). */
+  if (hasManage && hasView && !hasCrud) {
     return 'FULL';
   }
-  if (hasView) {
+  if (hasManage && hasView && hasCrud) {
+    return 'FULL';
+  }
+  if (hasCrud && hasView && !hasManage) {
+    return 'MANAGE';
+  }
+  if (hasView && !hasManage && !hasCrud) {
     return 'VIEW';
   }
   return 'CUSTOM';
@@ -119,7 +155,9 @@ export function deriveModuleAccessFromKeys(
   return deriveModuleAccessFromKeysDetailed(permissionKeys)
     .filter(
       (row): row is ModuleAccessEntry =>
-        row.accessLevel === 'VIEW' || row.accessLevel === 'FULL',
+        row.accessLevel === 'VIEW' ||
+        row.accessLevel === 'MANAGE' ||
+        row.accessLevel === 'FULL',
     )
     .map((row) => ({
       moduleId: row.moduleId,
@@ -188,7 +226,10 @@ export function assertModuleAccessDelegatable(
       continue;
     }
     const actorLevel = resolveModuleAccessLevel(actorKeys, entry.moduleId);
-    if (LEVEL_RANK[entry.accessLevel] > LEVEL_RANK[actorLevel]) {
+    const actorRank =
+      actorLevel === 'CUSTOM' ? LEVEL_RANK.FULL : LEVEL_RANK[actorLevel];
+    const requestedRank = LEVEL_RANK[entry.accessLevel];
+    if (requestedRank > actorRank) {
       violations.push(entry);
     }
   }
@@ -224,4 +265,29 @@ export function permissionKeysImpliedByModuleAccess(
     }
   }
   return true;
+}
+
+/** Levels the role editor may offer for a module given actor max level. */
+export function allowedLevelsForActor(
+  actorMaxLevel: ModuleAccessLevel,
+  moduleSupportsManage: boolean,
+): Array<'NONE' | 'VIEW' | 'MANAGE' | 'FULL'> {
+  const levels: Array<'NONE' | 'VIEW' | 'MANAGE' | 'FULL'> = ['NONE'];
+  if (actorMaxLevel === 'CUSTOM') {
+    if (moduleSupportsManage) {
+      return ['NONE', 'VIEW', 'MANAGE', 'FULL'];
+    }
+    return ['NONE', 'VIEW'];
+  }
+  const rank = actorMaxLevel === 'NONE' ? 0 : LEVEL_RANK[actorMaxLevel];
+  if (rank >= LEVEL_RANK.VIEW) {
+    levels.push('VIEW');
+  }
+  if (moduleSupportsManage && rank >= LEVEL_RANK.MANAGE) {
+    levels.push('MANAGE');
+  }
+  if (moduleSupportsManage && rank >= LEVEL_RANK.FULL) {
+    levels.push('FULL');
+  }
+  return levels;
 }
