@@ -15,12 +15,10 @@ export default function LeaseDeactivationNotice({
 
             <p className="text-xs leading-5 text-slate-500">
                 <span className="font-semibold text-slate-700">
-                    {returnedVehicles} of {totalVehicles} vehicles returned
-                    & registered.
+                    {returnedVehicles} of {totalVehicles} vehicles returned & registered.
                 </span>{" "}
-                "Registered" only means logged as physically back — not
-                inspected. Pause billing unlocks once all {totalVehicles} are
-                in.
+                &quot;Registered&quot; only means logged as physically back — not inspected.
+                Pause billing unlocks once all {totalVehicles} are in.
             </p>
         </div>
     );
