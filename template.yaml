@@ -99,6 +99,8 @@ Resources:
         AllowHeaders:
           - Content-Type
           - Authorization
+          - Accept
+          - x-organization-id
         AllowMethods:
           - GET
           - POST

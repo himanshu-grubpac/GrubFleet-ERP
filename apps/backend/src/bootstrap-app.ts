@@ -21,9 +21,18 @@ export async function createNestApplication(): Promise<INestApplication> {
   const apiPrefix = config.get('API_PREFIX', { infer: true });
   app.setGlobalPrefix(apiPrefix);
 
+  const corsOrigin = config.get('CORS_ORIGIN', { infer: true });
   app.enableCors({
-    origin: config.get('CORS_ORIGIN', { infer: true }),
+    origin: corsOrigin.includes(',')
+      ? corsOrigin.split(',').map((o) => o.trim())
+      : corsOrigin,
     credentials: true,
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Accept',
+      'x-organization-id',
+    ],
   });
 
   app.useGlobalPipes(
