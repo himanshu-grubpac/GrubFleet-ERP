@@ -123,6 +123,20 @@ export class LeaseContractsController {
     return this.leaseContracts.getReview(organizationId, id);
   }
 
+  @Get(':id/confirmation')
+  @RequireOrganizationContext()
+  @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
+  @ApiOperation({
+    summary:
+      'Post-wizard confirmation — allocation by line, status, and billing/allocation info',
+  })
+  getConfirmation(
+    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.leaseContracts.getConfirmation(organizationId, id);
+  }
+
   @Get(':id')
   @RequireOrganizationContext()
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)

@@ -22,6 +22,10 @@ import {
   resolveReviewAction,
 } from './utils/contract-review.util';
 import { evaluateContractPricing } from './utils/contract-pricing-engine.util';
+import {
+  buildContractConfirmationInfoMessages,
+  buildContractLineAllocationRow,
+} from './utils/contract-line-allocation.util';
 import type { UpdateContractTermsDto } from './dto/update-contract-terms.dto';
 import type { UpdateContractAssetLinesDto } from './dto/update-contract-asset-lines.dto';
 import type { CreateLeaseContractDto } from './dto/create-lease-contract.dto';
@@ -69,6 +73,23 @@ export class LeaseContractsService {
     const contract = await this.repo.findContractInOrg(organizationId, contractId);
     if (!contract) throw new NotFoundException('Lease contract not found');
     return this.toDetail(organizationId, contract);
+  }
+
+  /** Post-wizard success screen — allocation table + info blocks (Figma confirmation). */
+  async getConfirmation(organizationId: string, contractId: string) {
+    const contract = await this.repo.findContractInOrg(organizationId, contractId);
+    if (!contract) throw new NotFoundException('Lease contract not found');
+    const eligible: LeaseContractStatus[] = [
+      'active',
+      'awaiting_assets',
+      'approved',
+    ];
+    if (!eligible.includes(contract.status as LeaseContractStatus)) {
+      throw new BadRequestException(
+        'Confirmation summary is available after confirm or activate (active, awaiting assets, or approved)',
+      );
+    }
+    return this.buildConfirmationSummary(organizationId, contract);
   }
 
   async create(userId: string, dto: CreateLeaseContractDto) {
@@ -319,12 +340,21 @@ export class LeaseContractsService {
     });
     const detail = await this.getById(organizationId, contractId);
     const review = await this.getReview(organizationId, contractId);
+    const confirmed = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
+    const confirmation = confirmed
+      ? await this.buildConfirmationSummary(organizationId, confirmed)
+      : null;
     return {
       contract: detail,
       pricingEvaluation: pricing,
       reviewAction: 'confirm_contract' as const,
       messages: review.messages,
       activatedStatus: nextStatus,
+      confirmation,
+      confirmationUrl: `/api/v1/fleet-leasing/lease-contracts/${contractId}/confirmation`,
     };
   }
 
@@ -552,7 +582,15 @@ export class LeaseContractsService {
         ? 'Contract activated'
         : 'Contract awaiting assets',
     );
-    return this.getById(organizationId, contractId);
+    const updated = await this.repo.findContractInOrg(organizationId, contractId);
+    const confirmation = updated
+      ? await this.buildConfirmationSummary(organizationId, updated)
+      : null;
+    return {
+      contract: await this.getById(organizationId, contractId),
+      confirmation,
+      confirmationUrl: `/api/v1/fleet-leasing/lease-contracts/${contractId}/confirmation`,
+    };
   }
 
   /** Figma: direct reactivate — no approval. */
@@ -965,6 +1003,61 @@ export class LeaseContractsService {
       })),
       createdAt: contract.createdAt.toISOString(),
       updatedAt: contract.updatedAt.toISOString(),
+    };
+  }
+
+  private async buildConfirmationSummary(
+    organizationId: string,
+    contract: NonNullable<
+      Awaited<ReturnType<FleetLeasingRepository['findContractInOrg']>>
+    >,
+  ) {
+    const [lines, allocatedByClass, client] = await Promise.all([
+      this.repo.listAssetLines(contract.id),
+      this.repo.countAllocatedVehiclesByAssetClass(contract.id),
+      contract.clientId
+        ? this.repo.getClientInOrg(organizationId, contract.clientId)
+        : Promise.resolve(null),
+    ]);
+    const rawStatus = contract.status as LeaseContractStatus;
+    const publicStatus = this.toPublicStatus(rawStatus);
+    const allocationByLine = lines.map((line) =>
+      buildContractLineAllocationRow({
+        assetClass: line.assetClass,
+        committedQuantity: line.committedQuantity,
+        allocatedCount: allocatedByClass[line.assetClass] ?? 0,
+        inboundCount: line.inboundCount,
+        shortfallCount: line.shortfallCount,
+        awaitingAssetsLine: line.awaitingAssetsLine,
+        availabilityStatus: line.availabilityStatus,
+      }),
+    );
+    const contractFullyAllocated =
+      allocationByLine.length > 0 &&
+      allocationByLine.every((l) => l.lineStatus === 'allocated');
+    const hasAwaitingLines = allocationByLine.some(
+      (l) => l.lineStatus === 'awaiting_assets',
+    );
+    const hasPartialLines = allocationByLine.some(
+      (l) => l.lineStatus === 'partially_allocated',
+    );
+    const infoMessages = buildContractConfirmationInfoMessages({
+      rawStatus,
+      publicStatus,
+      contractFullyAllocated,
+      hasAwaitingLines,
+      hasPartialLines,
+    });
+    return {
+      contractId: contract.id,
+      contractNumber: contract.contractNumber,
+      clientCompanyName: client?.companyName ?? 'Not yet selected',
+      publicStatus,
+      rawStatus,
+      headline: 'Contract confirmed',
+      infoMessages,
+      allocationByLine,
+      contractFullyAllocated,
     };
   }
 

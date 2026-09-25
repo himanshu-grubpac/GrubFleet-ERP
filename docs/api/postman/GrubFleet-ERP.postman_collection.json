@@ -393,7 +393,20 @@
               { "key": "x-organization-id", "value": "{{organizationId}}" }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirm?organizationId={{organizationId}}",
-            "description": "POST .../confirm — when reviewAction is confirm_contract; activates or awaiting_assets."
+            "description": "POST .../confirm — when reviewAction is confirm_contract; activates or awaiting_assets. Response includes confirmation summary for success screen."
+          },
+          "response": []
+        },
+        {
+          "name": "Get contract confirmation (post-wizard)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirmation?organizationId={{organizationId}}",
+            "description": "GET .../confirmation — allocationByLine, infoMessages; active, awaiting_assets, or approved."
           },
           "response": []
         }

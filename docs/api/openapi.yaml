@@ -667,6 +667,31 @@ paths:
           description: Saved lines with lineAvailability
         '409':
           description: ASSET_SHORTFALL — confirmShortfall required
+  /fleet-leasing/lease-contracts/{id}/confirmation:
+    get:
+      tags: [fleet-leasing]
+      summary: Post-wizard confirmation — allocation table and info messages
+      operationId: getLeaseContractConfirmation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            contractNumber, clientCompanyName, publicStatus, rawStatus, headline,
+            infoMessages, allocationByLine (lineStatus allocated|partially_allocated|awaiting_assets),
+            contractFullyAllocated
+        '400':
+          description: Contract not yet confirmed or activated
+        '404':
+          $ref: '#/components/responses/NotFound'
   /fleet-leasing/lease-contracts/{id}/review:
     get:
       tags: [fleet-leasing]
@@ -706,7 +731,9 @@ paths:
             format: uuid
       responses:
         '200':
-          description: contract activated or awaiting_assets; confirm_contract messages
+          description: >-
+            contract, pricingEvaluation, activatedStatus; confirmation summary embedded;
+            confirmationUrl for refresh
         '400':
           description: TERMS_INCOMPLETE or PRICING_REQUIRES_APPROVAL — use submit instead
         '404':

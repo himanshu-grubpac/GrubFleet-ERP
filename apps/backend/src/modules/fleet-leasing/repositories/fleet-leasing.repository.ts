@@ -141,6 +141,29 @@ export class FleetLeasingRepository {
     return rows.map((r) => r.vehicleId);
   }
 
+  /** Allocated vehicles on contract, grouped by fleet vehicle asset class. */
+  async countAllocatedVehiclesByAssetClass(
+    contractId: string,
+  ): Promise<Record<string, number>> {
+    const rows = await this.db
+      .select({
+        assetClass: fleetVehicles.assetClass,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(leaseContractVehicles)
+      .innerJoin(
+        fleetVehicles,
+        eq(leaseContractVehicles.vehicleId, fleetVehicles.id),
+      )
+      .where(eq(leaseContractVehicles.contractId, contractId))
+      .groupBy(fleetVehicles.assetClass);
+    const out: Record<string, number> = {};
+    for (const row of rows) {
+      out[row.assetClass] = row.count;
+    }
+    return out;
+  }
+
   async listEvents(contractId: string, limit = 50) {
     return this.db
       .select()
