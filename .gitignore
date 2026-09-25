@@ -33,3 +33,10 @@ Thumbs.db
 # Test / cache
 .cache/
 .nyc_output/
+
+# SAM manual deploy (secrets + assembled bundle)
+lambda-package/
+.aws-sam/
+samconfig.staging.toml
+samconfig.preprod.toml
+samconfig.production.toml
