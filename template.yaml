@@ -74,10 +74,19 @@ Parameters:
     MinValue: 0
     MaxValue: 100
     Description: Max concurrent Lambda containers (0 = account pool only)
+  VpcSubnetIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Private subnet IDs for Lambda (comma-separated); leave empty to skip VPC
+  VpcSecurityGroupIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Security group IDs for Lambda; leave empty to skip VPC
 
 Conditions:
   EnableWarmup: !Equals [!Ref EnableWarmupSchedule, 'true']
   HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
+  UseVpc: !Not [!Equals [!Select [0, !Ref VpcSubnetIds], '']]
 
 Resources:
   GrubFleetHttpApi:
@@ -109,9 +118,15 @@ Resources:
         - HasReservedConcurrency
         - !Ref ReservedConcurrency
         - !Ref AWS::NoValue
+      VpcConfig: !If
+        - UseVpc
+        - SecurityGroupIds: !Ref VpcSecurityGroupIds
+          SubnetIds: !Ref VpcSubnetIds
+        - !Ref AWS::NoValue
       Environment:
         Variables:
           NODE_ENV: production
+          NODE_OPTIONS: '--experimental-require-module'
           APP_ENV: !Ref AppEnv
           API_PREFIX: api/v1
           CORS_ORIGIN: !Ref ClientOrigin

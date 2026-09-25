@@ -18,4 +18,3 @@ export const DEV_JWT_REFRESH_SECRET =
 // Temporary settings for testing:
 export const LOGIN_RATE_LIMIT_MAX = 20;
 export const LOGIN_RATE_LIMIT_WINDOW_SEC = 900; // 15 minutes (adjust as needed for testing)
-

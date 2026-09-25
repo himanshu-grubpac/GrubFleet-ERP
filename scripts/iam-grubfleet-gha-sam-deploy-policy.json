@@ -1,0 +1,149 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SamArtifactBucket",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:GetObjectVersion",
+        "s3:PutObject",
+        "s3:ListBucket",
+        "s3:GetBucketLocation"
+      ],
+      "Resource": [
+        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-mzdreqfkqpb1",
+        "arn:aws:s3:::aws-sam-cli-managed-default-samclisourcebucket-mzdreqfkqpb1/*"
+      ]
+    },
+    {
+      "Sid": "SamApiCloudFormation",
+      "Effect": "Allow",
+      "Action": [
+        "cloudformation:CreateStack",
+        "cloudformation:UpdateStack",
+        "cloudformation:DeleteStack",
+        "cloudformation:DescribeStacks",
+        "cloudformation:DescribeStackEvents",
+        "cloudformation:DescribeStackResource",
+        "cloudformation:DescribeStackResources",
+        "cloudformation:GetTemplate",
+        "cloudformation:ValidateTemplate",
+        "cloudformation:CreateChangeSet",
+        "cloudformation:DescribeChangeSet",
+        "cloudformation:ExecuteChangeSet",
+        "cloudformation:DeleteChangeSet",
+        "cloudformation:ListStackResources",
+        "cloudformation:GetTemplateSummary"
+      ],
+      "Resource": [
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-staging/*",
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-preprod/*",
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-production/*"
+      ]
+    },
+    {
+      "Sid": "SamTransformRead",
+      "Effect": "Allow",
+      "Action": ["cloudformation:CreateChangeSet"],
+      "Resource": "arn:aws:cloudformation:ap-south-1:aws:transform/Serverless-2016-10-31"
+    },
+    {
+      "Sid": "SamApiLambda",
+      "Effect": "Allow",
+      "Action": [
+        "lambda:CreateFunction",
+        "lambda:DeleteFunction",
+        "lambda:UpdateFunctionCode",
+        "lambda:UpdateFunctionConfiguration",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:PublishVersion",
+        "lambda:CreateAlias",
+        "lambda:UpdateAlias",
+        "lambda:DeleteAlias",
+        "lambda:AddPermission",
+        "lambda:RemovePermission",
+        "lambda:PutFunctionConcurrency",
+        "lambda:DeleteFunctionConcurrency",
+        "lambda:TagResource",
+        "lambda:UntagResource",
+        "lambda:ListTags"
+      ],
+      "Resource": [
+        "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-staging",
+        "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-preprod",
+        "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-production"
+      ]
+    },
+    {
+      "Sid": "SamApiGateway",
+      "Effect": "Allow",
+      "Action": [
+        "apigateway:GET",
+        "apigateway:POST",
+        "apigateway:PUT",
+        "apigateway:PATCH",
+        "apigateway:DELETE"
+      ],
+      "Resource": [
+        "arn:aws:apigateway:ap-south-1::/apis",
+        "arn:aws:apigateway:ap-south-1::/apis/*"
+      ]
+    },
+    {
+      "Sid": "SamApiIamExecutionRoles",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
+        "iam:PassRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:PutRolePolicy",
+        "iam:DeleteRolePolicy",
+        "iam:GetRolePolicy",
+        "iam:TagRole",
+        "iam:UntagRole"
+      ],
+      "Resource": [
+        "arn:aws:iam::662252246711:role/grubfleet-api-staging-*",
+        "arn:aws:iam::662252246711:role/grubfleet-api-preprod-*",
+        "arn:aws:iam::662252246711:role/grubfleet-api-production-*"
+      ]
+    },
+    {
+      "Sid": "SamApiEventBridgeWarmup",
+      "Effect": "Allow",
+      "Action": [
+        "events:PutRule",
+        "events:DeleteRule",
+        "events:DescribeRule",
+        "events:EnableRule",
+        "events:DisableRule",
+        "events:PutTargets",
+        "events:RemoveTargets",
+        "events:ListTargetsByRule"
+      ],
+      "Resource": [
+        "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-staging-*",
+        "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-preprod-*",
+        "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-production-*"
+      ]
+    },
+    {
+      "Sid": "SamApiLogs",
+      "Effect": "Allow",
+      "Action": [
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:PutLogEvents",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:TagResource"
+      ],
+      "Resource": "arn:aws:logs:ap-south-1:662252246711:log-group:/aws/lambda/grubfleet-api-*:*"
+    }
+  ]
+}

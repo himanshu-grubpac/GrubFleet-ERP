@@ -14,7 +14,7 @@ import {
 import { buildPhase1PermissionCatalog } from './permission-catalog';
 
 export const DEV_ADMIN_EMAIL = 'admin@grubpac.local';
-export const DEV_ADMIN_PASSWORD = 'ChangeMeDev123!';
+export const DEV_ADMIN_PASSWORD = 'Grubpac123';
 export const DEV_ORG_SLUG = 'grubpac-dev';
 export const DEV_ORG_NAME = 'GrubPac Dev Organization';
 export const DEV_ADMIN_ROLE_NAME = 'Organization Admin';
@@ -57,7 +57,15 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
       isActive: true,
       emailVerifiedAt: new Date(),
     })
-    .onConflictDoNothing({ target: users.email });
+    .onConflictDoUpdate({
+      target: users.email,
+      set: {
+        passwordHash,
+        fullName: 'Dev Admin',
+        isActive: true,
+        emailVerifiedAt: new Date(),
+      },
+    });
 
   const userRows = await db
     .select({ id: users.id })
