@@ -60,6 +60,8 @@ npm run deploy:production:api
    `NEXT_PUBLIC_API_BASE_URL={HttpApiUrl}/api/v1`  
    (Nest global prefix is `api/v1`; health check is `GET {HttpApiUrl}/api/v1/health`.)
 
+   **Hosted portal:** after [S3 + CloudFront deploy](./s3-cloudfront-portal.md), set `ClientOrigin` to the stack `PortalUrl` and redeploy SAM (`scripts/update-sam-client-origin.ps1 -Tier <tier>`).
+
 3. **Migrations** — run against RDS from a trusted host (not inside this SAM stack):
 
    ```powershell

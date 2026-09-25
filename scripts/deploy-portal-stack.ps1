@@ -40,4 +40,4 @@ $portalUrl = aws cloudformation describe-stacks `
   --region $Region
 
 Write-Host "`nPortal URL: $portalUrl"
-Write-Host "Next: update SAM ClientOrigin — .\scripts\update-sam-client-origin.ps1 -Tier $Tier -PortalOrigin $portalUrl"
+Write-Host "Next: update SAM ClientOrigin - .\scripts\update-sam-client-origin.ps1 -Tier $Tier -PortalOrigin $portalUrl"

@@ -56,11 +56,16 @@ try {
 
   $outDir = Join-Path $Root 'apps\frontend\out'
   if (-not (Test-Path $outDir)) {
-    throw "Missing $outDir — run build with NEXT_STATIC_EXPORT=true"
+    throw "Missing $outDir - run build with NEXT_STATIC_EXPORT=true"
   }
+
+  # Avoid Windows CLI v2 "stream is not seekable" failures on small static files.
+  $env:AWS_REQUEST_CHECKSUM_CALCULATION = 'when_required'
+  $env:AWS_RESPONSE_CHECKSUM_VALIDATION = 'when_required'
 
   Write-Host "Syncing to s3://$bucket ..."
   aws s3 sync $outDir "s3://$bucket" --delete --profile $Profile --region $Region
+  if ($LASTEXITCODE -ne 0) { throw 'S3 sync failed' }
 
   Write-Host "Invalidating CloudFront distribution $distributionId ..."
   aws cloudfront create-invalidation `

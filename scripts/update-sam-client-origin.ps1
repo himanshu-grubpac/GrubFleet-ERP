@@ -36,7 +36,7 @@ $PortalOrigin = $PortalOrigin.TrimEnd('/')
 Write-Host "ClientOrigin (CORS): $PortalOrigin"
 
 if (-not (Test-Path $SamConfig)) {
-  throw "Missing $SamConfig — copy from samconfig.$Tier.example.toml and fill secrets."
+  throw "Missing $SamConfig - copy from samconfig.$Tier.example.toml and fill secrets."
 }
 
 $content = Get-Content -Raw -Path $SamConfig
@@ -48,7 +48,8 @@ if ($updated -eq $content) {
   Write-Warning 'Could not find ClientOrigin in samconfig; add manually to parameter_overrides.'
 }
 else {
-  Set-Content -Path $SamConfig -Value $updated -NoNewline -Encoding utf8
+  $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+  [System.IO.File]::WriteAllText($SamConfig, $updated, $utf8NoBom)
   Write-Host "Updated $SamConfig"
 }
 
