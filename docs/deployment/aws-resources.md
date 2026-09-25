@@ -28,13 +28,15 @@ This inventory covers **GrubFleet-ERP only**. It does **not** include attendance
 
 ## Live API & portal URLs (maintain on redeploy)
 
-GrubFleet **frontend is not hosted on AWS yet** (no CloudFront/Amplify URL). Use local Next.js (`http://localhost:3000`) with `NEXT_PUBLIC_API_BASE_URL` below. **CORS** on all tiers is currently `http://localhost:3000`.
+GrubFleet **frontend** is deployed via **S3 + CloudFront** (stack `grubfleet-portal-{tier}`). See [s3-cloudfront-portal.md](./s3-cloudfront-portal.md). After portal deploy, set SAM **`ClientOrigin`** to `PortalUrl` (HTTPS CloudFront domain, no trailing slash).
 
-| Tier | Frontend portal | HTTP API (SAM output) | `NEXT_PUBLIC_API_BASE_URL` | Health smoke |
-|------|-----------------|------------------------|----------------------------|--------------|
-| Staging | *(local dev)* | `https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com` | `https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
-| Pre-prod | *(local dev)* | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com` | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
-| Production | *(not deployed)* | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com` | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
+| Tier | Frontend portal (CloudFront) | HTTP API (SAM output) | `NEXT_PUBLIC_API_BASE_URL` | Health smoke |
+|------|------------------------------|------------------------|----------------------------|--------------|
+| Staging | `https://d3swe5av2h6i8p.cloudfront.net` | `https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com` | `https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
+| Pre-prod | *(stack `grubfleet-portal-preprod` when deployed)* | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com` | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
+| Production | *(stack `grubfleet-portal-production` when deployed)* | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com` | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
+
+**CORS `ClientOrigin`:** update from `http://localhost:3000` to each tier’s `PortalUrl` after first portal sync (`scripts/update-sam-client-origin.ps1`).
 
 | Tier | OpenAPI / Swagger (when API is up) |
 |------|-------------------------------------|
@@ -63,6 +65,12 @@ GrubFleet **frontend is not hosted on AWS yet** (no CloudFront/Amplify URL). Use
 | `grubfleet-api-preprod` | SAM API (pre-prod) | `CREATE_COMPLETE` |
 
 | `grubfleet-api-production` | SAM API (production) | `CREATE_COMPLETE` (health + auth smoke OK) |
+
+| `grubfleet-portal-staging` | S3 + CloudFront portal (staging) | `UPDATE_COMPLETE` |
+
+| `grubfleet-portal-preprod` | Portal (pre-prod) | when deployed |
+
+| `grubfleet-portal-production` | Portal (production) | when deployed |
 
 
 
@@ -204,6 +212,14 @@ Credentials (master user `grubfleet`, passwords, full `DATABASE_URL`) are **not*
 
 
 
+### Staging portal (`grubfleet-portal-staging`)
+
+| Resource | Value |
+|----------|--------|
+| Portal URL | `https://d3swe5av2h6i8p.cloudfront.net` |
+| CloudFront distribution | `E2P1321QJMJTG0` |
+| S3 bucket | `grubfleet-portal-staging-662252246711` |
+
 ### Staging (`grubfleet-api-staging`)
 
 
@@ -220,7 +236,7 @@ Credentials (master user `grubfleet`, passwords, full `DATABASE_URL`) are **not*
 
 | Nest API prefix | `/api/v1` (e.g. health: `GET .../api/v1/health`) |
 
-| `ClientOrigin` (CORS) | `http://localhost:3000` |
+| `ClientOrigin` (CORS) | `https://d3swe5av2h6i8p.cloudfront.net` |
 
 | VPC | Private subnets + Lambda SG (see network) |
 
