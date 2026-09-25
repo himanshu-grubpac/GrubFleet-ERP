@@ -11,6 +11,7 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { PermissionsModule } from './modules/permissions/permissions.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
+import { FleetLeasingModule } from './modules/fleet-leasing/fleet-leasing.module';
 
 @Module({
   imports: [
@@ -24,6 +25,7 @@ import { UsersModule } from './modules/users/users.module';
     PermissionsModule,
     RolesModule,
     AuditModule,
+    FleetLeasingModule,
   ],
   providers: [StructuredLoggerService],
 })

@@ -252,3 +252,5 @@ export const usersRelations = relations(users, ({ many }) => ({
   userRoles: many(userRoles),
   refreshTokens: many(refreshTokens),
 }));
+
+export * from './fleet-leasing.schema';

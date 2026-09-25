@@ -24,6 +24,7 @@ on:
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 jobs:
   build-and-push:
@@ -39,6 +40,7 @@ jobs:
         run: |
           SHA="${GITHUB_SHA::7}"
           echo "sha_tag=${{ inputs.branch-ref }}-${SHA}" >> "$GITHUB_OUTPUT"
+          echo "ghcr_repo=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v3
 
@@ -55,8 +57,8 @@ jobs:
           file: apps/backend/Dockerfile
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}/backend:${{ steps.vars.outputs.sha_tag }}
-            ghcr.io/${{ github.repository }}/backend:${{ inputs.deploy-label }}-latest
+            ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/backend:${{ steps.vars.outputs.sha_tag }}
+            ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/backend:${{ inputs.deploy-label }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -69,38 +71,61 @@ jobs:
           build-args: |
             NEXT_PUBLIC_API_BASE_URL=${{ vars.NEXT_PUBLIC_API_BASE_URL || 'https://api.example.com/api/v1' }}
           tags: |
-            ghcr.io/${{ github.repository }}/frontend:${{ steps.vars.outputs.sha_tag }}
-            ghcr.io/${{ github.repository }}/frontend:${{ inputs.deploy-label }}-latest
+            ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/frontend:${{ steps.vars.outputs.sha_tag }}
+            ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/frontend:${{ inputs.deploy-label }}-latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Export image refs
         id: out
         run: |
-          echo "backend_image=ghcr.io/${{ github.repository }}/backend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
-          echo "frontend_image=ghcr.io/${{ github.repository }}/frontend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
+          echo "backend_image=ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/backend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
+          echo "frontend_image=ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/frontend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
 
-  frontend-static-artifact:
+  frontend-portal-s3-cloudfront:
     runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: npm
       - run: npm ci
-      - name: Build frontend (static artifact for Amplify/S3)
+      - name: Build frontend (static export for S3 + CloudFront)
         run: npm run build -w frontend
         env:
-          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL || 'https://api.example.com/api/v1' }}
-      - name: Upload Next.js build artifact
+          NEXT_STATIC_EXPORT: 'true'
+          NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
+      - name: Configure AWS credentials (OIDC)
+        if: vars.PORTAL_S3_BUCKET != '' && secrets.AWS_ROLE_ARN != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      - name: Sync static export to S3
+        if: vars.PORTAL_S3_BUCKET != '' && secrets.AWS_ROLE_ARN != ''
+        run: |
+          aws s3 sync apps/frontend/out "s3://${{ vars.PORTAL_S3_BUCKET }}" --delete
+      - name: Invalidate CloudFront cache
+        if: vars.PORTAL_S3_BUCKET != '' && secrets.AWS_ROLE_ARN != '' && vars.CLOUDFRONT_DISTRIBUTION_ID != ''
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
+            --paths "/*"
+      - name: Upload static export artifact (fallback / audit)
         uses: actions/upload-artifact@v4
         with:
-          name: frontend-${{ inputs.deploy-label }}-${{ github.sha }}
-          path: apps/frontend/.next
+          name: frontend-portal-${{ inputs.deploy-label }}-${{ github.sha }}
+          path: apps/frontend/out
           retention-days: 14
-      # Placeholder: deploy to AWS Amplify or S3+CloudFront using environment secrets
-      # AMPLIFY_APP_ID, AWS_ROLE_ARN, S3_BUCKET, CLOUDFRONT_DISTRIBUTION_ID
+      - name: Portal deploy skipped (missing AWS config)
+        if: vars.PORTAL_S3_BUCKET == '' || secrets.AWS_ROLE_ARN == ''
+        run: |
+          echo "Set GitHub Environment secrets/vars to enable S3 sync:"
+          echo "  secrets.AWS_ROLE_ARN"
+          echo "  vars.PORTAL_S3_BUCKET, vars.CLOUDFRONT_DISTRIBUTION_ID, vars.NEXT_PUBLIC_API_BASE_URL"
+          echo "See docs/deployment/s3-cloudfront-portal.md"
 
   deploy-blue-green:
     needs: build-and-push

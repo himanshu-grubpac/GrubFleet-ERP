@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Shield,
@@ -27,7 +27,7 @@ import {
   type RoleEditorMatrixRow,
 } from "@/lib/api/roles";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
-import type { Role, ModuleAccessLevel } from "@grubpac/shared-types";
+import type { Role } from "@grubpac/shared-types";
 import { canMutateAdministration } from "@/lib/auth/administration-access";
 
 export function AdministrationModule() {
@@ -202,7 +202,7 @@ export function AdministrationModule() {
     },
   });
 
-  const roles = rolesData?.items || [];
+  const roles = useMemo(() => rolesData?.items ?? [], [rolesData?.items]);
   const filteredRoles = roles.filter(
     (r) =>
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||

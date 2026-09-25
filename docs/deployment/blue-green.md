@@ -25,7 +25,7 @@ Each environment uses a **concurrency group** (`deploy-staging`, `deploy-pre-pro
    - `ghcr.io/<owner>/<repo>/backend:<branch-ref>-<sha>`
    - `ghcr.io/<owner>/<repo>/frontend:<branch-ref>-<sha>`
    - Floating tags: `staging-latest`, `preprod-latest`, `production-latest`
-2. **Frontend artifact** — `npm run build -w frontend`; upload `.next` for future Amplify/S3 deploy (stub comments in workflow).
+2. **Frontend portal** — static export (`NEXT_STATIC_EXPORT=true`) synced to S3 + CloudFront invalidation when Environment vars/secrets are set; see [s3-cloudfront-portal.md](./s3-cloudfront-portal.md).
 3. **Deploy inactive slot** — composite action targets slot **opposite** `ACTIVE_SLOT` (`blue` ↔ `green`).
 4. **Smoke test** — `GET {DEPLOY_HEALTH_URL}/health` when `DEPLOY_HEALTH_URL` is set.
 5. **Flip marker** — upload artifact `active-slot-<label>`; update Environment variable `ACTIVE_SLOT` to the new active slot.

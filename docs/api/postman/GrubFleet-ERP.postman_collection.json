@@ -304,6 +304,266 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Fleet & Leasing",
+      "description": "Lease contract wizard and lifecycle. Set leaseContractId from Create draft response.",
+      "item": [
+        {
+          "name": "Create draft lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts?organizationId={{organizationId}}",
+            "description": "POST /fleet-leasing/lease-contracts — wizard entry (draft)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get contract review (wizard step 4)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/review?organizationId={{organizationId}}",
+            "description": "GET .../review — client, lines, terms, pricingEvaluation, reviewAction, messages, canSubmit."
+          },
+          "response": []
+        },
+        {
+          "name": "Terms evaluation (wizard step 3)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/terms/evaluation?organizationId={{organizationId}}",
+            "description": "GET .../terms/evaluation — pricing engine preview."
+          },
+          "response": []
+        },
+        {
+          "name": "Update contract terms (wizard step 3)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"startDate\": \"2026-09-15\",\n  \"termMonths\": 24,\n  \"securityDeposit\": \"210000.00\",\n  \"billingFrequency\": \"monthly\"\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/terms?organizationId={{organizationId}}",
+            "description": "PUT .../terms — saves step 3; returns contract + pricingEvaluation."
+          },
+          "response": []
+        },
+        {
+          "name": "Submit for approval (wizard step 4)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/submit?organizationId={{organizationId}}",
+            "description": "POST .../submit — when reviewAction is submit_for_approval; status pending_approval + approval request."
+          },
+          "response": []
+        },
+        {
+          "name": "Confirm contract (wizard step 4)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirm?organizationId={{organizationId}}",
+            "description": "POST .../confirm — when reviewAction is confirm_contract; activates or awaiting_assets. Response includes confirmation summary for success screen."
+          },
+          "response": []
+        },
+        {
+          "name": "Get contract confirmation (post-wizard)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirmation?organizationId={{organizationId}}",
+            "description": "GET .../confirmation — allocationByLine, infoMessages; active, awaiting_assets, or approved."
+          },
+          "response": []
+        },
+        {
+          "name": "Get lease contract detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}?organizationId={{organizationId}}",
+            "description": "GET .../{id} — subtitle, statusTags, statusBanner, lifecycleLogs, availableActions, returnProgress, terminatedAt."
+          },
+          "response": []
+        },
+        {
+          "name": "Edit lease contract",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{fleetClientId}}\",\n  \"startDate\": \"2026-09-15\",\n  \"termMonths\": 24,\n  \"securityDeposit\": \"96000.00\",\n  \"billingFrequency\": \"monthly\",\n  \"additionalTerms\": \"Standard fleet SLA applies.\",\n  \"amcTier\": \"Gold\",\n  \"assetLines\": [\n    {\n      \"assetClass\": \"Sedan\",\n      \"committedQuantity\": 10,\n      \"ratePerVehicleMonth\": \"34500.00\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}?organizationId={{organizationId}}",
+            "description": "PATCH .../{id} — edit client, terms, asset lines, optional vehicleIds. Blocked on closed/concluded/pending_termination. Returns detail + pricingEvaluation when terms/lines change."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/deactivate?organizationId={{organizationId}}",
+            "description": "POST .../deactivate — active only; onHold true, billing continues."
+          },
+          "response": []
+        },
+        {
+          "name": "Reactivate lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/reactivate?organizationId={{organizationId}}",
+            "description": "POST .../reactivate — direct to active/awaiting_assets; no approval."
+          },
+          "response": []
+        },
+        {
+          "name": "Pause lease contract billing",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/pause-billing?organizationId={{organizationId}}",
+            "description": "POST .../pause-billing — requires returnProgress.canPauseBilling."
+          },
+          "response": []
+        },
+        {
+          "name": "Request lease contract termination",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/request-termination?organizationId={{organizationId}}",
+            "description": "POST .../request-termination — from deactivated/billing_paused; pending Contract Admin."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve lease contract termination",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/approve-termination?organizationId={{organizationId}}",
+            "description": "POST .../approve-termination — closes contract; deposit settle is messaging stub until Finance integration."
+          },
+          "response": []
+        },
+        {
+          "name": "Renew lease contract (Flow 04)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/renew?organizationId={{organizationId}}",
+            "description": "POST .../renew — draft renewal with null end date until terms set."
+          },
+          "response": []
+        },
+        {
+          "name": "List vehicle allocations (hub)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/vehicle-allocations?organizationId={{organizationId}}&page=1",
+            "description": "GET /fleet-leasing/vehicle-allocations — org allocation hub."
+          },
+          "response": []
+        },
+        {
+          "name": "Allocate vehicle to contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleId\": \"{{fleetVehicleId}}\",\n  \"notifiedStakeholders\": [\"ops@example.com\"]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/vehicle-allocations?organizationId={{organizationId}}",
+            "description": "POST .../vehicle-allocations — Flow 02 allocate/reassign."
+          },
+          "response": []
+        },
+        {
+          "name": "List returns hub",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/returns?organizationId={{organizationId}}&page=1",
+            "description": "GET /fleet-leasing/returns — Flow 06 hub."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -329,6 +589,10 @@
     },
     {
       "key": "userId",
+      "value": ""
+    },
+    {
+      "key": "leaseContractId",
       "value": ""
     }
   ]
