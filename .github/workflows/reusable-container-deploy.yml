@@ -98,17 +98,17 @@ jobs:
           NEXT_STATIC_EXPORT: 'true'
           NEXT_PUBLIC_API_BASE_URL: ${{ vars.NEXT_PUBLIC_API_BASE_URL }}
       - name: Configure AWS credentials (OIDC)
-        if: vars.PORTAL_S3_BUCKET != '' && secrets.AWS_ROLE_ARN != ''
+        if: vars.PORTAL_S3_BUCKET != ''
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
       - name: Sync static export to S3
-        if: vars.PORTAL_S3_BUCKET != '' && secrets.AWS_ROLE_ARN != ''
+        if: vars.PORTAL_S3_BUCKET != ''
         run: |
           aws s3 sync apps/frontend/out "s3://${{ vars.PORTAL_S3_BUCKET }}" --delete
       - name: Invalidate CloudFront cache
-        if: vars.PORTAL_S3_BUCKET != '' && secrets.AWS_ROLE_ARN != '' && vars.CLOUDFRONT_DISTRIBUTION_ID != ''
+        if: vars.PORTAL_S3_BUCKET != '' && vars.CLOUDFRONT_DISTRIBUTION_ID != ''
         run: |
           aws cloudfront create-invalidation \
             --distribution-id "${{ vars.CLOUDFRONT_DISTRIBUTION_ID }}" \
@@ -120,7 +120,7 @@ jobs:
           path: apps/frontend/out
           retention-days: 14
       - name: Portal deploy skipped (missing AWS config)
-        if: vars.PORTAL_S3_BUCKET == '' || secrets.AWS_ROLE_ARN == ''
+        if: vars.PORTAL_S3_BUCKET == ''
         run: |
           echo "Set GitHub Environment secrets/vars to enable S3 sync:"
           echo "  secrets.AWS_ROLE_ARN"
