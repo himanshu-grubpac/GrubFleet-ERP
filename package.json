@@ -14,7 +14,12 @@
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
-    "db:seed": "npm run db:seed -w backend"
+    "db:seed": "npm run db:seed -w backend",
+    "prepare:lambda": "node scripts/prepare-lambda.mjs",
+    "sam:build": "sam build",
+    "deploy:staging:api": "npm run prepare:lambda && sam build && sam deploy --config-file samconfig.staging.toml",
+    "deploy:preprod:api": "npm run prepare:lambda && sam build && sam deploy --config-file samconfig.preprod.toml",
+    "deploy:production:api": "npm run prepare:lambda && sam build && sam deploy --config-file samconfig.production.toml"
   },
   "engines": {
     "node": ">=20"
