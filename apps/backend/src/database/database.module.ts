@@ -4,6 +4,7 @@ import { drizzle, NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import type { Env } from '../config/env.schema';
 import { DRIZZLE, PG_POOL } from './drizzle.tokens';
+import { pgPoolOptions } from './pg-pool-options';
 import * as schema from './schema';
 
 export type AppDatabase = NodePgDatabase<typeof schema>;
@@ -15,10 +16,7 @@ export type AppDatabase = NodePgDatabase<typeof schema>;
       provide: PG_POOL,
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) =>
-        new Pool({
-          connectionString: config.get('DATABASE_URL', { infer: true }),
-          max: 10,
-        }),
+        new Pool(pgPoolOptions(config.get('DATABASE_URL', { infer: true }))),
     },
     {
       provide: DRIZZLE,
