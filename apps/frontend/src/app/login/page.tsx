@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import {
   EmailInput,
   PasswordInput,
@@ -15,8 +14,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
 
-  const { login, isLoading, showError, setToken } = useGrubpacAuth();
-  const router = useRouter();
+  const { login, isLoading, showError } = useGrubpacAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
