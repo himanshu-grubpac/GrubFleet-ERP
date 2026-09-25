@@ -76,7 +76,9 @@ export class LeaseContractsService {
       search: query.search,
     });
     const items = await Promise.all(
-      rows.map(async (r) => this.toListItem(r.contract, r.clientCompanyName)),
+      rows.map(async (r) =>
+        this.toListItem(r.contract, r.clientCompanyName ?? null),
+      ),
     );
     return toPaginatedResult(items, page, pageSize, total);
   }
@@ -118,6 +120,7 @@ export class LeaseContractsService {
       billingFrequency: dto.billingFrequency ?? 'monthly',
       additionalTerms: dto.additionalTerms ?? null,
       amcTier: dto.amcTier ?? null,
+      description: dto.description ?? null,
       createdByUserId: userId,
       updatedByUserId: userId,
     });
@@ -468,6 +471,7 @@ export class LeaseContractsService {
       contractPatch.additionalTerms = dto.additionalTerms;
     }
     if (dto.amcTier !== undefined) contractPatch.amcTier = dto.amcTier;
+    if (dto.description !== undefined) contractPatch.description = dto.description;
 
     await this.repo.updateContract(contractId, organizationId, contractPatch);
 
@@ -1063,18 +1067,33 @@ export class LeaseContractsService {
       clientId: string | null;
       status: string;
       startDate: Date | null;
+      endDate: Date | null;
+      termMonths: number | null;
+      billingPaused: boolean;
+      onHold: boolean;
     },
     clientCompanyName: string | null,
   ) {
     const lines = await this.repo.listAssetLines(contract.id);
     const assetClasses = lines.map((l) => l.assetClass).join(', ') || null;
+    const rawStatus = contract.status as LeaseContractStatus;
     return {
       id: contract.id,
       contractNumber: contract.contractNumber,
       clientName: clientCompanyName ?? 'Not yet selected',
       assetClasses: assetClasses ?? '--',
       startDate: contract.startDate?.toISOString().slice(0, 10) ?? null,
-      status: this.toPublicStatus(contract.status as LeaseContractStatus),
+      endDate: contract.endDate?.toISOString().slice(0, 10) ?? null,
+      termMonths: contract.termMonths,
+      status: this.toPublicStatus(rawStatus),
+      rawStatus: contract.status,
+      billingPaused: contract.billingPaused,
+      onHold: contract.onHold,
+      statusTags: buildStatusTags({
+        rawStatus,
+        billingPaused: contract.billingPaused,
+        onHold: contract.onHold,
+      }),
     };
   }
 
@@ -1135,6 +1154,11 @@ export class LeaseContractsService {
       'contract.termination_approved',
     );
     const reactivatedEvent = findLatestEventByType(events, 'contract.reactivated');
+    const auditUserIds = [
+      contract.createdByUserId,
+      contract.updatedByUserId,
+    ].filter((id): id is string => Boolean(id));
+    const auditLabels = await this.repo.findUserDisplayLabels(auditUserIds);
     return {
       id: contract.id,
       contractNumber: contract.contractNumber,
@@ -1193,6 +1217,20 @@ export class LeaseContractsService {
       terminationApprovedAt: terminationApprovedEvent?.createdAt.toISOString() ?? null,
       createdAt: contract.createdAt.toISOString(),
       updatedAt: contract.updatedAt.toISOString(),
+      createdBy: contract.createdByUserId
+        ? {
+            userId: contract.createdByUserId,
+            displayLabel:
+              auditLabels.get(contract.createdByUserId) ?? 'Unknown user',
+          }
+        : null,
+      updatedBy: contract.updatedByUserId
+        ? {
+            userId: contract.updatedByUserId,
+            displayLabel:
+              auditLabels.get(contract.updatedByUserId) ?? 'Unknown user',
+          }
+        : null,
     };
   }
 

@@ -55,6 +55,11 @@ export class UpdateLeaseContractDto {
   @IsString()
   amcTier?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
   @ApiPropertyOptional({ type: [LeaseContractAssetLineDto] })
   @IsOptional()
   @IsArray()

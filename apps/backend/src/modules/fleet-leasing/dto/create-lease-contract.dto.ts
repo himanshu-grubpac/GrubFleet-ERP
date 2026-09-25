@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsEnum,
   IsOptional,
+  IsString,
   IsUUID,
   ValidateNested,
 } from 'class-validator';
@@ -50,6 +51,11 @@ export class CreateLeaseContractDto {
   @ApiPropertyOptional()
   @IsOptional()
   amcTier?: string;
+
+  @ApiPropertyOptional({ description: 'Optional contract note or summary' })
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @ApiPropertyOptional({ type: [LeaseContractAssetLineDto] })
   @IsOptional()
