@@ -40,6 +40,7 @@ import type { UpdateContractAssetLinesDto } from './dto/update-contract-asset-li
 import type { CreateLeaseContractDto } from './dto/create-lease-contract.dto';
 import type { ListLeaseContractsQueryDto } from './dto/list-lease-contracts-query.dto';
 import type { UpdateLeaseContractDto } from './dto/update-lease-contract.dto';
+import type { RegisterReturnDto } from './dto/register-return.dto';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 import {
   buildAvailableActions,
@@ -64,7 +65,9 @@ export class LeaseContractsService {
       await Promise.all([
         this.repo.countContractsByStatuses(organizationId, ['active']),
         this.repo.countContractsByStatuses(organizationId, ['awaiting_assets']),
-        this.repo.countContractsByStatuses(organizationId, ['pending_approval']),
+        this.repo.countContractsByStatuses(organizationId, [
+          'pending_approval',
+        ]),
         this.repo.countContractsByStatuses(organizationId, ['draft']),
       ]);
     return { activeContracts, awaitingAssets, pendingApproval, draft };
@@ -91,21 +94,27 @@ export class LeaseContractsService {
   }
 
   async getById(organizationId: string, contractId: string) {
-    const contract = await this.repo.findContractInOrg(organizationId, contractId);
+    const contract = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
     if (!contract) throw new NotFoundException('Lease contract not found');
     return this.toDetail(organizationId, contract);
   }
 
   /** Post-wizard success screen — allocation table + info blocks (Figma confirmation). */
   async getConfirmation(organizationId: string, contractId: string) {
-    const contract = await this.repo.findContractInOrg(organizationId, contractId);
+    const contract = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
     if (!contract) throw new NotFoundException('Lease contract not found');
     const eligible: LeaseContractStatus[] = [
       'active',
       'awaiting_assets',
       'approved',
     ];
-    if (!eligible.includes(contract.status as LeaseContractStatus)) {
+    if (!eligible.includes(contract.status)) {
       throw new BadRequestException(
         'Confirmation summary is available after confirm or activate (active, awaiting assets, or approved)',
       );
@@ -115,7 +124,9 @@ export class LeaseContractsService {
 
   async create(userId: string, dto: CreateLeaseContractDto) {
     this.validateAmcTierOptional(dto.amcTier);
-    const contractNumber = await this.repo.nextContractNumber(dto.organizationId);
+    const contractNumber = await this.repo.nextContractNumber(
+      dto.organizationId,
+    );
     const row = await this.repo.insertContract({
       organizationId: dto.organizationId,
       contractNumber,
@@ -220,7 +231,9 @@ export class LeaseContractsService {
       this.buildPricingEvaluation(organizationId, contractId),
     ]);
     const primaryPoc =
-      clientBundle?.pocs.find((p) => p.isPrimary) ?? clientBundle?.pocs[0] ?? null;
+      clientBundle?.pocs.find((p) => p.isPrimary) ??
+      clientBundle?.pocs[0] ??
+      null;
     const assetLines = lines.map((l) => {
       const snapshot = computeAssetLineAvailability(
         l.assetClass,
@@ -277,7 +290,7 @@ export class LeaseContractsService {
       contractId: contract.id,
       contractNumber: contract.contractNumber,
       rawStatus: contract.status,
-      status: this.toPublicStatus(contract.status as LeaseContractStatus),
+      status: this.toPublicStatus(contract.status),
       client: clientBundle
         ? {
             companyName: clientBundle.client.companyName,
@@ -314,7 +327,10 @@ export class LeaseContractsService {
       throw new BadRequestException('Only draft contracts can be confirmed');
     }
     await this.validateReadyForSubmission(organizationId, contractId, contract);
-    const pricing = await this.buildPricingEvaluation(organizationId, contractId);
+    const pricing = await this.buildPricingEvaluation(
+      organizationId,
+      contractId,
+    );
     if (!pricing.canProceedToReview) {
       throw new BadRequestException({
         code: 'TERMS_INCOMPLETE',
@@ -434,9 +450,12 @@ export class LeaseContractsService {
     contractId: string,
     dto: UpdateLeaseContractDto,
   ) {
-    const existing = await this.repo.findContractInOrg(organizationId, contractId);
+    const existing = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
     if (!existing) throw new NotFoundException('Lease contract not found');
-    const rawStatus = existing.status as LeaseContractStatus;
+    const rawStatus = existing.status;
     const editBlockReason = getContractEditBlockReason(rawStatus);
     if (editBlockReason) {
       throw new ConflictException(editBlockReason);
@@ -467,8 +486,12 @@ export class LeaseContractsService {
       vehicleIds: beforeVehicleIds,
     });
     if (dto.clientId) {
-      const client = await this.repo.getClientInOrg(organizationId, dto.clientId);
-      if (!client) throw new BadRequestException('Invalid client for organization');
+      const client = await this.repo.getClientInOrg(
+        organizationId,
+        dto.clientId,
+      );
+      if (!client)
+        throw new BadRequestException('Invalid client for organization');
     }
 
     const nextStartDate =
@@ -492,7 +515,7 @@ export class LeaseContractsService {
     if (dto.startDate !== undefined) contractPatch.startDate = nextStartDate;
     if (dto.termMonths !== undefined) contractPatch.termMonths = dto.termMonths;
     if (recomputeEndDate) {
-      contractPatch.endDate = addMonthsUtc(nextStartDate!, nextTermMonths!);
+      contractPatch.endDate = addMonthsUtc(nextStartDate, nextTermMonths);
     } else if (dto.endDate !== undefined) {
       contractPatch.endDate = new Date(dto.endDate);
     }
@@ -506,7 +529,8 @@ export class LeaseContractsService {
       contractPatch.additionalTerms = dto.additionalTerms;
     }
     if (dto.amcTier !== undefined) contractPatch.amcTier = dto.amcTier;
-    if (dto.description !== undefined) contractPatch.description = dto.description;
+    if (dto.description !== undefined)
+      contractPatch.description = dto.description;
 
     await this.repo.updateContract(contractId, organizationId, contractPatch);
 
@@ -623,13 +647,20 @@ export class LeaseContractsService {
     return detail;
   }
 
-  async submitForApproval(userId: string, organizationId: string, contractId: string) {
+  async submitForApproval(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+  ) {
     const contract = await this.requireContract(organizationId, contractId);
     if (contract.status !== 'draft') {
       throw new BadRequestException('Only draft contracts can be submitted');
     }
     await this.validateReadyForSubmission(organizationId, contractId, contract);
-    const pricing = await this.buildPricingEvaluation(organizationId, contractId);
+    const pricing = await this.buildPricingEvaluation(
+      organizationId,
+      contractId,
+    );
     if (!pricing.canProceedToReview) {
       throw new BadRequestException({
         code: 'TERMS_INCOMPLETE',
@@ -705,7 +736,11 @@ export class LeaseContractsService {
     };
   }
 
-  async approveContract(userId: string, organizationId: string, contractId: string) {
+  async approveContract(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+  ) {
     const contract = await this.requireContract(organizationId, contractId);
     if (contract.status !== 'pending_approval') {
       throw new BadRequestException('Contract is not pending approval');
@@ -734,11 +769,15 @@ export class LeaseContractsService {
   async activate(userId: string, organizationId: string, contractId: string) {
     const contract = await this.requireContract(organizationId, contractId);
     if (!['approved', 'awaiting_assets'].includes(contract.status)) {
-      throw new BadRequestException('Contract cannot be activated from current status');
+      throw new BadRequestException(
+        'Contract cannot be activated from current status',
+      );
     }
     const lines = await this.repo.listAssetLines(contractId);
     const allCovered = lines.every((l) => l.availabilityCovered);
-    const status: LeaseContractStatus = allCovered ? 'active' : 'awaiting_assets';
+    const status: LeaseContractStatus = allCovered
+      ? 'active'
+      : 'awaiting_assets';
     await this.repo.updateContract(contractId, organizationId, {
       status,
       onHold: false,
@@ -752,11 +791,12 @@ export class LeaseContractsService {
       organizationId,
       userId,
       'contract.activated',
-      status === 'active'
-        ? 'Contract activated'
-        : 'Contract awaiting assets',
+      status === 'active' ? 'Contract activated' : 'Contract awaiting assets',
     );
-    const updated = await this.repo.findContractInOrg(organizationId, contractId);
+    const updated = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
     const confirmation = updated
       ? await this.buildConfirmationSummary(organizationId, updated)
       : null;
@@ -771,19 +811,28 @@ export class LeaseContractsService {
   async reactivate(userId: string, organizationId: string, contractId: string) {
     const contract = await this.requireContract(organizationId, contractId);
     if (contract.status === 'closed' || contract.status === 'concluded') {
-      throw new BadRequestException('Terminated contracts cannot be reactivated');
+      throw new BadRequestException(
+        'Terminated contracts cannot be reactivated',
+      );
     }
     if (contract.status === 'pending_termination') {
       throw new BadRequestException(
         'Reactivation is not available while termination is pending',
       );
     }
-    if (contract.status !== 'deactivated' && contract.status !== 'billing_paused') {
-      throw new BadRequestException('Only deactivated contracts can be reactivated');
+    if (
+      contract.status !== 'deactivated' &&
+      contract.status !== 'billing_paused'
+    ) {
+      throw new BadRequestException(
+        'Only deactivated contracts can be reactivated',
+      );
     }
     const lines = await this.repo.listAssetLines(contractId);
     const allCovered = lines.every((l) => l.availabilityCovered);
-    const status: LeaseContractStatus = allCovered ? 'active' : 'awaiting_assets';
+    const status: LeaseContractStatus = allCovered
+      ? 'active'
+      : 'awaiting_assets';
     await this.repo.updateContract(contractId, organizationId, {
       status,
       onHold: false,
@@ -840,10 +889,16 @@ export class LeaseContractsService {
     return this.getById(organizationId, contractId);
   }
 
-  async pauseBilling(userId: string, organizationId: string, contractId: string) {
+  async pauseBilling(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+  ) {
     const contract = await this.requireContract(organizationId, contractId);
     if (contract.status !== 'deactivated') {
-      throw new BadRequestException('Pause billing only applies to deactivated contracts');
+      throw new BadRequestException(
+        'Pause billing only applies to deactivated contracts',
+      );
     }
     const returned = await this.repo.countRegisteredReturns(contractId);
     const committed = await this.repo.countCommittedVehicles(contractId);
@@ -886,7 +941,9 @@ export class LeaseContractsService {
         'Terminate from deactivated/on-hold state only',
       );
     }
-    if (await this.repo.findPendingApproval(contractId, 'contract_termination')) {
+    if (
+      await this.repo.findPendingApproval(contractId, 'contract_termination')
+    ) {
       throw new ConflictException('Termination already pending approval');
     }
     await this.repo.insertApproval({
@@ -921,15 +978,13 @@ export class LeaseContractsService {
     userId: string,
     organizationId: string,
     contractId: string,
-    dto: {
-      vehicleId: string;
-      odometerReading: number;
-      conditionChecklist: Record<string, 'pass' | 'fail'>;
-      damageRecordId?: string;
-    },
+    dto: RegisterReturnDto,
   ) {
     await this.requireContract(organizationId, contractId);
-    const vehicle = await this.repo.getVehicleInOrg(organizationId, dto.vehicleId);
+    const vehicle = await this.repo.getVehicleInOrg(
+      organizationId,
+      dto.vehicleId,
+    );
     if (!vehicle) throw new BadRequestException('Vehicle not found');
     const linked = await this.repo.listContractVehicleIds(contractId);
     if (!linked.includes(dto.vehicleId)) {
@@ -970,7 +1025,7 @@ export class LeaseContractsService {
     contractId: string,
   ) {
     const source = await this.requireContract(organizationId, contractId);
-    const rawStatus = source.status as LeaseContractStatus;
+    const rawStatus = source.status;
     if (!RENEWABLE_CONTRACT_STATUSES.includes(rawStatus)) {
       throw new BadRequestException(
         'Renewal is available for active, awaiting assets, or completed contracts',
@@ -1054,7 +1109,8 @@ export class LeaseContractsService {
       contractId,
       'contract_termination',
     );
-    if (!pending) throw new NotFoundException('Pending termination approval not found');
+    if (!pending)
+      throw new NotFoundException('Pending termination approval not found');
     await this.repo.resolveApproval(pending.id, 'approved', userId);
     await this.repo.updateContract(contractId, organizationId, {
       status: 'closed',
@@ -1081,7 +1137,10 @@ export class LeaseContractsService {
   }
 
   private async requireContract(organizationId: string, contractId: string) {
-    const contract = await this.repo.findContractInOrg(organizationId, contractId);
+    const contract = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
     if (!contract) throw new NotFoundException('Lease contract not found');
     return contract;
   }
@@ -1112,7 +1171,9 @@ export class LeaseContractsService {
     }
     const lines = await this.repo.listAssetLines(contractId);
     if (lines.length === 0) {
-      throw new BadRequestException('At least one asset-class line is required');
+      throw new BadRequestException(
+        'At least one asset-class line is required',
+      );
     }
     const client = await this.repo.getClientInOrg(
       organizationId,
@@ -1128,7 +1189,10 @@ export class LeaseContractsService {
     contractId: string,
   ) {
     await this.requireContract(organizationId, contractId);
-    const contract = await this.repo.findContractInOrg(organizationId, contractId);
+    const contract = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
     const lines = await this.repo.listAssetLines(contractId);
     return evaluateContractPricing({
       securityDeposit: contract?.securityDeposit ?? null,
@@ -1143,15 +1207,17 @@ export class LeaseContractsService {
   private async applyAssetLines(
     organizationId: string,
     contractId: string,
-    lines: { assetClass: string; committedQuantity: number; ratePerVehicleMonth: string }[],
+    lines: {
+      assetClass: string;
+      committedQuantity: number;
+      ratePerVehicleMonth: string;
+    }[],
     options: { confirmShortfall: boolean },
   ) {
     const snapshots = await Promise.all(
       lines.map(async (l) => {
-        const { availableNow, inbound } = await this.repo.getAssetClassInventory(
-          organizationId,
-          l.assetClass,
-        );
+        const { availableNow, inbound } =
+          await this.repo.getAssetClassInventory(organizationId, l.assetClass);
         return computeAssetLineAvailability(
           l.assetClass,
           l.committedQuantity,
@@ -1177,7 +1243,7 @@ export class LeaseContractsService {
       });
     }
     const enriched = lines.map((l, i) => {
-      const s = snapshots[i]!;
+      const s = snapshots[i];
       return {
         assetClass: l.assetClass,
         committedQuantity: l.committedQuantity,
@@ -1201,8 +1267,12 @@ export class LeaseContractsService {
   ) {
     const now = new Date();
     for (const vehicleId of vehicleIds) {
-      const vehicle = await this.repo.getVehicleInOrg(organizationId, vehicleId);
-      if (!vehicle) throw new BadRequestException(`Vehicle ${vehicleId} not found`);
+      const vehicle = await this.repo.getVehicleInOrg(
+        organizationId,
+        vehicleId,
+      );
+      if (!vehicle)
+        throw new BadRequestException(`Vehicle ${vehicleId} not found`);
       if (vehicle.status !== 'available') {
         throw new BadRequestException(
           `Vehicle ${vehicle.registrationNo} is not available`,
@@ -1288,10 +1358,12 @@ export class LeaseContractsService {
 
   private async toDetail(
     organizationId: string,
-    contract: Awaited<ReturnType<FleetLeasingRepository['findContractInOrg']>> & {},
+    contract: Awaited<
+      ReturnType<FleetLeasingRepository['findContractInOrg']>
+    > & {},
   ) {
     if (!contract) throw new NotFoundException();
-    const rawStatus = contract.status as LeaseContractStatus;
+    const rawStatus = contract.status;
     const [
       lines,
       vehicleIds,
@@ -1354,12 +1426,18 @@ export class LeaseContractsService {
       canPauseBilling,
       hasPendingTerminationApproval: Boolean(pendingTermination),
     });
-    const deactivatedEvent = findLatestEventByType(events, 'contract.deactivated');
+    const deactivatedEvent = findLatestEventByType(
+      events,
+      'contract.deactivated',
+    );
     const terminationApprovedEvent = findLatestEventByType(
       events,
       'contract.termination_approved',
     );
-    const reactivatedEvent = findLatestEventByType(events, 'contract.reactivated');
+    const reactivatedEvent = findLatestEventByType(
+      events,
+      'contract.reactivated',
+    );
     const auditUserIds = [
       contract.createdByUserId,
       contract.updatedByUserId,
@@ -1430,7 +1508,8 @@ export class LeaseContractsService {
       deactivatedAt: deactivatedEvent?.createdAt.toISOString() ?? null,
       reactivatedAt: reactivatedEvent?.createdAt.toISOString() ?? null,
       terminatedAt: terminationApprovedEvent?.createdAt.toISOString() ?? null,
-      terminationApprovedAt: terminationApprovedEvent?.createdAt.toISOString() ?? null,
+      terminationApprovedAt:
+        terminationApprovedEvent?.createdAt.toISOString() ?? null,
       createdAt: contract.createdAt.toISOString(),
       updatedAt: contract.updatedAt.toISOString(),
       createdBy: contract.createdByUserId
@@ -1463,7 +1542,7 @@ export class LeaseContractsService {
         ? this.repo.getClientInOrg(organizationId, contract.clientId)
         : Promise.resolve(null),
     ]);
-    const rawStatus = contract.status as LeaseContractStatus;
+    const rawStatus = contract.status;
     const publicStatus = this.toPublicStatus(rawStatus);
     const allocationByLine = lines.map((line) =>
       buildContractLineAllocationRow({

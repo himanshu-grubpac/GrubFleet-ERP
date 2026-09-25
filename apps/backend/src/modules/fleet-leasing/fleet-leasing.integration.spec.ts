@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -16,6 +18,19 @@ import {
 import { ensureTestSchema } from '../../../test/helpers/ensure-test-schema';
 import * as schema from '../../database/schema';
 import { organizations } from '../../database/schema';
+
+type AuthLoginResponse = { accessToken: string };
+type LeaseContractSummaryResponse = {
+  activeContracts: number;
+  draft: number;
+};
+type LeaseContractResponse = {
+  id: string;
+  contractNumber: string;
+  rawStatus: string;
+};
+type FleetClientResponse = { id: string };
+type PaginatedClientsResponse = { items: FleetClientResponse[] };
 
 describe('Fleet leasing lease contracts (integration)', () => {
   if (process.env.SKIP_DB_INTEGRATION === '1') {
@@ -56,7 +71,8 @@ describe('Fleet leasing lease contracts (integration)', () => {
     const login = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email: DEV_ADMIN_EMAIL, password: DEV_ADMIN_PASSWORD });
-    accessToken = login.body.accessToken as string;
+    const loginBody = login.body as AuthLoginResponse;
+    accessToken = loginBody.accessToken;
   });
 
   afterAll(async () => {
@@ -71,10 +87,9 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .expect(200);
-    expect(summary.body).toMatchObject({
-      activeContracts: expect.any(Number),
-      draft: expect.any(Number),
-    });
+    const summaryBody = summary.body as LeaseContractSummaryResponse;
+    expect(typeof summaryBody.activeContracts).toBe('number');
+    expect(typeof summaryBody.draft).toBe('number');
 
     const created = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/lease-contracts')
@@ -85,8 +100,9 @@ describe('Fleet leasing lease contracts (integration)', () => {
         expect([200, 201]).toContain(res.status);
       });
 
-    expect(created.body.contractNumber).toMatch(/^LC-/);
-    expect(created.body.rawStatus).toBe('draft');
+    const createdBody = created.body as LeaseContractResponse;
+    expect(createdBody.contractNumber).toMatch(/^LC-/);
+    expect(createdBody.rawStatus).toBe('draft');
 
     const clientRes = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/clients')
@@ -106,6 +122,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         ],
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
+    const clientBody = clientRes.body as FleetClientResponse;
 
     const search = await request(app.getHttpServer())
       .get('/api/v1/fleet-leasing/clients')
@@ -114,14 +131,15 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('x-organization-id', organizationId)
       .expect(200);
 
-    expect(search.body.items.length).toBeGreaterThanOrEqual(1);
+    const searchBody = search.body as PaginatedClientsResponse;
+    expect(searchBody.items.length).toBeGreaterThanOrEqual(1);
 
     await request(app.getHttpServer())
-      .patch(`/api/v1/fleet-leasing/lease-contracts/${created.body.id}`)
+      .patch(`/api/v1/fleet-leasing/lease-contracts/${createdBody.id}`)
       .query({ organizationId })
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
-      .send({ clientId: clientRes.body.id })
+      .send({ clientId: clientBody.id })
       .expect(200);
   });
 });
