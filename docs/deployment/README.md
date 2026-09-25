@@ -9,6 +9,8 @@ GrubPac ERP deploys from Git branches via GitHub Actions. Local machines use Doc
 - [Git workflow (PR-only)](./git-workflow.md) — feature branches, daily `develop` integration, promotion PRs
 - [Environments and promotion](./environments.md) — branches, URLs, secrets, CORS, `APP_ENV`
 - [Blue-green deploy](./blue-green.md) — GHCR images, slots, smoke tests, production approval
+- [Manual SAM deploy (Lambda)](./sam-manual-deploy.md) — `prepare:lambda`, `sam deploy`, profile `grubfleet-erp` (optional alongside GHA; day-to-day `develop` may be direct-push per team preference)
+- [AWS resource inventory](./aws-resources.md) — CloudFormation stacks, VPC/RDS/Redis/API URLs (no secrets)
 
 ## Quick reference
 

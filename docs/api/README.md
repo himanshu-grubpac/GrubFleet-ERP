@@ -6,8 +6,8 @@ Committed catalog for the live GrubPac ERP foundation API. Source of truth for *
 
 | File | Purpose |
 |------|---------|
-| [`openapi.yaml`](openapi.yaml) | OpenAPI 3.0.3 — all current GET endpoints |
-| [`postman/GrubFleet-ERP.postman_collection.json`](postman/GrubFleet-ERP.postman_collection.json) | Postman Collection v2.1 |
+| [`openapi.yaml`](openapi.yaml) | OpenAPI 3.0.3 — auth + administration (local/staging/pre-prod/prod servers) |
+| [`postman/GrubFleet-ERP.postman_collection.json`](postman/GrubFleet-ERP.postman_collection.json) | Postman v2.1 — health, auth, admin read/write |
 | [`postman/GrubFleet-ERP.development.postman_environment.example.json`](postman/GrubFleet-ERP.development.postman_environment.example.json) | Example env — local (`baseUrl` only) |
 | [`postman/GrubFleet-ERP.staging.postman_environment.example.json`](postman/GrubFleet-ERP.staging.postman_environment.example.json) | Example env — staging placeholder URL |
 | [`postman/GrubFleet-ERP.preprod.postman_environment.example.json`](postman/GrubFleet-ERP.preprod.postman_environment.example.json) | Example env — pre-production placeholder URL |
@@ -27,7 +27,8 @@ Swagger is generated from controllers at runtime; `openapi.yaml` should match th
 1. **Collection:** Import → File → `docs/api/postman/GrubFleet-ERP.postman_collection.json`.
 2. **Environment:** Import → `GrubFleet-ERP.development.postman_environment.example.json`, then **Duplicate** and save as a local environment (e.g. `GrubFleet-ERP.development.local`) if you change URLs.
 3. Select the environment and confirm `baseUrl` is `http://localhost:4000/api/v1`.
-4. Run **Health → Liveness** with the backend up.
+4. Run **Auth → Login**, then set `accessToken`, `refreshToken`, and `organizationId` from responses (and `roleId` / `userId` when testing roles/users writes).
+5. For staging/pre-prod/prod, import the matching `*.postman_environment.example.json` and replace placeholder hosts with real API URLs.
 
 **Optional — OpenAPI import:** Postman → Import → `docs/api/openapi.yaml` to refresh or compare; prefer updating the committed collection in the same PR as `openapi.yaml` so folder names and descriptions stay consistent.
 

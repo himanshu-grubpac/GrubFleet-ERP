@@ -1,0 +1,191 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: GrubFleet ERP per-tier PostgreSQL RDS + ElastiCache Redis
+
+Parameters:
+  Tier:
+    Type: String
+    AllowedValues:
+      - staging
+      - preprod
+      - production
+  NetworkStackName:
+    Type: String
+    Default: grubfleet-network
+  DbMasterUsername:
+    Type: String
+    Default: grubfleet
+    MinLength: 1
+    MaxLength: 63
+  DbMasterPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    MaxLength: 128
+  DbInstanceClass:
+    Type: String
+    Default: ''
+    Description: Override instance class; empty uses tier mapping (production db.t3.medium)
+  AllocatedStorageGiB:
+    Type: Number
+    Default: 0
+    Description: Override allocated storage; 0 uses tier mapping (production 100 GiB)
+  MaxAllocatedStorageGiB:
+    Type: Number
+    Default: 0
+    Description: Override storage autoscale cap; 0 uses tier mapping (production 512 GiB)
+  RdsPubliclyAccessible:
+    Type: String
+    Default: 'false'
+    AllowedValues:
+      - 'true'
+      - 'false'
+  MigrationClientCidr:
+    Type: String
+    Default: ''
+    Description: Optional CIDR (e.g. 1.2.3.4/32) for PostgreSQL from trusted host when RdsPubliclyAccessible is true
+
+Mappings:
+  TierSizing:
+    staging:
+      DbClass: db.t3.micro
+      StorageGiB: 20
+      MaxStorageGiB: 0
+      MultiAZ: false
+      BackupDays: 7
+      RedisNode: cache.t4g.micro
+    preprod:
+      DbClass: db.t3.small
+      StorageGiB: 50
+      MaxStorageGiB: 256
+      MultiAZ: false
+      BackupDays: 7
+      RedisNode: cache.t4g.micro
+    production:
+      DbClass: db.t3.medium
+      StorageGiB: 100
+      MaxStorageGiB: 512
+      MultiAZ: true
+      BackupDays: 14
+      RedisNode: cache.t4g.small
+
+Conditions:
+  IsPublicRds: !Equals [!Ref RdsPubliclyAccessible, 'true']
+  HasMigrationCidr: !And
+    - !Condition IsPublicRds
+    - !Not [!Equals [!Ref MigrationClientCidr, '']]
+  UseCustomDbClass: !Not [!Equals [!Ref DbInstanceClass, '']]
+  UseCustomStorage: !Not [!Equals [!Ref AllocatedStorageGiB, 0]]
+  UseCustomMaxStorage: !Not [!Equals [!Ref MaxAllocatedStorageGiB, 0]]
+  IsProductionTier: !Equals [!Ref Tier, production]
+  HasStorageAutoscale: !Not
+    - !Equals [!FindInMap [TierSizing, !Ref Tier, MaxStorageGiB], 0]
+
+Resources:
+  MigrationRdsIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Condition: HasMigrationCidr
+    Properties:
+      GroupId:
+        Fn::ImportValue: !Sub '${NetworkStackName}-RdsSecurityGroupId'
+      IpProtocol: tcp
+      FromPort: 5432
+      ToPort: 5432
+      CidrIp: !Ref MigrationClientCidr
+
+  DbSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: !Sub 'GrubFleet ${Tier} RDS subnets'
+      SubnetIds: !If
+        - IsPublicRds
+        - - Fn::ImportValue: !Sub '${NetworkStackName}-PublicSubnetAId'
+          - Fn::ImportValue: !Sub '${NetworkStackName}-PublicSubnetBId'
+        - - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnetAId'
+          - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnetBId'
+      Tags:
+        - Key: Name
+          Value: !Sub 'grubfleet-${Tier}-db-subnets'
+
+  PostgresInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: !Sub 'grubfleet-${Tier}-postgres'
+      Engine: postgres
+      EngineVersion: '16.15'
+      DBInstanceClass: !If
+        - UseCustomDbClass
+        - !Ref DbInstanceClass
+        - !FindInMap [TierSizing, !Ref Tier, DbClass]
+      AllocatedStorage: !If
+        - UseCustomStorage
+        - !Ref AllocatedStorageGiB
+        - !FindInMap [TierSizing, !Ref Tier, StorageGiB]
+      MaxAllocatedStorage: !If
+        - HasStorageAutoscale
+        - !If
+          - UseCustomMaxStorage
+          - !Ref MaxAllocatedStorageGiB
+          - !FindInMap [TierSizing, !Ref Tier, MaxStorageGiB]
+        - !Ref AWS::NoValue
+      StorageType: gp3
+      StorageEncrypted: true
+      MultiAZ: !FindInMap [TierSizing, !Ref Tier, MultiAZ]
+      MasterUsername: !Ref DbMasterUsername
+      MasterUserPassword: !Ref DbMasterPassword
+      DBName: !Sub 'grubfleet_${Tier}'
+      VPCSecurityGroups:
+        - Fn::ImportValue: !Sub '${NetworkStackName}-RdsSecurityGroupId'
+      DBSubnetGroupName: !Ref DbSubnetGroup
+      PubliclyAccessible: !If [IsPublicRds, true, false]
+      BackupRetentionPeriod: !FindInMap [TierSizing, !Ref Tier, BackupDays]
+      EnablePerformanceInsights: !If [IsProductionTier, true, false]
+      PerformanceInsightsRetentionPeriod: !If [IsProductionTier, 7, !Ref AWS::NoValue]
+      PreferredBackupWindow: '03:00-04:00'
+      AutoMinorVersionUpgrade: true
+      DeletionProtection: !If
+        - IsPublicRds
+        - false
+        - true
+      Tags:
+        - Key: Name
+          Value: !Sub 'grubfleet-${Tier}-postgres'
+
+  RedisSubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: !Sub 'GrubFleet ${Tier} Redis subnets'
+      SubnetIds:
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnetAId'
+        - Fn::ImportValue: !Sub '${NetworkStackName}-PrivateSubnetBId'
+      CacheSubnetGroupName: !Sub 'grubfleet-${Tier}-redis-subnets'
+
+  RedisCluster:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      ClusterName: !Sub 'grubfleet-${Tier}-redis'
+      Engine: redis
+      EngineVersion: '7.1'
+      CacheNodeType: !FindInMap [TierSizing, !Ref Tier, RedisNode]
+      NumCacheNodes: 1
+      CacheSubnetGroupName: !Ref RedisSubnetGroup
+      VpcSecurityGroupIds:
+        - Fn::ImportValue: !Sub '${NetworkStackName}-RedisSecurityGroupId'
+      Tags:
+        - Key: Name
+          Value: !Sub 'grubfleet-${Tier}-redis'
+
+Outputs:
+  RdsEndpointAddress:
+    Description: RDS hostname (no credentials)
+    Value: !GetAtt PostgresInstance.Endpoint.Address
+  RdsEndpointPort:
+    Value: !GetAtt PostgresInstance.Endpoint.Port
+  RdsDatabaseName:
+    Value: !Sub 'grubfleet_${Tier}'
+  RedisEndpointAddress:
+    Description: Redis primary endpoint hostname
+    Value: !GetAtt RedisCluster.RedisEndpoint.Address
+  RedisEndpointPort:
+    Value: !GetAtt RedisCluster.RedisEndpoint.Port

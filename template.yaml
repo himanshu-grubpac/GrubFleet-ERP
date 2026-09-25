@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: GrubFleet ERP API (NestJS on Lambda + HTTP API)
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 512
+    Runtime: nodejs20.x
+    Architectures:
+      - x86_64
+
+Parameters:
+  ApiFunctionName:
+    Type: String
+    Default: grubfleet-api
+    Description: Lambda function name (e.g. grubfleet-api-staging)
+  AppEnv:
+    Type: String
+    Default: staging
+    AllowedValues:
+      - staging
+      - preprod
+      - production
+    Description: APP_ENV for Nest config (JWT secrets required when production)
+  ClientOrigin:
+    Type: String
+    Default: https://localhost
+    Description: Frontend origin for CORS (CloudFront or local URL)
+  DatabaseUrl:
+    Type: String
+    NoEcho: true
+    Description: PostgreSQL connection string (RDS — provisioned outside this stack)
+  RedisUrl:
+    Type: String
+    NoEcho: true
+    Default: redis://localhost:6379
+    Description: Redis connection string (ElastiCache or external)
+  JwtAccessSecret:
+    Type: String
+    NoEcho: true
+    Description: JWT access signing secret (32+ characters; required when AppEnv=production)
+  JwtRefreshSecret:
+    Type: String
+    NoEcho: true
+    Description: JWT refresh signing secret (32+ characters; required when AppEnv=production)
+  JwtAccessTtl:
+    Type: String
+    Default: 15m
+    Description: JWT access token lifetime
+  JwtRefreshTtl:
+    Type: String
+    Default: 7d
+    Description: JWT refresh token lifetime
+  LogLevel:
+    Type: String
+    Default: info
+    AllowedValues:
+      - debug
+      - info
+      - warn
+      - error
+    Description: Application log level
+  EnableWarmupSchedule:
+    Type: String
+    Default: 'true'
+    AllowedValues:
+      - 'true'
+      - 'false'
+    Description: EventBridge ping every 5 min to reduce cold starts
+  ReservedConcurrency:
+    Type: Number
+    Default: 0
+    MinValue: 0
+    MaxValue: 100
+    Description: Max concurrent Lambda containers (0 = account pool only)
+  VpcSubnetIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Private subnet IDs for Lambda (comma-separated); leave empty to skip VPC
+  VpcSecurityGroupIds:
+    Type: CommaDelimitedList
+    Default: ''
+    Description: Security group IDs for Lambda; leave empty to skip VPC
+
+Conditions:
+  EnableWarmup: !Equals [!Ref EnableWarmupSchedule, 'true']
+  HasReservedConcurrency: !Not [!Equals [!Ref ReservedConcurrency, 0]]
+  UseVpc: !Not [!Equals [!Select [0, !Ref VpcSubnetIds], '']]
+
+Resources:
+  GrubFleetHttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowCredentials: true
+        AllowOrigins:
+          - !Ref ClientOrigin
+        AllowHeaders:
+          - Content-Type
+          - Authorization
+        AllowMethods:
+          - GET
+          - POST
+          - PUT
+          - PATCH
+          - DELETE
+          - OPTIONS
+        MaxAge: 600
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Ref ApiFunctionName
+      Handler: dist/src/lambda.handler
+      CodeUri: lambda-package/
+      ReservedConcurrentExecutions: !If
+        - HasReservedConcurrency
+        - !Ref ReservedConcurrency
+        - !Ref AWS::NoValue
+      VpcConfig: !If
+        - UseVpc
+        - SecurityGroupIds: !Ref VpcSecurityGroupIds
+          SubnetIds: !Ref VpcSubnetIds
+        - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          NODE_ENV: production
+          NODE_OPTIONS: '--experimental-require-module'
+          APP_ENV: !Ref AppEnv
+          API_PREFIX: api/v1
+          CORS_ORIGIN: !Ref ClientOrigin
+          DATABASE_URL: !Ref DatabaseUrl
+          REDIS_URL: !Ref RedisUrl
+          JWT_ACCESS_SECRET: !Ref JwtAccessSecret
+          JWT_REFRESH_SECRET: !Ref JwtRefreshSecret
+          JWT_ACCESS_TTL: !Ref JwtAccessTtl
+          JWT_REFRESH_TTL: !Ref JwtRefreshTtl
+          LOG_LEVEL: !Ref LogLevel
+      Events:
+        ProxyApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref GrubFleetHttpApi
+            PayloadFormatVersion: '2.0'
+            Method: ANY
+            Path: /{proxy+}
+        RootApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref GrubFleetHttpApi
+            PayloadFormatVersion: '2.0'
+            Method: ANY
+            Path: /
+
+  WarmupScheduleRule:
+    Type: AWS::Events::Rule
+    Condition: EnableWarmup
+    Properties:
+      Description: Lightweight GET /api/v1/health ping to keep Lambda warm
+      ScheduleExpression: rate(5 minutes)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt ApiFunction.Arn
+          Id: WarmupTarget
+          Input: '{"version":"2.0","routeKey":"GET /api/v1/health","rawPath":"/api/v1/health","headers":{},"requestContext":{"http":{"method":"GET","path":"/api/v1/health"}}}'
+
+  WarmupSchedulePermission:
+    Type: AWS::Lambda::Permission
+    Condition: EnableWarmup
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref ApiFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt WarmupScheduleRule.Arn
+
+Outputs:
+  HttpApiUrl:
+    Description: HTTP API base URL (append /api/v1 for Nest global prefix)
+    Value: !Sub 'https://${GrubFleetHttpApi}.execute-api.${AWS::Region}.amazonaws.com'
+  ApiFunctionArn:
+    Description: Lambda function ARN
+    Value: !GetAtt ApiFunction.Arn

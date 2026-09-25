@@ -1,75 +1,118 @@
-'use client';
+"use client";
 
-import { zodResolver } from '@hookform/resolvers/zod';
-import Link from 'next/link';
-import { useForm } from 'react-hook-form';
-import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import {
+  EmailInput,
+  PasswordInput,
+} from "@grubpac/ui-kit";
 
-const loginFormSchema = z.object({
-  email: z.string().email('Enter a valid email'),
-  password: z.string().min(8, 'Password must be at least 8 characters'),
-});
-
-type LoginFormValues = z.infer<typeof loginFormSchema>;
+import Button from "@/components/ui/GrubpacButton";
+import { useGrubpacAuth } from "@/providers/auth-provider";
 
 export default function LoginPage() {
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginFormSchema),
-    defaultValues: { email: '', password: '' },
-  });
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
 
-  const onSubmit = form.handleSubmit(() => {
-    // Auth API not implemented — placeholder only
-  });
+  const { login, isLoading, showError, setToken } = useGrubpacAuth();
+  const router = useRouter();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!email || !password) {
+      setError("Please fill in both email and password.");
+      return;
+    }
+
+    setError("");
+
+    try {
+      if (login) {
+        await login({ email, password });
+      }
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Invalid credentials";
+
+      setError(msg);
+
+      if (showError) {
+        showError(msg);
+      }
+    }
+  };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-blue-50 to-white p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Sign in to GrubPac ERP</CardTitle>
-          <CardDescription>
-            Auth endpoints are scaffolded on the backend. This form validates input only.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form className="space-y-4" onSubmit={onSubmit} noValidate>
-            <div className="space-y-1">
-              <label htmlFor="email" className="text-sm font-medium text-blue-950">
-                Email
-              </label>
-              <Input id="email" type="email" autoComplete="email" {...form.register('email')} />
-              {form.formState.errors.email ? (
-                <p className="text-xs text-red-600">{form.formState.errors.email.message}</p>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="password" className="text-sm font-medium text-blue-950">
-                Password
-              </label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                {...form.register('password')}
-              />
-              {form.formState.errors.password ? (
-                <p className="text-xs text-red-600">{form.formState.errors.password.message}</p>
-              ) : null}
-            </div>
-            <Button type="submit" className="w-full">
-              Continue (placeholder)
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-orange-50/30 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200/80 bg-white p-8 shadow-sm">
+
+        {/* Header */}
+        <div className="mb-6 space-y-1">
+          <p className="text-xs font-bold uppercase tracking-wider text-[#FE5720]">
+            GrubPac
+          </p>
+
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Sign in to ERP
+          </h1>
+
+          <p className="text-sm text-slate-500">
+            Enter your credentials to access fleet & operations.
+          </p>
+        </div>
+
+        {/* Error */}
+        {error ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-medium text-red-700">
+            {error}
+          </div>
+        ) : null}
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Email */}
+          <EmailInput
+            label="Email address"
+            placeholder="admin@grubpac.local"
+            value={email}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setEmail(e.target.value)
+            }
+            required
+          />
+
+          {/* Password */}
+          <PasswordInput
+            label="Password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setPassword(e.target.value)
+            }
+            required
+          />
+
+          {/* Sign In Button */}
+          <div className="pt-2">
+            <Button
+              type="submit"
+              variant="primary"
+              size="md"
+              fullWidth
+              disabled={isLoading}
+              className="!bg-[#FE5720] !text-white hover:!bg-[#E64A19]"
+            >
+              {isLoading ? "Signing in..." : "Sign In"}
             </Button>
-            <p className="text-center text-xs text-slate-500">
-              <Link href="/dashboard" className="text-blue-700 hover:underline">
-                Skip to dashboard shell
-              </Link>
-            </p>
-          </form>
-        </CardContent>
-      </Card>
+          </div>
+
+          {/* Temporary Dashboard Link removed */}
+
+        </form>
+      </div>
     </div>
   );
 }

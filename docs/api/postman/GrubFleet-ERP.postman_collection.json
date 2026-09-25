@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "name": "GrubPac ERP API",
-    "description": "GrubPac ERP (GrubFleet-ERP) foundation API — live GET endpoints only.\n\nBase URL variable: `{{baseUrl}}` (default local: http://localhost:4000/api/v1).\n\nKeep in sync with `docs/api/openapi.yaml` when routes change.",
+    "description": "GrubPac ERP API — auth and administration (Phase 1 module RBAC).\n\nUse Postman environment files under docs/api/postman/ for local, staging, pre-prod, and production baseUrl.\n\nKeep in sync with docs/api/openapi.yaml when routes change.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -33,73 +33,275 @@
       ]
     },
     {
-      "name": "Modules",
-      "description": "Module scaffold status endpoints (implemented flags until CRUD/auth land).",
+      "name": "Auth",
+      "description": "JWT access + rotating refresh tokens. Run Login first; set collection variables accessToken, refreshToken, organizationId from responses.",
       "item": [
         {
-          "name": "Status",
-          "item": [
-            {
-              "name": "Auth status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": "{{baseUrl}}/auth/status",
-                "description": "GET /auth/status — auth module scaffold; JWT flows planned (see docs/architecture/auth-rbac-plan.md)."
-              },
-              "response": []
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@grubpac.local\",\n  \"password\": \"ChangeMeDev123!\"\n}"
             },
-            {
-              "name": "Users status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": "{{baseUrl}}/users/status",
-                "description": "GET /users/status — users module scaffold."
-              },
-              "response": []
+            "url": "{{baseUrl}}/auth/login",
+            "description": "POST /auth/login — returns accessToken, refreshToken, tokenType Bearer, expiresIn (seconds)."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
             },
-            {
-              "name": "Organizations status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": "{{baseUrl}}/organizations/status",
-                "description": "GET /organizations/status — organizations module scaffold."
-              },
-              "response": []
+            "url": "{{baseUrl}}/auth/refresh",
+            "description": "POST /auth/refresh — rotates refresh token; prior refresh is revoked."
+          },
+          "response": []
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/auth/me",
+            "description": "GET /auth/me — user, memberships (permissionKeys, moduleAccess, permissionRevision per org), union permissionKeys/moduleAccess. Refetch after RBAC changes; revision bumps when roles/assignments change."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
             },
-            {
-              "name": "Roles status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": "{{baseUrl}}/roles/status",
-                "description": "GET /roles/status — roles module scaffold."
-              },
-              "response": []
+            "url": "{{baseUrl}}/auth/logout",
+            "description": "POST /auth/logout — revoke refresh session(s); Bearer access token required."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Administration",
+      "description": "RBAC admin APIs — Bearer accessToken; org context via organizationId query and/or X-Organization-Id header. Writes require administration.manage.",
+      "item": [
+        {
+          "name": "List organizations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/organizations?page=1&pageSize=20",
+            "description": "GET /organizations — paginated orgs for caller."
+          },
+          "response": []
+        },
+        {
+          "name": "Get organization by id",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/organizations/{{organizationId}}",
+            "description": "GET /organizations/:id — member or system admin."
+          },
+          "response": []
+        },
+        {
+          "name": "List users in org",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/users?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /users — requires administration.view."
+          },
+          "response": []
+        },
+        {
+          "name": "Create user in org",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"email\": \"new.user@example.com\",\n  \"fullName\": \"New User\",\n  \"password\": \"ChangeMeDev123!\",\n  \"isActive\": true\n}"
             },
-            {
-              "name": "Permissions status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": "{{baseUrl}}/permissions/status",
-                "description": "GET /permissions/status — permissions catalog scaffold."
-              },
-              "response": []
+            "url": "{{baseUrl}}/users?organizationId={{organizationId}}",
+            "description": "POST /users — administration.manage; creates user + active membership."
+          },
+          "response": []
+        },
+        {
+          "name": "Update user",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Updated Name\",\n  \"isActive\": true\n}"
             },
-            {
-              "name": "Audit status",
-              "request": {
-                "method": "GET",
-                "header": [],
-                "url": "{{baseUrl}}/audit/status",
-                "description": "GET /audit/status — audit logging module scaffold."
-              },
-              "response": []
-            }
-          ]
+            "url": "{{baseUrl}}/users/{{userId}}?organizationId={{organizationId}}",
+            "description": "PATCH /users/:id — administration.manage; org-scoped."
+          },
+          "response": []
+        },
+        {
+          "name": "List roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/roles?organizationId={{organizationId}}&page=1",
+            "description": "GET /roles — requires administration.view."
+          },
+          "response": []
+        },
+        {
+          "name": "Create role (moduleAccess)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Fleet View Only\",\n  \"description\": \"Phase 1 module access example\",\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"VIEW\" },\n    { \"moduleId\": \"administration\", \"accessLevel\": \"NONE\" }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/roles?organizationId={{organizationId}}",
+            "description": "POST /roles — administration.manage; moduleAccess NONE|VIEW|MANAGE|FULL expands to permission keys (MANAGE = view + CRUD; FULL adds legacy .manage)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update role (moduleAccess)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fleet View Only (renamed)\",\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"FULL\" }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/roles/{{roleId}}?organizationId={{organizationId}}",
+            "description": "PATCH /roles/:id — administration.manage."
+          },
+          "response": []
+        },
+        {
+          "name": "Assign role to user",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/roles/{{roleId}}/assign?organizationId={{organizationId}}",
+            "description": "POST /roles/:id/assign — administration.manage; delegation rules apply."
+          },
+          "response": []
+        },
+        {
+          "name": "Unassign role from user",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"userId\": \"{{userId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/roles/{{roleId}}/assign?organizationId={{organizationId}}",
+            "description": "DELETE /roles/:id/assign — administration.manage."
+          },
+          "response": []
+        },
+        {
+          "name": "Role editor matrix",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/roles/editor-matrix?organizationId={{organizationId}}",
+            "description": "GET /roles/editor-matrix — NONE/VIEW/MANAGE/FULL rows per sidebar module."
+          },
+          "response": []
+        },
+        {
+          "name": "List modules",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/modules?organizationId={{organizationId}}",
+            "description": "GET /modules — sidebar module registry for role editor."
+          },
+          "response": []
+        },
+        {
+          "name": "List permissions catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/permissions?organizationId={{organizationId}}&page=1",
+            "description": "GET /permissions — requires administration.view."
+          },
+          "response": []
+        },
+        {
+          "name": "List audit logs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/audit?organizationId={{organizationId}}&page=1",
+            "description": "GET /audit — requires administration.view."
+          },
+          "response": []
         }
       ]
     }
@@ -108,6 +310,26 @@
     {
       "key": "baseUrl",
       "value": "http://localhost:4000/api/v1"
+    },
+    {
+      "key": "accessToken",
+      "value": ""
+    },
+    {
+      "key": "refreshToken",
+      "value": ""
+    },
+    {
+      "key": "organizationId",
+      "value": ""
+    },
+    {
+      "key": "roleId",
+      "value": ""
+    },
+    {
+      "key": "userId",
+      "value": ""
     }
   ]
 }

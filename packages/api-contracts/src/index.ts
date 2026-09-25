@@ -7,13 +7,58 @@ export const routes = {
   },
   auth: {
     status: `/${API_PREFIX}/auth/status`,
+    login: `/${API_PREFIX}/auth/login`,
+    refresh: `/${API_PREFIX}/auth/refresh`,
+    logout: `/${API_PREFIX}/auth/logout`,
+    me: `/${API_PREFIX}/auth/me`,
   },
-  users: { status: `/${API_PREFIX}/users/status` },
-  organizations: { status: `/${API_PREFIX}/organizations/status` },
-  roles: { status: `/${API_PREFIX}/roles/status` },
-  permissions: { status: `/${API_PREFIX}/permissions/status` },
-  audit: { status: `/${API_PREFIX}/audit/status` },
+  organizations: {
+    list: `/${API_PREFIX}/organizations`,
+    byId: (id: string) => `/${API_PREFIX}/organizations/${id}`,
+  },
+  users: {
+    list: `/${API_PREFIX}/users`,
+    byId: (id: string) => `/${API_PREFIX}/users/${id}`,
+  },
+  permissions: {
+    list: `/${API_PREFIX}/permissions`,
+  },
+  roles: {
+    list: `/${API_PREFIX}/roles`,
+    byId: (id: string) => `/${API_PREFIX}/roles/${id}`,
+    assign: (id: string) => `/${API_PREFIX}/roles/${id}/assign`,
+  },
+  audit: {
+    list: `/${API_PREFIX}/audit`,
+  },
+  modules: {
+    list: `/${API_PREFIX}/modules`,
+  },
+  rolesEditorMatrix: `/${API_PREFIX}/roles/editor-matrix`,
 } as const;
 
-/** Paths with real backend behavior today (not `implemented: false` stubs). */
-export const liveRoutes = [routes.health.liveness, routes.health.readiness] as const;
+/** Paths with real backend behavior today. */
+export const liveRoutes = [
+  routes.health.liveness,
+  routes.health.readiness,
+  routes.auth.login,
+  routes.auth.refresh,
+  routes.auth.logout,
+  routes.auth.me,
+  routes.auth.status,
+  routes.organizations.list,
+  routes.users.list,
+  routes.permissions.list,
+  routes.roles.list,
+  routes.rolesEditorMatrix,
+  routes.modules.list,
+  routes.audit.list,
+] as const;
+
+export const administrationPermissionKeys = [
+  'administration.view',
+  'administration.create',
+  'administration.update',
+  'administration.delete',
+  'administration.manage',
+] as const;

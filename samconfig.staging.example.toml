@@ -1,0 +1,18 @@
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "grubfleet-api-staging"
+resolve_s3 = true
+s3_prefix = "grubfleet-api-staging"
+region = "ap-south-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+disable_rollback = false
+profile = "grubfleet-erp"
+image_repositories = []
+# Copy to samconfig.staging.toml (gitignored) and replace REPLACE_ME values.
+parameter_overrides = "ApiFunctionName=\"grubfleet-api-staging\" AppEnv=\"staging\" ClientOrigin=\"REPLACE_ME_FRONTEND_ORIGIN\" DatabaseUrl=\"REPLACE_ME\" RedisUrl=\"REPLACE_ME\" JwtAccessSecret=\"REPLACE_ME_STAGING_ACCESS_MIN_32_CHARS\" JwtRefreshSecret=\"REPLACE_ME_STAGING_REFRESH_MIN_32_CHARS\" JwtAccessTtl=\"15m\" JwtRefreshTtl=\"7d\" LogLevel=\"info\" EnableWarmupSchedule=\"false\" ReservedConcurrency=0 VpcSubnetIds=\"REPLACE_PRIVATE_SUBNET_A,REPLACE_PRIVATE_SUBNET_B\" VpcSecurityGroupIds=\"REPLACE_LAMBDA_SG\""
+
+[default.global.parameters]
+region = "ap-south-1"
+profile = "grubfleet-erp"
