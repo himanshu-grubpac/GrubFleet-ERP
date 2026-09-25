@@ -1,4 +1,4 @@
-import type { LucideIcon } from 'lucide-react';
+import type { LucideIcon } from "lucide-react";
 
 import {
   Building2,
@@ -7,83 +7,147 @@ import {
   LayoutDashboard,
   Package,
   Shield,
-  ShoppingCart,
   Wallet,
   Wrench,
   Settings,
-} from 'lucide-react';
+  FileText,
+  Users,
+  ArrowLeftRight,
+  ClipboardCheck,
+  RefreshCw,
+} from "lucide-react";
 
 export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
   requiredPermission?: string;
+  children?: NavItem[];
 };
 
 export const mainNavItems: NavItem[] = [
+  // ============================================================
+  // DASHBOARD
+  // ============================================================
   {
-    label: 'Dashboard',
-    href: '/dashboard',
+    label: "Dashboard",
+    href: "/dashboard",
     icon: LayoutDashboard,
-    requiredPermission: 'dashboard.view',
+    requiredPermission: "dashboard.view",
   },
 
+  // ============================================================
+  // FLEET & LEASING
+  // ============================================================
   {
-    label: 'Fleet & leasing',
-    href: '/fleet-leasing',
+    label: "Fleet & leasing",
+    href: "/fleet-leasing",
     icon: Car,
-    requiredPermission: 'fleet_leasing.view',
+    requiredPermission: "fleet_leasing.view",
+
+    children: [
+      {
+        label: "Lease Contracts",
+        href: "/fleet-leasing/lease-contracts",
+        icon: FileText,
+      },
+      {
+        label: "Corporate Customers",
+        href: "/fleet-leasing/corporate-customers",
+        icon: Users,
+      },
+      {
+        label: "Vehicle Allocation & Reallocation",
+        href: "/fleet-leasing/vehicle-allocation",
+        icon: ArrowLeftRight,
+      },
+      {
+        label: "Returns & Inspections",
+        href: "/fleet-leasing/returns-inspections",
+        icon: ClipboardCheck,
+      },
+      {
+        label: "Renewals & Extensions",
+        href: "/fleet-leasing/renewals-extensions",
+        icon: RefreshCw,
+      },
+    ],
   },
 
+  // ============================================================
+  // ASSET REGISTER
+  // ============================================================
   {
-    label: 'Asset Register',
-    href: '/asset-register',
+    label: "Asset Register",
+    href: "/asset-register",
     icon: ClipboardList,
-    requiredPermission: 'asset_register.view',
+    requiredPermission: "asset_register.view",
   },
 
+  // ============================================================
+  // WORKSHOP
+  // ============================================================
   {
-    label: 'Workshop',
-    href: '/workshop',
+    label: "Workshop",
+    href: "/workshop",
     icon: Wrench,
-    requiredPermission: 'workshop.view',
+    requiredPermission: "workshop.view",
   },
 
+  // ============================================================
+  // INVENTORY
+  // ============================================================
   {
-    label: 'Inventory',
-    href: '/inventory',
+    label: "Inventory",
+    href: "/inventory",
     icon: Package,
-    requiredPermission: 'inventory.view',
+    requiredPermission: "inventory.view",
   },
 
+  // ============================================================
+  // ORGANIZATION
+  // ============================================================
   {
-    label: 'Organization',
-    href: '/organization',
+    label: "Organization",
+    href: "/organization",
     icon: Building2,
-    requiredPermission: 'organisation.view',
+    requiredPermission: "organisation.view",
   },
 
+  // ============================================================
+  // FINANCE
+  // ============================================================
   {
-    label: 'Finance',
-    href: '/finance',
+    label: "Finance",
+    href: "/finance",
     icon: Wallet,
-    requiredPermission: 'finance.view',
+    requiredPermission: "finance.view",
   },
 
+  // ============================================================
+  // ADMINISTRATION
+  // ============================================================
   {
-    label: 'Administration',
-    href: '/administration',
+    label: "Administration",
+    href: "/administration",
     icon: Shield,
-    requiredPermission: 'administration.view',
+    requiredPermission: "administration.view",
   },
 
+  // ============================================================
+  // PLATFORM
+  // ============================================================
   {
-    label: 'Platform',
-    href: '/platform',
+    label: "Platform",
+    href: "/platform",
     icon: Settings,
-    requiredPermission: 'platform.view',
+    requiredPermission: "platform.view",
   },
 ];
+
+// ============================================================
+// FILTER NAVIGATION BY PERMISSIONS
+// ============================================================
 
 export function filterNavByPermissions(
   items: NavItem[],
