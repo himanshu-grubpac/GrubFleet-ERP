@@ -1,10 +1,5 @@
-import { ModuleShell } from '@/components/modules/module-shell';
+import { OrganizationModule } from '@/components/modules/organization';
 
 export default function OrganizationPage() {
-  return (
-    <ModuleShell
-      title="Organization"
-      description="Tenant organization profile, companies, and membership (planned)."
-    />
-  );
+  return <OrganizationModule />;
 }

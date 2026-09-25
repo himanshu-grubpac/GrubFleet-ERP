@@ -8,13 +8,19 @@
     "packages/*"
   ],
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "build": "npm run build -w backend && npm run build -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
     "test": "npm run test -w backend",
     "typecheck": "npm run typecheck -w backend && npm run typecheck -w frontend",
     "db:generate": "npm run db:generate -w backend",
     "db:migrate": "npm run db:migrate -w backend",
-    "db:seed": "npm run db:seed -w backend"
+    "db:seed": "npm run db:seed -w backend",
+    "prepare:lambda": "node scripts/prepare-lambda.mjs",
+    "sam:build": "sam build",
+    "deploy:staging:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs staging",
+    "deploy:preprod:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs preprod",
+    "deploy:production:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs production"
   },
   "engines": {
     "node": ">=20"

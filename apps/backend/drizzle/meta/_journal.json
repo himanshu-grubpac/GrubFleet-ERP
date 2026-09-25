@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1790227565652,
+      "tag": "0000_slippery_tenebrous",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790310000000,
+      "tag": "0001_phase1_module_permissions",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790400000000,
+      "tag": "0002_module_crud_permissions",
+      "breakpoints": true
+    }
+  ]
+}

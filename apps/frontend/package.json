@@ -11,6 +11,8 @@
   },
   "dependencies": {
     "@grubpac/shared-types": "*",
+    "@grubpac/ui": "^0.1.0",
+    "@grubpac/ui-kit": "^1.1.7",
     "@hookform/resolvers": "^5.9.1",
     "@tanstack/react-query": "^5.103.2",
     "@tanstack/react-table": "^9.2.4",
@@ -23,6 +25,13 @@
     "react-hook-form": "^7.88.0",
     "tailwind-merge": "^3.7.0",
     "zod": "^4.6.5"
+  },
+  "optionalDependencies": {
+    "@tailwindcss/oxide-linux-x64-gnu": "4.3.3",
+    "@tailwindcss/oxide-linux-x64-musl": "4.3.3",
+    "lightningcss-linux-x64-gnu": "1.32.0",
+    "lightningcss-linux-x64-musl": "1.32.0",
+    "lightningcss-win32-x64-msvc": "1.32.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

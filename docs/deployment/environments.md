@@ -1,8 +1,10 @@
 # Environments and promotion
 
-GrubPac ERP uses **branch-aligned environments**. Application code reaches staging and above **only** through **pull request merges** and GitHub Actions — not direct branch pushes or manual server sync.
+GrubPac ERP uses **branch-aligned environments**. **Git branches** still promote via pull requests (`develop` → `staging` → `pre-prod` → `main`); do not direct-push product code to environment branches.
 
-Daily integration happens on **`develop`** via `feature/`, `fix/`, or `chore/` branches. See [Git workflow (PR-only)](./git-workflow.md).
+**API runtime** for staging and above can be deployed either with **manual SAM** ([Manual SAM deploy](./sam-manual-deploy.md), profile `grubfleet-erp`) or **GitHub Actions** container deploy ([Blue-green](./blue-green.md)). Pick one hosting model per tier; the SAM path does not use SSH or manual `git pull` on servers.
+
+Daily integration on **`develop`** may be direct-push or feature PRs per team preference. See [Git workflow (PR-only)](./git-workflow.md).
 
 ## Branch flow
 
@@ -17,7 +19,7 @@ Promotion path (do not skip; **PR only**, no direct pushes):
 
 `feature|fix|chore` → PR → `develop` → PR → `staging` → PR → `pre-prod` → PR → `main`
 
-Each merge to `staging`, `pre-prod`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR.
+When using **GHA container deploy**, each merge to `staging`, `pre-prod`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR. When using **SAM**, run `npm run deploy:staging:api` (or preprod/production) locally after the branch you deploy from contains the intended code.
 
 ## URLs (placeholders)
 
