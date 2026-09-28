@@ -186,7 +186,10 @@ export class RolesRepository {
     return deleted.length > 0;
   }
 
-  async deleteOrgRole(roleId: string, organizationId: string): Promise<boolean> {
+  async deleteOrgRole(
+    roleId: string,
+    organizationId: string,
+  ): Promise<boolean> {
     const deleted = await this.db
       .delete(roles)
       .where(

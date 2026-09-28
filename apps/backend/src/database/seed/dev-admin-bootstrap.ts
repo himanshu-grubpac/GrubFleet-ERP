@@ -143,8 +143,7 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
     .update(roles)
     .set({
       isSystem: true,
-      description:
-        'Default organization administrator (seeded; not editable)',
+      description: 'Default organization administrator (seeded; not editable)',
     })
     .where(eq(roles.id, roleId));
 

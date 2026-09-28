@@ -37,7 +37,8 @@ export class UpdateRoleDto {
   permissionKeys?: string[];
 
   @ApiPropertyOptional({
-    description: 'When false, role assignments remain but permissions are not granted',
+    description:
+      'When false, role assignments remain but permissions are not granted',
   })
   @IsOptional()
   @IsBoolean()
