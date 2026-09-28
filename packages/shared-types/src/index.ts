@@ -125,6 +125,7 @@ export type Role = {
   scope: 'system' | 'organization';
   description: string | null;
   isSystem: boolean;
+  isActive: boolean;
   permissionKeys: string[];
   moduleAccess: ModuleAccessEntry[];
   createdAt: string;

@@ -13,7 +13,7 @@ GrubFleet ERP hosts the Next.js portal as a **static export** on **private S3** 
 
 1. **Build** — `NEXT_STATIC_EXPORT=true` → Next.js `output: 'export'` → `apps/frontend/out/`
 2. **Publish** — `aws s3 sync` to tier bucket; `aws cloudfront create-invalidation`
-3. **CORS** — SAM parameter `ClientOrigin` must equal the portal origin (`https://{cloudfront-domain}`), no trailing slash
+3. **CORS** — SAM `ClientOrigin` drives API Gateway and Lambda (`template.yaml`). Staging/pre-prod: `https://{cloudfront-domain},http://localhost:3000`; production: portal HTTPS only. No trailing slash on portal URL.
 
 Docker / local dev keeps **`output: 'standalone'`** (no `NEXT_STATIC_EXPORT`).
 
@@ -70,6 +70,8 @@ After each portal deploy, set **`ClientOrigin`** on the matching SAM stack (scri
 ## Routing
 
 CloudFront serves `index.html` at `/` and maps **403/404 → `/index.html`** for client-side navigation on unknown paths. Next export uses `trailingSlash: true` so routes resolve as `/login/index.html` on S3.
+
+**Dynamic resource IDs (static export):** Next cannot emit `index.html` per UUID at build time. Use a **fixed static route** (e.g. `/fleet-leasing/lease-contracts/detail/`) and pass the id via **`?leaseId=`** in links and bookmarks. The portal stack’s **viewer-request CloudFront function** rewrites legacy path-style URLs (`/fleet-leasing/lease-contracts/{id}/`) to that shell and injects `leaseId` on the query string so refresh and direct links work without falling back to root `/index.html` (which would redirect authenticated users away from the detail view). Apply the same pattern for other modules with runtime ids until a server-rendered host is used.
 
 ## Related docs
 

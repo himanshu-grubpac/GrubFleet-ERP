@@ -27,6 +27,108 @@ permissions:
   id-token: write
 
 jobs:
+  db-migrate:
+    if: inputs.deploy-label != 'production'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Configure AWS credentials (OIDC)
+        if: vars.RDS_MIGRATION_SECURITY_GROUP_ID != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      - name: Allow GitHub runner IP on RDS security group
+        id: rds_sg
+        if: vars.RDS_MIGRATION_SECURITY_GROUP_ID != ''
+        env:
+          SG_ID: ${{ vars.RDS_MIGRATION_SECURITY_GROUP_ID }}
+        run: |
+          RUNNER_IP="$(curl -sf --max-time 15 https://checkip.amazonaws.com | tr -d '[:space:]')"
+          if [ -z "$RUNNER_IP" ]; then
+            echo "Could not resolve runner public IP for RDS ingress."
+            exit 1
+          fi
+          RUNNER_CIDR="${RUNNER_IP}/32"
+          echo "runner_cidr=${RUNNER_CIDR}" >> "$GITHUB_OUTPUT"
+          echo "Opening PostgreSQL 5432 on ${SG_ID} for ${RUNNER_CIDR} (this job only)."
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$SG_ID" \
+            --protocol tcp \
+            --port 5432 \
+            --cidr "$RUNNER_CIDR" \
+            || echo "Ingress may already exist; continuing."
+          sleep 5
+      - run: npm ci
+      - name: Run Drizzle migrations (tier RDS)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          CI: 'true'
+          RDS_SG_ID: ${{ vars.RDS_MIGRATION_SECURITY_GROUP_ID }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Missing GitHub Environment secret DATABASE_URL — required for staging/pre-prod migrate."
+            exit 1
+          fi
+          if [ -z "$RDS_SG_ID" ]; then
+            echo "Set Environment variable RDS_MIGRATION_SECURITY_GROUP_ID (e.g. sg-0198b9781297f8bf7) so GHA can reach public RDS."
+            exit 1
+          fi
+          npm run db:migrate -w backend
+      - name: Revoke runner IP from RDS security group
+        if: always() && steps.rds_sg.outputs.runner_cidr != ''
+        env:
+          SG_ID: ${{ vars.RDS_MIGRATION_SECURITY_GROUP_ID }}
+          RUNNER_CIDR: ${{ steps.rds_sg.outputs.runner_cidr }}
+        run: |
+          aws ec2 revoke-security-group-ingress \
+            --group-id "$SG_ID" \
+            --protocol tcp \
+            --port 5432 \
+            --cidr "$RUNNER_CIDR" \
+            || echo "Revoke skipped (rule may already be removed)."
+
+  sam-api-deploy:
+    needs: db-migrate
+    if: always() && (needs.db-migrate.result == 'success' || needs.db-migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: aws-actions/setup-sam@v2
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      - run: npm ci
+      - name: Write samconfig from Environment secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          SAM_CLIENT_ORIGIN: ${{ vars.SAM_CLIENT_ORIGIN }}
+          CLIENT_ORIGIN: ${{ vars.CORS_ORIGIN }}
+          VPC_SUBNET_IDS: ${{ vars.VPC_SUBNET_IDS }}
+          VPC_SECURITY_GROUP_IDS: ${{ vars.VPC_SECURITY_GROUP_IDS }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+        run: node scripts/write-samconfig-from-env.mjs ${{ inputs.deploy-label }}
+      - name: Prepare Lambda package and deploy SAM stack
+        run: |
+          npm run prepare:lambda
+          node scripts/stage-sam-artifacts.mjs
+          node scripts/sam-deploy.mjs ${{ inputs.deploy-label }}
+
   build-and-push:
     runs-on: ubuntu-latest
     outputs:
@@ -83,6 +185,8 @@ jobs:
           echo "frontend_image=ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/frontend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
 
   frontend-portal-s3-cloudfront:
+    needs: db-migrate
+    if: always() && (needs.db-migrate.result == 'success' || needs.db-migrate.result == 'skipped')
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-environment }}
     steps:

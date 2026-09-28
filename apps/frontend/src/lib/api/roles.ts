@@ -28,15 +28,34 @@ export interface CreateRolePayload {
     moduleId: string;
     accessLevel: 'VIEW' | 'MANAGE' | 'FULL';
   }>;
+  permissionKeys?: string[];
 }
 
 export interface UpdateRolePayload {
   name?: string;
   description?: string;
+  isActive?: boolean;
   moduleAccess?: Array<{
     moduleId: string;
     accessLevel: 'VIEW' | 'MANAGE' | 'FULL';
   }>;
+  permissionKeys?: string[];
+}
+
+export async function fetchRoleByIdApi(
+  token: string,
+  organizationId: string,
+  roleId: string,
+): Promise<Role> {
+  const query = new URLSearchParams({ organizationId });
+
+  return apiFetch<Role>(`/roles/${roleId}?${query.toString()}`, {
+    method: 'GET',
+    token,
+    headers: {
+      'x-organization-id': organizationId,
+    },
+  });
 }
 
 export async function fetchRolesApi(
@@ -107,6 +126,20 @@ export async function updateRoleApi(
       'x-organization-id': organizationId,
     },
     body: JSON.stringify(payload),
+  });
+}
+
+export async function deleteRoleApi(
+  token: string,
+  organizationId: string,
+  roleId: string,
+): Promise<{ success: true }> {
+  return apiFetch<{ success: true }>(`/roles/${roleId}`, {
+    method: 'DELETE',
+    token,
+    headers: {
+      'x-organization-id': organizationId,
+    },
   });
 }
 

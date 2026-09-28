@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
@@ -14,9 +14,29 @@ import LeaseDeactivationNotice from "./LeaseDeactivationNotice";
 
 export default function LeaseContractDetails() {
     const params = useParams();
+    const searchParams = useSearchParams();
     const router = useRouter();
 
-    const leaseId = params.leaseId as string;
+    const leaseId =
+        searchParams.get("leaseId")?.trim() ||
+        (typeof params.leaseId === "string" ? params.leaseId : "") ||
+        "";
+
+    if (!leaseId) {
+        return (
+            <div className="space-y-4">
+                <p className="text-sm text-slate-600">
+                    No lease contract was specified.
+                </p>
+                <Link
+                    href="/fleet-leasing/lease-contracts"
+                    className="text-sm font-medium text-[#FE5720] hover:underline"
+                >
+                    Back to lease contracts
+                </Link>
+            </div>
+        );
+    }
 
     // ============================================================
     // MOCK CONTRACT DATA

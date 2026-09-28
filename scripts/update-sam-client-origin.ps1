@@ -33,19 +33,30 @@ if (-not $PortalOrigin) {
 }
 
 $PortalOrigin = $PortalOrigin.TrimEnd('/')
-Write-Host "ClientOrigin (CORS): $PortalOrigin"
+# Staging/pre-prod: portal + local Next dev; production: hosted portal only.
+$ClientOriginValue = if ($Tier -eq 'production') {
+  $PortalOrigin
+} else {
+  "$PortalOrigin,http://localhost:3000"
+}
+Write-Host "ClientOrigin (CORS): $ClientOriginValue"
 
 if (-not (Test-Path $SamConfig)) {
   throw "Missing $SamConfig - copy from samconfig.$Tier.example.toml and fill secrets."
 }
 
 $content = Get-Content -Raw -Path $SamConfig
-$updated = $content -replace 'ClientOrigin=\\"[^\\"]*\\"', "ClientOrigin=\`"$PortalOrigin\`""
+# CommaDelimitedList: unquoted in parameter_overrides (quoted value = single broken origin).
+$replacement = "ClientOrigin=$ClientOriginValue"
+$updated = $content -replace 'ClientOrigin=\\"[^\\"]*\\"', $replacement
 if ($updated -eq $content) {
-  $updated = $content -replace 'ClientOrigin="[^"]*"', "ClientOrigin=`"$PortalOrigin`""
+  $updated = $content -replace 'ClientOrigin="[^"]*"', $replacement
 }
 if ($updated -eq $content) {
-  Write-Warning 'Could not find ClientOrigin in samconfig; add manually to parameter_overrides.'
+  $updated = $content -replace 'ClientOrigin=[^\s"]+', $replacement
+}
+if ($updated -eq $content) {
+  Write-Warning 'Could not find ClientOrigin in samconfig; add manually (unquoted, comma-separated).'
 }
 else {
   $utf8NoBom = New-Object System.Text.UTF8Encoding $false

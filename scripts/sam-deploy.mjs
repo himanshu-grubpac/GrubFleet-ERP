@@ -27,5 +27,23 @@ if (!existsSync(config)) {
   process.exit(1);
 }
 
-const cmd = `sam deploy --template-file "${template}" --config-file "${config}"`;
-execSync(cmd, { stdio: 'inherit', cwd: root });
+const cmd = `sam deploy --force-upload --no-confirm-changeset --template-file "${template}" --config-file "${config}"`;
+try {
+  execSync(cmd, {
+    cwd: root,
+    encoding: 'utf8',
+    stdio: ['inherit', 'pipe', 'pipe'],
+    maxBuffer: 50 * 1024 * 1024,
+  });
+} catch (err) {
+  const stdout = err.stdout?.toString() ?? '';
+  const stderr = err.stderr?.toString() ?? '';
+  if (stdout) process.stdout.write(stdout);
+  if (stderr) process.stderr.write(stderr);
+  const combined = [err.message, stdout, stderr].join('\n');
+  if (combined.includes('No changes to deploy')) {
+    console.log('SAM stack already up to date (no CloudFormation changes).');
+    process.exit(0);
+  }
+  throw err;
+}
