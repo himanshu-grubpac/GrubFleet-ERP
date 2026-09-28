@@ -1,123 +1,201 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+
+import { useLeaseApi } from "@/lib/api/lease-contracts-context";
 
 import LeaseContractHeader, {
     type LeaseContractStatus,
 } from "./LeaseContractHeader";
-
-import LeaseAssetClassTable from "./LeaseAssetClassTable";
+import LeaseAssetClassTable, {
+    type LeaseAssetClass,
+} from "./LeaseAssetClassTable";
 import LeaseContractTerms from "./LeaseContractTerms";
 import LeaseDeactivationNotice from "./LeaseDeactivationNotice";
+
+// ─── Status mapper ────────────────────────────────────────────────────────────
+
+function toHeaderStatus(apiStatus: string): LeaseContractStatus {
+    const map: Record<string, LeaseContractStatus> = {
+        Active: "Active",
+        Draft: "Draft",
+        Deactivated: "Deactivated",
+        Terminated: "Terminated",
+        Closed: "Terminated",
+    };
+    return map[apiStatus] ?? "Draft";
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatCurrency(value: number | null): string {
+    if (value == null) return "—";
+    return `Rs. ${value.toLocaleString("en-IN")}`;
+}
+
+function formatBillingFrequency(value: string): string {
+    const map: Record<string, string> = {
+        monthly: "Monthly",
+        quarterly: "Quarterly",
+        annually: "Annually",
+    };
+    return map[value] ?? value;
+}
+
+// ─── Loading skeleton ─────────────────────────────────────────────────────────
+
+function LoadingSkeleton() {
+    return (
+        <div className="space-y-6 animate-pulse">
+            <div className="h-6 w-48 rounded bg-slate-200" />
+            <div className="h-24 w-full rounded-xl bg-slate-100" />
+            <div className="h-40 w-full rounded-xl bg-slate-100" />
+            <div className="h-28 w-full rounded-xl bg-slate-100" />
+        </div>
+    );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function LeaseContractDetails() {
     const params = useParams();
     const router = useRouter();
+    const queryClient = useQueryClient();
+    const { api, organizationId } = useLeaseApi();
 
     const leaseId = params.leaseId as string;
 
-    // ============================================================
-    // MOCK CONTRACT DATA
-    // Later this will come from the API using leaseId
-    // ============================================================
+    // ── Fetch contract ────────────────────────────────────────────────────────
 
-    const status: LeaseContractStatus =
-        leaseId === "LC-2041" ? "Active" : "Deactivated";
+    const {
+        data: contract,
+        isLoading,
+        isError,
+    } = useQuery({
+        queryKey: ["lease-contract", leaseId, organizationId],
+        queryFn: () => api.getById(leaseId),
+        enabled: !!organizationId && !!leaseId,
+    });
 
-    const description =
-        status === "Active"
-            ? "Fleet & Leasing contract with Meridian Logistics Pvt. Ltd. Reactivated."
-            : "Fleet & Leasing contract with Meridian Logistics Pvt. Ltd. Deactivated.";
+    // ── Invalidate helper ─────────────────────────────────────────────────────
 
-    // ============================================================
-    // ACTION HANDLERS
-    // Later these will call backend APIs
-    // ============================================================
-
-    const handleActivate = () => {
-        console.log("Activate lease contract:", leaseId);
+    const invalidate = () => {
+        void queryClient.invalidateQueries({
+            queryKey: ["lease-contract", leaseId, organizationId],
+        });
     };
 
-    const handleDeactivate = () => {
-        console.log("Deactivate lease contract:", leaseId);
-    };
+    // ── Action mutations ──────────────────────────────────────────────────────
 
-    const handleReactivate = () => {
-        console.log("Reactivate lease contract:", leaseId);
-    };
+    const activate = useMutation({
+        mutationFn: () => api.activate(leaseId),
+        onSuccess: invalidate,
+    });
 
-    const handleTerminate = () => {
-        console.log("Terminate lease contract:", leaseId);
-    };
+    const deactivate = useMutation({
+        mutationFn: () => api.deactivate(leaseId),
+        onSuccess: invalidate,
+    });
 
-    const handleEdit = () => {
-        router.push(
-            `/fleet-leasing/lease-contracts/${leaseId}/edit`,
+    const reactivate = useMutation({
+        mutationFn: () => api.reactivate(leaseId),
+        onSuccess: invalidate,
+    });
+
+    const terminate = useMutation({
+        mutationFn: () => api.requestTermination(leaseId),
+        onSuccess: invalidate,
+    });
+
+    // ── Loading / error states ────────────────────────────────────────────────
+
+    if (isLoading) return <LoadingSkeleton />;
+
+    if (isError || !contract) {
+        return (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-600">
+                Failed to load lease contract. Please go back and try again.
+            </div>
         );
-    };
+    }
+
+    // ── Derived display values ────────────────────────────────────────────────
+
+    const status = toHeaderStatus(contract.status);
+    const description = contract.subtitle ?? contract.description ?? "";
+
+    const assetClasses: LeaseAssetClass[] = contract.assetLines.map((line) => ({
+        id: line.id,
+        assetClass: line.assetClass,
+        committed: line.committedQuantity,
+        ratePerVehicle: formatCurrency(line.ratePerVehicleMonth),
+        availability: line.availabilityCovered
+            ? "Covered"
+            : line.shortfallCount > 0 && line.availableNowCount > 0
+            ? "Partial"
+            : "Not Covered",
+    }));
+
+    const timePeriod = contract.termMonths
+        ? `${contract.termMonths} months`
+        : contract.startDate && contract.endDate
+        ? `${contract.startDate} – ${contract.endDate}`
+        : "—";
 
     return (
         <div className="space-y-6">
 
-            {/* =====================================================
-                BREADCRUMB
-            ====================================================== */}
-
-            <div className="flex items-center gap-2 text-sm">
-                <Link
-                    href="/fleet-leasing"
-                    className="text-slate-500 hover:text-[#FE5720]"
-                >
-                    Fleet & Leasing
-                </Link>
-
-                <ChevronRight className="h-4 w-4 text-slate-400" />
-
-                <Link
-                    href="/fleet-leasing/lease-contracts"
-                    className="text-slate-500 hover:text-[#FE5720]"
-                >
-                    Lease Contracts
-                </Link>
-
-                <ChevronRight className="h-4 w-4 text-slate-400" />
-
-                <span className="font-semibold text-slate-900">
-                    {leaseId}
-                </span>
-            </div>
 
             {/* =====================================================
                 CONTRACT HEADER
             ====================================================== */}
 
             <LeaseContractHeader
-                contractNumber={leaseId}
+                contractNumber={contract.contractNumber}
                 status={status}
                 description={description}
-                onActivate={handleActivate}
-                onDeactivate={handleDeactivate}
-                onReactivate={handleReactivate}
-                onTerminate={handleTerminate}
-                onEdit={handleEdit}
+                onActivate={
+                    contract.availableActions.includes("activate")
+                        ? () => activate.mutate()
+                        : undefined
+                }
+                onDeactivate={
+                    contract.availableActions.includes("deactivate")
+                        ? () => deactivate.mutate()
+                        : undefined
+                }
+                onReactivate={
+                    contract.availableActions.includes("reactivate")
+                        ? () => reactivate.mutate()
+                        : undefined
+                }
+                onTerminate={
+                    contract.availableActions.includes("request_termination")
+                        ? () => terminate.mutate()
+                        : undefined
+                }
+                onEdit={() =>
+                    router.push(
+                        `/fleet-leasing/lease-contracts/${leaseId}/edit`,
+                    )
+                }
             />
 
             {/* =====================================================
                 ASSET CLASS LINES
             ====================================================== */}
 
-            <LeaseAssetClassTable />
+            <LeaseAssetClassTable assetClasses={assetClasses} />
 
             {/* =====================================================
                 TERMS
             ====================================================== */}
 
             <LeaseContractTerms
-                timePeriod="24 months"
-                securityDeposit="Rs. 2,10,000 — whole contract"
-                billingFrequency="Monthly"
+                timePeriod={timePeriod}
+                securityDeposit={formatCurrency(contract.securityDeposit)}
+                billingFrequency={formatBillingFrequency(contract.billingFrequency)}
             />
 
             {/* =====================================================
@@ -126,10 +204,10 @@ export default function LeaseContractDetails() {
 
             {status === "Deactivated" && (
                 <LeaseDeactivationNotice
-                    returnedVehicles={2}
-                    totalVehicles={3}
+                    returnedVehicles={contract.returnProgress.returnedRegisteredCount}
+                    totalVehicles={contract.returnProgress.committedVehicleCount}
                 />
             )}
         </div>
     );
-}
+}

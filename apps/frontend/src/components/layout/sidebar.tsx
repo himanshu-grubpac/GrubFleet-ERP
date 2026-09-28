@@ -11,7 +11,7 @@ import {
   type NavItem,
 } from "@/lib/navigation/modules";
 
-import { useAuth } from "@/providers/auth-provider";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {

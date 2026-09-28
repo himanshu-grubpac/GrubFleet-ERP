@@ -1,5 +1,6 @@
-import { CorporateCustomersModule } from "@/components/modules/fleet-leasing/corporate-customers";
+import CustomerRegistrationForm from "@/components/modules/fleet-leasing/NewContract/CustomerRegistrationForm";
 
 export default function CorporateCustomersPage() {
-  return <CorporateCustomersModule />;
+  return <CustomerRegistrationForm />;
 }
+

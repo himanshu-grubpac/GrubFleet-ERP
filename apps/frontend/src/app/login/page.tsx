@@ -7,7 +7,7 @@ import {
 } from "@grubpac/ui-kit";
 
 import Button from "@/components/ui/GrubpacButton";
-import { useGrubpacAuth } from "@/providers/auth-provider";
+import { useGrubpacAuth } from "@/lib/auth-context";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
