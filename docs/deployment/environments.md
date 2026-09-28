@@ -85,6 +85,7 @@ Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permissio
 | `SAM_CLIENT_ORIGIN` | `https://dxxx.cloudfront.net,http://localhost:3000` | Unquoted comma list for SAM `ClientOrigin` (staging/pre-prod); production portal HTTPS only |
 | `VPC_SUBNET_IDS` | `subnet-aaa,subnet-bbb` | Optional; Lambda VPC (staging SAM) — comma-separated, no spaces |
 | `VPC_SECURITY_GROUP_IDS` | `sg-xxx` | Optional; pair with `VPC_SUBNET_IDS` |
+| `RDS_MIGRATION_SECURITY_GROUP_ID` | `sg-0198b9781297f8bf7` | **Required** for GHA `db-migrate` on staging/pre-prod — shared network RDS SG; job opens runner `/32` on 5432 then revokes. Attach `scripts/iam-grubfleet-gha-rds-migrate-sg-policy.json` to `GrubFleetGitHubActionsDeploy`. |
 
 ## CI vs deploy
 
