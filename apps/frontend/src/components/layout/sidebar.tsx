@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 
@@ -60,6 +60,7 @@ function SidebarItem({
   item: NavItem;
   pathname: string;
 }) {
+  const router = useRouter();
   const hasChildren =
     !!item.children && item.children.length > 0;
 
@@ -82,12 +83,21 @@ function SidebarItem({
   // ============================================================
 
   if (hasChildren) {
+    const handleParentClick = () => {
+      setOpen(true);
+      if (!isActive && item.children?.[0]) {
+        router.push(item.children[0].href);
+      } else {
+        setOpen((prev) => !prev);
+      }
+    };
+
     return (
       <div>
         {/* Parent module */}
         <button
           type="button"
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={handleParentClick}
           className={cn(
             "flex w-full items-center gap-3 rounded-lg px-3 py-3",
             "text-sm font-medium transition-colors",
@@ -105,17 +115,25 @@ function SidebarItem({
             {item.label}
           </span>
 
-          {open ? (
-            <ChevronDown
-              className="h-4 w-4"
-              aria-hidden
-            />
-          ) : (
-            <ChevronRight
-              className="h-4 w-4"
-              aria-hidden
-            />
-          )}
+          <span
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen((prev) => !prev);
+            }}
+            className="p-0.5 rounded hover:bg-black/10 transition"
+          >
+            {open ? (
+              <ChevronDown
+                className="h-4 w-4"
+                aria-hidden
+              />
+            ) : (
+              <ChevronRight
+                className="h-4 w-4"
+                aria-hidden
+              />
+            )}
+          </span>
         </button>
 
         {/* Sub-navigation */}
