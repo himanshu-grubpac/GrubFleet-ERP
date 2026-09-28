@@ -236,7 +236,7 @@ Credentials (master user `grubfleet`, passwords, full `DATABASE_URL`) are **not*
 
 | Nest API prefix | `/api/v1` (e.g. health: `GET .../api/v1/health`) |
 
-| `ClientOrigin` (CORS) | `https://d3swe5av2h6i8p.cloudfront.net` |
+| `ClientOrigin` (CORS) | `https://d3swe5av2h6i8p.cloudfront.net,http://localhost:3000` |
 
 | VPC | Private subnets + Lambda SG (see network) |
 
