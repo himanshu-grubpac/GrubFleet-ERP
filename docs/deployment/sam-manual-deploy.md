@@ -1,6 +1,6 @@
 # Manual SAM deploy (Lambda + HTTP API)
 
-GrubFleet ERP runs the NestJS API on **AWS Lambda** behind an **HTTP API**. **Routine deploys** use GitHub Actions (`sam-api-deploy` in `reusable-container-deploy.yml`) on push to `develop` and env branches — see [README](./README.md). This page covers **local / emergency** `sam deploy` (profile `grubfleet-erp`, region `ap-south-1`) and **manual production migrations** only.
+GrubFleet ERP runs the NestJS API on **AWS Lambda** behind an **HTTP API**. **Routine deploys** use GitHub Actions (`sam-api-deploy` in `reusable-container-deploy.yml`) when promotion PRs merge to `staging`, `pre-prod`, or `main` — see [README](./README.md). This page covers **local / emergency** `sam deploy` (profile `grubfleet-erp`, region `ap-south-1`) and **manual production migrations** only.
 
 Live stack names, URLs, and VPC/data endpoints: [AWS resource inventory](./aws-resources.md).
 
@@ -96,4 +96,4 @@ sam build
 - **Windows / paths with spaces** — `npm run deploy:*:api` uses `scripts/sam-deploy.mjs` so SAM receives an absolute `samconfig.*.toml` path.
 - **samconfig encoding** — UTF-8 without BOM; use escaped `\"` inside `parameter_overrides` (see existing gitignored files).
 
-Integration branch note: Himanshu may **direct-push `develop`** for day-to-day work; SAM deploy is independent of GHA until you wire a workflow.
+Integration branch note: **direct-push `develop`** for day-to-day work; AWS deploy runs only after promotion PR merges to `staging`, `pre-prod`, or `main`.

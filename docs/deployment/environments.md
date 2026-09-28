@@ -2,15 +2,15 @@
 
 GrubPac ERP uses **branch-aligned environments**. **Git branches** still promote via pull requests (`develop` → `staging` → `pre-prod` → `main`); do not direct-push product code to environment branches.
 
-**API runtime** for staging and above is deployed by **GitHub Actions** on push: **`develop`** → staging tier (`deploy-develop.yml`), env branches → matching tier. Jobs run RDS migrate (staging/pre-prod only), SAM Lambda API, and portal S3/CloudFront (see [README](./README.md)). Manual SAM ([sam-manual-deploy.md](./sam-manual-deploy.md)) is for emergencies or production migrate only.
+**API runtime** for staging and above is deployed by **GitHub Actions** only when an **environment branch** is updated (after a promotion PR merge): `staging`, `pre-prod`, or `main`. Jobs run RDS migrate (staging/pre-prod only), SAM Lambda API, and portal S3/CloudFront (see [README](./README.md)). **`develop` pushes do not deploy to AWS** — CI only. Manual SAM ([sam-manual-deploy.md](./sam-manual-deploy.md)) is for emergencies or production migrate only.
 
-Daily integration on **`develop`** may be direct-push or feature PRs per team preference; **each push to `develop` deploys to the staging AWS stack** (GitHub Environment `staging`). See [Git workflow (PR-only)](./git-workflow.md).
+Daily integration on **`develop`** may be direct-push or feature PRs per team preference. See [Git workflow (PR-only)](./git-workflow.md).
 
 ## Branch flow
 
 | Git branch   | GitHub Environment | `APP_ENV` (backend) | Purpose |
 |-------------|--------------------|---------------------|---------|
-| `develop`   | `staging` (GHA deploy) | `development` locally; **`staging`** when deployed via GHA | Integrate features; push to `develop` auto-deploys staging tier |
+| `develop`   | — (local / CI)     | `development`       | Integrate features; run locally with Docker Compose |
 | `staging`   | `staging`          | `staging`           | Shared staging |
 | `pre-prod`  | `pre-production`   | `preprod`           | Production-like validation |
 | `main`      | `production`       | `production`        | Live production |
@@ -19,7 +19,7 @@ Promotion path (do not skip; **PR only**, no direct pushes):
 
 `feature|fix|chore` → PR → `develop` → PR → `staging` → PR → `pre-prod` → PR → `main`
 
-When using **GHA container deploy**, each merge to `staging`, `pre-prod`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR. When using **SAM**, run `npm run deploy:staging:api` (or preprod/production) locally after the branch you deploy from contains the intended code.
+Each merge to `staging`, `pre-prod`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR (SAM API + portal via GHA).
 
 ## URLs (placeholders)
 
@@ -89,4 +89,4 @@ Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permissio
 ## CI vs deploy
 
 - **CI** (`.github/workflows/ci.yml`): runs on pull requests **into** `develop`, `staging`, `pre-prod`, or `main`, and on pushes to those branches (usually after a PR merge).
-- **Deploy**: push to **`develop`** or merge to `staging` / `pre-prod` / `main` triggers the matching deploy workflow — see [git-workflow.md](./git-workflow.md), [blue-green.md](./blue-green.md), and [README.md](./README.md).
+- **Deploy**: merge promotion PR to `staging` / `pre-prod` / `main` only (push to that branch after merge triggers deploy). **`develop` is CI only.** See [git-workflow.md](./git-workflow.md), [blue-green.md](./blue-green.md), and [README.md](./README.md).

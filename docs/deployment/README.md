@@ -15,10 +15,10 @@ GrubPac ERP deploys from Git branches via GitHub Actions. Local machines use Doc
 ## Quick reference
 
 ```text
-feature/fix/chore  →  PR  →  develop     →  push triggers deploy-develop.yml (staging AWS tier)
-develop            →  PR  →  staging     →  push triggers deploy-staging.yml
-staging            →  PR  →  pre-prod    →  push triggers deploy-preprod.yml
-pre-prod           →  PR  →  main        →  push triggers deploy-production.yml (approval on production)
+feature/fix/chore  →  PR  →  develop     →  CI only (no AWS deploy)
+develop            →  PR  →  staging     →  merge push triggers deploy-staging.yml
+staging            →  PR  →  pre-prod    →  merge push triggers deploy-preprod.yml
+pre-prod           →  PR  →  main        →  merge push triggers deploy-production.yml (approval on production)
 ```
 
 Each deploy workflow runs **Drizzle migrate** (staging + pre-prod only), **SAM Lambda API** (`sam-api-deploy`), and **portal S3 + CloudFront** when Environment secrets/vars are set. Production **never** runs migrate in GHA — manual migrate only. See [Environments](./environments.md) for required GitHub secrets.
