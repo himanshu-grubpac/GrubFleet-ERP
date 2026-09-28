@@ -61,7 +61,8 @@ const TIER = {
     appEnv: 'production',
     confirmChangeset: true,
     enableWarmupSchedule: 'true',
-    reservedConcurrency: 40,
+    // 0 = no reservation until account Lambda concurrency quota supports higher reserved limits.
+    reservedConcurrency: 0,
     appendLocalhost: false,
   },
 };
