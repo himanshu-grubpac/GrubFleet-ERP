@@ -24,7 +24,7 @@ try {
 }
 
 mkdirSync(codeUriDir, { recursive: true });
-cpSync(lambdaPackage, codeUriDir, { recursive: true });
+cpSync(lambdaPackage, codeUriDir, { recursive: true, dereference: true });
 cpSync(join(root, 'template.yaml'), join(buildRoot, 'template.yaml'));
 
 console.log('Staged SAM artifacts at .aws-sam/build (Handler: dist/src/lambda.handler).');

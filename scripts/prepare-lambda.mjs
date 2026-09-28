@@ -2,7 +2,7 @@
  * Builds the NestJS backend and assembles lambda-package/ for SAM deploy.
  * Copies nest build output (dist/) + production node_modules (Handler: dist/src/lambda.handler).
  */
-import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -18,6 +18,26 @@ function run(cmd, args, cwd, label) {
   if (result.status !== 0) {
     console.error(`${label} failed`);
     process.exit(result.status ?? 1);
+  }
+}
+
+/** SAM zips CodeUri by walking files; nested .bin symlinks often ENOENT on GHA. */
+function removeNestedBinDirs(dir) {
+  if (!existsSync(dir)) return;
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const ent of entries) {
+    if (!ent.isDirectory()) continue;
+    const child = join(dir, ent.name);
+    if (ent.name === '.bin') {
+      rmSync(child, { recursive: true, force: true });
+    } else {
+      removeNestedBinDirs(child);
+    }
   }
 }
 
@@ -70,10 +90,6 @@ cpSync(join(stagingDir, 'node_modules'), join(outDir, 'node_modules'), {
 });
 tryRemoveDir(stagingDir);
 
-// Runtime uses require() only; .bin symlinks break SAM zip/upload on Linux (ENOENT on stale links).
-const lambdaBin = join(outDir, 'node_modules', '.bin');
-if (existsSync(lambdaBin)) {
-  rmSync(lambdaBin, { recursive: true, force: true });
-}
+removeNestedBinDirs(join(outDir, 'node_modules'));
 
 console.log('Lambda package ready at lambda-package/');
