@@ -22,10 +22,12 @@ export async function createNestApplication(): Promise<INestApplication> {
   app.setGlobalPrefix(apiPrefix);
 
   const corsOrigin = config.get('CORS_ORIGIN', { infer: true });
+  const corsOrigins = corsOrigin
+    .split(',')
+    .map((o) => o.trim())
+    .filter((o) => o.length > 0);
   app.enableCors({
-    origin: corsOrigin.includes(',')
-      ? corsOrigin.split(',').map((o) => o.trim())
-      : corsOrigin,
+    origin: corsOrigins.length === 1 ? corsOrigins[0]! : corsOrigins,
     credentials: true,
     allowedHeaders: [
       'Content-Type',

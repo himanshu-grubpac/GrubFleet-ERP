@@ -92,7 +92,7 @@ sam build
 
 - **Env validation failed on cold start** — check Lambda environment variables match `apps/backend/src/config/env.schema.ts` (especially JWT secrets when `AppEnv=production`).
 - **502 / timeout** — ensure Lambda can reach RDS/Redis (VPC, security groups, connection string).
-- **CORS** — `ClientOrigin` must match the browser origin exactly (scheme + host, no trailing path).
+- **CORS** — `ClientOrigin` in `samconfig.<tier>.toml` must be an **unquoted** comma list (`ClientOrigin=https://dxxx.cloudfront.net,http://localhost:3000`). Quoted values collapse to one invalid origin. Same list drives API Gateway and Lambda `CORS_ORIGIN` (`template.yaml`). Production: portal URL only.
 - **Windows / paths with spaces** — `npm run deploy:*:api` uses `scripts/sam-deploy.mjs` so SAM receives an absolute `samconfig.*.toml` path.
 - **samconfig encoding** — UTF-8 without BOM; use escaped `\"` inside `parameter_overrides` (see existing gitignored files).
 
