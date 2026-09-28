@@ -39,6 +39,7 @@ export type RoleDto = {
   scope: 'system' | 'organization';
   description: string | null;
   isSystem: boolean;
+  isActive: boolean;
   permissionKeys: string[];
   moduleAccess: ModuleAccessEntry[];
   createdAt: string;
@@ -68,6 +69,22 @@ export class RolesService {
     private readonly authorizationRepository: AuthorizationRepository,
     private readonly auditService: AuditService,
   ) {}
+
+  async getRoleById(organizationId: string, roleId: string): Promise<RoleDto> {
+    const role = await this.rolesRepository.findOrgRoleById(
+      roleId,
+      organizationId,
+    );
+    if (!role) {
+      throw new NotFoundException({
+        message: 'Role not found',
+        code: 'ROLE_NOT_FOUND',
+      });
+    }
+    const permissionKeys =
+      await this.rolesRepository.getPermissionKeysForRole(roleId);
+    return this.toDto(role, permissionKeys);
+  }
 
   async listRoles(
     organizationId: string,
@@ -278,10 +295,22 @@ export class RolesService {
       await this.rolesRepository.replaceRolePermissions(roleId, permissionIds);
     }
 
-    if (dto.name !== undefined || dto.description !== undefined) {
+    if (dto.isActive === false && role.isSystem) {
+      throw new ConflictException({
+        message: 'System roles cannot be deactivated',
+        code: 'ROLE_IS_SYSTEM',
+      });
+    }
+
+    if (
+      dto.name !== undefined ||
+      dto.description !== undefined ||
+      dto.isActive !== undefined
+    ) {
       await this.rolesRepository.updateRoleFields(roleId, {
         name: dto.name?.trim(),
         description: dto.description,
+        isActive: dto.isActive,
       });
     }
 
@@ -317,6 +346,72 @@ export class RolesService {
     const permissionKeys =
       await this.rolesRepository.getPermissionKeysForRole(roleId);
     return this.toDto(updated, permissionKeys);
+  }
+
+  async deleteRole(
+    actorUserId: string,
+    roleId: string,
+    organizationId: string,
+  ): Promise<{ success: true }> {
+    const role = await this.rolesRepository.findOrgRoleById(
+      roleId,
+      organizationId,
+    );
+    if (!role) {
+      throw new NotFoundException({
+        message: 'Role not found',
+        code: 'ROLE_NOT_FOUND',
+      });
+    }
+    if (role.isSystem) {
+      throw new ConflictException({
+        message: 'System roles cannot be deleted',
+        code: 'ROLE_IS_SYSTEM',
+      });
+    }
+
+    const rolePermissionKeys =
+      await this.rolesRepository.getPermissionKeysForRole(roleId);
+    await this.authorizationService.assertCanDelegatePermissions(
+      actorUserId,
+      organizationId,
+      rolePermissionKeys,
+    );
+
+    const affectedUserIds =
+      await this.rolesRepository.listUserIdsWithRoleInOrganization(
+        roleId,
+        organizationId,
+      );
+
+    const removed = await this.rolesRepository.deleteOrgRole(
+      roleId,
+      organizationId,
+    );
+    if (!removed) {
+      throw new NotFoundException({
+        message: 'Role not found',
+        code: 'ROLE_NOT_FOUND',
+      });
+    }
+
+    if (affectedUserIds.length > 0) {
+      await this.authorizationService.invalidateOrganizationPermissions(
+        organizationId,
+        affectedUserIds,
+      );
+    }
+
+    await this.auditService.log({
+      userId: actorUserId,
+      organizationId,
+      action: 'roles.delete',
+      resourceType: 'role',
+      resourceId: roleId,
+      metadata: { name: role.name, affectedUserIds },
+    });
+
+    return { success: true };
   }
 
   async assignRole(
@@ -521,6 +616,7 @@ export class RolesService {
       scope: 'system' | 'organization';
       description: string | null;
       isSystem: boolean;
+      isActive: boolean;
       createdAt: Date;
       updatedAt: Date;
     },
@@ -533,6 +629,7 @@ export class RolesService {
       scope: role.scope,
       description: role.description,
       isSystem: role.isSystem,
+      isActive: role.isActive,
       permissionKeys: [...permissionKeys].sort(),
       moduleAccess: deriveModuleAccessFromKeys(permissionKeys),
       createdAt: role.createdAt.toISOString(),

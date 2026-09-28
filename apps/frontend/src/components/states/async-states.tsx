@@ -7,14 +7,51 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  PageHeaderSkeleton,
+  Skeleton,
+  TableListSkeleton,
+} from "@/components/states/skeleton";
+
+export type LoadingStateVariant = "spinner" | "skeleton";
+export type LoadingSkeletonPreset = "block" | "table" | "page-header";
 
 export function LoadingState({
   label = "Loading…",
+  variant = "spinner",
+  skeleton = "block",
 }: {
   label?: string;
+  variant?: LoadingStateVariant;
+  skeleton?: LoadingSkeletonPreset;
 }) {
+  if (variant === "skeleton") {
+    return (
+      <div
+        className="min-h-[200px]"
+        aria-busy="true"
+        aria-live="polite"
+      >
+        <span className="sr-only">{label}</span>
+        {skeleton === "table" ? <TableListSkeleton /> : null}
+        {skeleton === "page-header" ? <PageHeaderSkeleton /> : null}
+        {skeleton === "block" ? (
+          <div className="space-y-3 py-4">
+            <Skeleton className="h-8 w-1/3 max-w-xs" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+            <Skeleton className="h-24 w-full rounded-xl" />
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-[200px] items-center justify-center gap-2 text-slate-700">
+    <div
+      className="flex min-h-[200px] items-center justify-center gap-2 text-slate-700"
+      aria-busy="true"
+      aria-live="polite"
+    >
       <Loader2
         className="h-5 w-5 animate-spin text-[#FE5720]"
         aria-hidden

@@ -2,14 +2,15 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { AuthBootstrapLoader } from "@/components/states/auth-bootstrap-loader";
 import { useAuth } from "@/providers/auth-provider";
 
 export default function HomePage() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, isLoggingOut } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading) {
+    if (isLoading || isLoggingOut) {
       return;
     }
 
@@ -18,13 +19,11 @@ export default function HomePage() {
     } else {
       router.replace("/login");
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, isLoggingOut, router]);
 
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50">
-      <div className="text-sm font-medium text-slate-500">
-        Checking session...
-      </div>
-    </div>
-  );
+  if (isLoggingOut) {
+    return <AuthBootstrapLoader layout="minimal" phase="sign-out" />;
+  }
+
+  return <AuthBootstrapLoader layout="minimal" phase="boot" />;
 }

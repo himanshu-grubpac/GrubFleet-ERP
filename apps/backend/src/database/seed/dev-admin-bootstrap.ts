@@ -114,8 +114,9 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
         organizationId,
         name: DEV_ADMIN_ROLE_NAME,
         scope: 'organization',
-        description: 'Dev bootstrap admin with provisional module permissions',
-        isSystem: false,
+        description:
+          'Default organization administrator (seeded; not editable)',
+        isSystem: true,
       })
       .onConflictDoNothing({
         target: [roles.organizationId, roles.name],
@@ -137,6 +138,15 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
   if (!roleId) {
     throw new Error('Failed to resolve dev admin role id');
   }
+
+  await db
+    .update(roles)
+    .set({
+      isSystem: true,
+      description:
+        'Default organization administrator (seeded; not editable)',
+    })
+    .where(eq(roles.id, roleId));
 
   const catalog = buildPhase1PermissionCatalog();
   for (const item of catalog) {

@@ -96,7 +96,11 @@ export class RolesRepository {
 
   async updateRoleFields(
     roleId: string,
-    patch: { name?: string; description?: string | null },
+    patch: {
+      name?: string;
+      description?: string | null;
+      isActive?: boolean;
+    },
   ): Promise<void> {
     await this.db
       .update(roles)
@@ -105,6 +109,7 @@ export class RolesRepository {
         ...(patch.description !== undefined
           ? { description: patch.description }
           : {}),
+        ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
         updatedAt: new Date(),
       })
       .where(eq(roles.id, roleId));
@@ -178,6 +183,20 @@ export class RolesRepository {
         ),
       )
       .returning({ id: userRoles.id });
+    return deleted.length > 0;
+  }
+
+  async deleteOrgRole(roleId: string, organizationId: string): Promise<boolean> {
+    const deleted = await this.db
+      .delete(roles)
+      .where(
+        and(
+          eq(roles.id, roleId),
+          eq(roles.organizationId, organizationId),
+          eq(roles.scope, 'organization'),
+        ),
+      )
+      .returning({ id: roles.id });
     return deleted.length > 0;
   }
 
