@@ -30,6 +30,11 @@ function escapeSamQuoted(value) {
   return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 }
 
+/** Escape for the outer TOML double-quoted parameter_overrides value. */
+function escapeTomlDoubleQuoted(value) {
+  return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
 const TIER = {
   staging: {
     stackName: 'grubfleet-api-staging',
@@ -80,7 +85,7 @@ if (cfg.appendLocalhost && !clientOrigin.includes('localhost:3000')) {
 const parts = [
   `ApiFunctionName="${cfg.apiFunctionName}"`,
   `AppEnv="${cfg.appEnv}"`,
-  `ClientOrigin=${clientOrigin}`,
+  `ClientOrigin="${escapeSamQuoted(clientOrigin)}"`,
   `DatabaseUrl="${escapeSamQuoted(databaseUrl)}"`,
   `RedisUrl="${escapeSamQuoted(redisUrl)}"`,
   `JwtAccessSecret="${escapeSamQuoted(jwtAccess)}"`,
@@ -113,7 +118,7 @@ confirm_changeset = ${confirmLine}
 capabilities = "CAPABILITY_IAM"
 disable_rollback = false
 image_repositories = []
-parameter_overrides = "${parameterOverrides}"
+parameter_overrides = "${escapeTomlDoubleQuoted(parameterOverrides)}"
 
 [default.global.parameters]
 region = "${region}"
