@@ -64,7 +64,16 @@ run(
 );
 
 cpSync(join(backendDir, 'dist'), join(outDir, 'dist'), { recursive: true });
-cpSync(join(stagingDir, 'node_modules'), join(outDir, 'node_modules'), { recursive: true });
+cpSync(join(stagingDir, 'node_modules'), join(outDir, 'node_modules'), {
+  recursive: true,
+  dereference: true,
+});
 tryRemoveDir(stagingDir);
+
+// Runtime uses require() only; .bin symlinks break SAM zip/upload on Linux (ENOENT on stale links).
+const lambdaBin = join(outDir, 'node_modules', '.bin');
+if (existsSync(lambdaBin)) {
+  rmSync(lambdaBin, { recursive: true, force: true });
+}
 
 console.log('Lambda package ready at lambda-package/');
