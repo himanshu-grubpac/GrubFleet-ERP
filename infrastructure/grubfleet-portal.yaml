@@ -55,6 +55,37 @@ Resources:
         SigningProtocol: sigv4
         Description: !Sub 'OAC for grubfleet-portal-${Environment}'
 
+  PortalUriRewriteFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub 'grubfleet-portal-uri-rewrite-${Environment}'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: !Sub 'Map directory paths to index.html for Next.js export (${Environment})'
+        Runtime: cloudfront-js-2.0
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          var leasePrefix = '/fleet-leasing/lease-contracts/';
+          if (uri.indexOf(leasePrefix) === 0) {
+            var tail = uri.slice(leasePrefix.length);
+            tail = tail.replace(/index\.html$/, '').replace(/\/$/, '');
+            if (tail && tail !== 'detail' && tail.indexOf('/') === -1) {
+              request.uri = leasePrefix + 'detail/index.html';
+              request.querystring = request.querystring || {};
+              request.querystring.leaseId = { value: tail };
+              return request;
+            }
+          }
+          if (uri.endsWith('/')) {
+            request.uri = uri + 'index.html';
+          } else if (!uri.includes('.')) {
+            request.uri = uri + '/index.html';
+          }
+          return request;
+        }
+
   PortalDistribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -82,6 +113,9 @@ Resources:
             - OPTIONS
           Compress: true
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt PortalUriRewriteFunction.FunctionMetadata.FunctionARN
         CustomErrorResponses:
           - ErrorCode: 403
             ResponseCode: 200

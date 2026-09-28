@@ -44,7 +44,7 @@ $jwtRefresh = New-Secret 48
 $paramLine = @(
   'ApiFunctionName="grubfleet-api-preprod"',
   'AppEnv="preprod"',
-  'ClientOrigin="http://localhost:3000"',
+  'ClientOrigin=http://localhost:3000',
   "DatabaseUrl=`"$databaseUrl`"",
   "RedisUrl=`"$redisUrl`"",
   "JwtAccessSecret=`"$jwtAccess`"",
@@ -53,7 +53,7 @@ $paramLine = @(
   'JwtRefreshTtl="7d"',
   'LogLevel="info"',
   'EnableWarmupSchedule="true"',
-  'ReservedConcurrency=10',
+  'ReservedConcurrency=0',
   "VpcSubnetIds=`"$vpcSubnets`"",
   "VpcSecurityGroupIds=`"$lambdaSg`""
 ) -join ' '

@@ -2,6 +2,20 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: GrubFleet ERP API (NestJS on Lambda + HTTP API)
 
+# ClientOrigin (CommaDelimitedList) is the single source of truth for browser CORS:
+# - HTTP API CorsConfiguration AllowOrigins (!Ref ClientOrigin)
+# - Lambda env CORS_ORIGIN (!Join comma — Nest splits the env string)
+# In samconfig parameter_overrides use UNQUOTED comma list (quotes collapse to one origin):
+#   ClientOrigin=https://dxxx.cloudfront.net,http://localhost:3000
+# Production: ClientOrigin=https://dxxx.cloudfront.net only.
+# After portal deploy: scripts/update-sam-client-origin.ps1 -Tier <tier>
+
+Metadata:
+  GrubFleetCors:
+    ClientOriginParameter: CommaDelimitedList — do not wrap in quotes in samconfig
+    StagingPreprodExample: 'https://dxxx.cloudfront.net,http://localhost:3000'
+    ProductionExample: 'https://dxxx.cloudfront.net'
+
 Globals:
   Function:
     Timeout: 30
@@ -24,9 +38,11 @@ Parameters:
       - production
     Description: APP_ENV for Nest config (JWT secrets required when production)
   ClientOrigin:
-    Type: String
-    Default: https://localhost
-    Description: Frontend origin for CORS (CloudFront or local URL)
+    Type: CommaDelimitedList
+    Default: http://localhost:3000
+    Description: >-
+      Allowed browser origins (exact scheme+host, no path). In samconfig use
+      unquoted comma-separated values. See Metadata GrubFleetCors.
   DatabaseUrl:
     Type: String
     NoEcho: true
@@ -94,8 +110,7 @@ Resources:
     Properties:
       CorsConfiguration:
         AllowCredentials: true
-        AllowOrigins:
-          - !Ref ClientOrigin
+        AllowOrigins: !Ref ClientOrigin
         AllowHeaders:
           - Content-Type
           - Authorization
@@ -131,7 +146,7 @@ Resources:
           NODE_OPTIONS: '--experimental-require-module'
           APP_ENV: !Ref AppEnv
           API_PREFIX: api/v1
-          CORS_ORIGIN: !Ref ClientOrigin
+          CORS_ORIGIN: !Join [',', !Ref ClientOrigin]
           DATABASE_URL: !Ref DatabaseUrl
           REDIS_URL: !Ref RedisUrl
           JWT_ACCESS_SECRET: !Ref JwtAccessSecret

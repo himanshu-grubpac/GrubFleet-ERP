@@ -6,11 +6,24 @@ import React, {
   useState,
   useEffect,
   useCallback,
+  useMemo,
+  useRef,
 } from "react";
 import { useRouter } from "next/navigation";
+import { AuthBootstrapLoader } from "@/components/states/auth-bootstrap-loader";
 import { loginApi, refreshApi, logoutApi, getMeApi } from "@/lib/api/auth";
 import { ApiClientError } from "@/lib/api/client";
 import type { AuthMeUser, AuthMeResponse } from "@grubpac/shared-types";
+
+function clearAuthStorage(): void {
+  try {
+    localStorage.removeItem("access_token");
+    localStorage.removeItem("refresh_token");
+    localStorage.removeItem("auth_user");
+  } catch {
+    // Ignore localStorage removal errors
+  }
+}
 
 export interface GrubpacAuthContextType {
   authService?: unknown;
@@ -49,7 +62,17 @@ export interface GrubpacAuthContextType {
 
   isAuthenticated?: boolean;
 
+  /** Initial app boot: read storage + validate token once. Not login submit. */
   isLoading?: boolean;
+
+  /** True while clearing session and navigating to login (avoids stale dashboard chrome). */
+  isLoggingOut?: boolean;
+
+  /** True during credential login + /auth/me before navigation completes. */
+  isAuthenticating?: boolean;
+
+  /** Login route calls this after mount to clear logout transition loaders. */
+  finishLogoutTransition?: () => void;
 
   token?: string | null;
 
@@ -90,11 +113,29 @@ export function GrubpacAuthProvider({
   const [moduleAccess, setModuleAccess] = useState<Record<string, string>>({});
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
   const permissionRevisionRef = React.useRef<number | null>(null);
+
+  const mountedRef = useRef(true);
+  const refetchInFlightRef = useRef(false);
+  const logoutInProgressRef = useRef(false);
+  const loginInFlightRef = useRef(false);
 
   const router = useRouter();
 
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
   const applyMeData = useCallback((me: AuthMeResponse) => {
+    if (!mountedRef.current) {
+      return;
+    }
+
     const userObj = {
       id: me.user.id,
       email: me.user.email,
@@ -138,6 +179,10 @@ export function GrubpacAuthProvider({
       if (!savedRefreshToken) return false;
 
       const tokenRes = await refreshApi(savedRefreshToken);
+      if (!mountedRef.current) {
+        return false;
+      }
+
       setTokenState(tokenRes.accessToken);
       localStorage.setItem("access_token", tokenRes.accessToken);
       localStorage.setItem("refresh_token", tokenRes.refreshToken);
@@ -151,24 +196,38 @@ export function GrubpacAuthProvider({
   }, [applyMeData]);
 
   const refetchMe = useCallback(async (): Promise<boolean> => {
+    if (refetchInFlightRef.current || !mountedRef.current) {
+      return false;
+    }
+
     const accessToken = token ?? localStorage.getItem("access_token");
     if (!accessToken) {
       return false;
     }
+
+    refetchInFlightRef.current = true;
     try {
       const me = await getMeApi(accessToken);
+      if (!mountedRef.current) {
+        return false;
+      }
       applyMeData(me);
       return true;
     } catch (err) {
+      if (!mountedRef.current) {
+        return false;
+      }
       if (err instanceof ApiClientError && err.status === 401) {
         return refreshSession();
       }
       return false;
+    } finally {
+      refetchInFlightRef.current = false;
     }
   }, [token, applyMeData, refreshSession]);
 
   useEffect(() => {
-    if (!token || isLoading) {
+    if (!token || isLoading || isLoggingOut) {
       return;
     }
 
@@ -184,18 +243,18 @@ export function GrubpacAuthProvider({
       window.removeEventListener("focus", onFocus);
       window.clearInterval(intervalId);
     };
-  }, [token, isLoading, refetchMe]);
+  }, [token, isLoading, isLoggingOut, refetchMe]);
 
   // Initial session hydration
   useEffect(() => {
-    let mounted = true;
+    let hydrateMounted = true;
 
     async function hydrateSession() {
       try {
         const savedToken = localStorage.getItem("access_token");
         const savedUser = localStorage.getItem("auth_user");
 
-        if (savedUser) {
+        if (savedUser && hydrateMounted) {
           try {
             setUser(JSON.parse(savedUser));
           } catch {
@@ -204,29 +263,30 @@ export function GrubpacAuthProvider({
         }
 
         if (savedToken) {
-          setTokenState(savedToken);
+          if (hydrateMounted) {
+            setTokenState(savedToken);
+          }
           try {
             const me = await getMeApi(savedToken);
-            if (mounted) {
+            if (hydrateMounted && mountedRef.current) {
               applyMeData(me);
             }
           } catch (err) {
-            // If access token is expired (401), try refreshing
+            if (!hydrateMounted || !mountedRef.current) {
+              return;
+            }
             if (err instanceof ApiClientError && err.status === 401) {
               const refreshed = await refreshSession();
-              if (!refreshed && mounted) {
-                // Refresh failed; clear credentials
+              if (!refreshed && hydrateMounted && mountedRef.current) {
                 setTokenState(null);
                 setUser(null);
-                localStorage.removeItem("access_token");
-                localStorage.removeItem("refresh_token");
-                localStorage.removeItem("auth_user");
+                clearAuthStorage();
               }
             }
           }
         }
       } finally {
-        if (mounted) {
+        if (hydrateMounted && mountedRef.current) {
           setIsLoading(false);
         }
       }
@@ -235,20 +295,20 @@ export function GrubpacAuthProvider({
     void hydrateSession();
 
     return () => {
-      mounted = false;
+      hydrateMounted = false;
     };
   }, [applyMeData, refreshSession]);
 
-  const setToken = (newToken: string) => {
+  const setToken = useCallback((newToken: string) => {
     setTokenState(newToken);
     try {
       localStorage.setItem("access_token", newToken);
     } catch {
       // Ignore localStorage write error
     }
-  };
+  }, []);
 
-  const setAuthCookie = (
+  const setAuthCookie = useCallback((
     email: string,
     tokenVal: string,
   ) => {
@@ -263,17 +323,45 @@ export function GrubpacAuthProvider({
     } catch {
       // Ignore localStorage write error
     }
-  };
+  }, [setToken]);
 
-  const login = async (data: {
+  const login = useCallback(async (data: {
     email: string;
     password: string;
   }) => {
-    setIsLoading(true);
+    if (loginInFlightRef.current) {
+      throw new Error("Sign-in already in progress.");
+    }
+
+    loginInFlightRef.current = true;
+    setIsAuthenticating(true);
 
     try {
-      // 1. Authenticate with backend
       const tokenPair = await loginApi(data);
+
+      let me: AuthMeResponse;
+      try {
+        me = await getMeApi(tokenPair.accessToken);
+      } catch (meErr) {
+        // Production-safe: do not persist tokens without a validated /auth/me session.
+        clearAuthStorage();
+        if (mountedRef.current) {
+          setTokenState(null);
+          setUser(null);
+          setOrganizationId(null);
+          setModuleAccess({});
+          setPermissions(new Set());
+        }
+        const message =
+          meErr instanceof ApiClientError
+            ? meErr.message
+            : "Could not load your account. Please try again.";
+        throw new Error(message);
+      }
+
+      if (!mountedRef.current) {
+        throw new Error("Sign-in was interrupted. Please try again.");
+      }
 
       setTokenState(tokenPair.accessToken);
       try {
@@ -283,26 +371,16 @@ export function GrubpacAuthProvider({
         // Ignore localStorage write error
       }
 
-      // 2. Fetch authenticated user profile & permissions
-      let userObj = {
-        id: "",
-        email: data.email,
-        name: data.email.split("@")[0],
+      applyMeData(me);
+
+      const userObj = {
+        id: me.user.id,
+        email: me.user.email,
+        fullName: me.user.fullName,
+        name: me.user.fullName || me.user.email.split("@")[0],
       };
 
-      try {
-        const me = await getMeApi(tokenPair.accessToken);
-        applyMeData(me);
-        userObj = {
-          id: me.user.id,
-          email: me.user.email,
-          name: me.user.fullName || me.user.email.split("@")[0],
-        };
-      } catch {
-        setUser(userObj);
-      }
-
-      router.push("/dashboard");
+      router.replace("/dashboard");
 
       return {
         success: true,
@@ -310,30 +388,42 @@ export function GrubpacAuthProvider({
         user: userObj,
       };
     } finally {
-      setIsLoading(false);
+      loginInFlightRef.current = false;
+      if (mountedRef.current) {
+        setIsAuthenticating(false);
+      }
     }
-  };
+  }, [applyMeData, router]);
 
-  const logout = async () => {
+  const finishLogoutTransition = useCallback(() => {
+    logoutInProgressRef.current = false;
+    if (mountedRef.current) {
+      setIsLoggingOut(false);
+    }
+  }, []);
+
+  const logout = useCallback(async () => {
+    if (logoutInProgressRef.current) {
+      return;
+    }
+    logoutInProgressRef.current = true;
+    setIsLoggingOut(true);
+
     const currentToken = token;
-    const refreshToken = typeof window !== "undefined" ? localStorage.getItem("refresh_token") || undefined : undefined;
+    const refreshToken =
+      typeof window !== "undefined"
+        ? localStorage.getItem("refresh_token") || undefined
+        : undefined;
 
-    // Reset local state first
     setTokenState(null);
     setUser(null);
     setOrganizationId(null);
     setModuleAccess({});
     setPermissions(new Set());
+    clearAuthStorage();
 
-    try {
-      localStorage.removeItem("access_token");
-      localStorage.removeItem("refresh_token");
-      localStorage.removeItem("auth_user");
-    } catch {
-      // Ignore localStorage removal errors
-    }
+    router.replace("/login");
 
-    // Attempt server logout in the background
     if (currentToken) {
       try {
         await logoutApi(currentToken, refreshToken);
@@ -341,21 +431,21 @@ export function GrubpacAuthProvider({
         // Ignore backend logout network error
       }
     }
+  }, [token, router]);
 
-    router.push("/login");
-  };
+  const showSuccess = useCallback((message: string) => {
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[Auth Success]:", message);
+    }
+  }, []);
 
-  const showSuccess = (message: string) => {
-    console.log("[Auth Success]:", message);
-  };
-
-  const showError = (message?: string) => {
+  const showError = useCallback((message?: string) => {
     if (process.env.NODE_ENV !== "production") {
       console.warn("[Auth Warning]:", message);
     }
-  };
+  }, []);
 
-  const getApiError = (error: unknown): string => {
+  const getApiError = useCallback((error: unknown): string => {
     if (error instanceof ApiClientError) {
       return error.message;
     }
@@ -363,30 +453,54 @@ export function GrubpacAuthProvider({
       return error.message;
     }
     return "An unexpected error occurred";
-  };
+  }, []);
+
+  const contextValue = useMemo<GrubpacAuthContextType>(
+    () => ({
+      isAuthenticated: !!token,
+      isLoading,
+      isLoggingOut,
+      isAuthenticating,
+      token,
+      user,
+      organizationId,
+      moduleAccess,
+      permissions,
+      setToken,
+      setAuthCookie,
+      login,
+      logout,
+      refreshSession,
+      refetchMe,
+      finishLogoutTransition,
+      showSuccess,
+      showError,
+      getApiError,
+    }),
+    [
+      token,
+      isLoading,
+      isLoggingOut,
+      isAuthenticating,
+      user,
+      organizationId,
+      moduleAccess,
+      permissions,
+      setToken,
+      setAuthCookie,
+      login,
+      logout,
+      refreshSession,
+      refetchMe,
+      finishLogoutTransition,
+      showSuccess,
+      showError,
+      getApiError,
+    ],
+  );
 
   return (
-    <GrubpacAuthContext.Provider
-      value={{
-        isAuthenticated: !!token,
-        isLoading,
-        token,
-        user,
-        organizationId,
-        moduleAccess,
-        permissions,
-
-        setToken,
-        setAuthCookie,
-        login,
-        logout,
-        refreshSession,
-        refetchMe,
-        showSuccess,
-        showError,
-        getApiError,
-      }}
-    >
+    <GrubpacAuthContext.Provider value={contextValue}>
       {children}
     </GrubpacAuthContext.Provider>
   );
@@ -414,23 +528,25 @@ export function ProtectedRoute({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading } = useGrubpacAuth();
+  const { isAuthenticated, isLoading, isLoggingOut } = useGrubpacAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.push("/login");
+    if (!isLoading && !isAuthenticated && !isLoggingOut) {
+      router.replace("/login");
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [isAuthenticated, isLoading, isLoggingOut, router]);
+
+  if (isLoggingOut) {
+    return <AuthBootstrapLoader layout="dashboard" phase="sign-out" />;
+  }
 
   if (isLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="text-sm font-medium text-slate-500">
-          Checking session...
-        </div>
-      </div>
-    );
+    return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
+  }
+
+  if (!isAuthenticated) {
+    return <AuthBootstrapLoader layout="minimal" phase="boot" />;
   }
 
   return <>{children}</>;
