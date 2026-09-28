@@ -9,17 +9,19 @@ GrubPac ERP deploys from Git branches via GitHub Actions. Local machines use Doc
 - [Git workflow (PR-only)](./git-workflow.md) — feature branches, daily `develop` integration, promotion PRs
 - [Environments and promotion](./environments.md) — branches, URLs, secrets, CORS, `APP_ENV`
 - [Blue-green deploy](./blue-green.md) — GHCR images, slots, smoke tests, production approval
-- [Manual SAM deploy (Lambda)](./sam-manual-deploy.md) — `prepare:lambda`, `sam deploy`, profile `grubfleet-erp` (optional alongside GHA; day-to-day `develop` may be direct-push per team preference)
+- [Manual SAM deploy (Lambda)](./sam-manual-deploy.md) — local/emergency `sam deploy` and manual production migrate (routine API deploy is GHA)
 - [AWS resource inventory](./aws-resources.md) — CloudFormation stacks, VPC/RDS/Redis/API URLs (no secrets)
 
 ## Quick reference
 
 ```text
-feature/fix/chore  →  PR  →  develop     (local APP_ENV=development)
+feature/fix/chore  →  PR  →  develop     →  push triggers deploy-develop.yml (staging AWS tier)
 develop            →  PR  →  staging     →  push triggers deploy-staging.yml
 staging            →  PR  →  pre-prod    →  push triggers deploy-preprod.yml
 pre-prod           →  PR  →  main        →  push triggers deploy-production.yml (approval on production)
 ```
+
+Each deploy workflow runs **Drizzle migrate** (staging + pre-prod only), **SAM Lambda API** (`sam-api-deploy`), and **portal S3 + CloudFront** when Environment secrets/vars are set. Production **never** runs migrate in GHA — manual migrate only. See [Environments](./environments.md) for required GitHub secrets.
 
 Container build contexts:
 

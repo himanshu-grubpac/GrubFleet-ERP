@@ -1,8 +1,8 @@
-name: Deploy Staging
+name: Deploy Develop (staging tier)
 
 on:
   push:
-    branches: [staging]
+    branches: [develop]
 
 concurrency:
   group: deploy-aws-staging
@@ -19,5 +19,5 @@ jobs:
     with:
       deploy-label: staging
       github-environment: staging
-      branch-ref: staging
+      branch-ref: develop
     secrets: inherit

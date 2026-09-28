@@ -1,6 +1,6 @@
 # Manual SAM deploy (Lambda + HTTP API)
 
-GrubFleet ERP can run the NestJS API on **AWS Lambda** behind an **HTTP API**, similar to the attendance-web stack. This path is **manual** (local `sam deploy` with profile `grubfleet-erp`, region `ap-south-1`). It coexists with the **GitHub Actions container deploy** documented in [Blue-green deploy](./blue-green.md); choose one API hosting model per environment.
+GrubFleet ERP runs the NestJS API on **AWS Lambda** behind an **HTTP API**. **Routine deploys** use GitHub Actions (`sam-api-deploy` in `reusable-container-deploy.yml`) on push to `develop` and env branches — see [README](./README.md). This page covers **local / emergency** `sam deploy` (profile `grubfleet-erp`, region `ap-south-1`) and **manual production migrations** only.
 
 Live stack names, URLs, and VPC/data endpoints: [AWS resource inventory](./aws-resources.md).
 

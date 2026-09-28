@@ -27,6 +27,63 @@ permissions:
   id-token: write
 
 jobs:
+  db-migrate:
+    if: inputs.deploy-label != 'production'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - name: Run Drizzle migrations (tier RDS)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "Missing GitHub Environment secret DATABASE_URL — required for staging/pre-prod migrate."
+            exit 1
+          fi
+          npm run db:migrate -w backend
+
+  sam-api-deploy:
+    needs: db-migrate
+    if: always() && (needs.db-migrate.result == 'success' || needs.db-migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - uses: aws-actions/setup-sam@v2
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      - run: npm ci
+      - name: Write samconfig from Environment secrets
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          JWT_ACCESS_SECRET: ${{ secrets.JWT_ACCESS_SECRET }}
+          JWT_REFRESH_SECRET: ${{ secrets.JWT_REFRESH_SECRET }}
+          SAM_CLIENT_ORIGIN: ${{ vars.SAM_CLIENT_ORIGIN }}
+          CLIENT_ORIGIN: ${{ vars.CORS_ORIGIN }}
+          VPC_SUBNET_IDS: ${{ vars.VPC_SUBNET_IDS }}
+          VPC_SECURITY_GROUP_IDS: ${{ vars.VPC_SECURITY_GROUP_IDS }}
+          AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
+        run: node scripts/write-samconfig-from-env.mjs ${{ inputs.deploy-label }}
+      - name: Prepare Lambda package and deploy SAM stack
+        run: |
+          npm run prepare:lambda
+          node scripts/stage-sam-artifacts.mjs
+          node scripts/sam-deploy.mjs ${{ inputs.deploy-label }}
+
   build-and-push:
     runs-on: ubuntu-latest
     outputs:
@@ -83,6 +140,8 @@ jobs:
           echo "frontend_image=ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/frontend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
 
   frontend-portal-s3-cloudfront:
+    needs: db-migrate
+    if: always() && (needs.db-migrate.result == 'success' || needs.db-migrate.result == 'skipped')
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-environment }}
     steps:

@@ -359,6 +359,7 @@ Current GHA workflows (`.github/workflows/reusable-container-deploy.yml`) still 
 | `scripts/stage-sam-artifacts.mjs` | Stage `.aws-sam/build` without SAM Node builder (Windows) |
 
 | `scripts/sam-deploy.mjs` | `sam deploy` with absolute config path (Windows paths with spaces) |
+| `scripts/write-samconfig-from-env.mjs` | CI: build gitignored `samconfig.<tier>.toml` from Environment secrets/vars before GHA SAM deploy |
 
 | `scripts/bootstrap-production-data-and-samconfig.ps1` | One-time prod data bootstrap + `samconfig.production.toml` |
 
