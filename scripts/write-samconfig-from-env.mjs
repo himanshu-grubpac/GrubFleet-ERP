@@ -51,7 +51,8 @@ const TIER = {
     appEnv: 'preprod',
     confirmChangeset: false,
     enableWarmupSchedule: 'true',
-    reservedConcurrency: 10,
+    // 0 = no reservation (SAM omits ReservedConcurrentExecutions). Account pool too small for 10+ unreserved minimum.
+    reservedConcurrency: 0,
     appendLocalhost: true,
   },
   production: {

@@ -53,7 +53,7 @@ $paramLine = @(
   'JwtRefreshTtl="7d"',
   'LogLevel="info"',
   'EnableWarmupSchedule="true"',
-  'ReservedConcurrency=10',
+  'ReservedConcurrency=0',
   "VpcSubnetIds=`"$vpcSubnets`"",
   "VpcSecurityGroupIds=`"$lambdaSg`""
 ) -join ' '
