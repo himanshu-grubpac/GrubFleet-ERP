@@ -29,10 +29,29 @@ $privB = ($network | Where-Object OutputKey -eq 'PrivateSubnetBId').OutputValue
 $lambdaSg = ($network | Where-Object OutputKey -eq 'LambdaSecurityGroupId').OutputValue
 $vpcSubnets = "$privA,$privB"
 
+function Get-DefaultClientOrigin([string]$TierName) {
+  $portalStack = "grubfleet-portal-$TierName"
+  $portal = aws cloudformation describe-stacks `
+    --stack-name $portalStack `
+    --query "Stacks[0].Outputs[?OutputKey=='PortalUrl'].OutputValue | [0]" `
+    --output text `
+    --profile $Profile `
+    --region $Region 2>$null
+  if ($portal -and $portal -ne 'None') {
+    $portal = $portal.TrimEnd('/')
+    if ($TierName -eq 'production') { return $portal }
+    return "$portal,http://localhost:3000"
+  }
+  if ($TierName -eq 'production') {
+    return 'http://localhost:3000'
+  }
+  return 'http://localhost:3000'
+}
+
 $tiers = @(
-  @{ Name = 'staging'; AppEnv = 'staging'; Stack = 'grubfleet-data-staging'; ApiStack = 'grubfleet-api-staging'; Fn = 'grubfleet-api-staging'; PublicRds = 'true'; Warmup = 'false'; Concurrency = '0'; ClientOrigin = 'http://localhost:3000' },
-  @{ Name = 'preprod'; AppEnv = 'preprod'; Stack = 'grubfleet-data-preprod'; ApiStack = 'grubfleet-api-preprod'; Fn = 'grubfleet-api-preprod'; PublicRds = 'false'; Warmup = 'true'; Concurrency = '10'; ClientOrigin = 'https://localhost' },
-  @{ Name = 'production'; AppEnv = 'production'; Stack = 'grubfleet-data-production'; ApiStack = 'grubfleet-api-production'; Fn = 'grubfleet-api-production'; PublicRds = 'false'; Warmup = 'true'; Concurrency = '40'; ClientOrigin = 'https://localhost' }
+  @{ Name = 'staging'; AppEnv = 'staging'; Stack = 'grubfleet-data-staging'; ApiStack = 'grubfleet-api-staging'; Fn = 'grubfleet-api-staging'; PublicRds = 'true'; Warmup = 'false'; Concurrency = '0' },
+  @{ Name = 'preprod'; AppEnv = 'preprod'; Stack = 'grubfleet-data-preprod'; ApiStack = 'grubfleet-api-preprod'; Fn = 'grubfleet-api-preprod'; PublicRds = 'false'; Warmup = 'true'; Concurrency = '10' },
+  @{ Name = 'production'; AppEnv = 'production'; Stack = 'grubfleet-data-production'; ApiStack = 'grubfleet-api-production'; Fn = 'grubfleet-api-production'; PublicRds = 'false'; Warmup = 'true'; Concurrency = '40' }
 )
 
 $meta = @{ tiers = @{}; vpc = @{ subnets = $vpcSubnets; lambdaSg = $lambdaSg } }
@@ -73,11 +92,12 @@ foreach ($t in $tiers) {
 
   $samPath = Join-Path $Root "samconfig.$($t.Name).toml"
   if ($t.Name -eq 'production') { $confirm = 'true' } else { $confirm = 'false' }
+  $clientOrigin = Get-DefaultClientOrigin $t.Name
 
   $paramLine = @(
     "ApiFunctionName=\`"$($t.Fn)\`"",
     "AppEnv=\`"$($t.AppEnv)\`"",
-    "ClientOrigin=\`"$($t.ClientOrigin)\`"",
+    "ClientOrigin=$clientOrigin",
     "DatabaseUrl=\`"$databaseUrl\`"",
     "RedisUrl=\`"$redisUrl\`"",
     "JwtAccessSecret=\`"$jwtAccess\`"",

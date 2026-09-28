@@ -22,6 +22,7 @@ import {
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { GetRoleQueryDto } from './dto/get-role-query.dto';
 import { ListRolesQueryDto } from './dto/list-roles-query.dto';
 import { RoleAssignmentDto } from './dto/role-assignment.dto';
 import { RoleEditorMatrixQueryDto } from './dto/role-editor-matrix-query.dto';
@@ -70,6 +71,33 @@ export class RolesController {
   @ApiOperation({ summary: 'Create organization role' })
   create(@CurrentUser() user: AuthenticatedUser, @Body() dto: CreateRoleDto) {
     return this.rolesService.createRole(user.userId, dto);
+  }
+
+  @Get(':id')
+  @RequireOrganizationContext()
+  @RequirePermissions(PermissionKeys.ADMINISTRATION_VIEW)
+  @ApiOperation({ summary: 'Get organization role by id' })
+  getOne(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: GetRoleQueryDto,
+  ) {
+    return this.rolesService.getRoleById(query.organizationId, id);
+  }
+
+  @Delete(':id')
+  @RequireOrganizationContext()
+  @RequireAnyPermissions(...AdministrationWriteAny.DELETE)
+  @ApiOperation({ summary: 'Delete organization role' })
+  remove(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Req() req: Request,
+  ) {
+    const organizationId = req.organizationId;
+    if (!organizationId) {
+      throw new Error('organizationId missing after guard');
+    }
+    return this.rolesService.deleteRole(user.userId, id, organizationId);
   }
 
   @Patch(':id')

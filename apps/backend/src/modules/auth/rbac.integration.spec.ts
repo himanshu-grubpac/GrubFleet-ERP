@@ -358,6 +358,104 @@ describe('RBAC admin (integration)', () => {
       .expect(403);
   });
 
+  it('GET /roles/:id returns org-scoped role and 404 for missing id', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: `Get By Id ${Date.now()}`,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+
+    const created = createRes.body as { id: string; name: string };
+
+    const getRes = await request(app.getHttpServer())
+      .get(`/api/v1/roles/${created.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(200);
+
+    const fetched = getRes.body as { id: string; name: string };
+    expect(fetched.id).toBe(created.id);
+    expect(fetched.name).toBe(created.name);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/roles/${created.id}`)
+      .query({
+        organizationId: '00000000-0000-4000-8000-000000000099',
+      })
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(403);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/roles/00000000-0000-4000-8000-000000000001`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${created.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+  });
+
+  it('DELETE custom role, PATCH isActive, DELETE system role returns 409', async () => {
+    const createRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: `Lifecycle ${Date.now()}`,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+
+    const roleId = (createRes.body as { id: string }).id;
+
+    const deactivated = await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${roleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ isActive: false })
+      .expect(200);
+    expect((deactivated.body as { isActive: boolean }).isActive).toBe(false);
+
+    const reactivated = await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${roleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ isActive: true })
+      .expect(200);
+    expect((reactivated.body as { isActive: boolean }).isActive).toBe(true);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${roleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    const listRes = await request(app.getHttpServer())
+      .get('/api/v1/roles')
+      .query({ organizationId, page: 1, pageSize: 50 })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+    const systemRole = (
+      listRes.body as { items: Array<{ id: string; isSystem: boolean }> }
+    ).items.find((r) => r.isSystem);
+    expect(systemRole).toBeDefined();
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${systemRole!.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(409);
+  });
+
   it('role CRUD with moduleAccess contract', async () => {
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/roles')

@@ -1,15 +1,14 @@
 "use client";
 
-import Link from "next/link";
-import { Menu, LogOut, User } from "lucide-react";
+import { Menu, LogOut } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 
 export function Header() {
-  const { user, isAuthenticated, logout } = useAuth();
+  const { isAuthenticated, isLoggingOut, logout } = useAuth();
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-slate-200 bg-white px-4">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4">
       {/* Mobile Header */}
       <div className="flex items-center gap-2 md:hidden">
         <Button
@@ -25,45 +24,23 @@ export function Header() {
         </span>
       </div>
 
-      {/* User Information */}
-      <div className="hidden items-center gap-2 text-sm text-slate-600 md:flex">
-        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-50 text-[#FE5720]">
-          <User className="h-4 w-4" />
-        </div>
+      <div className="hidden flex-1 md:block" aria-hidden />
 
-        <span>
-          Signed in as{" "}
-          <strong className="font-semibold text-slate-900">
-            {user?.email || (isAuthenticated ? "Admin" : "Guest")}
-          </strong>
-        </span>
-      </div>
-
-      {/* Auth Actions */}
-      <div className="flex items-center gap-2">
-        {isAuthenticated ? (
+      {/* Mobile-only logout; desktop uses sidebar account menu */}
+      <div className="ml-auto flex items-center gap-2 md:hidden">
+        {isAuthenticated || isLoggingOut ? (
           <Button
             type="button"
             variant="outline"
             size="sm"
-            onClick={logout}
+            disabled={isLoggingOut}
+            onClick={() => void logout?.()}
             className="!border-slate-200 !text-slate-700 hover:!border-red-200 hover:!bg-red-50 hover:!text-red-700"
           >
             <LogOut className="mr-1.5 h-3.5 w-3.5" />
-            Sign out
+            {isLoggingOut ? "Signing out…" : "Log out"}
           </Button>
-        ) : (
-          <Link href="/login">
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              className="!bg-[#FE5720] !text-white hover:!bg-[#E64A19]"
-            >
-              Sign in
-            </Button>
-          </Link>
-        )}
+        ) : null}
       </div>
     </header>
   );

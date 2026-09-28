@@ -1,6 +1,6 @@
 # Manual SAM deploy (Lambda + HTTP API)
 
-GrubFleet ERP can run the NestJS API on **AWS Lambda** behind an **HTTP API**, similar to the attendance-web stack. This path is **manual** (local `sam deploy` with profile `grubfleet-erp`, region `ap-south-1`). It coexists with the **GitHub Actions container deploy** documented in [Blue-green deploy](./blue-green.md); choose one API hosting model per environment.
+GrubFleet ERP runs the NestJS API on **AWS Lambda** behind an **HTTP API**. **Routine deploys** use GitHub Actions (`sam-api-deploy` in `reusable-container-deploy.yml`) when promotion PRs merge to `staging`, `pre-prod`, or `main` — see [README](./README.md). This page covers **local / emergency** `sam deploy` (profile `grubfleet-erp`, region `ap-south-1`) and **manual production migrations** only.
 
 Live stack names, URLs, and VPC/data endpoints: [AWS resource inventory](./aws-resources.md).
 
@@ -92,8 +92,8 @@ sam build
 
 - **Env validation failed on cold start** — check Lambda environment variables match `apps/backend/src/config/env.schema.ts` (especially JWT secrets when `AppEnv=production`).
 - **502 / timeout** — ensure Lambda can reach RDS/Redis (VPC, security groups, connection string).
-- **CORS** — `ClientOrigin` must match the browser origin exactly (scheme + host, no trailing path).
+- **CORS** — `ClientOrigin` in `samconfig.<tier>.toml` must be an **unquoted** comma list (`ClientOrigin=https://dxxx.cloudfront.net,http://localhost:3000`). Quoted values collapse to one invalid origin. Same list drives API Gateway and Lambda `CORS_ORIGIN` (`template.yaml`). Production: portal URL only.
 - **Windows / paths with spaces** — `npm run deploy:*:api` uses `scripts/sam-deploy.mjs` so SAM receives an absolute `samconfig.*.toml` path.
 - **samconfig encoding** — UTF-8 without BOM; use escaped `\"` inside `parameter_overrides` (see existing gitignored files).
 
-Integration branch note: Himanshu may **direct-push `develop`** for day-to-day work; SAM deploy is independent of GHA until you wire a workflow.
+Integration branch note: **direct-push `develop`** for day-to-day work; AWS deploy runs only after promotion PR merges to `staging`, `pre-prod`, or `main`.

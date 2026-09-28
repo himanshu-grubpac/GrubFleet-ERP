@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   IsArray,
+  IsBoolean,
   IsOptional,
   IsString,
   MaxLength,
@@ -34,4 +35,12 @@ export class UpdateRoleDto {
   @IsArray()
   @IsString({ each: true })
   permissionKeys?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'When false, role assignments remain but permissions are not granted',
+  })
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
 }
