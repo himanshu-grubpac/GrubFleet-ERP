@@ -60,12 +60,12 @@ function waitForPort(host, port, label, timeoutMs = 30_000) {
 
 function runStep(title, args) {
   console.log(`\n▶ ${title}`);
-  const result = spawnSync(npm, args, {
-    cwd: root,
-    env: ciEnv,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-  });
+  const spawnOpts = { cwd: root, env: ciEnv, stdio: 'inherit' };
+  // Windows: npm.cmd + args array needs shell; Node DEP0190 if shell:true with separate args.
+  const result =
+    process.platform === 'win32'
+      ? spawnSync([npm, ...args].join(' '), { ...spawnOpts, shell: true })
+      : spawnSync(npm, args, { ...spawnOpts, shell: false });
   if (result.status !== 0) {
     console.error(`\n✗ Failed: ${title}`);
     process.exit(result.status ?? 1);

@@ -16,6 +16,8 @@ Then commit and push yourself when it passes.
 
 After `npm install` at repo root, **every** `git push` runs `npm run ci:local` first.
 
+Hook file: `.husky/pre-push` (Husky v9 format — no `husky.sh` import; required before Husky v10).
+
 Emergency skip (not for routine use):
 
 ```powershell

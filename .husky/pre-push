@@ -1,7 +1,4 @@
-#!/usr/bin/env sh
-. "$(dirname -- "$0")/_/husky.sh"
-
-# Full gate before push (same order as .github/workflows/ci.yml). Skip: SKIP_PREPUSH=1 or HUSKY=0
+# Husky v9+ — no husky.sh (removed before v10). Skip: SKIP_PREPUSH=1 or HUSKY=0
 if [ -n "$SKIP_PREPUSH" ]; then
   echo "SKIP_PREPUSH set — skipping local CI gate"
   exit 0
