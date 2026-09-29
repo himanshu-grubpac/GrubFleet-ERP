@@ -5,6 +5,7 @@ import { ErrorState, LoadingState } from '@/components/states/async-states';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { apiFetch } from '@/lib/api/client';
 import type { HealthLiveness } from '@grubpac/shared-types';
+import { DashboardBreadcrumbsFromPath } from '@/components/dashboard/DashboardBreadcrumbsFromPath';
 
 export default function DashboardPage() {
   const healthQuery = useQuery({
@@ -14,6 +15,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/dashboard" />
       <div>
         <h2 className="text-2xl font-bold text-blue-950">Dashboard</h2>
         <p className="mt-1 text-sm text-slate-600">

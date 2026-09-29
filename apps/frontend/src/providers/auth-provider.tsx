@@ -542,7 +542,10 @@ export function ProtectedRoute({
   }
 
   if (isLoading) {
-    return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
+    if (isAuthenticated) {
+      return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
+    }
+    return <AuthBootstrapLoader layout="minimal" phase="boot" />;
   }
 
   if (!isAuthenticated) {

@@ -1,5 +1,6 @@
 import { EmptyState } from '@/components/states/async-states';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { DashboardBreadcrumbsFromPath } from '@/components/dashboard/DashboardBreadcrumbsFromPath';
 
 export function ModuleShell({
   title,
@@ -10,6 +11,7 @@ export function ModuleShell({
 }) {
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath />
       <div>
         <h2 className="text-2xl font-bold text-blue-950">{title}</h2>
         <p className="mt-1 text-sm text-slate-600">{description}</p>

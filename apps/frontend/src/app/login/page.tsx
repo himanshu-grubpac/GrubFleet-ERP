@@ -10,10 +10,6 @@ import {
 import { Loader2 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
-import { AuthBootstrapLoader } from "@/components/states/auth-bootstrap-loader";
-import {
-  AuthSessionTopBar,
-} from "@/components/states/auth-session-progress";
 import { LoginCardSkeleton } from "@/components/states/skeleton";
 import { useGrubpacAuth } from "@/providers/auth-provider";
 
@@ -45,16 +41,8 @@ export default function LoginPage() {
     }
   }, [isLoading, isLoggingOut, isAuthenticated, router]);
 
-  if (isLoggingOut) {
-    return <AuthBootstrapLoader layout="minimal" phase="sign-out" />;
-  }
-
-  if (isLoading) {
+  if (isLoggingOut || isLoading || isAuthenticated) {
     return <LoginCardSkeleton />;
-  }
-
-  if (isAuthenticated) {
-    return <AuthBootstrapLoader layout="minimal" phase="sign-in" />;
   }
 
   const formBusy = isSubmitting || isAuthenticating;
@@ -104,7 +92,6 @@ export default function LoginPage() {
             aria-busy="true"
             aria-live="polite"
           >
-            <AuthSessionTopBar className="shrink-0" />
             <div className="flex flex-1 flex-col items-center justify-center gap-3">
               <Loader2
                 className="h-8 w-8 animate-spin text-[#FE5720]"

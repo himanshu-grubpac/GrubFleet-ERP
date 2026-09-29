@@ -1,6 +1,7 @@
 "use client";
 
 import { Wallet, TrendingUp, TrendingDown, DollarSign, FileText, Plus } from "lucide-react";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 const kpis = [
   { label: "Total Revenue", value: "—", icon: TrendingUp, color: "text-emerald-600", bg: "bg-emerald-50" },
@@ -21,6 +22,7 @@ const statusStyles: Record<string, string> = {
 export function FinanceModule() {
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/finance" />
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>

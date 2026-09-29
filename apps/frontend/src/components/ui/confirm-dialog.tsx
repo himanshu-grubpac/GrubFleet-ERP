@@ -13,6 +13,8 @@ export type ConfirmDialogProps = {
   cancelLabel?: string;
   variant?: "default" | "destructive";
   isConfirmPending?: boolean;
+  /** When true, confirm stays disabled (e.g. required reason not filled). Uses GrubpacButton disabled styling on primary. */
+  confirmDisabled?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -25,6 +27,7 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
   isConfirmPending = false,
+  confirmDisabled = false,
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -52,6 +55,8 @@ export function ConfirmDialog({
       onClose();
     }
   };
+
+  const confirmBlocked = isConfirmPending || confirmDisabled;
 
   return createPortal(
     <div
@@ -88,9 +93,9 @@ export function ConfirmDialog({
           {variant === "destructive" ? (
             <button
               type="button"
-              disabled={isConfirmPending}
+              disabled={confirmBlocked}
               onClick={onConfirm}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:bg-slate-300"
             >
               {isConfirmPending ? (
                 <>
@@ -107,7 +112,7 @@ export function ConfirmDialog({
               variant="primary"
               size="md"
               loading={isConfirmPending}
-              disabled={isConfirmPending}
+              disabled={confirmBlocked}
               onClick={onConfirm}
             >
               {confirmLabel}
