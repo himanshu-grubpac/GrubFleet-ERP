@@ -9,15 +9,7 @@ import { OrganisationRepository } from './repositories/organisation.repository';
 @Module({
   imports: [AuditModule],
   controllers: [LocationTypesController, LocationsController],
-  providers: [
-    OrganisationRepository,
-    LocationTypesService,
-    LocationsService,
-  ],
-  exports: [
-    LocationsService,
-    LocationTypesService,
-    OrganisationRepository,
-  ],
+  providers: [OrganisationRepository, LocationTypesService, LocationsService],
+  exports: [LocationsService, LocationTypesService, OrganisationRepository],
 })
 export class OrganisationModule {}

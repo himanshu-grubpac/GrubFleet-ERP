@@ -305,5 +305,4 @@ describe('Organisation locations (integration)', () => {
     const body = list.body as PaginatedLocations;
     expect(Array.isArray(body.items)).toBe(true);
   });
-
 });
