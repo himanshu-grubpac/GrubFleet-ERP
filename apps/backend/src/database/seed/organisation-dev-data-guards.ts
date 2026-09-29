@@ -151,7 +151,9 @@ export async function cleanDevOrganisationEmployeesAndLocations(
     deletedLocationNames: deleted.map((row) => row.name),
     remainingLocationsInDevOrg: remaining.length,
     deletedNonSystemLocationTypes: deletedCustomTypes.length,
-    deletedNonSystemLocationTypeNames: deletedCustomTypes.map((row) => row.name),
+    deletedNonSystemLocationTypeNames: deletedCustomTypes.map(
+      (row) => row.name,
+    ),
     remainingLocationTypesInDevOrg: remainingTypes.length,
   };
 }
