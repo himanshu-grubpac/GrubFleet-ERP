@@ -1276,6 +1276,153 @@ paths:
       responses:
         '200':
           description: Paginated vehicles
+  /organisation/location-types:
+    get:
+      tags: [organisation]
+      summary: List organisation location types (system presets and custom)
+      operationId: listOrganisationLocationTypes
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Location types with usage flags
+    post:
+      tags: [organisation]
+      summary: Create custom organisation location type
+      operationId: createOrganisationLocationType
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Custom location type created
+  /organisation/location-types/{id}:
+    delete:
+      tags: [organisation]
+      summary: Delete unused custom location type
+      operationId: deleteOrganisationLocationType
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Deleted
+        '409':
+          description: Type in use
+  /organisation/locations:
+    get:
+      tags: [organisation]
+      summary: List organisation locations (paginated)
+      operationId: listOrganisationLocations
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: locationTypeId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated location rows for dashboard
+    post:
+      tags: [organisation]
+      summary: Create organisation location
+      operationId: createOrganisationLocation
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Location created
+  /organisation/locations/{id}:
+    get:
+      tags: [organisation]
+      summary: Organisation location detail
+      operationId: getOrganisationLocation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Location detail
+    patch:
+      tags: [organisation]
+      summary: Update organisation location
+      operationId: updateOrganisationLocation
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated location
+  /organisation/locations/{id}/status:
+    patch:
+      tags: [organisation]
+      summary: Activate or deactivate location (deactivate requires reason)
+      operationId: updateOrganisationLocationStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reason:
+                  type: string
+                  description: Required when action is deactivate
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason or invalid transition
 components:
   securitySchemes:
     bearerAuth:

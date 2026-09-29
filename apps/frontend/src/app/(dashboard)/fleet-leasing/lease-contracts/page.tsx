@@ -1,3 +1,4 @@
+import Link from "next/link";
 import LeaseContractsTable from "@/components/modules/fleet-leasing/lease-contracts/LeaseContractsTable";
 
 export default function LeaseContractsPage() {
@@ -18,12 +19,12 @@ export default function LeaseContractsPage() {
           </p>
         </div>
 
-        <button
-          type="button"
+        <Link
+          href="/fleet-leasing/lease-contracts/new"
           className="rounded-lg bg-[#FE5720] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#e94d1c]"
         >
           New Contract
-        </button>
+        </Link>
       </div>
 
       {/* =====================================================
