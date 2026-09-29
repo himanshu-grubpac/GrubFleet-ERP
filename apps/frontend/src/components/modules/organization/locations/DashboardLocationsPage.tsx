@@ -23,6 +23,7 @@ import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardContact from "@/components/dashboard/DashboardContact";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -97,7 +98,7 @@ export default function LocationsPage() {
       return fetchOrganisationLocationsApi(token, {
         organizationId,
         page: 1,
-        pageSize: 50,
+        pageSize: 20,
         search: search.trim() || undefined,
         locationTypeId: selectedTypeId,
         status:
@@ -245,14 +246,17 @@ export default function LocationsPage() {
     },
 
     {
-      key: "email",
-      label: "Email",
+      key: "contact",
+      label: "Contact",
+      render: (location: Location) => (
+        <DashboardContact
+          phone={location.phone}
+          email={location.email}
+        />
+      ),
     },
 
-    {
-      key: "phone",
-      label: "Phone",
-    },
+
 
     {
       key: "status",
