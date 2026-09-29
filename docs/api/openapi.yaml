@@ -1321,6 +1321,9 @@ paths:
     get:
       tags: [organisation]
       summary: List organisation locations (paginated)
+      description: >-
+        Default sort when no sort query is supported: `createdAt` descending
+        (newest first), then `id` descending.
       operationId: listOrganisationLocations
       security:
         - bearerAuth: []
@@ -1351,9 +1354,17 @@ paths:
       operationId: createOrganisationLocation
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisationLocationRequest'
       responses:
         '201':
           description: Location created
+        '400':
+          description: Validation error
   /organisation/locations/{id}:
     get:
       tags: [organisation]
@@ -1386,9 +1397,17 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganisationLocationRequest'
       responses:
         '200':
           description: Updated location
+        '400':
+          description: Validation error or inactive location cannot be edited
   /organisation/locations/{id}/status:
     patch:
       tags: [organisation]
@@ -1423,6 +1442,154 @@ paths:
           description: Status updated
         '400':
           description: Missing deactivate reason or invalid transition
+  /organisation/employees:
+    get:
+      tags: [organisation]
+      summary: List organisation employees (paginated)
+      description: >-
+        Default sort when no sort query is supported: `createdAt` descending
+        (newest first), then `id` descending.
+      operationId: listOrganisationEmployees
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated employee rows
+    post:
+      tags: [organisation]
+      summary: Create organisation employee
+      operationId: createOrganisationEmployee
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisationEmployeeRequest'
+      responses:
+        '201':
+          description: Employee created
+        '400':
+          description: Validation error
+  /organisation/employees/departments:
+    get:
+      tags: [organisation]
+      summary: Distinct department names used by employees
+      operationId: listOrganisationEmployeeDepartments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Sorted distinct department names for filter dropdowns
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: string
+  /organisation/employees/{id}:
+    get:
+      tags: [organisation]
+      summary: Organisation employee detail
+      operationId: getOrganisationEmployee
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Employee detail
+    patch:
+      tags: [organisation]
+      summary: Update organisation employee
+      operationId: updateOrganisationEmployee
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganisationEmployeeRequest'
+      responses:
+        '200':
+          description: Updated employee
+        '400':
+          description: Validation error or inactive employee
+  /organisation/employees/{id}/status:
+    patch:
+      tags: [organisation]
+      summary: Activate or deactivate employee
+      operationId: updateOrganisationEmployeeStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reasonType:
+                  type: string
+                  enum: [resignation, termination, end_of_contract, other]
+                comment:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason type or invalid transition
 components:
   securitySchemes:
     bearerAuth:
@@ -1505,6 +1672,204 @@ components:
             database: up
             redis: up
             drizzle: up
+    CreateOrganisationEmployeeRequest:
+      type: object
+      required:
+        - organizationId
+        - fullName
+        - designation
+        - department
+        - locationId
+        - employmentType
+        - dateOfJoining
+        - phone
+        - email
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        designation:
+          type: string
+          minLength: 1
+          maxLength: 255
+        department:
+          type: string
+          minLength: 1
+          maxLength: 120
+        branchLocationLabel:
+          type: string
+          maxLength: 255
+        locationId:
+          type: string
+          format: uuid
+        reportsToEmployeeId:
+          type: string
+          format: uuid
+        employmentType:
+          type: string
+          enum: [full_time, part_time, contract]
+        dateOfJoining:
+          type: string
+          format: date
+        phone:
+          type: string
+          minLength: 1
+          maxLength: 32
+        email:
+          type: string
+          format: email
+          maxLength: 320
+    UpdateOrganisationEmployeeRequest:
+      type: object
+      properties:
+        fullName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        designation:
+          type: string
+          maxLength: 255
+        department:
+          type: string
+          maxLength: 120
+        branchLocationLabel:
+          type: string
+          maxLength: 255
+        locationId:
+          type: string
+          format: uuid
+          nullable: true
+        reportsToEmployeeId:
+          type: string
+          format: uuid
+          nullable: true
+        employmentType:
+          type: string
+          enum: [full_time, part_time, contract]
+        dateOfJoining:
+          type: string
+          format: date
+        phone:
+          type: string
+          maxLength: 32
+        email:
+          type: string
+          format: email
+          maxLength: 320
+    CreateOrganisationLocationRequest:
+      type: object
+      required:
+        - organizationId
+        - name
+        - locationTypeId
+        - addressLine1
+        - addressCountry
+        - addressState
+        - addressDistrict
+        - addressPincode
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        locationTypeId:
+          type: string
+          format: uuid
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+        addressCity:
+          type: string
+          maxLength: 120
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+          description: >-
+            ISO 3166-1 alpha-2 country code (validated against maintained ISO
+            dataset; all assigned codes accepted)
+          example: IN
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+          description: Postal code; format validated per addressCountry (IN 6-digit, US ZIP, etc.)
+        siteContactPhone:
+          type: string
+          maxLength: 32
+        siteContactEmail:
+          type: string
+          format: email
+          maxLength: 320
+        responsibleEmployeeId:
+          type: string
+          format: uuid
+        deputyEmployeeId:
+          type: string
+          format: uuid
+    UpdateOrganisationLocationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        locationTypeId:
+          type: string
+          format: uuid
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+        addressCity:
+          type: string
+          maxLength: 120
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+          description: ISO 3166-1 alpha-2 country code (maintained ISO dataset)
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+        siteContactPhone:
+          type: string
+          maxLength: 32
+        siteContactEmail:
+          type: string
+          format: email
+          maxLength: 320
+        responsibleEmployeeId:
+          type: string
+          format: uuid
+          nullable: true
+        deputyEmployeeId:
+          type: string
+          format: uuid
+          nullable: true
     ModuleStatus:
       type: object
       required: [module, implemented]

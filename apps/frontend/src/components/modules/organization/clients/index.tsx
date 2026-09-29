@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Users,
   Plus,
@@ -19,6 +19,11 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { OrganizationSubNav } from "../organization-subnav";
+import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
+import {
+  DASHBOARD_DEFAULT_PAGE_SIZE,
+  paginateClientRows,
+} from "@/components/dashboard/dashboard-pagination";
 
 export type ClientRecord = {
   id: string;
@@ -115,6 +120,7 @@ export function ClientsModule() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewClient, setViewClient] = useState<ClientRecord | null>(null);
+  const [page, setPage] = useState(1);
 
   // Form State
   const [companyName, setCompanyName] = useState("");
@@ -143,6 +149,20 @@ export function ClientsModule() {
       return matchesSearch && matchesInd && matchesStat;
     });
   }, [clients, searchQuery, selectedIndustry, selectedStatus]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, selectedIndustry, selectedStatus]);
+
+  const {
+    rows: paginatedClients,
+    safePage: clientsPage,
+    total: clientsTotal,
+  } = paginateClientRows(
+    filteredClients,
+    page,
+    DASHBOARD_DEFAULT_PAGE_SIZE,
+  );
 
   const totalLeased = clients.reduce((acc, c) => acc + c.leasedVehiclesCount, 0);
   const activeClientsCount = clients.filter((c) => c.contractStatus === "Active").length;
@@ -348,7 +368,7 @@ export function ClientsModule() {
                   </td>
                 </tr>
               ) : (
-                filteredClients.map((client) => (
+                paginatedClients.map((client) => (
                   <tr
                     key={client.id}
                     className="group transition-colors hover:bg-slate-50/80"
@@ -429,6 +449,15 @@ export function ClientsModule() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="border-t border-slate-100 px-5 py-3">
+          <DashboardTablePagination
+            page={clientsPage}
+            pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
+            total={clientsTotal}
+            onPageChange={setPage}
+            className="mt-0"
+          />
         </div>
       </div>
 

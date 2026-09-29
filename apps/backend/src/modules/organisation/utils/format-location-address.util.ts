@@ -5,6 +5,7 @@ type AddressParts = {
   addressDistrict?: string | null;
   addressState?: string | null;
   addressPincode?: string | null;
+  addressCountry?: string | null;
 };
 
 export function formatLocationAddress(parts: AddressParts): string {
@@ -15,6 +16,7 @@ export function formatLocationAddress(parts: AddressParts): string {
     parts.addressDistrict,
     parts.addressState,
     parts.addressPincode,
+    parts.addressCountry,
   ]
     .map((part) => part?.trim())
     .filter((part): part is string => Boolean(part))

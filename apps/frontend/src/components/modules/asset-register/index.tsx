@@ -1,6 +1,7 @@
 "use client";
 
 import { ClipboardList, Tag, Calendar, Wrench, CheckCircle2, Plus } from "lucide-react";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 const kpis = [
   { label: "Total Assets", value: "—", icon: ClipboardList, color: "text-blue-600", bg: "bg-blue-50" },
@@ -14,6 +15,7 @@ const columns = ["Asset ID", "Name", "Category", "Location", "Acquired", "Condit
 export function AssetRegisterModule() {
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/asset-register" />
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>

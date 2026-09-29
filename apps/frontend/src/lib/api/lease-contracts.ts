@@ -28,7 +28,9 @@ export type LeaseContractStatusFilter =
     | 'pending_approval'
     | 'awaiting_assets'
     | 'deactivated'
-    | 'closed';
+    | 'completed'
+    | 'billing_paused'
+    | 'pending_termination';
 
 export interface LeaseContractListItem {
     id: string;

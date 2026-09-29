@@ -14,13 +14,18 @@ type DashboardTableProps<T> = {
     data: T[];
     getRowKey: (row: T) => string;
     renderActions?: (row: T) => React.ReactNode;
+    /** Width/min-width for the actions column (default fits icon + link rows). */
+    actionsColumnClassName?: string;
 };
+
+const DEFAULT_ACTIONS_COLUMN_CLASS = "w-[150px]";
 
 export default function DashboardTable<T>({
     columns,
     data,
     getRowKey,
     renderActions,
+    actionsColumnClassName = DEFAULT_ACTIONS_COLUMN_CLASS,
 }: DashboardTableProps<T>) {
     return (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -41,7 +46,12 @@ export default function DashboardTable<T>({
                             ))}
 
                             {renderActions && (
-                                <th className="w-[150px] px-4 py-3 text-right text-xs font-semibold text-gray-600">
+                                <th
+                                    className={[
+                                        "px-4 py-3 text-right text-xs font-semibold text-gray-600",
+                                        actionsColumnClassName,
+                                    ].join(" ")}
+                                >
                                     Actions
                                 </th>
                             )}
@@ -70,7 +80,12 @@ export default function DashboardTable<T>({
                                 ))}
 
                                 {renderActions && (
-                                    <td className="px-4 py-3">
+                                    <td
+                                        className={[
+                                            "px-4 py-3 align-middle",
+                                            actionsColumnClassName,
+                                        ].join(" ")}
+                                    >
                                         {renderActions(row)}
                                     </td>
                                 )}

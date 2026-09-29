@@ -635,7 +635,7 @@
               { "key": "x-organization-id", "value": "{{organizationId}}" }
             ],
             "url": "{{baseUrl}}/organisation/locations?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /organisation/locations — paginated list with optional search, locationTypeId, status."
+            "description": "GET /organisation/locations — paginated list with optional search, locationTypeId, status. Default sort: createdAt desc (newest first), then id desc."
           },
           "response": []
         },
@@ -650,7 +650,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Andheri East Hub\",\n  \"locationTypeId\": \"{{locationTypeId}}\",\n  \"addressLine1\": \"Plot 12, MIDC\",\n  \"addressCity\": \"Mumbai\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai Suburban\",\n  \"addressPincode\": \"400069\",\n  \"siteContactPhone\": \"+919999999999\",\n  \"siteContactEmail\": \"hub@example.com\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Andheri East Hub\",\n  \"locationTypeId\": \"{{locationTypeId}}\",\n  \"addressLine1\": \"Plot 12, MIDC\",\n  \"addressCity\": \"Mumbai\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai Suburban\",\n  \"addressPincode\": \"400069\",\n  \"siteContactPhone\": \"+919999999999\",\n  \"siteContactEmail\": \"hub@example.com\"\n}"
             },
             "url": "{{baseUrl}}/organisation/locations",
             "description": "POST /organisation/locations"
@@ -671,6 +671,24 @@
           "response": []
         },
         {
+          "name": "Update location",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Andheri East Hub (updated)\",\n  \"addressLine1\": \"Plot 12, MIDC — revised\",\n  \"addressCity\": \"Mumbai\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai Suburban\",\n  \"addressPincode\": \"400069\",\n  \"siteContactPhone\": \"+919999999999\",\n  \"siteContactEmail\": \"hub-updated@example.com\",\n  \"responsibleEmployeeId\": null,\n  \"deputyEmployeeId\": null\n}"
+            },
+            "url": "{{baseUrl}}/organisation/locations/{{locationId}}?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/locations/{id} — update fields on an active location; inactive locations return 400."
+          },
+          "response": []
+        },
+        {
           "name": "Update location status",
           "request": {
             "method": "PATCH",
@@ -685,6 +703,81 @@
             },
             "url": "{{baseUrl}}/organisation/locations/{{locationId}}/status?organizationId={{organizationId}}",
             "description": "PATCH /organisation/locations/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        },
+        {
+          "name": "List employees",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/employees?organizationId={{organizationId}}&page=1&pageSize=50&status=active",
+            "description": "GET /organisation/employees — paginated list for employee register and location assignment dropdowns. Default sort: createdAt desc (newest first), then id desc."
+          },
+          "response": []
+        },
+        {
+          "name": "List employee departments",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/employees/departments?organizationId={{organizationId}}",
+            "description": "GET /organisation/employees/departments — distinct department names for employee filters."
+          },
+          "response": []
+        },
+        {
+          "name": "Create employee",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"fullName\": \"Priya Nair\",\n  \"designation\": \"Fleet Operations Manager\",\n  \"department\": \"Fleet Operations\",\n  \"locationId\": \"{{locationId}}\",\n  \"branchLocationLabel\": \"Andheri East Hub\",\n  \"employmentType\": \"full_time\",\n  \"dateOfJoining\": \"2020-06-01\",\n  \"phone\": \"+919876543210\",\n  \"email\": \"priya.nair@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/employees",
+            "description": "POST /organisation/employees"
+          },
+          "response": []
+        },
+        {
+          "name": "Get employee",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/employees/{{employeeId}}?organizationId={{organizationId}}",
+            "description": "GET /organisation/employees/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update employee status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reasonType\": \"resignation\",\n  \"comment\": \"Optional comment\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/employees/{{employeeId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/employees/{id}/status — reasonType required for deactivate."
           },
           "response": []
         }

@@ -13,13 +13,20 @@ import type { CreateLocationDto } from './dto/create-location.dto';
 import type { ListLocationsQueryDto } from './dto/list-locations-query.dto';
 import type { UpdateLocationDto } from './dto/update-location.dto';
 import type { UpdateLocationStatusDto } from './dto/update-location-status.dto';
+import { EmployeesService } from './employees.service';
 import { OrganisationRepository } from './repositories/organisation.repository';
+import type { EmployeeRow } from './repositories/organisation.repository';
 import { formatLocationAddress } from './utils/format-location-address.util';
+import {
+  assertValidLocationCountry,
+  assertValidLocationPostal,
+} from './utils/validate-location-geo.util';
 
 @Injectable()
 export class LocationsService {
   constructor(
     private readonly repo: OrganisationRepository,
+    private readonly employees: EmployeesService,
     private readonly audit: AuditService,
   ) {}
 
@@ -42,21 +49,33 @@ export class LocationsService {
         isActive,
       },
     );
-    const typeRows = await this.repo.listLocationTypesWithUsage(
+    const employeeNameById = await this.resolveEmployeeNames(
       query.organizationId,
+      rows.map((row) => row.responsibleEmployeeId),
     );
-    const typeNameById = new Map(typeRows.map((t) => [t.id, t.name]));
-    const items = rows.map((row) => this.toListItem(row, typeNameById));
+    const items = rows.map((row) => this.toListItem(row, employeeNameById));
     return toPaginatedResult(items, page, pageSize, total);
   }
 
   async getById(organizationId: string, locationId: string) {
     const row = await this.repo.getLocationInOrg(organizationId, locationId);
     if (!row) throw new NotFoundException('Location not found');
-    return this.toDetail(row);
+    const employeeNameById = await this.resolveEmployeeNames(organizationId, [
+      row.responsibleEmployeeId,
+      row.deputyEmployeeId,
+    ]);
+    return this.toDetail(row, employeeNameById);
   }
 
   async create(dto: CreateLocationDto) {
+    this.assertDistinctResponsibleAndDeputy(
+      dto.responsibleEmployeeId,
+      dto.deputyEmployeeId,
+    );
+    await this.assertEmployeesForLocation(dto.organizationId, {
+      responsibleEmployeeId: dto.responsibleEmployeeId,
+      deputyEmployeeId: dto.deputyEmployeeId,
+    });
     const type = await this.repo.getLocationTypeInOrg(
       dto.organizationId,
       dto.locationTypeId,
@@ -64,6 +83,8 @@ export class LocationsService {
     if (!type) {
       throw new BadRequestException('Invalid location type for organization');
     }
+    const addressCountry = assertValidLocationCountry(dto.addressCountry);
+    assertValidLocationPostal(addressCountry, dto.addressPincode);
     const inserted = await this.repo.insertLocation({
       organizationId: dto.organizationId,
       name: dto.name.trim(),
@@ -71,6 +92,7 @@ export class LocationsService {
       addressLine1: dto.addressLine1.trim(),
       addressLine2: dto.addressLine2?.trim() ?? null,
       addressCity: dto.addressCity?.trim() ?? null,
+      addressCountry,
       addressState: dto.addressState?.trim() ?? null,
       addressDistrict: dto.addressDistrict?.trim() ?? null,
       addressPincode: dto.addressPincode?.trim() ?? null,
@@ -98,6 +120,23 @@ export class LocationsService {
         'Inactive locations cannot be edited until reactivated',
       );
     }
+    const nextResponsible =
+      dto.responsibleEmployeeId !== undefined
+        ? dto.responsibleEmployeeId
+        : existing.responsibleEmployeeId;
+    const nextDeputy =
+      dto.deputyEmployeeId !== undefined
+        ? dto.deputyEmployeeId
+        : existing.deputyEmployeeId;
+    this.assertDistinctResponsibleAndDeputy(nextResponsible, nextDeputy);
+    await this.assertEmployeesForLocation(organizationId, {
+      responsibleEmployeeId:
+        dto.responsibleEmployeeId !== undefined
+          ? dto.responsibleEmployeeId
+          : undefined,
+      deputyEmployeeId:
+        dto.deputyEmployeeId !== undefined ? dto.deputyEmployeeId : undefined,
+    });
     if (dto.locationTypeId) {
       const type = await this.repo.getLocationTypeInOrg(
         organizationId,
@@ -106,6 +145,17 @@ export class LocationsService {
       if (!type) {
         throw new BadRequestException('Invalid location type for organization');
       }
+    }
+    const nextCountry =
+      dto.addressCountry !== undefined
+        ? assertValidLocationCountry(dto.addressCountry)
+        : existing.addressCountry;
+    if (dto.addressPincode !== undefined || dto.addressCountry !== undefined) {
+      const postal =
+        dto.addressPincode !== undefined
+          ? dto.addressPincode
+          : (existing.addressPincode ?? '');
+      assertValidLocationPostal(nextCountry, postal);
     }
     await this.repo.updateLocation(organizationId, locationId, {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
@@ -120,6 +170,9 @@ export class LocationsService {
         : {}),
       ...(dto.addressCity !== undefined
         ? { addressCity: dto.addressCity?.trim() ?? null }
+        : {}),
+      ...(dto.addressCountry !== undefined
+        ? { addressCountry: nextCountry }
         : {}),
       ...(dto.addressState !== undefined
         ? { addressState: dto.addressState?.trim() ?? null }
@@ -199,11 +252,60 @@ export class LocationsService {
     return this.getById(organizationId, locationId);
   }
 
+  private assertDistinctResponsibleAndDeputy(
+    responsibleEmployeeId: string | null | undefined,
+    deputyEmployeeId: string | null | undefined,
+  ) {
+    if (
+      responsibleEmployeeId &&
+      deputyEmployeeId &&
+      responsibleEmployeeId === deputyEmployeeId
+    ) {
+      throw new BadRequestException(
+        'Responsible person and deputy must be different employees',
+      );
+    }
+  }
+
+  private async resolveEmployeeNames(
+    organizationId: string,
+    employeeIds: Array<string | null | undefined>,
+  ): Promise<Map<string, EmployeeRow>> {
+    const ids = employeeIds.filter((id): id is string => Boolean(id));
+    const rows = await this.repo.getEmployeesByIds(organizationId, ids);
+    return new Map(rows.map((row) => [row.id, row]));
+  }
+
+  private async assertEmployeesForLocation(
+    organizationId: string,
+    input: {
+      responsibleEmployeeId?: string | null;
+      deputyEmployeeId?: string | null;
+    },
+  ) {
+    if (input.responsibleEmployeeId) {
+      await this.employees.assertEmployeeAssignable(
+        organizationId,
+        input.responsibleEmployeeId,
+        { mustBeActive: true },
+      );
+    }
+    if (input.deputyEmployeeId) {
+      await this.employees.assertEmployeeAssignable(
+        organizationId,
+        input.deputyEmployeeId,
+        { mustBeActive: true },
+      );
+    }
+  }
+
   private toListItem(
     row: {
       id: string;
       name: string;
       locationTypeId: string;
+      typeName: string;
+      responsibleEmployeeId: string | null;
       addressLine1: string;
       addressLine2: string | null;
       addressCity: string | null;
@@ -214,17 +316,20 @@ export class LocationsService {
       siteContactPhone: string | null;
       isActive: boolean;
     },
-    typeNameById: Map<string, string>,
+    employeeById: Map<string, EmployeeRow>,
   ) {
+    const responsible = row.responsibleEmployeeId
+      ? employeeById.get(row.responsibleEmployeeId)
+      : undefined;
     return {
       id: row.id,
       name: row.name,
-      type: typeNameById.get(row.locationTypeId) ?? '',
+      type: row.typeName,
       locationTypeId: row.locationTypeId,
       address: formatLocationAddress(row),
-      responsiblePerson: '',
-      email: row.siteContactEmail ?? '',
-      phone: row.siteContactPhone ?? '',
+      responsiblePerson: this.employees.employeeDisplayName(responsible),
+      email: responsible?.companyEmail ?? '',
+      phone: responsible?.mobile ?? '',
       status: row.isActive ? ('active' as const) : ('inactive' as const),
     };
   }
@@ -233,7 +338,14 @@ export class LocationsService {
     row: NonNullable<
       Awaited<ReturnType<OrganisationRepository['getLocationInOrg']>>
     >,
+    employeeById: Map<string, EmployeeRow>,
   ) {
+    const responsible = row.responsibleEmployeeId
+      ? employeeById.get(row.responsibleEmployeeId)
+      : undefined;
+    const deputy = row.deputyEmployeeId
+      ? employeeById.get(row.deputyEmployeeId)
+      : undefined;
     return {
       id: row.id,
       name: row.name,
@@ -247,14 +359,19 @@ export class LocationsService {
       addressState: row.addressState,
       addressDistrict: row.addressDistrict,
       addressPincode: row.addressPincode,
+      addressCountry: row.addressCountry,
       siteContactPhone: row.siteContactPhone,
       siteContactEmail: row.siteContactEmail,
       responsibleEmployeeId: row.responsibleEmployeeId,
       deputyEmployeeId: row.deputyEmployeeId,
-      responsiblePerson: '',
-      deputyName: '',
-      email: row.siteContactEmail ?? '',
-      phone: row.siteContactPhone ?? '',
+      responsiblePerson: this.employees.employeeDisplayName(responsible),
+      responsiblePersonPhone: responsible?.mobile ?? '',
+      responsiblePersonEmail: responsible?.companyEmail ?? '',
+      deputyName: this.employees.employeeDisplayName(deputy),
+      deputyPhone: deputy?.mobile ?? '',
+      deputyEmail: deputy?.companyEmail ?? '',
+      email: responsible?.companyEmail ?? '',
+      phone: responsible?.mobile ?? '',
       status: row.isActive ? ('active' as const) : ('inactive' as const),
       isActive: row.isActive,
       createdAt: row.createdAt.toISOString(),

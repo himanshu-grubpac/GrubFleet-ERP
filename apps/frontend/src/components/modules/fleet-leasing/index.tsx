@@ -1,6 +1,7 @@
 "use client";
 
 import { Car, FileText, AlertTriangle, CheckCircle2, Clock, TrendingUp } from "lucide-react";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 const kpis = [
   { label: "Total Vehicles", value: "—", icon: Car, color: "text-blue-600", bg: "bg-blue-50" },
@@ -20,6 +21,7 @@ const statusStyles: Record<string, string> = {
 export function FleetLeasingModule() {
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/fleet-leasing" />
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>

@@ -24,6 +24,7 @@ import LeaseAssetClassTable, {
 import LeaseContractTerms from "./LeaseContractTerms";
 
 import LeaseDeactivationNotice from "./LeaseDeactivationNotice";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 // ─── Status mapper ────────────────────────────────────────────────────────────
 
@@ -278,6 +279,9 @@ export default function LeaseContractDetails() {
 
     return (
         <div className="space-y-6">
+            <DashboardBreadcrumbsFromPath
+                currentLabel={contract.contractNumber}
+            />
             {/* =====================================================
                 CONTRACT HEADER
             ====================================================== */}

@@ -4,9 +4,12 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Length,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
 
 export class UpdateLocationDto {
   @ApiPropertyOptional()
@@ -40,6 +43,21 @@ export class UpdateLocationDto {
   @MaxLength(120)
   addressCity?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'ISO 3166-1 alpha-2 country code (any valid code from maintained ISO dataset)',
+    minLength: 2,
+    maxLength: 2,
+  })
+  @IsOptional()
+  @IsString()
+  @Length(2, 2)
+  @Matches(/^[A-Za-z]{2}$/, {
+    message: 'addressCountry must be a 2-letter ISO code',
+  })
+  @IsIso31661Alpha2Country()
+  addressCountry?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
@@ -52,7 +70,10 @@ export class UpdateLocationDto {
   @MaxLength(120)
   addressDistrict?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Postal code — format validated per addressCountry',
+    maxLength: 20,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(20)

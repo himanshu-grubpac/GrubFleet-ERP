@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Truck,
   Plus,
@@ -19,6 +19,11 @@ import {
   DollarSign,
 } from "lucide-react";
 import { OrganizationSubNav } from "../organization-subnav";
+import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
+import {
+  DASHBOARD_DEFAULT_PAGE_SIZE,
+  paginateClientRows,
+} from "@/components/dashboard/dashboard-pagination";
 
 export type SupplierRecord = {
   id: string;
@@ -142,6 +147,7 @@ export function SuppliersModule() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewSupplier, setViewSupplier] = useState<SupplierRecord | null>(null);
+  const [page, setPage] = useState(1);
 
   // Add Supplier Form State
   const [companyName, setCompanyName] = useState("");
@@ -170,6 +176,20 @@ export function SuppliersModule() {
       return matchesSearch && matchesCat && matchesStat;
     });
   }, [suppliers, searchQuery, selectedCategory, selectedStatus]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, selectedCategory, selectedStatus]);
+
+  const {
+    rows: paginatedSuppliers,
+    safePage: suppliersPage,
+    total: suppliersTotal,
+  } = paginateClientRows(
+    filteredSuppliers,
+    page,
+    DASHBOARD_DEFAULT_PAGE_SIZE,
+  );
 
   const preferredCount = suppliers.filter((s) => s.status === "Preferred").length;
   const pendingCount = suppliers.filter((s) => s.complianceStatus !== "Verified").length;
@@ -378,7 +398,7 @@ export function SuppliersModule() {
                   </td>
                 </tr>
               ) : (
-                filteredSuppliers.map((sup) => (
+                paginatedSuppliers.map((sup) => (
                   <tr
                     key={sup.id}
                     className="group transition-colors hover:bg-slate-50/80"
@@ -480,6 +500,15 @@ export function SuppliersModule() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="border-t border-slate-100 px-5 py-3">
+          <DashboardTablePagination
+            page={suppliersPage}
+            pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
+            total={suppliersTotal}
+            onPageChange={setPage}
+            className="mt-0"
+          />
         </div>
       </div>
 

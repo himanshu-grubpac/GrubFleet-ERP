@@ -1,6 +1,14 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
+import { usePathname } from "next/navigation";
+
+import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
+import { DashboardBreadcrumb } from "@/components/dashboard/DashboardBreadcrumb";
+import {
+  buildDashboardBreadcrumbs,
+  type DashboardBreadcrumbItem,
+} from "@/lib/navigation/dashboard-breadcrumbs";
 
 type DashboardTab = {
     label: string;
@@ -13,6 +21,10 @@ type DashboardLayoutProps = {
     tabs?: DashboardTab[];
     activeTab?: string;
     action?: React.ReactNode;
+    backHref?: string;
+    backLabel?: string;
+    breadcrumbItems?: DashboardBreadcrumbItem[];
+    breadcrumbCurrentLabel?: string;
     children: React.ReactNode;
 };
 
@@ -22,14 +34,37 @@ export default function DashboardLayout({
     tabs = [],
     activeTab,
     action,
+    backHref,
+    backLabel,
+    breadcrumbItems,
+    breadcrumbCurrentLabel,
     children,
 }: DashboardLayoutProps) {
+    const pathname = usePathname();
+    const showBack = Boolean(backHref && backLabel);
+
+    const resolvedBreadcrumbs = useMemo(
+        () =>
+            buildDashboardBreadcrumbs(pathname ?? "/", {
+                items: breadcrumbItems,
+                currentLabel: breadcrumbCurrentLabel,
+            }),
+        [pathname, breadcrumbItems, breadcrumbCurrentLabel],
+    );
+
     return (
-        <div className="flex min-h-full flex-col bg-[#f8f8f8]">
+        <div className="-mx-4 -my-4 flex min-h-full flex-col bg-[#f8f8f8] md:-mx-6 md:-my-6">
             {/* Header */}
-            <div className="border-b border-gray-200 bg-white px-6 pt-5">
+            <div className="shrink-0 border-b border-gray-200 bg-white px-6 pt-5">
                 <div className="flex items-start justify-between">
-                    <div>
+                    <div className="min-w-0 flex-1 space-y-2">
+                        {showBack ? (
+                            <SubPageBackLink
+                                href={backHref!}
+                                label={backLabel!}
+                            />
+                        ) : null}
+                        <DashboardBreadcrumb items={resolvedBreadcrumbs} />
                         <h1 className="text-xl font-semibold text-gray-900">
                             {title}
                         </h1>
@@ -41,7 +76,7 @@ export default function DashboardLayout({
                         )}
                     </div>
 
-                    {action && <div>{action}</div>}
+                    {action && <div className="shrink-0 pl-4">{action}</div>}
                 </div>
 
                 {/* Sub navigation */}
@@ -70,9 +105,7 @@ export default function DashboardLayout({
             </div>
 
             {/* Content */}
-            <main className="flex-1 p-6">
-                {children}
-            </main>
+            <main className="min-h-0 flex-1 p-6 pb-8">{children}</main>
         </div>
     );
 }

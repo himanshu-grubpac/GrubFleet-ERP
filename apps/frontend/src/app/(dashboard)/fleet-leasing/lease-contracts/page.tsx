@@ -1,9 +1,11 @@
 import Link from "next/link";
 import LeaseContractsTable from "@/components/modules/fleet-leasing/lease-contracts/LeaseContractsTable";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 export default function LeaseContractsPage() {
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/fleet-leasing/lease-contracts" />
       {/* =====================================================
                 PAGE HEADER
             ====================================================== */}

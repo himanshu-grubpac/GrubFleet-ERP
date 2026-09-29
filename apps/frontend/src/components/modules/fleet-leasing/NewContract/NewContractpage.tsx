@@ -19,6 +19,7 @@ import CustomerRegistrationForm from "./CustomerRegistrationForm";
 import type {
     FleetClientListItem,
 } from "@/lib/api/lease-contracts";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 type Screen =
     | "select-client"
@@ -148,9 +149,16 @@ export default function NewLeaseContractPage() {
     // SELECT CLIENT
     // ============================================================
 
+    const newContractBreadcrumb = (
+        <div className="border-b border-gray-200 bg-white px-6 py-2.5">
+            <DashboardBreadcrumbsFromPath pathname="/fleet-leasing/lease-contracts/new" />
+        </div>
+    );
+
     if (screen === "select-client") {
         return (
             <div className="min-h-full w-full bg-[#f7f7f7]">
+                {newContractBreadcrumb}
                 <SelectClientStep
                     onClientSelected={
                         handleClientSelected
@@ -172,6 +180,7 @@ export default function NewLeaseContractPage() {
     if (screen === "register-client") {
         return (
             <div className="min-h-full w-full bg-[#f7f7f7]">
+                {newContractBreadcrumb}
                 <CustomerRegistrationForm
                     onSuccess={
                         handleClientCreated
@@ -194,6 +203,7 @@ export default function NewLeaseContractPage() {
     if (screen === "asset-lines") {
         return (
             <div className="min-h-full w-full bg-[#f7f7f7]">
+                {newContractBreadcrumb}
                 <AssetLinesStep
                     clientId={
                         selectedClientId
@@ -230,6 +240,7 @@ export default function NewLeaseContractPage() {
     if (screen === "terms") {
         return (
             <div className="min-h-full w-full bg-[#f7f7f7]">
+                {newContractBreadcrumb}
                 <TermsStep
                     clientName={
                         selectedClientName
@@ -262,6 +273,7 @@ export default function NewLeaseContractPage() {
 
     return (
         <div className="min-h-full w-full bg-[#f7f7f7]">
+            {newContractBreadcrumb}
             <ReviewStep
                 clientId={
                     selectedClientId

@@ -64,6 +64,41 @@
       "when": 1791000000000,
       "tag": "0008_organisation_locations",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0009_organisation_employees",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1791200000000,
+      "tag": "0010_organisation_employees_align",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1791300000000,
+      "tag": "0011_organisation_employees_nullable_v1",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1791400000000,
+      "tag": "0012_organisation_employees_text_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1791500000000,
+      "tag": "0013_organisation_locations_address_country",
+      "breakpoints": true
     }
   ]
 }

@@ -23,17 +23,23 @@ export type OrganisationLocationDetail = OrganisationLocationListItem & {
   addressState: string | null;
   addressDistrict: string | null;
   addressPincode: string | null;
+  addressCountry: string;
   siteContactPhone: string | null;
   siteContactEmail: string | null;
   responsibleEmployeeId: string | null;
   deputyEmployeeId: string | null;
+  responsiblePersonPhone?: string;
+  responsiblePersonEmail?: string;
   deputyName: string;
-  deputyEmail?: string;
   deputyPhone?: string;
+  deputyEmail?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
 };
+
+/** Matches backend `LOCATION_LIST_MAX_PAGE_SIZE` for form dropdowns. */
+export const ORGANISATION_LOCATION_FORM_PICKER_PAGE_SIZE = 200;
 
 export type ListOrganisationLocationsParams = {
   organizationId: string;
@@ -50,10 +56,10 @@ export type CreateOrganisationLocationPayload = {
   locationTypeId: string;
   addressLine1: string;
   addressLine2?: string;
-  addressCity?: string;
-  addressState?: string;
-  addressDistrict?: string;
-  addressPincode?: string;
+  addressCountry: string;
+  addressState: string;
+  addressDistrict: string;
+  addressPincode: string;
   siteContactPhone?: string;
   siteContactEmail?: string;
   responsibleEmployeeId?: string;
@@ -61,8 +67,14 @@ export type CreateOrganisationLocationPayload = {
 };
 
 export type UpdateOrganisationLocationPayload = Partial<
-  Omit<CreateOrganisationLocationPayload, "organizationId">
->;
+  Omit<
+    CreateOrganisationLocationPayload,
+    "organizationId" | "siteContactPhone" | "siteContactEmail"
+  >
+> & {
+  siteContactPhone?: string | null;
+  siteContactEmail?: string | null;
+};
 
 function orgHeaders(organizationId: string): HeadersInit {
   return { "x-organization-id": organizationId };

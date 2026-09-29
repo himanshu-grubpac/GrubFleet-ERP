@@ -9,9 +9,9 @@ import {
   UserRound,
   Contact,
   Users,
-  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 export const organizationNavItems = [
   {
@@ -49,32 +49,9 @@ export const organizationNavItems = [
 export function OrganizationSubNav() {
   const pathname = usePathname();
 
-  const currentItem =
-    organizationNavItems.find((item) => pathname.startsWith(item.href)) ||
-    organizationNavItems[0];
-
   return (
     <div className="space-y-4">
-      {/* Breadcrumb Bar */}
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        <Link
-          href="/dashboard"
-          className="transition hover:text-slate-800"
-        >
-          Dashboard
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-        <Link
-          href="/organization/locations"
-          className="transition hover:text-slate-800"
-        >
-          Organization
-        </Link>
-        <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-        <span className="font-semibold text-[#FE5720]">
-          {currentItem.label}
-        </span>
-      </div>
+      <DashboardBreadcrumbsFromPath accentCurrent />
 
       {/* Pill Navigation Bar */}
       <div className="no-scrollbar flex items-center gap-1.5 overflow-x-auto rounded-xl border border-slate-200/80 bg-slate-50/80 p-1.5 backdrop-blur-xs">

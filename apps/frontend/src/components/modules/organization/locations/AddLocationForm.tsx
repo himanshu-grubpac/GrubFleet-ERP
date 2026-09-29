@@ -1,9 +1,16 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
+import {
+    LOCATION_SAVE_ERROR,
+    showErrorToast,
+    showLocationCreatedToast,
+    showLocationUpdatedToast,
+} from "@/lib/toast/show-toast";
 import {
   createOrganisationLocationTypeApi,
   deleteOrganisationLocationTypeApi,
@@ -18,10 +25,47 @@ import {
     Plus,
     X,
     Info,
-    ChevronDown,
 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+    ORG_INPUT_LIMITS,
+    ORG_VALIDATION_MESSAGES,
+    isValidOrgEmail,
+    isWithinOrgMaxLength,
+    orgMaxLengthMessage,
+} from "@/lib/validation/org-input-constraints";
+import {
+    formatPhoneDisplay,
+    normalizePhoneForApi,
+} from "@/lib/format/phone-format";
+import { CountrySelect } from "@/components/geo/CountrySelect";
+import { RegionSelect } from "@/components/geo/RegionSelect";
+import {
+    DEFAULT_COUNTRY_CODE,
+    getCountryDefinition,
+} from "@/lib/geo/countries";
+import {
+    getPhonePlaceholder,
+    getPostalPlaceholder,
+    getPostalRestrictedKindForCountry,
+    isValidPostalForCountry,
+    postalRequiredMessage,
+    postalValidationMessage,
+} from "@/lib/geo";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import { ErrorState } from "@/components/states/async-states";
+import { OrganisationDashboardFormSkeleton } from "@/components/modules/organization/OrganisationDashboardFormSkeleton";
+import {
+    LOCATIONS_ACTIVE_TAB,
+    LOCATIONS_DASHBOARD_TABS,
+    LOCATIONS_PAGE_DESCRIPTION,
+} from "./locationDashboardLayoutProps";
+import {
+    fetchOrganisationEmployeesApi,
+    type OrganisationEmployeeListItem,
+} from "@/lib/api/organisation/employees";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -34,30 +78,18 @@ type LocationType = {
     isUsed: boolean;
 };
 
-type Contact = {
-    id: string;
-    name: string;
-    phone: string;
-    email: string;
-};
-
 type LocationFormData = {
     name: string;
 
     type: string;
 
     address: {
+        country: string;
         line1: string;
         line2: string;
-        city: string;
         state: string;
         district: string;
         pincode: string;
-    };
-
-    contactInformation: {
-        phone: string;
-        email: string;
     };
 
     responsiblePerson: {
@@ -73,63 +105,217 @@ type LocationFormData = {
         phone: string;
         email: string;
     };
+
+    officeContact: {
+        phone: string;
+        email: string;
+    };
 };
-
-/* -------------------------------------------------------------------------- */
-/* Mock Location Types                                                        */
-/* -------------------------------------------------------------------------- */
-/*
- * TEMPORARY MOCK DATA
- *
- * This will later come from the backend.
- */
-
-/* -------------------------------------------------------------------------- */
-/* Mock Contacts                                                              */
-/* -------------------------------------------------------------------------- */
-/*
- * TEMPORARY MOCK DATA
- *
- * Later this list will come from the backend.
- *
- * When a person is selected:
- * - Name is selected from dropdown
- * - Phone is automatically populated
- * - Email is automatically populated
- */
-
-const MOCK_CONTACTS: Contact[] = [
-    {
-        id: "person-001",
-        name: "Rohan Kapoor",
-        phone: "+91 9876543210",
-        email: "rohan@company.com",
-    },
-    {
-        id: "person-002",
-        name: "Priya Nair",
-        phone: "+91 9876543211",
-        email: "priya@company.com",
-    },
-    {
-        id: "person-003",
-        name: "Amit Sharma",
-        phone: "+91 9876543212",
-        email: "amit@company.com",
-    },
-    {
-        id: "person-004",
-        name: "Neha Verma",
-        phone: "+91 9876543213",
-        email: "neha@company.com",
-    },
-];
 
 const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function employeeIdForApi(id: string): string | undefined {
     return id && UUID_RE.test(id) ? id : undefined;
+}
+
+function locationFormValidationError(
+    form: LocationFormData,
+    locationTypes: LocationType[],
+): string | null {
+    if (!form.name.trim()) {
+        return "Location name is required.";
+    }
+    if (
+        !isWithinOrgMaxLength(
+            form.name,
+            ORG_INPUT_LIMITS.locationName,
+        )
+    ) {
+        return orgMaxLengthMessage(
+            "Location name",
+            ORG_INPUT_LIMITS.locationName,
+        );
+    }
+    if (!form.type.trim()) {
+        return "Please select a location type.";
+    }
+    const matchedType = locationTypes.find(
+        (type) => type.name.toLowerCase() === form.type.toLowerCase(),
+    );
+    if (!matchedType) {
+        return "Please select a valid location type.";
+    }
+    if (!form.address.line1.trim()) {
+        return "Address Line 1 is required.";
+    }
+    if (
+        !isWithinOrgMaxLength(
+            form.address.line1,
+            ORG_INPUT_LIMITS.addressLine,
+        )
+    ) {
+        return orgMaxLengthMessage(
+            "Address line 1",
+            ORG_INPUT_LIMITS.addressLine,
+        );
+    }
+    if (
+        form.address.line2.trim() &&
+        !isWithinOrgMaxLength(
+            form.address.line2,
+            ORG_INPUT_LIMITS.addressLine,
+        )
+    ) {
+        return orgMaxLengthMessage(
+            "Address line 2",
+            ORG_INPUT_LIMITS.addressLine,
+        );
+    }
+    const countryDef = getCountryDefinition(form.address.country);
+    if (!form.address.country.trim()) {
+        return "Country is required.";
+    }
+    if (!form.address.state.trim()) {
+        return `${countryDef.regionLabel} is required.`;
+    }
+    if (
+        !isWithinOrgMaxLength(
+            form.address.state,
+            ORG_INPUT_LIMITS.addressRegion,
+        )
+    ) {
+        return orgMaxLengthMessage(
+            countryDef.regionLabel,
+            ORG_INPUT_LIMITS.addressRegion,
+        );
+    }
+    if (countryDef.showDistrict) {
+        if (!form.address.district.trim()) {
+            return "District is required.";
+        }
+        if (
+            !isWithinOrgMaxLength(
+                form.address.district,
+                ORG_INPUT_LIMITS.addressRegion,
+            )
+        ) {
+            return orgMaxLengthMessage(
+                "District",
+                ORG_INPUT_LIMITS.addressRegion,
+            );
+        }
+    } else if (
+        form.address.district.trim() &&
+        !isWithinOrgMaxLength(
+            form.address.district,
+            ORG_INPUT_LIMITS.addressRegion,
+        )
+    ) {
+        return orgMaxLengthMessage("District", ORG_INPUT_LIMITS.addressRegion);
+    }
+    const pincode = form.address.pincode.trim();
+    if (!pincode) {
+        return postalRequiredMessage(form.address.country);
+    }
+    if (!isValidPostalForCountry(form.address.country, pincode)) {
+        return postalValidationMessage(form.address.country);
+    }
+
+    const responsibleId = employeeIdForApi(form.responsiblePerson.id);
+    const deputyId = employeeIdForApi(form.deputy.id);
+    if (responsibleId && deputyId && responsibleId === deputyId) {
+        return "Responsible person and deputy must be different employees.";
+    }
+
+    const officePhone = normalizePhoneForApi(
+        form.officeContact.phone,
+        countryDef.phoneDefaultCountry,
+    );
+    const officeEmail = form.officeContact.email.trim();
+    if (officePhone.length > ORG_INPUT_LIMITS.phone) {
+        return orgMaxLengthMessage(
+            "Office contact phone",
+            ORG_INPUT_LIMITS.phone,
+        );
+    }
+    if (officeEmail && !isValidOrgEmail(officeEmail)) {
+        return ORG_VALIDATION_MESSAGES.emailInvalid;
+    }
+
+    return null;
+}
+
+function isLocationFormValid(
+    form: LocationFormData,
+    locationTypes: LocationType[],
+): boolean {
+    return locationFormValidationError(form, locationTypes) === null;
+}
+
+function contactFromEmployeeSelection(
+    employeeId: string,
+    employees: OrganisationEmployeeListItem[],
+    fallback?: { name?: string; phone?: string; email?: string },
+): LocationFormData["responsiblePerson"] {
+    if (!employeeId) {
+        return { id: "", name: "", phone: "", email: "" };
+    }
+    const employee = employees.find((row) => row.id === employeeId);
+    return {
+        id: employeeId,
+        name: employee?.fullName ?? fallback?.name ?? "",
+        phone: employee?.phone ?? fallback?.phone ?? "",
+        email: employee?.email ?? fallback?.email ?? "",
+    };
+}
+
+const SELECT_FIELD_CLASS =
+    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+const INPUT_FIELD_CLASS =
+    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+const READONLY_FIELD_CLASS =
+    "h-10 w-full cursor-default rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-700 outline-none placeholder:text-gray-400";
+
+const TYPE_CHIP_SELECTED_CLASS =
+    "border-[#FE5720] bg-[#FE5720]/10 text-[#FE5720]";
+
+const TYPE_CHIP_DEFAULT_CLASS =
+    "border-gray-300 bg-white text-gray-700 hover:bg-gray-50";
+
+function FieldLabel({
+    htmlFor,
+    required,
+    children,
+}: {
+    htmlFor?: string;
+    required?: boolean;
+    children: ReactNode;
+}) {
+    return (
+        <label
+            htmlFor={htmlFor}
+            className="mb-1 block text-xs font-semibold text-gray-700"
+        >
+            {children}
+            {required ? (
+                <span className="text-red-600" aria-hidden="true">
+                    {" "}
+                    *
+                </span>
+            ) : null}
+        </label>
+    );
+}
+
+function SectionTitle({ children }: { children: ReactNode }) {
+    return (
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-700">
+            {children}
+        </h3>
+    );
 }
 
 /* -------------------------------------------------------------------------- */
@@ -151,9 +337,22 @@ export default function AddLocationForm({
     onCancel,
     onSaved,
 }: AddLocationFormProps) {
-    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
+    const router = useRouter();
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+        permissions,
+    } = useAuth();
     const queryClient = useQueryClient();
     const isEditMode = Boolean(locationId);
+    const [isRedirectingInactive, setIsRedirectingInactive] = useState(false);
+
+    const canSave = isEditMode
+        ? permissions.has("organisation.update") ||
+          permissions.has("organisation.manage")
+        : permissions.has("organisation.create") ||
+          permissions.has("organisation.manage");
 
     /* ------------------------------------------------------------------------ */
     /* State                                                                    */
@@ -214,17 +413,12 @@ export default function AddLocationForm({
             type: "",
 
             address: {
+                country: DEFAULT_COUNTRY_CODE,
                 line1: "",
                 line2: "",
-                city: "",
                 state: "",
                 district: "",
                 pincode: "",
-            },
-
-            contactInformation: {
-                phone: "",
-                email: "",
             },
 
             responsiblePerson: {
@@ -237,6 +431,11 @@ export default function AddLocationForm({
             deputy: {
                 id: "",
                 name: "",
+                phone: "",
+                email: "",
+            },
+
+            officeContact: {
                 phone: "",
                 email: "",
             },
@@ -248,6 +447,29 @@ export default function AddLocationForm({
     const [error, setError] =
         useState("");
 
+    const activeEmployeesQuery = useQuery({
+        queryKey: [
+            "organization",
+            "employees",
+            organizationId,
+            "active-picker",
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchOrganisationEmployeesApi(token, {
+                organizationId,
+                status: "active",
+                page: 1,
+                pageSize: 200,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+    });
+
+    const activeEmployees = activeEmployeesQuery.data?.items ?? [];
+
     useEffect(() => {
         const detail = locationDetailQuery.data;
         if (!detail) return;
@@ -255,31 +477,142 @@ export default function AddLocationForm({
             name: detail.name,
             type: detail.type,
             address: {
+                country: detail.addressCountry ?? DEFAULT_COUNTRY_CODE,
                 line1: detail.addressLine1,
                 line2: detail.addressLine2 ?? "",
-                city: detail.addressCity ?? "",
                 state: detail.addressState ?? "",
                 district: detail.addressDistrict ?? "",
                 pincode: detail.addressPincode ?? "",
             },
-            contactInformation: {
+            responsiblePerson: contactFromEmployeeSelection(
+                detail.responsibleEmployeeId ?? "",
+                activeEmployees,
+                {
+                    name: detail.responsiblePerson ?? "",
+                    phone: detail.responsiblePersonPhone ?? "",
+                    email: detail.responsiblePersonEmail ?? "",
+                },
+            ),
+            deputy: contactFromEmployeeSelection(
+                detail.deputyEmployeeId ?? "",
+                activeEmployees,
+                {
+                    name: detail.deputyName ?? "",
+                    phone: detail.deputyPhone ?? "",
+                    email: detail.deputyEmail ?? "",
+                },
+            ),
+            officeContact: {
                 phone: detail.siteContactPhone ?? "",
                 email: detail.siteContactEmail ?? "",
             },
-            responsiblePerson: {
-                id: detail.responsibleEmployeeId ?? "",
-                name: detail.responsiblePerson ?? "",
-                phone: "",
-                email: "",
-            },
-            deputy: {
-                id: detail.deputyEmployeeId ?? "",
-                name: detail.deputyName ?? "",
-                phone: "",
-                email: "",
-            },
         });
-    }, [locationDetailQuery.data]);
+    }, [locationDetailQuery.data, activeEmployees]);
+
+    useEffect(() => {
+        const detail = locationDetailQuery.data;
+        if (!isEditMode || !detail || !locationId) return;
+        if (!detail.isActive || detail.status === "inactive") {
+            setIsRedirectingInactive(true);
+            router.replace(`/organization/locations/${locationId}`);
+        }
+    }, [isEditMode, locationDetailQuery.data, locationId, router]);
+
+    const isFormLoading =
+        isAuthLoading ||
+        locationTypesQuery.isLoading ||
+        activeEmployeesQuery.isLoading ||
+        (isEditMode &&
+            (locationDetailQuery.isLoading ||
+                (!locationDetailQuery.data && !locationDetailQuery.isError)));
+
+    const detailLoadFailed = isEditMode && locationDetailQuery.isError;
+
+    const detailLoadErrorMessage =
+        locationDetailQuery.error instanceof ApiClientError
+            ? locationDetailQuery.error.message
+            : "Failed to load location for editing.";
+
+    const responsibleSelectOptions = useMemo(() => {
+        const options = [...activeEmployees];
+        const currentId = form.responsiblePerson.id;
+        if (
+            currentId &&
+            !options.some((employee) => employee.id === currentId)
+        ) {
+            options.unshift({
+                id: currentId,
+                fullName:
+                    form.responsiblePerson.name || "Linked employee",
+                designation: "",
+                department: "",
+                location: "",
+                reportsToId: null,
+                reportsToName: null,
+                employmentType: "full_time" as const,
+                dateOfJoining: "",
+                phone: form.responsiblePerson.phone,
+                email: form.responsiblePerson.email,
+                status: "active" as const,
+            });
+        }
+        return options;
+    }, [activeEmployees, form.responsiblePerson]);
+
+    const deputySelectOptions = useMemo(() => {
+        const options = activeEmployees.filter(
+            (employee) => employee.id !== form.responsiblePerson.id,
+        );
+        const currentId = form.deputy.id;
+        if (
+            currentId &&
+            !options.some((employee) => employee.id === currentId)
+        ) {
+            options.unshift({
+                id: currentId,
+                fullName: form.deputy.name || "Linked employee",
+                designation: "",
+                department: "",
+                location: "",
+                reportsToId: null,
+                reportsToName: null,
+                employmentType: "full_time" as const,
+                dateOfJoining: "",
+                phone: form.deputy.phone,
+                email: form.deputy.email,
+                status: "active" as const,
+            });
+        }
+        return options;
+    }, [activeEmployees, form.deputy, form.responsiblePerson.id]);
+
+    const isFormValid = useMemo(
+        () => isLocationFormValid(form, locationTypes),
+        [form, locationTypes],
+    );
+
+    const addressCountryDef = useMemo(
+        () => getCountryDefinition(form.address.country),
+        [form.address.country],
+    );
+
+    const postalRestrictedKind = useMemo(
+        () => getPostalRestrictedKindForCountry(form.address.country),
+        [form.address.country],
+    );
+
+    const officePhonePlaceholder = useMemo(
+        () => getPhonePlaceholder(form.address.country),
+        [form.address.country],
+    );
+
+    const postalFieldPlaceholder = useMemo(
+        () => getPostalPlaceholder(form.address.country),
+        [form.address.country],
+    );
+
+    const canSubmit =
+        canSave && isFormValid && !isSaving && !isFormLoading;
 
     /* ------------------------------------------------------------------------ */
     /* General Form Update                                                      */
@@ -294,90 +627,6 @@ export default function AddLocationForm({
         setForm((previous) => ({
             ...previous,
             [key]: value,
-        }));
-    };
-
-    /* ------------------------------------------------------------------------ */
-    /* Responsible Person                                                       */
-    /* ------------------------------------------------------------------------ */
-
-    const handleResponsiblePersonChange = (
-        contactId: string
-    ) => {
-        if (!contactId) {
-            setForm((previous) => ({
-                ...previous,
-
-                responsiblePerson: {
-                    id: "",
-                    name: "",
-                    phone: "",
-                    email: "",
-                },
-            }));
-
-            return;
-        }
-
-        const contact = MOCK_CONTACTS.find(
-            (item) => item.id === contactId
-        );
-
-        if (!contact) {
-            return;
-        }
-
-        setForm((previous) => ({
-            ...previous,
-
-            responsiblePerson: {
-                id: contact.id,
-                name: contact.name,
-                phone: contact.phone,
-                email: contact.email,
-            },
-        }));
-    };
-
-    /* ------------------------------------------------------------------------ */
-    /* Deputy                                                                   */
-    /* ------------------------------------------------------------------------ */
-
-    const handleDeputyChange = (
-        contactId: string
-    ) => {
-        if (!contactId) {
-            setForm((previous) => ({
-                ...previous,
-
-                deputy: {
-                    id: "",
-                    name: "",
-                    phone: "",
-                    email: "",
-                },
-            }));
-
-            return;
-        }
-
-        const contact = MOCK_CONTACTS.find(
-            (item) => item.id === contactId
-        );
-
-        if (!contact) {
-            return;
-        }
-
-        setForm((previous) => ({
-            ...previous,
-
-            deputy: {
-                id: contact.id,
-                name: contact.name,
-                phone: contact.phone,
-                email: contact.email,
-            },
         }));
     };
 
@@ -462,87 +711,23 @@ export default function AddLocationForm({
     const handleSave = async () => {
         setError("");
 
-        /* Required: Location Name */
-
-        if (!form.name.trim()) {
-            setError(
-                "Location name is required."
+        if (!canSubmit) {
+            const validationError = locationFormValidationError(
+                form,
+                locationTypes,
             );
-
+            if (validationError) {
+                setError(validationError);
+            }
             return;
         }
 
-        /* Required: Location Type */
-
-        if (!form.type) {
-            setError(
-                "Please select a location type."
-            );
-
-            return;
-        }
-
-        /* Required: Address Line 1 */
-
-        if (!form.address.line1.trim()) {
-            setError(
-                "Address Line 1 is required."
-            );
-
-            return;
-        }
-
-        /* Required: City */
-
-        if (!form.address.city.trim()) {
-            setError(
-                "City is required."
-            );
-
-            return;
-        }
-
-        /* Required: State */
-
-        if (!form.address.state.trim()) {
-            setError(
-                "State is required."
-            );
-
-            return;
-        }
-
-        /* Required: District */
-
-        if (!form.address.district.trim()) {
-            setError(
-                "District is required."
-            );
-
-            return;
-        }
-
-        /* Required: Pincode */
-
-        if (!form.address.pincode.trim()) {
-            setError(
-                "Pincode is required."
-            );
-
-            return;
-        }
-
-        /*
-         * Pincode validation
-         */
-
-        if (
-            form.address.pincode.length !== 6
-        ) {
-            setError(
-                "Pincode must contain 6 digits."
-            );
-
+        const validationError = locationFormValidationError(
+            form,
+            locationTypes,
+        );
+        if (validationError) {
+            setError(validationError);
             return;
         }
 
@@ -560,20 +745,28 @@ export default function AddLocationForm({
             return;
         }
 
-        const payload = {
-            organizationId,
+        const responsibleId = employeeIdForApi(form.responsiblePerson.id);
+        const deputyId = employeeIdForApi(form.deputy.id);
+        const officePhone = normalizePhoneForApi(
+            form.officeContact.phone,
+            addressCountryDef.phoneDefaultCountry,
+        );
+        const officeEmail = form.officeContact.email.trim();
+
+        const sharedFields = {
             name: form.name.trim(),
             locationTypeId: matchedType.id,
             addressLine1: form.address.line1.trim(),
             addressLine2: form.address.line2.trim() || undefined,
-            addressCity: form.address.city.trim() || undefined,
-            addressState: form.address.state.trim() || undefined,
-            addressDistrict: form.address.district.trim() || undefined,
-            addressPincode: form.address.pincode.trim() || undefined,
-            siteContactPhone: form.contactInformation.phone.trim() || undefined,
-            siteContactEmail: form.contactInformation.email.trim() || undefined,
-            responsibleEmployeeId: employeeIdForApi(form.responsiblePerson.id),
-            deputyEmployeeId: employeeIdForApi(form.deputy.id),
+            addressCountry: form.address.country.trim().toUpperCase(),
+            addressState: form.address.state.trim(),
+            addressDistrict: addressCountryDef.showDistrict
+                ? form.address.district.trim()
+                : form.address.district.trim() ||
+                  form.address.state.trim(),
+            addressPincode: form.address.pincode.trim(),
+            responsibleEmployeeId: responsibleId,
+            deputyEmployeeId: deputyId,
         };
 
         try {
@@ -584,10 +777,25 @@ export default function AddLocationForm({
                     token,
                     organizationId,
                     locationId,
-                    payload,
+                    {
+                        ...sharedFields,
+                        siteContactPhone: officePhone || null,
+                        siteContactEmail: officeEmail || null,
+                    },
                 );
+                showLocationUpdatedToast(form.name.trim());
             } else {
-                await createOrganisationLocationApi(token, payload);
+                await createOrganisationLocationApi(token, {
+                    organizationId,
+                    ...sharedFields,
+                    ...(officePhone
+                        ? { siteContactPhone: officePhone }
+                        : {}),
+                    ...(officeEmail
+                        ? { siteContactEmail: officeEmail }
+                        : {}),
+                });
+                showLocationCreatedToast(form.name.trim());
             }
 
             await queryClient.invalidateQueries({
@@ -599,8 +807,9 @@ export default function AddLocationForm({
             const message =
                 saveError instanceof ApiClientError
                     ? saveError.message
-                    : "Failed to save location.";
+                    : LOCATION_SAVE_ERROR;
             setError(message);
+            showErrorToast(message);
         } finally {
             setIsSaving(false);
         }
@@ -610,38 +819,69 @@ export default function AddLocationForm({
     /* Render                                                                   */
     /* ------------------------------------------------------------------------ */
 
-    return (
-        <div className="mx-auto w-full max-w-3xl">
-            {/* ================================================================== */}
-            {/* FORM CARD                                                          */}
-            {/* ================================================================== */}
+    const pageTitle = isEditMode ? "Edit location" : "Add location";
+    const backHref = isEditMode
+        ? `/organization/locations/${locationId}`
+        : "/organization/locations";
+    const backLabel = isEditMode ? "Back to location" : "Back to locations";
 
+    return (
+        <DashboardLayout
+            title={pageTitle}
+            description={LOCATIONS_PAGE_DESCRIPTION}
+            tabs={[...LOCATIONS_DASHBOARD_TABS]}
+            activeTab={LOCATIONS_ACTIVE_TAB}
+            backHref={backHref}
+            backLabel={backLabel}
+        >
+        <div className="w-full">
+            {isRedirectingInactive ? (
+                <OrganisationDashboardFormSkeleton
+                    fieldRows={6}
+                    label="Redirecting to location details"
+                />
+            ) : isFormLoading ? (
+                <OrganisationDashboardFormSkeleton
+                    label={
+                        isEditMode
+                            ? "Loading location for editing"
+                            : "Loading location form"
+                    }
+                />
+            ) : detailLoadFailed ? (
+                <ErrorState
+                    title="Failed to load location"
+                    message={detailLoadErrorMessage}
+                    onRetry={() => {
+                        void locationDetailQuery.refetch();
+                    }}
+                />
+            ) : (
             <div className="rounded-lg border border-gray-200 bg-white p-5">
 
+                <fieldset
+                    disabled={isSaving}
+                    className="w-full space-y-6 border-0 p-0 m-0"
+                >
                 {/* ---------------------------------------------------------------- */}
                 {/* Location Name                                                     */}
                 {/* ---------------------------------------------------------------- */}
 
                 <div>
-                    <label
-                        htmlFor="location-name"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
+                    <FieldLabel htmlFor="location-name" required>
                         Location name
-                    </label>
+                    </FieldLabel>
 
-                    <input
+                    <RestrictedInput
                         id="location-name"
-                        type="text"
+                        restrictedKind="name"
+                        maxLength={ORG_INPUT_LIMITS.locationName}
                         value={form.name}
-                        onChange={(event) => {
-                            updateForm(
-                                "name",
-                                event.target.value
-                            );
+                        onChange={(value) => {
+                            updateForm("name", value);
                         }}
                         placeholder="Enter location name"
-                        className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                        className={INPUT_FIELD_CLASS}
                     />
                 </div>
 
@@ -649,10 +889,11 @@ export default function AddLocationForm({
                 {/* Location Type                                                     */}
                 {/* ---------------------------------------------------------------- */}
 
-                <div className="mt-4">
-                    <label className="mb-2 block text-xs font-semibold text-gray-700">
-                        TYPE
-                    </label>
+                <div>
+                    <FieldLabel required>Type</FieldLabel>
+                    <p className="mb-2 text-xs text-gray-500">
+                        Choose a type or add a custom one inline.
+                    </p>
 
                     <div className="flex flex-wrap items-center gap-2">
 
@@ -676,8 +917,8 @@ export default function AddLocationForm({
                                         className={[
                                             "h-9 rounded-md border px-4 text-sm font-semibold transition",
                                             selected
-                                                ? "border-blue-600 bg-blue-50 text-blue-700"
-                                                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+                                                ? TYPE_CHIP_SELECTED_CLASS
+                                                : TYPE_CHIP_DEFAULT_CLASS,
                                         ].join(" ")}
                                     >
                                         {type.name}
@@ -737,19 +978,13 @@ export default function AddLocationForm({
                     {showAddType && (
                         <div className="mt-3 flex max-w-md items-center gap-2">
 
-                            <input
-                                type="text"
+                            <RestrictedInput
+                                restrictedKind="text"
+                                maxLength={ORG_INPUT_LIMITS.locationTypeName}
                                 value={newType}
-                                onChange={(event) => {
-                                    setNewType(
-                                        event.target.value
-                                    );
-                                }}
+                                onChange={setNewType}
                                 onKeyDown={(event) => {
-                                    if (
-                                        event.key ===
-                                        "Enter"
-                                    ) {
+                                    if (event.key === "Enter") {
                                         handleAddType();
                                     }
                                 }}
@@ -785,492 +1020,417 @@ export default function AddLocationForm({
                 {/* Address                                                           */}
                 {/* ---------------------------------------------------------------- */}
 
-                <div className="mt-5">
+                <div>
+                    <SectionTitle>Address</SectionTitle>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Structured address for this site (line 1 required).
+                    </p>
 
-                    <h3 className="text-xs font-semibold text-gray-700">
-                        ADDRESS
-                    </h3>
-
-                    <div className="mt-2 space-y-3">
-
-                        {/* Address Line 1 */}
-
+                    <div className="mt-3 space-y-3">
                         <div>
-                            <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                Address Line 1
-                            </label>
-
-                            <input
-                                type="text"
-                                value={
-                                    form.address.line1
-                                }
-                                onChange={(event) => {
+                            <FieldLabel required>Address line 1</FieldLabel>
+                            <RestrictedInput
+                                restrictedKind="text"
+                                maxLength={ORG_INPUT_LIMITS.addressLine}
+                                value={form.address.line1}
+                                onChange={(line1) => {
                                     setForm((previous) => ({
                                         ...previous,
-
                                         address: {
                                             ...previous.address,
-                                            line1:
-                                                event.target.value,
+                                            line1,
                                         },
                                     }));
                                 }}
                                 placeholder="Street, building, area"
-                                className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                                className={INPUT_FIELD_CLASS}
                             />
                         </div>
 
-                        {/* Address Line 2 */}
-
                         <div>
-                            <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                Address Line 2
-                            </label>
-
-                            <input
-                                type="text"
-                                value={
-                                    form.address.line2
-                                }
-                                onChange={(event) => {
+                            <FieldLabel>Address line 2</FieldLabel>
+                            <RestrictedInput
+                                restrictedKind="text"
+                                maxLength={ORG_INPUT_LIMITS.addressLine}
+                                value={form.address.line2}
+                                onChange={(line2) => {
                                     setForm((previous) => ({
                                         ...previous,
-
                                         address: {
                                             ...previous.address,
-                                            line2:
-                                                event.target.value,
+                                            line2,
                                         },
                                     }));
                                 }}
                                 placeholder="Landmark, locality, apartment, etc."
-                                className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                                className={INPUT_FIELD_CLASS}
                             />
                         </div>
 
-                        {/* City + State */}
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                            {/* City */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    City
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        form.address.city
-                                    }
-                                    onChange={(event) => {
-                                        setForm((previous) => ({
-                                            ...previous,
-
-                                            address: {
-                                                ...previous.address,
-                                                city:
-                                                    event.target.value,
-                                            },
-                                        }));
-                                    }}
-                                    placeholder="City"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                />
-                            </div>
-
-                            {/* State */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    State
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        form.address.state
-                                    }
-                                    onChange={(event) => {
-                                        setForm((previous) => ({
-                                            ...previous,
-
-                                            address: {
-                                                ...previous.address,
-                                                state:
-                                                    event.target.value,
-                                            },
-                                        }));
-                                    }}
-                                    placeholder="State"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                />
-                            </div>
+                        <div>
+                            <FieldLabel htmlFor="location-country" required>
+                                Country
+                            </FieldLabel>
+                            <CountrySelect
+                                id="location-country"
+                                value={form.address.country}
+                                onChange={(country: string) => {
+                                    setForm((previous) => ({
+                                        ...previous,
+                                        address: {
+                                            ...previous.address,
+                                            country,
+                                            state: "",
+                                            pincode: "",
+                                        },
+                                    }));
+                                }}
+                                className={SELECT_FIELD_CLASS}
+                            />
                         </div>
 
-                        {/* District + Pincode */}
-
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            {/* District */}
-
                             <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    District
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        form.address.district
-                                    }
-                                    onChange={(event) => {
+                                <FieldLabel required>
+                                    {addressCountryDef.regionLabel}
+                                </FieldLabel>
+                                <RegionSelect
+                                    countryCode={form.address.country}
+                                    value={form.address.state}
+                                    onChange={(state) => {
                                         setForm((previous) => ({
                                             ...previous,
-
                                             address: {
                                                 ...previous.address,
-                                                district:
-                                                    event.target.value,
+                                                state,
                                             },
                                         }));
                                     }}
-                                    placeholder="District"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                                    selectClassName={SELECT_FIELD_CLASS}
+                                    inputClassName={INPUT_FIELD_CLASS}
                                 />
                             </div>
-
-                            {/* Pincode */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Pincode
-                                </label>
-
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={6}
-                                    value={
-                                        form.address.pincode
-                                    }
-                                    onChange={(event) => {
-                                        setForm((previous) => ({
-                                            ...previous,
-
-                                            address: {
-                                                ...previous.address,
-
-                                                pincode:
-                                                    event.target.value.replace(
-                                                        /\D/g,
-                                                        ""
-                                                    ),
-                                            },
-                                        }));
-                                    }}
-                                    placeholder="Pincode"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                />
-                            </div>
-
-
-                        </div>
-
-                        {/* ------------------------------------------------------------------ */}
-                        {/* Contact Information                                                */
-                       /* ------------------------------------------------------------------ */}
-
-                        <div className="mt-4">
-                            <h3 className="text-xs font-semibold text-gray-700">
-                                CONTACT INFORMATION
-                            </h3>
-
-                            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                                {/* Phone */}
-
+                            {addressCountryDef.showDistrict ? (
                                 <div>
-                                    <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                        Phone
-                                    </label>
-
-                                    <input
-                                        type="tel"
-                                        value={form.contactInformation.phone}
-                                        onChange={(event) => {
+                                    <FieldLabel required>District</FieldLabel>
+                                    <RestrictedInput
+                                        restrictedKind="text"
+                                        maxLength={
+                                            ORG_INPUT_LIMITS.addressRegion
+                                        }
+                                        value={form.address.district}
+                                        onChange={(district) => {
                                             setForm((previous) => ({
                                                 ...previous,
-
-                                                contactInformation: {
-                                                    ...previous.contactInformation,
-                                                    phone:
-                                                        event.target.value,
+                                                address: {
+                                                    ...previous.address,
+                                                    district,
                                                 },
                                             }));
                                         }}
-                                        placeholder="+91 98XXXXXXXX"
-                                        className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                                        placeholder="District"
+                                        className={INPUT_FIELD_CLASS}
                                     />
                                 </div>
-
-                                {/* Email */}
-
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                        Email
-                                    </label>
-
-                                    <input
-                                        type="email"
-                                        value={form.contactInformation.email}
-                                        onChange={(event) => {
-                                            setForm((previous) => ({
-                                                ...previous,
-
-                                                contactInformation: {
-                                                    ...previous.contactInformation,
-                                                    email:
-                                                        event.target.value,
-                                                },
-                                            }));
-                                        }}
-                                        placeholder="name@company.com"
-                                        className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    />
-                                </div>
-                            </div>
+                            ) : null}
                         </div>
-                    </div>
 
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Responsible Person                                                */}
-                    {/* ---------------------------------------------------------------- */}
-
-                    <div className="mt-6">
-
-                        <h3 className="text-xs font-semibold text-gray-700">
-                            RESPONSIBLE PERSON (OPTIONAL)
-                        </h3>
-
-                        <p className="mt-0.5 text-xs text-gray-500"> Select the person responsible for this location&apos;s day-to-day operations. </p>
-
-                        {/* Name + Phone + Email */}
-
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
-                            {/* Name */}
-
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                             <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Name
-                                </label>
-
-                                <div className="relative">
-
-                                    <select
-                                        value={form.responsiblePerson.id}
-                                        onChange={(event) => {
-                                            handleResponsiblePersonChange(
-                                                event.target.value
-                                            );
-                                        }}
-                                        className="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    >
-                                        <option value="">
-                                            Select responsible person
-                                        </option>
-
-                                        {MOCK_CONTACTS.map((contact) => (
-                                            <option
-                                                key={contact.id}
-                                                value={contact.id}
-                                            >
-                                                {contact.name}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-
-                                </div>
-                            </div>
-
-                            {/* Phone */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Phone
-                                </label>
-
-                                <input
-                                    type="tel"
-                                    value={form.responsiblePerson.phone}
-                                    readOnly
-                                    placeholder="+91 98XXXXXXXX"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
+                                <FieldLabel required>
+                                    {addressCountryDef.postalLabel}
+                                </FieldLabel>
+                                <RestrictedInput
+                                    restrictedKind={postalRestrictedKind}
+                                    value={form.address.pincode}
+                                    onChange={(pincode) => {
+                                        setForm((previous) => ({
+                                            ...previous,
+                                            address: {
+                                                ...previous.address,
+                                                pincode,
+                                            },
+                                        }));
+                                    }}
+                                    placeholder={postalFieldPlaceholder}
+                                    className={INPUT_FIELD_CLASS}
                                 />
                             </div>
-
-                            {/* Email */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Email
-                                </label>
-
-                                <input
-                                    type="email"
-                                    value={form.responsiblePerson.email}
-                                    readOnly
-                                    placeholder="name@company.com"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
-                                />
-                            </div>
-
                         </div>
-                    </div>
-
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Deputy                                                            */}
-                    {/* ---------------------------------------------------------------- */}
-
-
-                    <div className="mt-6">
-
-                        <h3 className="text-xs font-semibold text-gray-700">
-                            DEPUTY (OPTIONAL)
-                        </h3>
-
-                        <p className="mt-0.5 text-xs text-gray-500">
-                            Alternate contact if the responsible person is unavailable.
-                        </p>
-
-                        {/* Name + Phone + Email */}
-
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
-                            {/* Name */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Name
-                                </label>
-
-                                <div className="relative">
-
-                                    <select
-                                        value={form.deputy.id}
-                                        onChange={(event) => {
-                                            handleDeputyChange(
-                                                event.target.value
-                                            );
-                                        }}
-                                        className="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    >
-                                        <option value="">
-                                            Select deputy
-                                        </option>
-
-                                        {MOCK_CONTACTS.map((contact) => (
-                                            <option
-                                                key={contact.id}
-                                                value={contact.id}
-                                            >
-                                                {contact.name}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-
-                                </div>
-                            </div>
-
-                            {/* Phone */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Phone
-                                </label>
-
-                                <input
-                                    type="tel"
-                                    value={form.deputy.phone}
-                                    readOnly
-                                    placeholder="+91 98XXXXXXXX"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
-                                />
-                            </div>
-
-                            {/* Email */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Email
-                                </label>
-
-                                <input
-                                    type="email"
-                                    value={form.deputy.email}
-                                    readOnly
-                                    placeholder="name@company.com"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
-                                />
-                            </div>
-
-                        </div>
-                    </div>
-
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Error                                                             */}
-                    {/* ---------------------------------------------------------------- */}
-
-                    {error && (
-                        <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Actions                                                           */}
-                    {/* ---------------------------------------------------------------- */}
-
-                    <div className="mt-6 flex justify-end gap-2">
-
-                        <button
-                            type="button"
-                            onClick={onCancel}
-                            className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                        >
-                            Cancel
-                        </button>
-
-                        <Button
-                            type="button"
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="h-10 px-5"
-                        >
-                            {isSaving
-                                ? "Saving..."
-                                : "Save location"}
-                        </Button>
                     </div>
                 </div>
 
-                {/* ================================================================== */}
-                {/* Information Box                                                    */}
-                {/* ================================================================== */}
+                {/* ---------------------------------------------------------------- */}
+                {/* Office contact information                                        */}
+                {/* ---------------------------------------------------------------- */}
 
-                {/* Information Box */}
-                <div className="mt-4 flex gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:px-5">
-                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
+                <div>
+                    <SectionTitle>Office contact information</SectionTitle>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Office or reception phone and email — separate from the
+                        responsible person and deputy.
+                    </p>
 
-                    <p> Locations aren&apos;t just for warehousing — Offices, Workshops, Retail Outlets and more all live in this same register, and are what Asset Management and Inventory select from when marking a vehicle&apos;s or part&apos;s location. </p>
+                    <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <div>
+                            <FieldLabel htmlFor="location-office-phone">
+                                Mobile number
+                            </FieldLabel>
+                            <RestrictedInput
+                                id="location-office-phone"
+                                restrictedKind="phone"
+                                phoneDefaultCountry={
+                                    addressCountryDef.phoneDefaultCountry
+                                }
+                                maxLength={ORG_INPUT_LIMITS.phone}
+                                value={form.officeContact.phone}
+                                onChange={(phone) => {
+                                    setForm((previous) => ({
+                                        ...previous,
+                                        officeContact: {
+                                            ...previous.officeContact,
+                                            phone,
+                                        },
+                                    }));
+                                }}
+                                placeholder={officePhonePlaceholder}
+                                className={INPUT_FIELD_CLASS}
+                            />
+                        </div>
+                        <div>
+                            <FieldLabel htmlFor="location-office-email">
+                                Email
+                            </FieldLabel>
+                            <RestrictedInput
+                                id="location-office-email"
+                                restrictedKind="email"
+                                value={form.officeContact.email}
+                                onChange={(email) => {
+                                    setForm((previous) => ({
+                                        ...previous,
+                                        officeContact: {
+                                            ...previous.officeContact,
+                                            email,
+                                        },
+                                    }));
+                                }}
+                                placeholder="Office or reception email"
+                                className={INPUT_FIELD_CLASS}
+                            />
+                        </div>
+                    </div>
                 </div>
+
+                {/* ---------------------------------------------------------------- */}
+                {/* Responsible Person                                                */}
+                {/* ---------------------------------------------------------------- */}
+
+                <div>
+                    <SectionTitle>Responsible person (optional)</SectionTitle>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Choose from the employee register; phone and email come
+                        from the employee record.
+                    </p>
+
+                    <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                        <div>
+                            <FieldLabel htmlFor="location-responsible-person">
+                                Name
+                            </FieldLabel>
+                            <select
+                                id="location-responsible-person"
+                                value={form.responsiblePerson.id}
+                                onChange={(event) => {
+                                    const nextId = event.target.value;
+                                    updateForm(
+                                        "responsiblePerson",
+                                        contactFromEmployeeSelection(
+                                            nextId,
+                                            responsibleSelectOptions,
+                                        ),
+                                    );
+                                    if (
+                                        nextId &&
+                                        form.deputy.id === nextId
+                                    ) {
+                                        updateForm(
+                                            "deputy",
+                                            contactFromEmployeeSelection(
+                                                "",
+                                                deputySelectOptions,
+                                            ),
+                                        );
+                                    }
+                                }}
+                                className={SELECT_FIELD_CLASS}
+                            >
+                                <option value="">
+                                    {activeEmployees.length
+                                        ? "Select employee"
+                                        : "Add employees in Employee register first"}
+                                </option>
+                                {responsibleSelectOptions.map((employee) => (
+                                    <option
+                                        key={employee.id}
+                                        value={employee.id}
+                                    >
+                                        {employee.fullName}
+                                        {employee.designation
+                                            ? ` — ${employee.designation}`
+                                            : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <FieldLabel>Phone</FieldLabel>
+                            <input
+                                type="text"
+                                readOnly
+                                tabIndex={-1}
+                                value={
+                                    formatPhoneDisplay(
+                                        form.responsiblePerson.phone,
+                                    ) || form.responsiblePerson.phone
+                                }
+                                aria-label="Responsible person phone"
+                                className={READONLY_FIELD_CLASS}
+                            />
+                        </div>
+                        <div>
+                            <FieldLabel>Email</FieldLabel>
+                            <input
+                                type="email"
+                                readOnly
+                                tabIndex={-1}
+                                value={form.responsiblePerson.email}
+                                aria-label="Responsible person email"
+                                className={READONLY_FIELD_CLASS}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* ---------------------------------------------------------------- */}
+                {/* Deputy                                                            */}
+                {/* ---------------------------------------------------------------- */}
+
+                <div>
+                    <SectionTitle>Deputy (optional)</SectionTitle>
+                    <p className="mt-1 text-xs text-gray-500">
+                        Alternate contact if the responsible person is
+                        unavailable.
+                    </p>
+
+                    <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-3">
+                        <div>
+                            <FieldLabel htmlFor="location-deputy">Name</FieldLabel>
+                            <select
+                                id="location-deputy"
+                                value={form.deputy.id}
+                                onChange={(event) => {
+                                    updateForm(
+                                        "deputy",
+                                        contactFromEmployeeSelection(
+                                            event.target.value,
+                                            deputySelectOptions,
+                                        ),
+                                    );
+                                }}
+                                className={SELECT_FIELD_CLASS}
+                            >
+                                <option value="">
+                                    {activeEmployees.length
+                                        ? "Select employee"
+                                        : "Add employees in Employee register first"}
+                                </option>
+                                {deputySelectOptions.map((employee) => (
+                                    <option
+                                        key={employee.id}
+                                        value={employee.id}
+                                    >
+                                        {employee.fullName}
+                                        {employee.designation
+                                            ? ` — ${employee.designation}`
+                                            : ""}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <FieldLabel>Phone</FieldLabel>
+                            <input
+                                type="text"
+                                readOnly
+                                tabIndex={-1}
+                                value={
+                                    formatPhoneDisplay(form.deputy.phone) ||
+                                    form.deputy.phone
+                                }
+                                aria-label="Deputy phone"
+                                className={READONLY_FIELD_CLASS}
+                            />
+                        </div>
+                        <div>
+                            <FieldLabel>Email</FieldLabel>
+                            <input
+                                type="email"
+                                readOnly
+                                tabIndex={-1}
+                                value={form.deputy.email}
+                                aria-label="Deputy email"
+                                className={READONLY_FIELD_CLASS}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {error ? (
+                    <div
+                        role="alert"
+                        className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600"
+                    >
+                        {error}
+                    </div>
+                ) : null}
+
+                <div className="flex gap-3 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-xs leading-relaxed text-gray-600 sm:px-5">
+                    <Info
+                        className="mt-0.5 h-4 w-4 shrink-0 text-gray-500"
+                        aria-hidden
+                    />
+                    <p>
+                        Locations aren&apos;t just for warehousing — offices,
+                        workshops, retail outlets and more all live in this
+                        register. Asset Management and Inventory use these
+                        entries when marking where a vehicle or part is kept.
+                    </p>
+                </div>
+
+                <div className="flex flex-col-reverse gap-2 border-t border-gray-100 pt-5 sm:flex-row sm:justify-end">
+                    <button
+                        type="button"
+                        onClick={onCancel}
+                        className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                    >
+                        Cancel
+                    </button>
+
+                    <Button
+                        type="button"
+                        variant="primary"
+                        onClick={handleSave}
+                        disabled={!canSubmit}
+                        loading={isSaving}
+                        className="h-10 px-5"
+                    >
+                        {isSaving ? "Saving..." : "Save location"}
+                    </Button>
+                </div>
+                </fieldset>
             </div>
+            )}
         </div>
+        </DashboardLayout>
     );
 }

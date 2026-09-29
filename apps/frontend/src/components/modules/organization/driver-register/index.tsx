@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Contact,
   Plus,
@@ -19,6 +19,11 @@ import {
   UserCheck,
 } from "lucide-react";
 import { OrganizationSubNav } from "../organization-subnav";
+import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
+import {
+  DASHBOARD_DEFAULT_PAGE_SIZE,
+  paginateClientRows,
+} from "@/components/dashboard/dashboard-pagination";
 
 export type DriverRecord = {
   id: string;
@@ -129,6 +134,7 @@ export function DriverRegisterModule() {
   const [selectedStatus, setSelectedStatus] = useState<string>("ALL");
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [viewDriver, setViewDriver] = useState<DriverRecord | null>(null);
+  const [page, setPage] = useState(1);
 
   // Form State
   const [fullName, setFullName] = useState("");
@@ -157,6 +163,20 @@ export function DriverRegisterModule() {
       return matchesSearch && matchesClass && matchesStat;
     });
   }, [drivers, searchQuery, selectedClass, selectedStatus]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery, selectedClass, selectedStatus]);
+
+  const {
+    rows: paginatedDrivers,
+    safePage: driversPage,
+    total: driversTotal,
+  } = paginateClientRows(
+    filteredDrivers,
+    page,
+    DASHBOARD_DEFAULT_PAGE_SIZE,
+  );
 
   const onDutyCount = drivers.filter((d) => d.dutyStatus === "On Duty").length;
   const availableCount = drivers.filter((d) => d.dutyStatus === "Available").length;
@@ -367,7 +387,7 @@ export function DriverRegisterModule() {
                   </td>
                 </tr>
               ) : (
-                filteredDrivers.map((drv) => {
+                paginatedDrivers.map((drv) => {
                   const expTime = new Date(drv.licenseExpiry).getTime();
                   const nowTime = new Date("2026-09-28").getTime();
                   const isExpiringSoon = (expTime - nowTime) / (1000 * 3600 * 24) <= 45;
@@ -470,6 +490,15 @@ export function DriverRegisterModule() {
               )}
             </tbody>
           </table>
+        </div>
+        <div className="border-t border-slate-100 px-5 py-3">
+          <DashboardTablePagination
+            page={driversPage}
+            pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
+            total={driversTotal}
+            onPageChange={setPage}
+            className="mt-0"
+          />
         </div>
       </div>
 

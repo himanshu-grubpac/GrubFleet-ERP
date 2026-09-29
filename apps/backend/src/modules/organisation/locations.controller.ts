@@ -33,7 +33,11 @@ export class LocationsController {
   @Get()
   @RequireOrganizationContext()
   @RequirePermissions(OrganisationPermissionKeys.VIEW)
-  @ApiOperation({ summary: 'List organisation locations (paginated)' })
+  @ApiOperation({
+    summary: 'List organisation locations (paginated)',
+    description:
+      'Default sort: createdAt descending (newest first), then id descending. No client sort parameters.',
+  })
   list(@Query() query: ListLocationsQueryDto) {
     return this.locations.list(query);
   }

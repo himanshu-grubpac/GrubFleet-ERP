@@ -41,3 +41,8 @@ samconfig.staging.toml
 samconfig.preprod.toml
 samconfig.production.toml
 .aws-deploy-meta.local.json
+
+# Playwright (local runs only)
+apps/frontend/test-results/
+apps/frontend/playwright-report/
+apps/frontend/blob-report/
