@@ -37,6 +37,7 @@
         "cloudformation:GetTemplateSummary"
       ],
       "Resource": [
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/aws-sam-cli-managed-default/*",
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-staging/*",
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-preprod/*",
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-production/*"

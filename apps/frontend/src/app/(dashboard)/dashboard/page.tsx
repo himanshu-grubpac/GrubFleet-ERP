@@ -28,7 +28,13 @@ export default function DashboardPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {healthQuery.isLoading ? <LoadingState label="Checking API…" /> : null}
+          {healthQuery.isLoading ? (
+            <LoadingState
+              label="Checking API connectivity"
+              variant="skeleton"
+              skeleton="block"
+            />
+          ) : null}
           {healthQuery.isError ? (
             <ErrorState
               message="Backend unreachable or CORS misconfigured. Start docker-compose and the Nest app."

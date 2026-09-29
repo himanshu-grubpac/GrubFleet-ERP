@@ -433,6 +433,68 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
   /roles/{id}:
+    get:
+      tags: [roles]
+      summary: Get organization role by id
+      operationId: getRoleById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Role'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [roles]
+      summary: Delete organization role
+      operationId: deleteRole
+      description: Removes a custom organization role. System roles cannot be deleted. User role assignments for this role are removed (cascade).
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      responses:
+        '200':
+          description: Role deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success:
+                    type: boolean
+                    enum: [true]
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: System role or conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       tags: [roles]
       summary: Update organization role
@@ -1648,7 +1710,7 @@ components:
         - $ref: '#/components/schemas/PaginationMeta'
     Role:
       type: object
-      required: [id, name, scope, isSystem, permissionKeys, moduleAccess]
+      required: [id, name, scope, isSystem, isActive, permissionKeys, moduleAccess]
       properties:
         id:
           type: string
@@ -1667,6 +1729,9 @@ components:
           nullable: true
         isSystem:
           type: boolean
+        isActive:
+          type: boolean
+          description: When false, assignments remain but permissions from this role are not granted
         permissionKeys:
           type: array
           items:
@@ -1725,6 +1790,8 @@ components:
           type: array
           items:
             type: string
+        isActive:
+          type: boolean
     RoleAssignmentRequest:
       type: object
       required: [organizationId, userId]

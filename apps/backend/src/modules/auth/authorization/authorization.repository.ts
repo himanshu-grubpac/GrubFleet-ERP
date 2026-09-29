@@ -61,6 +61,7 @@ export class AuthorizationRepository {
       .where(
         and(
           eq(userRoles.userId, userId),
+          eq(roles.isActive, true),
           or(
             isNull(userRoles.organizationId),
             eq(userRoles.organizationId, organizationId),

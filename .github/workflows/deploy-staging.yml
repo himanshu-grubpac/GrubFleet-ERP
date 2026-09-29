@@ -5,12 +5,13 @@ on:
     branches: [staging]
 
 concurrency:
-  group: deploy-staging
+  group: deploy-aws-staging
   cancel-in-progress: false
 
 permissions:
   contents: read
   packages: write
+  id-token: write
 
 jobs:
   deploy:

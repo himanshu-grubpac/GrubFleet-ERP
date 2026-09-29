@@ -27,7 +27,7 @@ export async function createNestApplication(): Promise<INestApplication> {
     .map((o) => o.trim())
     .filter((o) => o.length > 0);
   app.enableCors({
-    origin: corsOrigins.length === 1 ? corsOrigins[0]! : corsOrigins,
+    origin: corsOrigins.length === 1 ? corsOrigins[0] : corsOrigins,
     credentials: true,
     allowedHeaders: [
       'Content-Type',
