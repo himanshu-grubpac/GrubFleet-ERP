@@ -14,6 +14,11 @@ export class LoginRateLimiterService {
     email: string,
     ipAddress: string | undefined,
   ): Promise<void> {
+    // Integration tests share one Redis and parallel workers; counting logins would 429.
+    if (process.env.NODE_ENV === 'test') {
+      return;
+    }
+
     const key = `auth:login:${email.toLowerCase()}:${ipAddress ?? 'unknown'}`;
     try {
       if (this.redis.status !== 'ready') {
