@@ -226,25 +226,6 @@ export function GrubpacAuthProvider({
     }
   }, [token, applyMeData, refreshSession]);
 
-  useEffect(() => {
-    if (!token || isLoading || isLoggingOut) {
-      return;
-    }
-
-    const onFocus = () => {
-      void refetchMe();
-    };
-    window.addEventListener("focus", onFocus);
-    const intervalId = window.setInterval(() => {
-      void refetchMe();
-    }, 10_000);
-
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      window.clearInterval(intervalId);
-    };
-  }, [token, isLoading, isLoggingOut, refetchMe]);
-
   // Initial session hydration
   useEffect(() => {
     let hydrateMounted = true;
@@ -254,34 +235,49 @@ export function GrubpacAuthProvider({
         const savedToken = localStorage.getItem("access_token");
         const savedUser = localStorage.getItem("auth_user");
 
+        // Restore cached user immediately so the UI can render user information.
         if (savedUser && hydrateMounted) {
           try {
             setUser(JSON.parse(savedUser));
           } catch {
-            // Ignore parse errors
+            // Ignore invalid cached user data.
           }
         }
 
-        if (savedToken) {
-          if (hydrateMounted) {
-            setTokenState(savedToken);
+        // No saved token means there is no existing session to validate.
+        if (!savedToken) {
+          return;
+        }
+
+        // Restore the token into React state.
+        if (hydrateMounted) {
+          setTokenState(savedToken);
+        }
+
+        try {
+          // Validate the existing session and load the latest
+          // user, organization, permissions and module access.
+          const me = await getMeApi(savedToken);
+
+          if (hydrateMounted && mountedRef.current) {
+            applyMeData(me);
           }
-          try {
-            const me = await getMeApi(savedToken);
-            if (hydrateMounted && mountedRef.current) {
-              applyMeData(me);
-            }
-          } catch (err) {
-            if (!hydrateMounted || !mountedRef.current) {
-              return;
-            }
-            if (err instanceof ApiClientError && err.status === 401) {
-              const refreshed = await refreshSession();
-              if (!refreshed && hydrateMounted && mountedRef.current) {
-                setTokenState(null);
-                setUser(null);
-                clearAuthStorage();
-              }
+        } catch (err) {
+          if (!hydrateMounted || !mountedRef.current) {
+            return;
+          }
+
+          // Access token expired/invalid.
+          if (err instanceof ApiClientError && err.status === 401) {
+            const refreshed = await refreshSession();
+
+            if (!refreshed && hydrateMounted && mountedRef.current) {
+              setTokenState(null);
+              setUser(null);
+              setOrganizationId(null);
+              setModuleAccess({});
+              setPermissions(new Set());
+              clearAuthStorage();
             }
           }
         }
@@ -298,6 +294,8 @@ export function GrubpacAuthProvider({
       hydrateMounted = false;
     };
   }, [applyMeData, refreshSession]);
+
+  
 
   const setToken = useCallback((newToken: string) => {
     setTokenState(newToken);
