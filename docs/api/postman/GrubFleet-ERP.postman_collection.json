@@ -590,6 +590,105 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Organisation",
+      "description": "Organisation module — locations, location types, suppliers, and supplier types.",
+      "item": [
+        {
+          "name": "List location types",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/location-types?organizationId={{organizationId}}",
+            "description": "GET /organisation/location-types — seeds system presets per org on first call."
+          },
+          "response": []
+        },
+        {
+          "name": "Create custom location type",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Head office\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/location-types",
+            "description": "POST /organisation/location-types"
+          },
+          "response": []
+        },
+        {
+          "name": "List locations",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/locations?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /organisation/locations — paginated list with optional search, locationTypeId, status."
+          },
+          "response": []
+        },
+        {
+          "name": "Create location",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Andheri East Hub\",\n  \"locationTypeId\": \"{{locationTypeId}}\",\n  \"addressLine1\": \"Plot 12, MIDC\",\n  \"addressCity\": \"Mumbai\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai Suburban\",\n  \"addressPincode\": \"400069\",\n  \"siteContactPhone\": \"+919999999999\",\n  \"siteContactEmail\": \"hub@example.com\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/locations",
+            "description": "POST /organisation/locations"
+          },
+          "response": []
+        },
+        {
+          "name": "Get location",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/locations/{{locationId}}?organizationId={{organizationId}}",
+            "description": "GET /organisation/locations/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update location status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Office closed for renovation\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/locations/{{locationId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/locations/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -619,6 +718,22 @@
     },
     {
       "key": "leaseContractId",
+      "value": ""
+    },
+    {
+      "key": "locationId",
+      "value": ""
+    },
+    {
+      "key": "locationTypeId",
+      "value": ""
+    },
+    {
+      "key": "departmentId",
+      "value": ""
+    },
+    {
+      "key": "employeeId",
       "value": ""
     }
   ]

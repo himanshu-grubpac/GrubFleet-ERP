@@ -1,6 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/providers/auth-provider";
+import { ApiClientError } from "@/lib/api/client";
+import {
+  createOrganisationLocationTypeApi,
+  deleteOrganisationLocationTypeApi,
+  fetchOrganisationLocationTypesApi,
+} from "@/lib/api/organisation/location-types";
+import {
+    createOrganisationLocationApi,
+    fetchOrganisationLocationByIdApi,
+    updateOrganisationLocationApi,
+} from "@/lib/api/organisation/locations";
 import {
     Plus,
     X,
@@ -71,39 +84,6 @@ type LocationFormData = {
  * This will later come from the backend.
  */
 
-const INITIAL_LOCATION_TYPES: LocationType[] = [
-    {
-        id: "office",
-        name: "Office",
-        isCustom: false,
-        isUsed: false,
-    },
-    {
-        id: "workshop",
-        name: "Workshop",
-        isCustom: false,
-        isUsed: false,
-    },
-    {
-        id: "warehouse",
-        name: "Warehouse",
-        isCustom: false,
-        isUsed: false,
-    },
-    {
-        id: "retail-outlet",
-        name: "Retail Outlet",
-        isCustom: false,
-        isUsed: false,
-    },
-    {
-        id: "other",
-        name: "Other",
-        isCustom: false,
-        isUsed: false,
-    },
-];
-
 /* -------------------------------------------------------------------------- */
 /* Mock Contacts                                                              */
 /* -------------------------------------------------------------------------- */
@@ -145,11 +125,19 @@ const MOCK_CONTACTS: Contact[] = [
     },
 ];
 
+const UUID_RE =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function employeeIdForApi(id: string): string | undefined {
+    return id && UUID_RE.test(id) ? id : undefined;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Props                                                                      */
 /* -------------------------------------------------------------------------- */
 
 type AddLocationFormProps = {
+    locationId?: string;
     onCancel?: () => void;
     onSaved?: (location: LocationFormData) => void;
 };
@@ -159,17 +147,59 @@ type AddLocationFormProps = {
 /* -------------------------------------------------------------------------- */
 
 export default function AddLocationForm({
+    locationId,
     onCancel,
     onSaved,
 }: AddLocationFormProps) {
+    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
+    const queryClient = useQueryClient();
+    const isEditMode = Boolean(locationId);
+
     /* ------------------------------------------------------------------------ */
     /* State                                                                    */
     /* ------------------------------------------------------------------------ */
 
     const [locationTypes, setLocationTypes] =
-        useState<LocationType[]>(
-            INITIAL_LOCATION_TYPES
+        useState<LocationType[]>([]);
+
+    const locationTypesQuery = useQuery({
+        queryKey: ["organization", "location-types", organizationId],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchOrganisationLocationTypesApi(token, organizationId);
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+    });
+
+    const locationDetailQuery = useQuery({
+        queryKey: ["organization", "location", organizationId, locationId],
+        queryFn: () => {
+            if (!token || !organizationId || !locationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchOrganisationLocationByIdApi(
+                token,
+                organizationId,
+                locationId,
+            );
+        },
+        enabled:
+            !!token && !!organizationId && !!locationId && !isAuthLoading,
+    });
+
+    useEffect(() => {
+        if (!locationTypesQuery.data?.items) return;
+        setLocationTypes(
+            locationTypesQuery.data.items.map((type) => ({
+                id: type.id,
+                name: type.name,
+                isCustom: type.isCustom,
+                isUsed: type.isUsed,
+            })),
         );
+    }, [locationTypesQuery.data?.items]);
 
     const [showAddType, setShowAddType] =
         useState(false);
@@ -217,6 +247,39 @@ export default function AddLocationForm({
 
     const [error, setError] =
         useState("");
+
+    useEffect(() => {
+        const detail = locationDetailQuery.data;
+        if (!detail) return;
+        setForm({
+            name: detail.name,
+            type: detail.type,
+            address: {
+                line1: detail.addressLine1,
+                line2: detail.addressLine2 ?? "",
+                city: detail.addressCity ?? "",
+                state: detail.addressState ?? "",
+                district: detail.addressDistrict ?? "",
+                pincode: detail.addressPincode ?? "",
+            },
+            contactInformation: {
+                phone: detail.siteContactPhone ?? "",
+                email: detail.siteContactEmail ?? "",
+            },
+            responsiblePerson: {
+                id: detail.responsibleEmployeeId ?? "",
+                name: detail.responsiblePerson ?? "",
+                phone: "",
+                email: "",
+            },
+            deputy: {
+                id: detail.deputyEmployeeId ?? "",
+                name: detail.deputyName ?? "",
+                phone: "",
+                email: "",
+            },
+        });
+    }, [locationDetailQuery.data]);
 
     /* ------------------------------------------------------------------------ */
     /* General Form Update                                                      */
@@ -322,90 +385,74 @@ export default function AddLocationForm({
     /* Add Custom Location Type                                                 */
     /* ------------------------------------------------------------------------ */
 
-    const handleAddType = () => {
-        const trimmedType =
-            newType.trim();
+    const handleAddType = async () => {
+        const trimmedType = newType.trim();
 
-        if (!trimmedType) {
+        if (!trimmedType || !token || !organizationId) {
             return;
         }
 
-        const alreadyExists =
-            locationTypes.some(
-                (type) =>
-                    type.name.toLowerCase() ===
-                    trimmedType.toLowerCase()
-            );
-
-        if (alreadyExists) {
-            setError(
-                "This location type already exists."
-            );
-
-            return;
-        }
-
-        const customType: LocationType = {
-            id: `custom-${Date.now()}`,
-            name: trimmedType,
-            isCustom: true,
-            isUsed: false,
-        };
-
-        setLocationTypes((previous) => [
-            ...previous,
-            customType,
-        ]);
-
-        updateForm(
-            "type",
-            trimmedType
+        const alreadyExists = locationTypes.some(
+            (type) =>
+                type.name.toLowerCase() === trimmedType.toLowerCase(),
         );
 
-        setNewType("");
-        setShowAddType(false);
-        setError("");
+        if (alreadyExists) {
+            setError("This location type already exists.");
+            return;
+        }
+
+        try {
+            const created = await createOrganisationLocationTypeApi(
+                token,
+                organizationId,
+                trimmedType,
+            );
+            await queryClient.invalidateQueries({
+                queryKey: ["organization", "location-types"],
+            });
+            updateForm("type", created.name);
+            setNewType("");
+            setShowAddType(false);
+            setError("");
+        } catch (saveError) {
+            const message =
+                saveError instanceof ApiClientError
+                    ? saveError.message
+                    : "Failed to add location type.";
+            setError(message);
+        }
     };
 
     /* ------------------------------------------------------------------------ */
     /* Delete Custom Location Type                                              */
     /* ------------------------------------------------------------------------ */
 
-    const handleDeleteType = (
-        type: LocationType
-    ) => {
-        /*
-         * Only custom types can be deleted.
-         */
-
-        if (!type.isCustom) {
+    const handleDeleteType = async (type: LocationType) => {
+        if (!type.isCustom || type.isUsed || !token || !organizationId) {
             return;
         }
-
-        /*
-         * A type already used by a location
-         * cannot be deleted.
-         */
-
-        if (type.isUsed) {
-            return;
-        }
-
-        /*
-         * Clear selected type if it is
-         * currently selected.
-         */
 
         if (form.type === type.name) {
             updateForm("type", "");
         }
 
-        setLocationTypes((previous) =>
-            previous.filter(
-                (item) =>
-                    item.id !== type.id
-            )
-        );
+        try {
+            await deleteOrganisationLocationTypeApi(
+                token,
+                organizationId,
+                type.id,
+            );
+            await queryClient.invalidateQueries({
+                queryKey: ["organization", "location-types"],
+            });
+        } catch (deleteError) {
+            const message =
+                deleteError instanceof ApiClientError
+                    ? deleteError.message
+                    : "Failed to delete location type.";
+            setError(message);
+        }
     };
 
     /* ------------------------------------------------------------------------ */
@@ -499,34 +546,61 @@ export default function AddLocationForm({
             return;
         }
 
-        /*
-         * TEMPORARY MOCK SAVE
-         *
-         * Backend API will be connected later.
-         */
+        if (!token || !organizationId) {
+            setError("Missing organization context.");
+            return;
+        }
+
+        const matchedType = locationTypes.find(
+            (type) =>
+                type.name.toLowerCase() === form.type.toLowerCase(),
+        );
+        if (!matchedType) {
+            setError("Please select a valid location type.");
+            return;
+        }
+
+        const payload = {
+            organizationId,
+            name: form.name.trim(),
+            locationTypeId: matchedType.id,
+            addressLine1: form.address.line1.trim(),
+            addressLine2: form.address.line2.trim() || undefined,
+            addressCity: form.address.city.trim() || undefined,
+            addressState: form.address.state.trim() || undefined,
+            addressDistrict: form.address.district.trim() || undefined,
+            addressPincode: form.address.pincode.trim() || undefined,
+            siteContactPhone: form.contactInformation.phone.trim() || undefined,
+            siteContactEmail: form.contactInformation.email.trim() || undefined,
+            responsibleEmployeeId: employeeIdForApi(form.responsiblePerson.id),
+            deputyEmployeeId: employeeIdForApi(form.deputy.id),
+        };
 
         try {
             setIsSaving(true);
 
-            await new Promise((resolve) =>
-                setTimeout(resolve, 500)
-            );
+            if (isEditMode && locationId) {
+                await updateOrganisationLocationApi(
+                    token,
+                    organizationId,
+                    locationId,
+                    payload,
+                );
+            } else {
+                await createOrganisationLocationApi(token, payload);
+            }
 
-            console.log(
-                "Mock location saved:",
-                form
-            );
+            await queryClient.invalidateQueries({
+                queryKey: ["organization", "locations"],
+            });
 
             onSaved?.(form);
         } catch (saveError) {
-            console.error(
-                "Failed to save location:",
-                saveError
-            );
-
-            setError(
-                "Failed to save location."
-            );
+            const message =
+                saveError instanceof ApiClientError
+                    ? saveError.message
+                    : "Failed to save location.";
+            setError(message);
         } finally {
             setIsSaving(false);
         }

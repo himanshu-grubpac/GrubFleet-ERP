@@ -4,11 +4,19 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import {
+  useMutation,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { useAuth } from "@/providers/auth-provider";
+import {
+  fetchOrganisationLocationsApi,
+  updateOrganisationLocationStatusApi,
+  type OrganisationLocationListItem,
+} from "@/lib/api/organisation/locations";
+import { fetchOrganisationLocationTypesApi } from "@/lib/api/organisation/location-types";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
@@ -20,45 +28,7 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
 
-type LocationStatus = "active" | "inactive";
-
-type Location = {
-  id: string;
-  name: string;
-  type: string;
-  address: string;
-  responsiblePerson: string;
-  email: string;
-  phone: string;
-  status: LocationStatus;
-};
-
-/* -------------------------------------------------------------------------- */
-/* MOCK LOCATION DATA                                                         */
-/* -------------------------------------------------------------------------- */
-/*
- * TEMPORARY MOCK DATA
- *
- * The Locations backend API is not built yet.
- * Therefore, this dashboard uses the following mock records.
- *
- * Later, when the API is ready, replace the React Query queryFn
- * with the real API request.
- */
-
-const MOCK_LOCATIONS: Location[] = [
-  {
-    id: "loc-001",
-    name: "Delhi Head Office",
-    type: "Office",
-    address: "Connaught Place, New Delhi",
-    responsiblePerson: "Rahul Sharma",
-    email: "rahul@grubpac.com",
-    phone: "+91 98765 43210",
-    status: "active",
-  },
-
-];
+type Location = OrganisationLocationListItem;
 
 /* -------------------------------------------------------------------------- */
 /* Page                                                                       */
@@ -67,6 +37,12 @@ const MOCK_LOCATIONS: Location[] = [
 export default function LocationsPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { token, organizationId, isLoading: isAuthLoading } = useAuth();
+
+  const [deactivateTarget, setDeactivateTarget] =
+    useState<Location | null>(null);
+  const [deactivateReason, setDeactivateReason] = useState("");
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   /* ------------------------------------------------------------------------ */
   /* State                                                                    */
@@ -84,67 +60,86 @@ export default function LocationsPage() {
   /* ------------------------------------------------------------------------ */
   /* Locations                                                                */
   /* ------------------------------------------------------------------------ */
-  /*
-   * MOCK DATA IS USED HERE
-   *
-   * There is NO API call here.
-   */
-
-  const locationsQuery = useQuery({
-    queryKey: ["organization", "locations"],
-
-    queryFn: async () => {
-      return MOCK_LOCATIONS;
+  const locationTypesQuery = useQuery({
+    queryKey: ["organization", "location-types", organizationId],
+    queryFn: () => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return fetchOrganisationLocationTypesApi(token, organizationId);
     },
+    enabled: !!token && !!organizationId && !isAuthLoading,
   });
 
-  const locations = locationsQuery.data ?? [];
+  const selectedTypeId = useMemo(() => {
+    if (!filters.type) return undefined;
+    return locationTypesQuery.data?.items.find(
+      (type) =>
+        type.presetKey === filters.type ||
+        type.id === filters.type ||
+        type.name.toLowerCase() === filters.type.toLowerCase(),
+    )?.id;
+  }, [filters.type, locationTypesQuery.data?.items]);
 
-  /* ------------------------------------------------------------------------ */
-  /* Filter Locations                                                         */
-  /* ------------------------------------------------------------------------ */
+  const locationsQuery = useQuery({
+    queryKey: [
+      "organization",
+      "locations",
+      organizationId,
+      search,
+      filters.status,
+      selectedTypeId,
+    ],
+    queryFn: () => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return fetchOrganisationLocationsApi(token, {
+        organizationId,
+        page: 1,
+        pageSize: 50,
+        search: search.trim() || undefined,
+        locationTypeId: selectedTypeId,
+        status:
+          filters.status === "active" || filters.status === "inactive"
+            ? filters.status
+            : undefined,
+      });
+    },
+    enabled: !!token && !!organizationId && !isAuthLoading,
+  });
 
-  const filteredLocations = useMemo(() => {
-    const searchValue = search.trim().toLowerCase();
+  const locations = locationsQuery.data?.items ?? [];
+  const filteredLocations = locations;
 
-    return locations.filter((location) => {
-      const matchesSearch =
-        !searchValue ||
-        location.name
-          .toLowerCase()
-          .includes(searchValue) ||
-        location.type
-          .toLowerCase()
-          .includes(searchValue) ||
-        location.address
-          .toLowerCase()
-          .includes(searchValue) ||
-        location.responsiblePerson
-          .toLowerCase()
-          .includes(searchValue) ||
-        location.email
-          .toLowerCase()
-          .includes(searchValue) ||
-        location.phone
-          .toLowerCase()
-          .includes(searchValue);
-
-      const matchesType =
-        !filters.type ||
-        location.type.toLowerCase() ===
-        filters.type.toLowerCase();
-
-      const matchesStatus =
-        !filters.status ||
-        location.status === filters.status;
-
-      return (
-        matchesSearch &&
-        matchesType &&
-        matchesStatus
+  const statusMutation = useMutation({
+    mutationFn: async (input: {
+      location: Location;
+      action: "activate" | "deactivate";
+      reason?: string;
+    }) => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return updateOrganisationLocationStatusApi(
+        token,
+        organizationId,
+        input.location.id,
+        { action: input.action, reason: input.reason },
       );
-    });
-  }, [locations, search, filters]);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ["organization", "locations"],
+      });
+      setDeactivateTarget(null);
+      setDeactivateReason("");
+      setStatusError(null);
+    },
+    onError: (error: Error) => {
+      setStatusError(error.message || "Failed to update location status.");
+    },
+  });
 
   /* ------------------------------------------------------------------------ */
   /* Navigation                                                               */
@@ -153,12 +148,6 @@ export default function LocationsPage() {
   const handleAddLocation = () => {
     router.push(
       "/organization/locations/create"
-    );
-  };
-
-  const handleView = (location: Location) => {
-    router.push(
-      `/organization/locations/${location.id}`
     );
   };
 
@@ -190,71 +179,31 @@ export default function LocationsPage() {
     }
   };
 
-  /* ------------------------------------------------------------------------ */
-  /* Activate                                                                 */
-  /* ------------------------------------------------------------------------ */
-  /*
-   * MOCK BEHAVIOR
-   *
-   * Since the backend API does not exist yet,
-   * activation is handled locally using React Query.
-   */
-
-  const handleActivate = async (
-    location: Location
-  ) => {
-    queryClient.setQueryData<Location[]>(
-      ["organization", "locations"],
-      (currentLocations = []) =>
-        currentLocations.map((item) =>
-          item.id === location.id
-            ? {
-              ...item,
-              status: "active",
-            }
-            : item
-        )
-    );
-  };
-
-  /* ------------------------------------------------------------------------ */
-  /* Deactivate                                                               */
-  /* ------------------------------------------------------------------------ */
-  /*
-   * MOCK BEHAVIOR
-   *
-   * This only changes the status locally.
-   */
-
-  const handleDeactivate = async (
-    location: Location
-  ) => {
-    queryClient.setQueryData<Location[]>(
-      ["organization", "locations"],
-      (currentLocations = []) =>
-        currentLocations.map((item) =>
-          item.id === location.id
-            ? {
-              ...item,
-              status: "inactive",
-            }
-            : item
-        )
-    );
-  };
-
-  /* ------------------------------------------------------------------------ */
-  /* Toggle Status                                                            */
-  /* ------------------------------------------------------------------------ */
-
-  const handleToggleStatus = async (
-    location: Location
-  ) => {
+  const handleToggleStatus = async (location: Location) => {
+    setStatusError(null);
     if (location.status === "active") {
-      await handleDeactivate(location);
-    } else {
-      await handleActivate(location);
+      setDeactivateTarget(location);
+      setDeactivateReason("");
+      return;
     }
+    await statusMutation.mutateAsync({
+      location,
+      action: "activate",
+    });
+  };
+
+  const handleConfirmDeactivate = async () => {
+    if (!deactivateTarget) return;
+    const reason = deactivateReason.trim();
+    if (!reason) {
+      setStatusError("Please enter a reason to deactivate this location.");
+      return;
+    }
+    await statusMutation.mutateAsync({
+      location: deactivateTarget,
+      action: "deactivate",
+      reason,
+    });
   };
 
   /* ------------------------------------------------------------------------ */
@@ -330,7 +279,7 @@ export default function LocationsPage() {
   /* Loading                                                                  */
   /* ------------------------------------------------------------------------ */
 
-  if (locationsQuery.isLoading) {
+  if (isAuthLoading || locationsQuery.isLoading) {
     return (
       <DashboardLayout
         title="Locations"
@@ -427,24 +376,12 @@ export default function LocationsPage() {
             {
               key: "type",
               label: "All types",
-              options: [
-                {
-                  label: "Office",
-                  value: "office",
-                },
-                {
-                  label: "Workshop",
-                  value: "workshop",
-                },
-                {
-                  label: "Warehouse",
-                  value: "warehouse",
-                },
-                {
-                  label: "Outlet",
-                  value: "outlet",
-                },
-              ],
+              options: (locationTypesQuery.data?.items ?? []).map(
+                (type) => ({
+                  label: type.name,
+                  value: type.presetKey ?? type.id,
+                }),
+              ),
             },
 
             {
@@ -536,6 +473,51 @@ export default function LocationsPage() {
             />
           )}
         />
+      )}
+
+      {deactivateTarget && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl">
+            <h2 className="text-base font-semibold text-gray-900">
+              Deactivate {deactivateTarget.name}?
+            </h2>
+            <p className="mt-2 text-sm text-gray-600">
+              Provide a reason for deactivation. This is recorded in the audit
+              log.
+            </p>
+            <textarea
+              value={deactivateReason}
+              onChange={(event) => setDeactivateReason(event.target.value)}
+              rows={3}
+              className="mt-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+              placeholder="Reason for deactivation"
+            />
+            {statusError && (
+              <p className="mt-2 text-sm text-red-600">{statusError}</p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setDeactivateTarget(null);
+                  setDeactivateReason("");
+                  setStatusError(null);
+                }}
+                className="rounded-md border border-gray-300 px-4 py-2 text-sm"
+                disabled={statusMutation.isPending}
+              >
+                Cancel
+              </button>
+              <Button
+                type="button"
+                onClick={() => void handleConfirmDeactivate()}
+                disabled={statusMutation.isPending}
+              >
+                {statusMutation.isPending ? "Deactivating..." : "Deactivate"}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </DashboardLayout>
   );
