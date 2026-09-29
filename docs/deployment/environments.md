@@ -2,7 +2,7 @@
 
 GrubPac ERP uses **branch-aligned environments**. **Git branches** still promote via pull requests (`develop` → `staging` → `pre-prod` → `main`); do not direct-push product code to environment branches.
 
-**API runtime** for staging and above can be deployed either with **manual SAM** ([Manual SAM deploy](./sam-manual-deploy.md), profile `grubfleet-erp`) or **GitHub Actions** container deploy ([Blue-green](./blue-green.md)). Pick one hosting model per tier; the SAM path does not use SSH or manual `git pull` on servers.
+**API runtime** for staging and above is deployed by **GitHub Actions** only when an **environment branch** is updated (after a promotion PR merge): `staging`, `pre-prod`, or `main`. Jobs run RDS migrate (staging/pre-prod only), SAM Lambda API, and portal S3/CloudFront (see [README](./README.md)). **`develop` pushes do not deploy to AWS** — CI only. Manual SAM ([sam-manual-deploy.md](./sam-manual-deploy.md)) is for emergencies or production migrate only.
 
 Daily integration on **`develop`** may be direct-push or feature PRs per team preference. See [Git workflow (PR-only)](./git-workflow.md).
 
@@ -19,7 +19,7 @@ Promotion path (do not skip; **PR only**, no direct pushes):
 
 `feature|fix|chore` → PR → `develop` → PR → `staging` → PR → `pre-prod` → PR → `main`
 
-When using **GHA container deploy**, each merge to `staging`, `pre-prod`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR. When using **SAM**, run `npm run deploy:staging:api` (or preprod/production) locally after the branch you deploy from contains the intended code.
+Each merge to `staging`, `pre-prod`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR (SAM API + portal via GHA).
 
 ## URLs (placeholders)
 
@@ -68,7 +68,7 @@ Configure under **Settings → Environments** for `staging`, `pre-production`, a
 | `JWT_REFRESH_SECRET` | Backend | Required when `APP_ENV=production` |
 | `DEPLOY_HEALTH_URL` | Deploy workflow | API base for smoke test, e.g. `https://api-staging.example.com/api/v1` |
 | `DEPLOY_TARGET` | Deploy workflow | Placeholder for ECS service, CodeDeploy app, or host target |
-| `AWS_ROLE_ARN` | Portal + optional SAM | OIDC role for S3 sync / CloudFront invalidation (attach `scripts/iam-grubfleet-gha-portal-deploy-policy.json`) |
+| `AWS_ROLE_ARN` | Portal + SAM API | OIDC role (`GrubFleetGitHubActionsDeploy`) — portal policy + `scripts/iam-grubfleet-gha-sam-deploy-policy.json` |
 
 Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permission in workflows).
 
@@ -81,9 +81,13 @@ Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permissio
 | `CLOUDFRONT_DISTRIBUTION_ID` | e.g. `E2P1321QJMJTG0` | Invalidation target after S3 sync |
 | `AWS_REGION` | `ap-south-1` | Optional; default in workflow |
 | `ACTIVE_SLOT` | `blue` or `green` | Blue-green traffic marker (updated after each deploy) |
-| `CORS_ORIGIN` | `https://staging.example.com` | Legacy name; SAM uses `ClientOrigin` parameter — match CloudFront `PortalUrl` |
+| `CORS_ORIGIN` | `https://staging.example.com` | SAM `ClientOrigin` fallback when `SAM_CLIENT_ORIGIN` unset — match CloudFront `PortalUrl` |
+| `SAM_CLIENT_ORIGIN` | `https://dxxx.cloudfront.net,http://localhost:3000` | Unquoted comma list for SAM `ClientOrigin` (staging/pre-prod); production portal HTTPS only |
+| `VPC_SUBNET_IDS` | `subnet-aaa,subnet-bbb` | Optional; Lambda VPC (staging SAM) — comma-separated, no spaces |
+| `VPC_SECURITY_GROUP_IDS` | `sg-xxx` | Optional; pair with `VPC_SUBNET_IDS` |
+| `RDS_MIGRATION_SECURITY_GROUP_ID` | `sg-0198b9781297f8bf7` | **Required** for GHA `db-migrate` on staging/pre-prod — shared network RDS SG; job opens runner `/32` on 5432 then revokes. Attach `scripts/iam-grubfleet-gha-rds-migrate-sg-policy.json` to `GrubFleetGitHubActionsDeploy`. |
 
 ## CI vs deploy
 
 - **CI** (`.github/workflows/ci.yml`): runs on pull requests **into** `develop`, `staging`, `pre-prod`, or `main`, and on pushes to those branches (usually after a PR merge).
-- **Deploy**: merge to `staging` / `pre-prod` / `main` via PR only; the merge commit triggers deploy — see [git-workflow.md](./git-workflow.md), [blue-green.md](./blue-green.md), and [README.md](./README.md).
+- **Deploy**: merge promotion PR to `staging` / `pre-prod` / `main` only (push to that branch after merge triggers deploy). **`develop` is CI only.** See [git-workflow.md](./git-workflow.md), [blue-green.md](./blue-green.md), and [README.md](./README.md).

@@ -120,7 +120,7 @@ export default function LeaseContractsTable() {
             cell: ({ row }) => (
                 <div className="flex justify-end">
                     <Link
-                        href={`/fleet-leasing/lease-contracts/${row.id}`}
+                        href={`/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(row.id)}`}
                         className="font-medium text-[#FE5720] transition-colors hover:text-[#e94d1c] hover:underline"
                     >
                         View

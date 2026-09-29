@@ -5,8 +5,10 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator';
 import { Pool } from 'pg';
 import { pgPoolOptions } from './pg-pool-options';
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env.development') });
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+if (!process.env.CI) {
+  dotenv.config({ path: path.resolve(__dirname, '../../.env.development') });
+  dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+}
 
 async function main(): Promise<void> {
   const connectionString =

@@ -28,15 +28,15 @@ This inventory covers **GrubFleet-ERP only**. It does **not** include attendance
 
 ## Live API & portal URLs (maintain on redeploy)
 
-GrubFleet **frontend** is deployed via **S3 + CloudFront** (stack `grubfleet-portal-{tier}`). See [s3-cloudfront-portal.md](./s3-cloudfront-portal.md). After portal deploy, set SAM **`ClientOrigin`** to `PortalUrl` (HTTPS CloudFront domain, no trailing slash).
+GrubFleet **frontend** is deployed via **S3 + CloudFront** (stack `grubfleet-portal-{tier}`). See [s3-cloudfront-portal.md](./s3-cloudfront-portal.md). SAM **`ClientOrigin`** (unquoted comma list in `samconfig.<tier>.toml`) is the single source of truth for API Gateway CORS and Lambda `CORS_ORIGIN` (`template.yaml` Metadata). Staging/pre-prod: `ClientOrigin=https://{portal},http://localhost:3000`; production: portal URL only. Run `scripts/update-sam-client-origin.ps1 -Tier <tier>` after portal deploy.
 
 | Tier | Frontend portal (CloudFront) | HTTP API (SAM output) | `NEXT_PUBLIC_API_BASE_URL` | Health smoke |
 |------|------------------------------|------------------------|----------------------------|--------------|
 | Staging | `https://d3swe5av2h6i8p.cloudfront.net` | `https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com` | `https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
-| Pre-prod | *(stack `grubfleet-portal-preprod` when deployed)* | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com` | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
-| Production | *(stack `grubfleet-portal-production` when deployed)* | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com` | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
+| Pre-prod | `https://d2fyfrapktmstq.cloudfront.net` | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com` | `https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
+| Production | `https://d30hrnureiq1oz.cloudfront.net` | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com` | `https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com/api/v1` | `GET .../api/v1/health` |
 
-**CORS `ClientOrigin`:** update from `http://localhost:3000` to each tier’s `PortalUrl` after first portal sync (`scripts/update-sam-client-origin.ps1`).
+**CORS `ClientOrigin`:** comma-separated list in SAM only — not a separate env var on Lambda outside the stack. Refresh with `scripts/update-sam-client-origin.ps1` after portal URL changes.
 
 | Tier | OpenAPI / Swagger (when API is up) |
 |------|-------------------------------------|
@@ -64,13 +64,13 @@ GrubFleet **frontend** is deployed via **S3 + CloudFront** (stack `grubfleet-por
 
 | `grubfleet-api-preprod` | SAM API (pre-prod) | `CREATE_COMPLETE` |
 
-| `grubfleet-api-production` | SAM API (production) | `CREATE_COMPLETE` (health + auth smoke OK) |
+| `grubfleet-api-production` | SAM API (production) | `UPDATE_COMPLETE` (health + auth smoke OK) |
 
 | `grubfleet-portal-staging` | S3 + CloudFront portal (staging) | `UPDATE_COMPLETE` |
 
-| `grubfleet-portal-preprod` | Portal (pre-prod) | when deployed |
+| `grubfleet-portal-preprod` | Portal (pre-prod) | `UPDATE_COMPLETE` |
 
-| `grubfleet-portal-production` | Portal (production) | when deployed |
+| `grubfleet-portal-production` | Portal (production) | `UPDATE_COMPLETE` |
 
 
 
@@ -236,7 +236,7 @@ Credentials (master user `grubfleet`, passwords, full `DATABASE_URL`) are **not*
 
 | Nest API prefix | `/api/v1` (e.g. health: `GET .../api/v1/health`) |
 
-| `ClientOrigin` (CORS) | `https://d3swe5av2h6i8p.cloudfront.net` |
+| `ClientOrigin` (CORS) | `https://d3swe5av2h6i8p.cloudfront.net,http://localhost:3000` |
 
 | VPC | Private subnets + Lambda SG (see network) |
 
@@ -264,13 +264,13 @@ Credentials (master user `grubfleet`, passwords, full `DATABASE_URL`) are **not*
 
 | Nest API prefix | `/api/v1` |
 
-| `ClientOrigin` (CORS) | `http://localhost:3000` |
+| `ClientOrigin` (CORS) | `https://d2fyfrapktmstq.cloudfront.net,http://localhost:3000` (via SAM) |
 
 | VPC | Private subnets + Lambda SG |
 
-| Reserved concurrency | `0` |
+| Reserved concurrency | `10` |
 
-| Warmup schedule | Off (`EnableWarmupSchedule=false`) |
+| Warmup schedule | On (`EnableWarmupSchedule=true`) |
 
 
 
@@ -294,7 +294,7 @@ Credentials (master user `grubfleet`, passwords, full `DATABASE_URL`) are **not*
 
 | Nest API prefix | `/api/v1` |
 
-| `ClientOrigin` (CORS) | `http://localhost:3000` (update when prod FE URL is known) |
+| `ClientOrigin` (CORS) | `https://d30hrnureiq1oz.cloudfront.net` (production portal only) |
 
 | VPC | Private subnets + Lambda SG |
 
@@ -359,6 +359,7 @@ Current GHA workflows (`.github/workflows/reusable-container-deploy.yml`) still 
 | `scripts/stage-sam-artifacts.mjs` | Stage `.aws-sam/build` without SAM Node builder (Windows) |
 
 | `scripts/sam-deploy.mjs` | `sam deploy` with absolute config path (Windows paths with spaces) |
+| `scripts/write-samconfig-from-env.mjs` | CI: build gitignored `samconfig.<tier>.toml` from Environment secrets/vars before GHA SAM deploy |
 
 | `scripts/bootstrap-production-data-and-samconfig.ps1` | One-time prod data bootstrap + `samconfig.production.toml` |
 

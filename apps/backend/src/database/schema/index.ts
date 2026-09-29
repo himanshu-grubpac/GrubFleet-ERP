@@ -134,6 +134,7 @@ export const roles = pgTable(
     scope: roleScopeEnum('scope').notNull().default('organization'),
     description: text('description'),
     isSystem: boolean('is_system').notNull().default(false),
+    isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
