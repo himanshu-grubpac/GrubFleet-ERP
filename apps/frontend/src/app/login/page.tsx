@@ -10,16 +10,12 @@ import {
 import { Loader2 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
-<<<<<<< HEAD
-import { useGrubpacAuth } from "@/lib/auth-context";
-=======
 import { AuthBootstrapLoader } from "@/components/states/auth-bootstrap-loader";
 import {
   AuthSessionTopBar,
 } from "@/components/states/auth-session-progress";
 import { LoginCardSkeleton } from "@/components/states/skeleton";
 import { useGrubpacAuth } from "@/providers/auth-provider";
->>>>>>> origin/develop
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
