@@ -2,20 +2,19 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+
 import {
     Building2,
+    Check,
     MapPin,
     UserRound,
     Phone,
     Mail,
     Plus,
     Trash2,
-    AlertCircle,
-    CheckCircle2,
     Loader2,
 } from "lucide-react";
 
-import Button from "@/components/ui/GrubpacButton";
 import { useGrubpacAuth } from "@/lib/auth-context";
 
 interface PointOfContact {
@@ -34,6 +33,8 @@ interface CustomerRegistrationFormProps {
 
 export default function CustomerRegistrationForm({
     onSuccess,
+    onCancel,
+    redirectOnSuccess = true,
 }: CustomerRegistrationFormProps) {
     const router = useRouter();
     const { token, organizationId } = useGrubpacAuth();
@@ -96,26 +97,33 @@ export default function CustomerRegistrationForm({
             return;
         }
 
-        const contactToRemove = pointsOfContact.find(
-            (contact) => contact.id === id,
-        );
+        const contactToRemove =
+            pointsOfContact.find(
+                (contact) => contact.id === id,
+            );
 
-        const wasPrimary = contactToRemove?.isPrimary;
+        const wasPrimary =
+            contactToRemove?.isPrimary;
 
-        const remainingContacts = pointsOfContact.filter(
-            (contact) => contact.id !== id,
-        );
+        const remainingContacts =
+            pointsOfContact.filter(
+                (contact) => contact.id !== id,
+            );
 
-        // If primary contact was removed,
-        // make the first remaining contact primary.
-        if (wasPrimary && remainingContacts.length > 0) {
+        if (
+            wasPrimary &&
+            remainingContacts.length > 0
+        ) {
             remainingContacts[0] = {
                 ...remainingContacts[0],
                 isPrimary: true,
             };
         }
 
-        setPointsOfContact(remainingContacts);
+        setPointsOfContact(
+            remainingContacts,
+        );
+
         setFormError(null);
     };
 
@@ -145,11 +153,14 @@ export default function CustomerRegistrationForm({
     // SET PRIMARY CONTACT
     // ============================================================
 
-    const setPrimaryContact = (id: string) => {
+    const setPrimaryContact = (
+        id: string,
+    ) => {
         setPointsOfContact((previous) =>
             previous.map((contact) => ({
                 ...contact,
-                isPrimary: contact.id === id,
+                isPrimary:
+                    contact.id === id,
             })),
         );
     };
@@ -182,14 +193,13 @@ export default function CustomerRegistrationForm({
         // --------------------------------------------------------
 
         if (!companyName.trim()) {
-            setFormError("Company name is required.");
+            setFormError(
+                "Company name is required.",
+            );
             return;
         }
 
-        if (!address.trim()) {
-            setFormError("Address is required.");
-            return;
-        }
+        // Address is intentionally optional.
 
         // --------------------------------------------------------
         // CONTACT VALIDATION
@@ -202,11 +212,15 @@ export default function CustomerRegistrationForm({
             return;
         }
 
-        const primaryContacts = pointsOfContact.filter(
-            (contact) => contact.isPrimary,
-        );
+        const primaryContacts =
+            pointsOfContact.filter(
+                (contact) =>
+                    contact.isPrimary,
+            );
 
-        if (primaryContacts.length !== 1) {
+        if (
+            primaryContacts.length !== 1
+        ) {
             setFormError(
                 "Please select exactly one primary contact.",
             );
@@ -221,16 +235,22 @@ export default function CustomerRegistrationForm({
                 return;
             }
 
-            if (!contact.contactNumber.trim()) {
+            if (
+                !contact.contactNumber.trim()
+            ) {
                 setFormError(
-                    `Contact number is required for ${contact.name || "all contacts"}.`,
+                    `Contact number is required for ${contact.name ||
+                    "all contacts"
+                    }.`,
                 );
                 return;
             }
 
             if (!contact.email.trim()) {
                 setFormError(
-                    `Email is required for ${contact.name || "all contacts"}.`,
+                    `Email is required for ${contact.name ||
+                    "all contacts"
+                    }.`,
                 );
                 return;
             }
@@ -238,7 +258,11 @@ export default function CustomerRegistrationForm({
             const emailPattern =
                 /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-            if (!emailPattern.test(contact.email.trim())) {
+            if (
+                !emailPattern.test(
+                    contact.email.trim(),
+                )
+            ) {
                 setFormError(
                     `Please enter a valid email for ${contact.name}.`,
                 );
@@ -248,38 +272,31 @@ export default function CustomerRegistrationForm({
 
         // --------------------------------------------------------
         // REQUEST BODY
-        // Exactly follows the Customer API structure.
         // --------------------------------------------------------
 
         const payload = {
             organizationId,
-            companyName: companyName.trim(),
+            companyName:
+                companyName.trim(),
             address: address.trim(),
 
-            pointsOfContact: pointsOfContact.map(
-                (contact) => ({
-                    id: contact.id,
-                    name: contact.name.trim(),
-                    contactNumber:
-                        contact.contactNumber.trim(),
-                    email: contact.email.trim(),
-                    isPrimary: contact.isPrimary,
-                }),
-            ),
+            pointsOfContact:
+                pointsOfContact.map(
+                    (contact) => ({
+                        id: contact.id,
+                        name: contact.name.trim(),
+                        contactNumber:
+                            contact.contactNumber.trim(),
+                        email:
+                            contact.email.trim(),
+                        isPrimary:
+                            contact.isPrimary,
+                    }),
+                ),
         };
 
         try {
             setIsSubmitting(true);
-
-            // ----------------------------------------------------
-            // API BASE URL
-            //
-            // Supports either:
-            // NEXT_PUBLIC_API_BASE_URL=http://localhost:4000
-            //
-            // or:
-            // NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api/v1
-            // ----------------------------------------------------
 
             const configuredBaseUrl =
                 process.env.NEXT_PUBLIC_API_BASE_URL?.replace(
@@ -294,28 +311,31 @@ export default function CustomerRegistrationForm({
             }
 
             const apiUrl =
-                configuredBaseUrl.endsWith("/api/v1")
+                configuredBaseUrl.endsWith(
+                    "/api/v1",
+                )
                     ? `${configuredBaseUrl}/fleet-leasing/clients`
                     : `${configuredBaseUrl}/api/v1/fleet-leasing/clients`;
 
-            // ----------------------------------------------------
-            // POST /api/v1/fleet-leasing/clients
-            // ----------------------------------------------------
+            const response =
+                await fetch(apiUrl, {
+                    method: "POST",
 
-            const response = await fetch(apiUrl, {
-                method: "POST",
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                        Authorization: `Bearer ${token}`,
+                    },
 
-                headers: {
-                    "Content-Type": "application/json",
-                    Authorization: `Bearer ${token}`,
-                },
+                    body: JSON.stringify(
+                        payload,
+                    ),
+                });
 
-                body: JSON.stringify(payload),
-            });
-
-            const responseData = await response
-                .json()
-                .catch(() => null);
+            const responseData =
+                await response
+                    .json()
+                    .catch(() => null);
 
             if (!response.ok) {
                 const message =
@@ -334,7 +354,10 @@ export default function CustomerRegistrationForm({
 
             onSuccess?.(responseData);
 
-            // Reset form
+            if (!redirectOnSuccess) {
+                return;
+            }
+
             setCompanyName("");
             setAddress("");
 
@@ -348,7 +371,6 @@ export default function CustomerRegistrationForm({
                 },
             ]);
 
-            // Redirect after successful creation
             setTimeout(() => {
                 router.push(
                     "/fleet-leasing/customers",
@@ -370,7 +392,14 @@ export default function CustomerRegistrationForm({
     // ============================================================
 
     const handleCancel = () => {
-        router.push("/fleet-leasing/customers");
+        if (onCancel) {
+            onCancel();
+            return;
+        }
+
+        router.push(
+            "/fleet-leasing/customers",
+        );
     };
 
     // ============================================================
@@ -380,188 +409,308 @@ export default function CustomerRegistrationForm({
     return (
         <form
             onSubmit={handleSubmit}
-            className="space-y-6 pb-12"
+            className="min-h-full w-full bg-[#f7f7f7]"
         >
-            {/* ==================================================
-                PAGE HEADER
-            ================================================== */}
+            {/* ====================================================
+                STEP 1 → CLIENT
+            ===================================================== */}
 
-            <div className="border-b border-slate-200 pb-5">
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                    Create Corporate Customer
-                </h1>
+            <LeaseContractStepper
+                currentStep={1}
+            />
 
-                <p className="mt-1 text-sm text-slate-500">
-                    Register a corporate customer and its
-                    points of contact.
-                </p>
-            </div>
+            {/* ====================================================
+                CONTENT
+            ===================================================== */}
 
-            {/* ==================================================
-                ERROR
-            ================================================== */}
+            <div className="mx-auto w-full max-w-7xl px-4 pb-8 pt-5 sm:px-6 sm:pt-6">
 
-            {formError && (
-                <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-                    <AlertCircle className="h-5 w-5 shrink-0 text-red-500" />
-
-                    <span>{formError}</span>
-                </div>
-            )}
-
-            {/* ==================================================
-                SUCCESS
-            ================================================== */}
-
-            {isSuccess && (
-                <div className="flex items-center gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-                    <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
-
-                    <span>
-                        Corporate customer created
-                        successfully! Redirecting…
-                    </span>
-                </div>
-            )}
-
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-                {/* ==================================================
-                    LEFT / MAIN COLUMN
-                ================================================== */}
-
-                <div className="space-y-6 lg:col-span-2">
-                    {/* ==================================================
-                        COMPANY INFORMATION
-                    ================================================== */}
-
-                    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                        <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-                            <Building2 className="h-5 w-5 text-[#FE5720]" />
-
-                            <h2 className="text-base font-semibold text-slate-900">
-                                Company Information
-                            </h2>
-                        </div>
-
-                        <div className="mt-5 space-y-5">
-                            {/* Company Name */}
-                            <div>
-                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Company Name
-                                    <span className="ml-1 text-red-500">
-                                        *
-                                    </span>
-                                </label>
-
-                                <div className="relative mt-1.5">
-                                    <Building2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                                    <input
-                                        type="text"
-                                        value={companyName}
-                                        onChange={(event) =>
-                                            setCompanyName(
-                                                event.target
-                                                    .value,
-                                            )
-                                        }
-                                        placeholder="e.g. ABC Technologies Pvt. Ltd."
-                                        className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#FE5720] focus:outline-none focus:ring-1 focus:ring-[#FE5720]"
-                                    />
-                                </div>
-                            </div>
-
-                            {/* Address */}
-                            <div>
-                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                    Address
-                                    <span className="ml-1 text-red-500">
-                                        *
-                                    </span>
-                                </label>
-
-                                <div className="relative mt-1.5">
-                                    <MapPin className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-
-                                    <textarea
-                                        rows={4}
-                                        value={address}
-                                        onChange={(event) =>
-                                            setAddress(
-                                                event.target
-                                                    .value,
-                                            )
-                                        }
-                                        placeholder="Enter the company's registered/business address"
-                                        className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#FE5720] focus:outline-none focus:ring-1 focus:ring-[#FE5720]"
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                <div className="w-full max-w-[760px]">
 
                     {/* ==================================================
-                        POINTS OF CONTACT
+                        NEW CLIENT RECORD
                     ================================================== */}
 
-                    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                            <div className="flex items-center gap-2">
-                                <UserRound className="h-5 w-5 text-[#FE5720]" />
+                    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+
+                        {/* HEADER */}
+
+                        <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+
+                            <h1 className="text-sm font-semibold text-slate-900 sm:text-base">
+                                New client record
+                            </h1>
+
+                        </div>
+
+                        {/* ==================================================
+                          COMPANY INFORMATION
+                        ================================================== */}
+
+                        <div className="px-4 py-4 sm:px-5">
+
+                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+
+                                {/* COMPANY NAME */}
 
                                 <div>
-                                    <h2 className="text-base font-semibold text-slate-900">
-                                        Points of Contact
-                                    </h2>
+                                    <label className="block text-xs font-semibold text-slate-700">
+                                        Company name
+                                    </label>
 
-                                    <p className="mt-0.5 text-xs text-slate-400">
-                                        Add the people who can be
-                                        contacted for this
-                                        customer.
-                                    </p>
+                                    <div className="relative mt-1.5">
+
+                                        <Building2 className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+
+                                        <input
+                                            type="text"
+                                            value={companyName}
+                                            onChange={(event) =>
+                                                setCompanyName(event.target.value)
+                                            }
+                                            placeholder="e.g. Meridian Logistics Pvt Ltd"
+                                            className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
+                                        />
+
+                                    </div>
                                 </div>
+
+                                {/* ADDRESS */}
+
+                                <div>
+                                    <label className="block text-xs font-semibold text-slate-700">
+                                        Address
+                                    </label>
+
+                                    <div className="relative mt-1.5">
+
+                                        <MapPin className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+
+                                        <input
+                                            type="text"
+                                            value={address}
+                                            onChange={(event) =>
+                                                setAddress(event.target.value)
+                                            }
+                                            placeholder="Optional"
+                                            className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
+                                        />
+
+                                    </div>
+                                </div>
+
                             </div>
 
-                            <button
-                                type="button"
-                                onClick={addContact}
-                                className="flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                            >
-                                <Plus className="h-3.5 w-3.5" />
-
-                                Add Contact
-                            </button>
                         </div>
 
-                        <div className="mt-5 space-y-4">
-                            {pointsOfContact.map(
-                                (contact, index) => (
-                                    <div
-                                        key={contact.id}
-                                        className="rounded-lg border border-slate-200 bg-slate-50/50 p-5"
-                                    >
-                                        {/* Contact Header */}
-                                        <div className="mb-4 flex items-center justify-between">
-                                            <div className="flex items-center gap-2">
-                                                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-200 text-xs font-bold text-slate-600">
-                                                    {index + 1}
-                                                </span>
+                        {/* ==================================================
+                            POINT OF CONTACT
+                        ================================================== */}
 
-                                                <span className="text-sm font-semibold text-slate-800">
-                                                    Contact{" "}
-                                                    {index +
-                                                        1}
-                                                </span>
+                        <div className="border-t border-slate-100 px-4 py-4 sm:px-5">
 
-                                                {contact.isPrimary && (
-                                                    <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-[#FE5720]">
-                                                        Primary
+                            {/* POC HEADER */}
+
+                            <div className="mb-2.5 flex items-center justify-between gap-3">
+
+                                <h2 className="text-xs font-semibold text-slate-800 sm:text-sm">
+                                    Point of contact
+                                </h2>
+
+                                <button
+                                    type="button"
+                                    onClick={
+                                        addContact
+                                    }
+                                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline"
+                                >
+                                    <Plus className="h-3.5 w-3.5" />
+                                    Add another POC
+                                </button>
+
+                            </div>
+
+                            {/* ==================================================
+                                POC TABLE
+                            ================================================== */}
+
+                            <div className="overflow-hidden rounded-md border border-slate-200">
+
+                                {/* DESKTOP HEADERS */}
+
+                                <div className="hidden grid-cols-[1.15fr_1.15fr_1.15fr_28px] gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2 md:grid">
+
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                        Name
+                                    </span>
+
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                        Contact number
+                                    </span>
+
+                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                        Email
+                                    </span>
+
+                                    <span />
+
+                                </div>
+
+                                {/* CONTACTS */}
+
+                                <div className="divide-y divide-slate-100">
+
+                                    {pointsOfContact.map(
+                                        (
+                                            contact,
+                                            index,
+                                        ) => (
+                                            <div
+                                                key={
+                                                    contact.id
+                                                }
+                                                className="px-3 py-3"
+                                            >
+
+                                                {/* MOBILE TITLE */}
+
+                                                <div className="mb-2 flex items-center justify-between md:hidden">
+
+                                                    <span className="text-xs font-semibold text-slate-700">
+                                                        Point of Contact{" "}
+                                                        {index +
+                                                            1}
                                                     </span>
-                                                )}
-                                            </div>
 
-                                            {pointsOfContact.length >
-                                                1 && (
+                                                    {pointsOfContact.length >
+                                                        1 && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() =>
+                                                                    removeContact(
+                                                                        contact.id,
+                                                                    )
+                                                                }
+                                                                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                                            >
+                                                                <Trash2 className="h-3.5 w-3.5" />
+                                                            </button>
+                                                        )}
+
+                                                </div>
+
+                                                {/* FIELDS */}
+
+                                                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.15fr_1.15fr_1.15fr_28px] md:items-start md:gap-2">
+
+                                                    {/* NAME */}
+
+                                                    <div>
+                                                        <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
+                                                            Name
+                                                        </label>
+
+                                                        <div className="relative">
+
+                                                            <UserRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+
+                                                            <input
+                                                                type="text"
+                                                                value={
+                                                                    contact.name
+                                                                }
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
+                                                                    updateContact(
+                                                                        contact.id,
+                                                                        {
+                                                                            name: event
+                                                                                .target
+                                                                                .value,
+                                                                        },
+                                                                    )
+                                                                }
+                                                                placeholder="Point of contact"
+                                                                className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
+                                                            />
+
+                                                        </div>
+                                                    </div>
+
+                                                    {/* CONTACT NUMBER */}
+
+                                                    <div>
+                                                        <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
+                                                            Contact number
+                                                        </label>
+
+                                                        <div className="relative">
+
+                                                            <Phone className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+
+                                                            <input
+                                                                type="tel"
+                                                                value={
+                                                                    contact.contactNumber
+                                                                }
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
+                                                                    updateContact(
+                                                                        contact.id,
+                                                                        {
+                                                                            contactNumber:
+                                                                                event
+                                                                                    .target
+                                                                                    .value,
+                                                                        },
+                                                                    )
+                                                                }
+                                                                placeholder="Phone number"
+                                                                className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
+                                                            />
+
+                                                        </div>
+                                                    </div>
+
+                                                    {/* EMAIL */}
+
+                                                    <div>
+                                                        <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
+                                                            Email
+                                                        </label>
+
+                                                        <div className="relative">
+
+                                                            <Mail className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+
+                                                            <input
+                                                                type="email"
+                                                                value={
+                                                                    contact.email
+                                                                }
+                                                                onChange={(
+                                                                    event,
+                                                                ) =>
+                                                                    updateContact(
+                                                                        contact.id,
+                                                                        {
+                                                                            email: event
+                                                                                .target
+                                                                                .value,
+                                                                        },
+                                                                    )
+                                                                }
+                                                                placeholder="name@company.com"
+                                                                className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
+                                                            />
+
+                                                        </div>
+                                                    </div>
+
+                                                    {/* DELETE */}
+
                                                     <button
                                                         type="button"
                                                         onClick={() =>
@@ -569,254 +718,242 @@ export default function CustomerRegistrationForm({
                                                                 contact.id,
                                                             )
                                                         }
-                                                        className="rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500"
+                                                        disabled={
+                                                            pointsOfContact.length ===
+                                                            1
+                                                        }
+                                                        className="hidden h-8 w-7 items-center justify-center self-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
                                                         title="Remove contact"
                                                     >
-                                                        <Trash2 className="h-4 w-4" />
+                                                        <Trash2 className="h-3.5 w-3.5" />
                                                     </button>
-                                                )}
-                                        </div>
 
-                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                            {/* Name */}
-                                            <div>
-                                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                                    Name
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
-
-                                                <div className="relative mt-1.5">
-                                                    <UserRound className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                                                    <input
-                                                        type="text"
-                                                        value={
-                                                            contact.name
-                                                        }
-                                                        onChange={(
-                                                            event,
-                                                        ) =>
-                                                            updateContact(
-                                                                contact.id,
-                                                                {
-                                                                    name: event
-                                                                        .target
-                                                                        .value,
-                                                                },
-                                                            )
-                                                        }
-                                                        placeholder="Full name"
-                                                        className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#FE5720] focus:outline-none focus:ring-1 focus:ring-[#FE5720]"
-                                                    />
                                                 </div>
+
+                                                {/* ==================================================
+                                                    PRIMARY POC
+                                                    ONLY SHOWN AFTER ADDING
+                                                    ANOTHER POC
+                                                ================================================== */}
+
+                                                {pointsOfContact.length >
+                                                    1 && (
+                                                        <label className="mt-2.5 inline-flex cursor-pointer items-center gap-2">
+
+                                                            <input
+                                                                type="radio"
+                                                                name="primaryContact"
+                                                                checked={
+                                                                    contact.isPrimary
+                                                                }
+                                                                onChange={() =>
+                                                                    setPrimaryContact(
+                                                                        contact.id,
+                                                                    )
+                                                                }
+                                                                className="h-3.5 w-3.5 accent-[#FE5720]"
+                                                            />
+
+                                                            <span className="text-[11px] font-medium text-slate-600">
+                                                                Primary POC
+                                                            </span>
+
+                                                        </label>
+                                                    )}
+
                                             </div>
+                                        ),
+                                    )}
 
-                                            {/* Contact Number */}
-                                            <div>
-                                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                                    Contact Number
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
+                                </div>
 
-                                                <div className="relative mt-1.5">
-                                                    <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            </div>
 
-                                                    <input
-                                                        type="tel"
-                                                        value={
-                                                            contact.contactNumber
-                                                        }
-                                                        onChange={(
-                                                            event,
-                                                        ) =>
-                                                            updateContact(
-                                                                contact.id,
-                                                                {
-                                                                    contactNumber:
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                },
-                                                            )
-                                                        }
-                                                        placeholder="e.g. 9876543210"
-                                                        className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#FE5720] focus:outline-none focus:ring-1 focus:ring-[#FE5720]"
-                                                    />
-                                                </div>
-                                            </div>
+                            {/* BOTTOM ADD */}
 
-                                            {/* Email */}
-                                            <div className="md:col-span-2">
-                                                <label className="block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                                                    Email
-                                                    <span className="ml-1 text-red-500">
-                                                        *
-                                                    </span>
-                                                </label>
+                            <button
+                                type="button"
+                                onClick={
+                                    addContact
+                                }
+                                className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-[#FE5720] hover:underline"
+                            >
+                                <Plus className="h-3.5 w-3.5" />
+                                Add another POC
+                            </button>
 
-                                                <div className="relative mt-1.5">
-                                                    <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-
-                                                    <input
-                                                        type="email"
-                                                        value={
-                                                            contact.email
-                                                        }
-                                                        onChange={(
-                                                            event,
-                                                        ) =>
-                                                            updateContact(
-                                                                contact.id,
-                                                                {
-                                                                    email: event
-                                                                        .target
-                                                                        .value,
-                                                                },
-                                                            )
-                                                        }
-                                                        placeholder="name@company.com"
-                                                        className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-800 placeholder:text-slate-400 focus:border-[#FE5720] focus:outline-none focus:ring-1 focus:ring-[#FE5720]"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Primary Contact */}
-                                        <div className="mt-4 border-t border-slate-200 pt-4">
-                                            <label className="flex cursor-pointer items-center gap-2">
-                                                <input
-                                                    type="radio"
-                                                    name="primaryContact"
-                                                    checked={
-                                                        contact.isPrimary
-                                                    }
-                                                    onChange={() =>
-                                                        setPrimaryContact(
-                                                            contact.id,
-                                                        )
-                                                    }
-                                                    className="h-4 w-4 border-slate-300 text-[#FE5720] focus:ring-[#FE5720]"
-                                                />
-
-                                                <span className="text-sm font-medium text-slate-700">
-                                                    Primary
-                                                    contact
-                                                </span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                ),
-                            )}
                         </div>
-                    </div>
-                </div>
 
-                {/* ==================================================
-                    RIGHT COLUMN
-                ================================================== */}
+                        {/* ==================================================
+                            ERROR
+                        ================================================== */}
 
-                <div className="space-y-6">
-                    {/* Registration Summary */}
-                    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-                        <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                            Customer Summary
-                        </h2>
-
-                        <div className="mt-5 space-y-4">
-                            <div>
-                                <p className="text-xs text-slate-400">
-                                    Company
-                                </p>
-
-                                <p className="mt-1 text-sm font-semibold text-slate-800">
-                                    {companyName ||
-                                        "Not provided"}
+                        {formError && (
+                            <div className="border-t border-red-100 bg-red-50 px-4 py-2.5 sm:px-5">
+                                <p className="text-xs font-medium text-red-600">
+                                    {formError}
                                 </p>
                             </div>
+                        )}
 
-                            <div className="border-t border-slate-100 pt-4">
-                                <p className="text-xs text-slate-400">
-                                    Contacts
-                                </p>
+                        {/* ==================================================
+                            ACTIONS
+                        ================================================== */}
 
-                                <p className="mt-1 text-sm font-semibold text-slate-800">
-                                    {
-                                        pointsOfContact.length
-                                    }{" "}
-                                    contact
-                                    {pointsOfContact.length !==
-                                        1
-                                        ? "s"
-                                        : ""}
-                                </p>
-                            </div>
+                        <div className="flex flex-col-reverse items-stretch justify-end gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
 
-                            <div className="border-t border-slate-100 pt-4">
-                                <p className="text-xs text-slate-400">
-                                    Primary Contact
-                                </p>
+                            <button
+                                type="button"
+                                onClick={
+                                    handleCancel
+                                }
+                                disabled={
+                                    isSubmitting
+                                }
+                                className="h-9 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
+                            >
+                                Cancel
+                            </button>
 
-                                <p className="mt-1 text-sm font-semibold text-slate-800">
-                                    {pointsOfContact.find(
-                                        (contact) =>
-                                            contact.isPrimary,
-                                    )?.name ||
-                                        "Not provided"}
-                                </p>
-                            </div>
+                            <button
+                                type="submit"
+                                disabled={
+                                    isSubmitting ||
+                                    isSuccess
+                                }
+                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#FE5720] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#e94d12] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
+                            >
+                                {isSubmitting && (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                )}
+
+                                {isSubmitting
+                                    ? "Saving..."
+                                    : "Save client"}
+                            </button>
+
                         </div>
-                    </div>
 
-                    {/* Organization info */}
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 p-5">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                            Organization
+                    </section>
+
+                    {/* ==================================================
+                        INFORMATION NOTE
+                    ================================================== */}
+
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:px-5">
+
+                        <p className="text-[11px] leading-5 text-slate-500 sm:text-xs">
+                            This is the shared Customer /
+                            Client Register in Organisation
+                            (Flow 39) — one record per
+                            client, reused across every
+                            lease contract. A client can
+                            carry several POCs, each with
+                            their own name, contact number
+                            and email; one is marked Primary
+                            and is what&apos;s used by
+                            default.
                         </p>
 
-                        <p className="mt-2 text-xs text-slate-500">
-                            The customer will automatically be
-                            registered under the currently
-                            authenticated organization.
-                        </p>
                     </div>
 
-                    {/* Actions */}
-                    <div className="flex flex-col gap-3">
-                        <Button
-                            type="submit"
-                            variant="primary"
-                            size="md"
-                            disabled={
-                                isSubmitting ||
-                                isSuccess
-                            }
-                            leftIcon={
-                                isSubmitting ? (
-                                    <Loader2 className="h-4 w-4 animate-spin" />
-                                ) : undefined
-                            }
-                            className="w-full justify-center bg-[#FE5720] text-white hover:bg-[#e94d1c]"
-                        >
-                            {isSubmitting
-                                ? "Creating Customer…"
-                                : "Create Corporate Customer"}
-                        </Button>
-
-                        <button
-                            type="button"
-                            onClick={handleCancel}
-                            disabled={isSubmitting}
-                            className="w-full rounded-lg border border-slate-300 py-2.5 text-center text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
-                        >
-                            Cancel
-                        </button>
-                    </div>
                 </div>
             </div>
         </form>
+    );
+}
+
+/* ================================================================
+   LEASE CONTRACT STEPPER
+================================================================ */
+
+function LeaseContractStepper({
+    currentStep,
+}: {
+    currentStep: number;
+}) {
+    const steps = [
+        "Client",
+        "Asset Lines",
+        "Terms",
+        "Review",
+    ];
+
+    return (
+        <div className="border-b border-slate-200 bg-white">
+
+            <div className="mx-auto w-full max-w-[1000px] px-4 py-3.5 sm:px-6 sm:py-4">
+
+                <div className="mx-auto flex w-full max-w-[600px] items-start">
+
+                    {steps.map(
+                        (label, index) => {
+                            const step =
+                                index + 1;
+
+                            const isCompleted =
+                                step <
+                                currentStep;
+
+                            const isActive =
+                                step ===
+                                currentStep;
+
+                            return (
+                                <div
+                                    key={label}
+                                    className="flex min-w-0 flex-1 items-start"
+                                >
+                                    {/* STEP */}
+
+                                    <div className="flex min-w-[58px] flex-col items-center sm:min-w-[72px]">
+
+                                        <div
+                                            className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold transition-colors sm:h-8 sm:w-8 sm:text-xs ${isActive ||
+                                                isCompleted
+                                                ? "bg-[#FE5720] text-white"
+                                                : "border border-slate-300 bg-white text-slate-400"
+                                                }`}
+                                        >
+                                            {isCompleted ? (
+                                                <Check className="h-4 w-4" />
+                                            ) : (
+                                                step
+                                            )}
+                                        </div>
+
+                                        <span
+                                            className={`mt-1 whitespace-nowrap text-[10px] sm:text-xs ${isActive ||
+                                                isCompleted
+                                                ? "font-semibold text-[#FE5720]"
+                                                : "text-slate-400"
+                                                }`}
+                                        >
+                                            {label}
+                                        </span>
+
+                                    </div>
+
+                                    {/* CONNECTOR */}
+
+                                    {step <
+                                        steps.length && (
+                                            <div
+                                                className={`mt-3.5 h-px flex-1 sm:mt-4 ${isCompleted
+                                                    ? "bg-[#FE5720]"
+                                                    : "bg-slate-200"
+                                                    }`}
+                                            />
+                                        )}
+                                </div>
+                            );
+                        },
+                    )}
+
+                </div>
+
+            </div>
+
+        </div>
     );
 }

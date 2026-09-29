@@ -1,11 +1,15 @@
+"use client";
+
 import { useMemo, useState } from "react";
+
+import LeaseContractStepper from "./LeaseContractStepper";
+import Button from "@/components/ui/GrubpacButton";
 import {
     Plus,
     Trash2,
-    Car,
-    ArrowLeft,
-    ArrowRight,
     AlertCircle,
+    Minus,
+    Check,
 } from "lucide-react";
 
 const ASSET_CLASSES = [
@@ -59,6 +63,10 @@ export default function AssetLinesStep({
     const [formError, setFormError] =
         useState<string | null>(null);
 
+    // ============================================================
+    // ADD ASSET LINE
+    // ============================================================
+
     const addAssetLine = () => {
         setFormError(null);
 
@@ -72,6 +80,10 @@ export default function AssetLinesStep({
             },
         ]);
     };
+
+    // ============================================================
+    // REMOVE ASSET LINE
+    // ============================================================
 
     const removeAssetLine = (id: string) => {
         if (assetLines.length === 1) {
@@ -90,6 +102,10 @@ export default function AssetLinesStep({
         );
     };
 
+    // ============================================================
+    // UPDATE ASSET LINE
+    // ============================================================
+
     const updateAssetLine = (
         id: string,
         patch: Partial<Omit<AssetLine, "id">>,
@@ -99,42 +115,90 @@ export default function AssetLinesStep({
         setAssetLines((previous) =>
             previous.map((line) =>
                 line.id === id
-                    ? { ...line, ...patch }
+                    ? {
+                        ...line,
+                        ...patch,
+                    }
                     : line,
             ),
         );
     };
 
-    const totalCommittedVehicles =
-        useMemo(
-            () =>
-                assetLines.reduce(
-                    (sum, line) =>
-                        sum +
-                        (Number(
-                            line.committedQuantity,
-                        ) || 0),
-                    0,
-                ),
-            [assetLines],
-        );
+    // ============================================================
+    // QUANTITY
+    // ============================================================
 
-    const monthlyEstimatedRevenue =
-        useMemo(
-            () =>
-                assetLines.reduce(
-                    (sum, line) =>
-                        sum +
-                        (Number(
-                            line.committedQuantity,
-                        ) || 0) *
-                        (Number(
-                            line.ratePerVehicleMonth,
-                        ) || 0),
-                    0,
-                ),
-            [assetLines],
-        );
+    const decreaseQuantity = (line: AssetLine) => {
+        updateAssetLine(line.id, {
+            committedQuantity: Math.max(
+                1,
+                line.committedQuantity - 1,
+            ),
+        });
+    };
+
+    const increaseQuantity = (line: AssetLine) => {
+        updateAssetLine(line.id, {
+            committedQuantity:
+                line.committedQuantity + 1,
+        });
+    };
+
+    const handleQuantityChange = (
+        line: AssetLine,
+        value: string,
+    ) => {
+        const numericValue = Number(value);
+
+        updateAssetLine(line.id, {
+            committedQuantity:
+                Number.isFinite(numericValue) &&
+                    numericValue >= 1
+                    ? Math.floor(numericValue)
+                    : 1,
+        });
+    };
+
+    // ============================================================
+    // TOTAL COMMITTED VEHICLES
+    // ============================================================
+
+    const totalCommittedVehicles = useMemo(
+        () =>
+            assetLines.reduce(
+                (sum, line) =>
+                    sum +
+                    (Number(
+                        line.committedQuantity,
+                    ) || 0),
+                0,
+            ),
+        [assetLines],
+    );
+
+    // ============================================================
+    // MONTHLY ESTIMATED REVENUE
+    // ============================================================
+
+    const monthlyEstimatedRevenue = useMemo(
+        () =>
+            assetLines.reduce(
+                (sum, line) =>
+                    sum +
+                    (Number(
+                        line.committedQuantity,
+                    ) || 0) *
+                    (Number(
+                        line.ratePerVehicleMonth,
+                    ) || 0),
+                0,
+            ),
+        [assetLines],
+    );
+
+    // ============================================================
+    // CONTINUE
+    // ============================================================
 
     const handleContinue = () => {
         setFormError(null);
@@ -186,84 +250,73 @@ export default function AssetLinesStep({
     };
 
     return (
-        <div className="min-h-full bg-[#f5f5f5]">
-            <Stepper currentStep={2} />
+        <div className="min-h-full w-full bg-[#f7f7f7]">
+            {/* =====================================================
+                STEPPER
+            ====================================================== */}
 
-            <main className="mx-auto max-w-7xl px-6 py-3">
-                <div className="max-w-[680px]">
+            <LeaseContractStepper currentStep={2} />
+
+            {/* =====================================================
+                CONTENT
+            ====================================================== */}
+
+            <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
+                <div className="w-full max-w-[860px]">
+                    {/* =================================================
+                        HEADER
+                    ================================================== */}
+
                     <div className="mb-5">
-                        <h1 className="text-[15px] font-semibold text-slate-900">
-                            Asset lines
+                        <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
+                            Asset classes & committed counts
                         </h1>
 
-                        <p className="mt-1 text-[10px] text-slate-500">
-                            Define the vehicle classes,
-                            quantities, and monthly rates
-                            for this lease.
+                        <p className="mt-1 max-w-[720px] text-xs leading-5 text-slate-500 sm:text-sm">
+                            A contract can cover several
+                            asset-class lines, each with its
+                            own count and rate. Vehicles
+                            resolve automatically per line at
+                            confirmation — nothing is
+                            hand-picked here.
                         </p>
                     </div>
 
-                    <div className="mb-4 rounded-md border border-slate-200 bg-white px-4 py-3">
-                        <p className="text-[7px] font-semibold uppercase tracking-wide text-slate-400">
+                    {/* =================================================
+                        CLIENT
+                    ================================================== */}
+
+                    <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                             Client
                         </p>
 
-                        <p className="mt-1 text-[11px] font-semibold text-slate-800">
-                            {clientName}
+                        <p className="mt-1 text-sm font-semibold text-slate-800">
+                            {clientName ||
+                                "Selected client"}
                         </p>
                     </div>
 
+                    {/* =================================================
+                        ERROR
+                    ================================================== */}
+
                     {formError && (
-                        <div className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2.5 text-[10px] text-red-700">
-                            <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                            <span>{formError}</span>
+                        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+
+                            <span>
+                                {formError}
+                            </span>
                         </div>
                     )}
 
-                    <div className="overflow-hidden rounded-md border border-slate-200 bg-white">
-                        <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                            <div className="flex items-center gap-2">
-                                <Car className="h-4 w-4 text-[#FE5720]" />
+                    {/* =================================================
+                        ASSET LINES
+                    ================================================== */}
 
-                                <div>
-                                    <h2 className="text-[11px] font-semibold text-slate-800">
-                                        Committed asset lines
-                                    </h2>
-
-                                    <p className="mt-0.5 text-[9px] text-slate-400">
-                                        Add the asset classes required
-                                        under this contract.
-                                    </p>
-                                </div>
-                            </div>
-
-                            <button
-                                type="button"
-                                onClick={addAssetLine}
-                                className="inline-flex h-7 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 text-[9px] font-semibold text-slate-700 transition hover:bg-slate-50"
-                            >
-                                <Plus className="h-3 w-3" />
-                                Add asset line
-                            </button>
-                        </div>
-
-                        <div className="grid grid-cols-[1.5fr_0.7fr_1fr_0.6fr_28px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2">
-                            <span className="text-[7px] font-semibold uppercase tracking-wide text-slate-400">
-                                Asset Class
-                            </span>
-                            <span className="text-[7px] font-semibold uppercase tracking-wide text-slate-400">
-                                Qty
-                            </span>
-                            <span className="text-[7px] font-semibold uppercase tracking-wide text-slate-400">
-                                Rate / Veh / Mo
-                            </span>
-                            <span className="text-[7px] font-semibold uppercase tracking-wide text-slate-400">
-                                Total
-                            </span>
-                            <span />
-                        </div>
-
-                        {assetLines.map((line, index) => {
+                    <div className="space-y-3">
+                        {assetLines.map((line) => {
                             const lineTotal =
                                 (Number(
                                     line.committedQuantity,
@@ -275,142 +328,385 @@ export default function AssetLinesStep({
                             return (
                                 <div
                                     key={line.id}
-                                    className="grid grid-cols-[1.5fr_0.7fr_1fr_0.6fr_28px] items-center gap-3 border-b border-slate-100 px-4 py-3 last:border-b-0"
+                                    className="rounded-lg border border-slate-200 bg-white shadow-sm"
                                 >
-                                    <div>
-                                        <div className="mb-1 flex items-center gap-1.5">
-                                            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-[8px] font-semibold text-slate-500">
-                                                {index + 1}
-                                            </span>
-                                            <span className="text-[8px] text-slate-400">
-                                                Asset
-                                            </span>
-                                        </div>
+                                    {/* =================================
+                                        DESKTOP / TABLE HEADER
+                                    ================================== */}
 
-                                        <select
-                                            value={
-                                                line.assetClass
-                                            }
-                                            onChange={(event) =>
-                                                updateAssetLine(
-                                                    line.id,
-                                                    {
-                                                        assetClass:
-                                                            event
-                                                                .target
-                                                                .value,
-                                                    },
-                                                )
-                                            }
-                                            className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-[10px] text-slate-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                        >
-                                            {ASSET_CLASSES.map(
-                                                (assetClass) => (
-                                                    <option
-                                                        key={
-                                                            assetClass
-                                                        }
-                                                        value={
-                                                            assetClass
-                                                        }
-                                                    >
-                                                        {assetClass}
-                                                    </option>
-                                                ),
-                                            )}
-                                        </select>
+                                    <div className="hidden grid-cols-[1.1fr_1.05fr_1.55fr_40px] items-center gap-4 border-b border-slate-100 px-4 py-2.5 sm:grid sm:px-5">
+                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                            Asset Class
+                                        </span>
+
+                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                            Committed Count
+                                        </span>
+
+                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                            Rate (per vehicle / month)
+                                        </span>
+
+                                        <span />
                                     </div>
 
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={
-                                            line.committedQuantity
-                                        }
-                                        onChange={(event) =>
-                                            updateAssetLine(
-                                                line.id,
-                                                {
-                                                    committedQuantity:
-                                                        Math.max(
-                                                            1,
-                                                            Number(
+                                    {/* =================================
+                                        DESKTOP ROW
+                                    ================================== */}
+
+                                    <div className="hidden grid-cols-[1.1fr_1.05fr_1.55fr_40px] items-center gap-4 px-4 py-3.5 sm:grid sm:px-5">
+                                        {/* ASSET CLASS */}
+
+                                        <div>
+                                            <select
+                                                value={
+                                                    line.assetClass
+                                                }
+                                                onChange={(
+                                                    event,
+                                                ) =>
+                                                    updateAssetLine(
+                                                        line.id,
+                                                        {
+                                                            assetClass:
                                                                 event
                                                                     .target
                                                                     .value,
-                                                            ) || 1,
-                                                        ),
-                                                },
-                                            )
-                                        }
-                                        className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-[10px] text-slate-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    />
+                                                        },
+                                                    )
+                                                }
+                                                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                                            >
+                                                {ASSET_CLASSES.map(
+                                                    (
+                                                        assetClass,
+                                                    ) => (
+                                                        <option
+                                                            key={
+                                                                assetClass
+                                                            }
+                                                            value={
+                                                                assetClass
+                                                            }
+                                                        >
+                                                            {
+                                                                assetClass
+                                                            }
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
+                                        </div>
 
-                                    <input
-                                        type="number"
-                                        min="0"
-                                        step="500"
-                                        value={
-                                            line.ratePerVehicleMonth
-                                        }
-                                        onChange={(event) =>
-                                            updateAssetLine(
-                                                line.id,
-                                                {
-                                                    ratePerVehicleMonth:
-                                                        event
-                                                            .target
-                                                            .value,
-                                                },
-                                            )
-                                        }
-                                        placeholder="e.g. 25,000"
-                                        className="h-8 w-full rounded-md border border-slate-300 bg-white px-2 text-[10px] text-slate-700 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    />
+                                        {/* COMMITTED COUNT */}
 
-                                    <div className="text-right">
-                                        <p className="text-[10px] font-semibold text-slate-700">
-                                            ₹
-                                            {lineTotal.toLocaleString(
-                                                "en-IN",
-                                            )}
-                                        </p>
-                                        <p className="text-[8px] text-slate-400">
-                                            / month
-                                        </p>
+                                        <QuantityControl
+                                            value={
+                                                line.committedQuantity
+                                            }
+                                            onDecrease={() =>
+                                                decreaseQuantity(
+                                                    line,
+                                                )
+                                            }
+                                            onIncrease={() =>
+                                                increaseQuantity(
+                                                    line,
+                                                )
+                                            }
+                                            onChange={(
+                                                value,
+                                            ) =>
+                                                handleQuantityChange(
+                                                    line,
+                                                    value,
+                                                )
+                                            }
+                                        />
+
+                                        {/* RATE */}
+
+                                        <div className="relative">
+                                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
+                                                ₹
+                                            </span>
+
+                                            <input
+                                                type="number"
+                                                min="0"
+                                                step="500"
+                                                value={
+                                                    line.ratePerVehicleMonth
+                                                }
+                                                onChange={(
+                                                    event,
+                                                ) =>
+                                                    updateAssetLine(
+                                                        line.id,
+                                                        {
+                                                            ratePerVehicleMonth:
+                                                                event
+                                                                    .target
+                                                                    .value,
+                                                        },
+                                                    )
+                                                }
+                                                placeholder="e.g. 32,000"
+                                                className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                                            />
+                                        </div>
+
+                                        {/* DELETE */}
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                removeAssetLine(
+                                                    line.id,
+                                                )
+                                            }
+                                            className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500"
+                                            title="Remove asset line"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
                                     </div>
 
-                                    <button
-                                        type="button"
-                                        onClick={() =>
-                                            removeAssetLine(
-                                                line.id,
-                                            )
-                                        }
-                                        className="flex h-7 w-7 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500"
-                                        title="Remove asset line"
-                                    >
-                                        <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                    {/* =================================
+                                        MOBILE ROW
+                                    ================================== */}
+
+                                    <div className="space-y-4 p-4 sm:hidden">
+                                        {/* Asset class */}
+
+                                        <div>
+                                            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                Asset Class
+                                            </label>
+
+                                            <select
+                                                value={
+                                                    line.assetClass
+                                                }
+                                                onChange={(
+                                                    event,
+                                                ) =>
+                                                    updateAssetLine(
+                                                        line.id,
+                                                        {
+                                                            assetClass:
+                                                                event
+                                                                    .target
+                                                                    .value,
+                                                        },
+                                                    )
+                                                }
+                                                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                                            >
+                                                {ASSET_CLASSES.map(
+                                                    (
+                                                        assetClass,
+                                                    ) => (
+                                                        <option
+                                                            key={
+                                                                assetClass
+                                                            }
+                                                            value={
+                                                                assetClass
+                                                            }
+                                                        >
+                                                            {
+                                                                assetClass
+                                                            }
+                                                        </option>
+                                                    ),
+                                                )}
+                                            </select>
+                                        </div>
+
+                                        <div className="grid grid-cols-1 gap-4">
+                                            {/* Quantity */}
+
+                                            <div>
+                                                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                    Committed Count
+                                                </label>
+
+                                                <QuantityControl
+                                                    value={
+                                                        line.committedQuantity
+                                                    }
+                                                    onDecrease={() =>
+                                                        decreaseQuantity(
+                                                            line,
+                                                        )
+                                                    }
+                                                    onIncrease={() =>
+                                                        increaseQuantity(
+                                                            line,
+                                                        )
+                                                    }
+                                                    onChange={(
+                                                        value,
+                                                    ) =>
+                                                        handleQuantityChange(
+                                                            line,
+                                                            value,
+                                                        )
+                                                    }
+                                                />
+                                            </div>
+
+                                            {/* Rate */}
+
+                                            <div>
+                                                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                                                    Rate / vehicle / month
+                                                </label>
+
+                                                <div className="relative">
+                                                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
+                                                        ₹
+                                                    </span>
+
+                                                    <input
+                                                        type="number"
+                                                        min="0"
+                                                        step="500"
+                                                        value={
+                                                            line.ratePerVehicleMonth
+                                                        }
+                                                        onChange={(
+                                                            event,
+                                                        ) =>
+                                                            updateAssetLine(
+                                                                line.id,
+                                                                {
+                                                                    ratePerVehicleMonth:
+                                                                        event
+                                                                            .target
+                                                                            .value,
+                                                                },
+                                                            )
+                                                        }
+                                                        placeholder="e.g. 32,000"
+                                                        className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Total / Delete */}
+
+                                        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+                                            <div>
+                                                <p className="text-[10px] uppercase tracking-wide text-slate-400">
+                                                    Monthly line total
+                                                </p>
+
+                                                <p className="mt-0.5 text-sm font-semibold text-slate-800">
+                                                    ₹
+                                                    {lineTotal.toLocaleString(
+                                                        "en-IN",
+                                                    )}
+                                                </p>
+                                            </div>
+
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    removeAssetLine(
+                                                        line.id,
+                                                    )
+                                                }
+                                                className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                                title="Remove asset line"
+                                            >
+                                                <Trash2 className="h-4 w-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    {/* =================================
+                                        LINE TOTAL / STATUS
+                                    ================================== */}
+
+                                    <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+                                        <div className="flex items-center gap-2">
+                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-semibold text-[#FE5720]">
+                                                <Check className="h-3 w-3" />
+                                                Committed
+                                            </span>
+
+                                            <span className="text-xs text-slate-500">
+                                                {
+                                                    line.committedQuantity
+                                                }{" "}
+                                                vehicle
+                                                {line.committedQuantity !==
+                                                    1
+                                                    ? "s"
+                                                    : ""}{" "}
+                                                committed
+                                            </span>
+                                        </div>
+
+                                        <div className="hidden text-right sm:block">
+                                            <span className="text-[10px] uppercase tracking-wide text-slate-400">
+                                                Monthly line total
+                                            </span>
+
+                                            <span className="ml-2 text-sm font-semibold text-slate-800">
+                                                ₹
+                                                {lineTotal.toLocaleString(
+                                                    "en-IN",
+                                                )}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
                             );
                         })}
+                    </div>
 
-                        <div className="flex items-center justify-between bg-slate-50 px-4 py-3">
+                    {/* =================================================
+                        ADD ASSET LINE
+                    ================================================== */}
+
+                    <button
+                        type="button"
+                        onClick={addAssetLine}
+                        className="mx-auto mt-5 flex items-center gap-1.5 text-sm font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Add another asset-class line
+                    </button>
+
+                    {/* =================================================
+                        SUMMARY
+                    ================================================== */}
+
+                    <div className="mt-6 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                             <div>
-                                <p className="text-[8px] uppercase tracking-wide text-slate-400">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                                     Total committed vehicles
                                 </p>
-                                <p className="mt-0.5 text-[12px] font-semibold text-slate-800">
-                                    {totalCommittedVehicles} units
+
+                                <p className="mt-1 text-lg font-semibold text-slate-800">
+                                    {
+                                        totalCommittedVehicles
+                                    }{" "}
+                                    units
                                 </p>
                             </div>
 
-                            <div className="text-right">
-                                <p className="text-[8px] uppercase tracking-wide text-slate-400">
+                            <div className="sm:text-right">
+                                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
                                     Estimated monthly billing
                                 </p>
-                                <p className="mt-0.5 text-[13px] font-bold text-[#FE5720]">
+
+                                <p className="mt-1 text-lg font-bold text-[#FE5720]">
                                     ₹
                                     {monthlyEstimatedRevenue.toLocaleString(
                                         "en-IN",
@@ -420,24 +716,27 @@ export default function AssetLinesStep({
                         </div>
                     </div>
 
-                    <div className="mt-5 flex items-center justify-between">
+                    {/* =================================================
+                        ACTIONS
+                    ================================================== */}
+
+                    <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <button
                             type="button"
                             onClick={onBack}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-3 text-[10px] font-semibold text-slate-700 transition hover:bg-slate-50"
+                            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
                         >
-                            <ArrowLeft className="h-3.5 w-3.5" />
+
                             Back
                         </button>
 
-                        <button
+                        <Button
                             type="button"
+                            variant="primary"
                             onClick={handleContinue}
-                            className="inline-flex h-8 items-center gap-1.5 rounded-md bg-[#FE5720] px-4 text-[10px] font-semibold text-white transition hover:bg-[#e94d1c]"
                         >
-                            Continue
-                            <ArrowRight className="h-3.5 w-3.5" />
-                        </button>
+                            Next: Terms
+                        </Button>
                     </div>
                 </div>
             </main>
@@ -445,85 +744,53 @@ export default function AssetLinesStep({
     );
 }
 
-function Stepper({
-    currentStep,
+/* ================================================================
+   QUANTITY CONTROL
+================================================================ */
+
+function QuantityControl({
+    value,
+    onDecrease,
+    onIncrease,
+    onChange,
 }: {
-    currentStep: number;
+    value: number;
+    onDecrease: () => void;
+    onIncrease: () => void;
+    onChange: (value: string) => void;
 }) {
     return (
-        <div className="border-b border-slate-200 bg-white px-6 py-3">
-            <div className="mx-auto max-w-7xl">
-                <div className="mx-auto flex max-w-[420px] items-start justify-between">
-                    {[1, 2, 3, 4].map((step, index) => (
-                        <div
-                            key={step}
-                            className="contents"
-                        >
-                            <Step
-                                number={step}
-                                label={
-                                    step === 1
-                                        ? "Client"
-                                        : step === 2
-                                            ? "Asset Lines"
-                                            : step === 3
-                                                ? "Terms"
-                                                : "Review"
-                                }
-                                active={
-                                    step === currentStep
-                                }
-                                completed={
-                                    step < currentStep
-                                }
-                            />
-
-                            {index < 3 && (
-                                <div
-                                    className={`mt-[10px] h-px flex-1 ${step < currentStep
-                                            ? "bg-[#2f6df6]"
-                                            : "bg-slate-200"
-                                        }`}
-                                />
-                            )}
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    );
-}
-
-function Step({
-    number,
-    label,
-    active,
-    completed,
-}: {
-    number: number;
-    label: string;
-    active?: boolean;
-    completed?: boolean;
-}) {
-    return (
-        <div className="flex min-w-[55px] flex-col items-center">
-            <div
-                className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-semibold ${active || completed
-                        ? "bg-[#2f6df6] text-white"
-                        : "border border-slate-300 bg-white text-slate-400"
-                    }`}
+        <div className="flex h-10 w-full items-center">
+            <button
+                type="button"
+                onClick={onDecrease}
+                disabled={value <= 1}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-l-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label="Decrease committed quantity"
             >
-                {number}
-            </div>
+                <Minus className="h-4 w-4" />
+            </button>
 
-            <span
-                className={`mt-1 text-[8px] ${active || completed
-                        ? "font-semibold text-[#2f6df6]"
-                        : "text-slate-400"
-                    }`}
+            <input
+                type="number"
+                min="1"
+                value={value}
+                onChange={(event) =>
+                    onChange(event.target.value)
+                }
+                className="h-10 min-w-0 flex-1 border-y border-slate-300 bg-white px-2 text-center text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                aria-label="Committed quantity"
+            />
+
+
+            <button
+                type="button"
+                onClick={onIncrease}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-r-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50"
+                aria-label="Increase committed quantity"
             >
-                {label}
-            </span>
+                <Plus className="h-4 w-4" />
+            </button>
         </div>
     );
 }

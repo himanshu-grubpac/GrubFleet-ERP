@@ -33,9 +33,7 @@ export default function NewLeaseContractPage() {
     // ============================================================
 
     const [screen, setScreen] =
-        useState<Screen>(
-            "select-client",
-        );
+        useState<Screen>("select-client");
 
     // ============================================================
     // SELECTED CLIENT
@@ -61,13 +59,9 @@ export default function NewLeaseContractPage() {
     const [terms, setTerms] =
         useState<LeaseTerms>({
             startDate: "",
-            endDate: "",
             termMonths: "",
             securityDeposit: "",
             billingFrequency: "monthly",
-            amcTier: "Gold",
-            description: "",
-            additionalTerms: "",
         });
 
     // ============================================================
@@ -145,32 +139,51 @@ export default function NewLeaseContractPage() {
             createdClientName,
         );
 
-        // Move directly to Asset Lines
+        // Newly created client becomes the selected client.
+        // Continue directly to Asset Lines.
         setScreen("asset-lines");
     };
 
     // ============================================================
-    // CUSTOMER REGISTRATION
+    // SELECT CLIENT
     // ============================================================
 
-    if (
-        screen ===
-        "register-client"
-    ) {
+    if (screen === "select-client") {
         return (
-            <CustomerRegistrationForm
-                onSuccess={
-                    handleClientCreated
-                }
-                onCancel={() =>
-                    setScreen(
-                        "select-client",
-                    )
-                }
-                redirectOnSuccess={
-                    false
-                }
-            />
+            <div className="min-h-full w-full bg-[#f7f7f7]">
+                <SelectClientStep
+                    onClientSelected={
+                        handleClientSelected
+                    }
+                    onAddNewClient={() =>
+                        setScreen(
+                            "register-client",
+                        )
+                    }
+                />
+            </div>
+        );
+    }
+
+    // ============================================================
+    // REGISTER NEW CLIENT
+    // ============================================================
+
+    if (screen === "register-client") {
+        return (
+            <div className="min-h-full w-full bg-[#f7f7f7]">
+                <CustomerRegistrationForm
+                    onSuccess={
+                        handleClientCreated
+                    }
+                    onCancel={() =>
+                        setScreen(
+                            "select-client",
+                        )
+                    }
+                    redirectOnSuccess={false}
+                />
+            </div>
         );
     }
 
@@ -178,38 +191,35 @@ export default function NewLeaseContractPage() {
     // ASSET LINES
     // ============================================================
 
-    if (
-        screen ===
-        "asset-lines"
-    ) {
+    if (screen === "asset-lines") {
         return (
-            <AssetLinesStep
-                clientId={
-                    selectedClientId
-                }
-                clientName={
-                    selectedClientName
-                }
-                initialAssetLines={
-                    assetLines
-                }
-                onBack={() =>
-                    setScreen(
-                        "select-client",
-                    )
-                }
-                onContinue={(
-                    lines,
-                ) => {
-                    setAssetLines(
-                        lines,
-                    );
+            <div className="min-h-full w-full bg-[#f7f7f7]">
+                <AssetLinesStep
+                    clientId={
+                        selectedClientId
+                    }
+                    clientName={
+                        selectedClientName
+                    }
+                    initialAssetLines={
+                        assetLines
+                    }
+                    onBack={() =>
+                        setScreen(
+                            "select-client",
+                        )
+                    }
+                    onContinue={(lines) => {
+                        setAssetLines(
+                            lines,
+                        );
 
-                    setScreen(
-                        "terms",
-                    );
-                }}
-            />
+                        setScreen(
+                            "terms",
+                        );
+                    }}
+                />
+            </div>
         );
     }
 
@@ -217,34 +227,32 @@ export default function NewLeaseContractPage() {
     // TERMS
     // ============================================================
 
-    if (
-        screen === "terms"
-    ) {
+    if (screen === "terms") {
         return (
-            <TermsStep
-                clientName={
-                    selectedClientName
-                }
-                initialTerms={
-                    terms
-                }
-                onBack={() =>
-                    setScreen(
-                        "asset-lines",
-                    )
-                }
-                onContinue={(
-                    nextTerms,
-                ) => {
-                    setTerms(
+            <div className="min-h-full w-full bg-[#f7f7f7]">
+                <TermsStep
+                    clientName={
+                        selectedClientName
+                    }
+                    initialTerms={terms}
+                    onBack={() =>
+                        setScreen(
+                            "asset-lines",
+                        )
+                    }
+                    onContinue={(
                         nextTerms,
-                    );
+                    ) => {
+                        setTerms(
+                            nextTerms,
+                        );
 
-                    setScreen(
-                        "review",
-                    );
-                }}
-            />
+                        setScreen(
+                            "review",
+                        );
+                    }}
+                />
+            </div>
         );
     }
 
@@ -252,10 +260,8 @@ export default function NewLeaseContractPage() {
     // REVIEW
     // ============================================================
 
-    if (
-        screen === "review"
-    ) {
-        return (
+    return (
+        <div className="min-h-full w-full bg-[#f7f7f7]">
             <ReviewStep
                 clientId={
                     selectedClientId
@@ -273,23 +279,6 @@ export default function NewLeaseContractPage() {
                     )
                 }
             />
-        );
-    }
-
-    // ============================================================
-    // SELECT CLIENT
-    // ============================================================
-
-    return (
-        <SelectClientStep
-            onClientSelected={
-                handleClientSelected
-            }
-            onAddNewClient={() =>
-                setScreen(
-                    "register-client",
-                )
-            }
-        />
+        </div>
     );
 }
