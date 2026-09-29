@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronDown,
@@ -296,6 +296,7 @@ function SidebarItem({
   pathname: string;
   collapsed: boolean;
 }) {
+  const router = useRouter();
   const hasChildren =
     !!item.children && item.children.length > 0;
 
@@ -392,11 +393,21 @@ function SidebarItem({
       );
     }
 
+    const handleParentClick = () => {
+      setOpen(true);
+      const firstChild = item.children?.[0];
+      if (!isActive && firstChild) {
+        router.push(firstChild.href);
+      } else {
+        setOpen((prev) => !prev);
+      }
+    };
+
     return (
       <div>
         <button
           type="button"
-          onClick={() => setOpen((prev) => !prev)}
+          onClick={handleParentClick}
           className={cn(
             "flex w-full items-center gap-3 rounded-lg px-3 py-3",
             "text-sm font-medium transition-colors",
@@ -407,11 +418,20 @@ function SidebarItem({
         >
           <Icon className="h-5 w-5 shrink-0" aria-hidden />
           <span className="flex-1 text-left">{item.label}</span>
-          {open ? (
-            <ChevronDown className="h-4 w-4" aria-hidden />
-          ) : (
-            <ChevronRight className="h-4 w-4" aria-hidden />
-          )}
+          <span
+            role="presentation"
+            onClick={(e) => {
+              e.stopPropagation();
+              setOpen((prev) => !prev);
+            }}
+            className="rounded p-0.5 transition hover:bg-black/10"
+          >
+            {open ? (
+              <ChevronDown className="h-4 w-4" aria-hidden />
+            ) : (
+              <ChevronRight className="h-4 w-4" aria-hidden />
+            )}
+          </span>
         </button>
 
         {open && (

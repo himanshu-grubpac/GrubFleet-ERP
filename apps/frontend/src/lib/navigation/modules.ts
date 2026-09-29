@@ -15,6 +15,10 @@ import {
   ArrowLeftRight,
   ClipboardCheck,
   RefreshCw,
+  MapPin,
+  Truck,
+  UserRound,
+  Contact,
 } from "lucide-react";
 
 export type NavItem = {
@@ -112,6 +116,34 @@ export const mainNavItems: NavItem[] = [
     href: "/organization",
     icon: Building2,
     requiredPermission: "organisation.view",
+
+    children: [
+      {
+        label: "Locations",
+        href: "/organization/locations",
+        icon: MapPin,
+      },
+      {
+        label: "Suppliers",
+        href: "/organization/suppliers",
+        icon: Truck,
+      },
+      {
+        label: "Employees",
+        href: "/organization/employees",
+        icon: UserRound,
+      },
+      {
+        label: "Driver Register",
+        href: "/organization/driver-register",
+        icon: Contact,
+      },
+      {
+        label: "Clients",
+        href: "/organization/clients",
+        icon: Users,
+      },
+    ],
   },
 
   // ============================================================
