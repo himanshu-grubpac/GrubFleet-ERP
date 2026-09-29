@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "prepare": "husky",
+    "prepare": "node -e \"if(process.env.HUSKY==='0'||process.env.CI==='true')process.exit(0)\" && husky",
     "ci:local": "node scripts/ci-local.mjs",
     "build": "npm run build -w backend && npm run build -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
