@@ -2,6 +2,7 @@ import type {
   OrganisationLocationDetail,
   OrganisationLocationListItem,
 } from "@/lib/api/organisation/locations";
+import type { LeaseContractListItem } from "@/lib/api/lease-contracts";
 import type { EmployeeRecord } from "@/components/modules/organization/employees/types";
 import { EMPLOYMENT_TYPE_LABELS } from "@/components/modules/organization/employees/types";
 import { formatStructuredAddressMultiline } from "@/lib/format/address-format";
@@ -59,6 +60,22 @@ export function formatLocationDetailCopyText(
       : null,
     location.deputyEmail ? `Deputy email: ${location.deputyEmail}` : null,
     `Status: ${location.status === "active" ? "Active" : "Inactive"}`,
+  ]);
+}
+
+export function formatLeaseContractRowCopyText(
+  contract: LeaseContractListItem,
+): string {
+  return nonEmptyLines([
+    `Contract no.: ${contract.contractNumber}`,
+    `Company: ${contract.clientName}`,
+    contract.assetClasses ? `Asset class: ${contract.assetClasses}` : null,
+    contract.startDate ? `Start date: ${contract.startDate}` : null,
+    contract.endDate ? `End date: ${contract.endDate}` : null,
+    contract.termMonths != null
+      ? `Term: ${contract.termMonths} months`
+      : null,
+    `Status: ${contract.status}`,
   ]);
 }
 

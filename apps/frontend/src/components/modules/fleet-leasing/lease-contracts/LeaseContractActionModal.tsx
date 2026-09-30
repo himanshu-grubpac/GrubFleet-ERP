@@ -13,6 +13,7 @@ interface LeaseContractActionModalProps {
     isOpen: boolean;
     action: LeaseContractAction;
     contractNumber: string;
+    isConfirmPending?: boolean;
     onClose: () => void;
     onConfirm: () => void;
 }
@@ -21,6 +22,7 @@ export default function LeaseContractActionModal({
     isOpen,
     action,
     contractNumber,
+    isConfirmPending = false,
     onClose,
     onConfirm,
 }: LeaseContractActionModalProps) {
@@ -107,6 +109,7 @@ export default function LeaseContractActionModal({
                         type="button"
                         variant="outline"
                         size="md"
+                        disabled={isConfirmPending}
                         onClick={onClose}
                     >
                         Cancel
@@ -118,9 +121,10 @@ export default function LeaseContractActionModal({
                         type="button"
                         variant="primary"
                         size="md"
+                        disabled={isConfirmPending}
                         onClick={onConfirm}
                     >
-                        {config.confirmText}
+                        {isConfirmPending ? "Please wait…" : config.confirmText}
                     </Button>
                 </div>
             </div>

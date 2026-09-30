@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import LeaseContractStepper from "./LeaseContractStepper";
 import Button from "@/components/ui/GrubpacButton";
 import {
     AlertTriangle,
@@ -106,26 +105,7 @@ export default function TermsStep({
     };
 
     return (
-        <div className="min-h-full w-full bg-[#f7f7f7]">
-
-            {/* ==================================================
-                COMMON STEPPER
-            ================================================== */}
-
-            <LeaseContractStepper currentStep={3} />
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
-
-            <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-
-                <div className="w-full max-w-[860px]">
-
-                    {/* ==================================================
-                        HEADER
-                    ================================================== */}
-
+        <>
                     <div className="mb-5">
 
                         <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
@@ -364,11 +344,6 @@ export default function TermsStep({
                         </Button>
 
                     </div>
-
-                </div>
-
-            </main>
-
-        </div>
+        </>
     );
 }

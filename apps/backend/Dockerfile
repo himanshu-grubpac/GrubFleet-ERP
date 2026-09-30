@@ -3,6 +3,8 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+ENV HUSKY=0
+
 COPY package.json package-lock.json ./
 COPY apps/backend/package.json ./apps/backend/
 RUN npm ci --workspace=backend --include-workspace-root
@@ -15,6 +17,7 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=4000
+ENV HUSKY=0
 
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001 -G nodejs
 

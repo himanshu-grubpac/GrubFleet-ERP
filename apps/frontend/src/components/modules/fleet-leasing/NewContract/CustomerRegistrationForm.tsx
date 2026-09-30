@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 
 import {
     Building2,
-    Check,
     MapPin,
     UserRound,
     Phone,
@@ -407,30 +406,7 @@ export default function CustomerRegistrationForm({
     // ============================================================
 
     return (
-        <form
-            onSubmit={handleSubmit}
-            className="min-h-full w-full bg-[#f7f7f7]"
-        >
-            {/* ====================================================
-                STEP 1 → CLIENT
-            ===================================================== */}
-
-            <LeaseContractStepper
-                currentStep={1}
-            />
-
-            {/* ====================================================
-                CONTENT
-            ===================================================== */}
-
-            <div className="mx-auto w-full max-w-7xl px-4 pb-8 pt-5 sm:px-6 sm:pt-6">
-
-                <div className="w-full max-w-[760px]">
-
-                    {/* ==================================================
-                        NEW CLIENT RECORD
-                    ================================================== */}
-
+        <form onSubmit={handleSubmit} className="w-full">
                     <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
 
                         {/* HEADER */}
@@ -857,103 +833,6 @@ export default function CustomerRegistrationForm({
 
                     </div>
 
-                </div>
-            </div>
         </form>
-    );
-}
-
-/* ================================================================
-   LEASE CONTRACT STEPPER
-================================================================ */
-
-function LeaseContractStepper({
-    currentStep,
-}: {
-    currentStep: number;
-}) {
-    const steps = [
-        "Client",
-        "Asset Lines",
-        "Terms",
-        "Review",
-    ];
-
-    return (
-        <div className="border-b border-slate-200 bg-white">
-
-            <div className="mx-auto w-full max-w-[1000px] px-4 py-3.5 sm:px-6 sm:py-4">
-
-                <div className="mx-auto flex w-full max-w-[600px] items-start">
-
-                    {steps.map(
-                        (label, index) => {
-                            const step =
-                                index + 1;
-
-                            const isCompleted =
-                                step <
-                                currentStep;
-
-                            const isActive =
-                                step ===
-                                currentStep;
-
-                            return (
-                                <div
-                                    key={label}
-                                    className="flex min-w-0 flex-1 items-start"
-                                >
-                                    {/* STEP */}
-
-                                    <div className="flex min-w-[58px] flex-col items-center sm:min-w-[72px]">
-
-                                        <div
-                                            className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold transition-colors sm:h-8 sm:w-8 sm:text-xs ${isActive ||
-                                                isCompleted
-                                                ? "bg-[#FE5720] text-white"
-                                                : "border border-slate-300 bg-white text-slate-400"
-                                                }`}
-                                        >
-                                            {isCompleted ? (
-                                                <Check className="h-4 w-4" />
-                                            ) : (
-                                                step
-                                            )}
-                                        </div>
-
-                                        <span
-                                            className={`mt-1 whitespace-nowrap text-[10px] sm:text-xs ${isActive ||
-                                                isCompleted
-                                                ? "font-semibold text-[#FE5720]"
-                                                : "text-slate-400"
-                                                }`}
-                                        >
-                                            {label}
-                                        </span>
-
-                                    </div>
-
-                                    {/* CONNECTOR */}
-
-                                    {step <
-                                        steps.length && (
-                                            <div
-                                                className={`mt-3.5 h-px flex-1 sm:mt-4 ${isCompleted
-                                                    ? "bg-[#FE5720]"
-                                                    : "bg-slate-200"
-                                                    }`}
-                                            />
-                                        )}
-                                </div>
-                            );
-                        },
-                    )}
-
-                </div>
-
-            </div>
-
-        </div>
     );
 }

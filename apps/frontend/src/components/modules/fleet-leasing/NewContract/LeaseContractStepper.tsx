@@ -29,9 +29,8 @@ export default function LeaseContractStepper({
     currentStep,
 }: LeaseContractStepperProps) {
     return (
-        <div className="border-b border-slate-200 bg-white px-4 py-3.5 sm:px-6">
-            <div className="mx-auto max-w-7xl">
-                <div className="mx-auto flex w-full max-w-[560px] items-start">
+        <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-3.5">
+            <div className="flex w-full items-start">
 
                     {steps.map((step) => {
                         const isActive =
@@ -95,7 +94,6 @@ export default function LeaseContractStepper({
                         );
                     })}
 
-                </div>
             </div>
         </div>
     );
