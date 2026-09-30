@@ -20,9 +20,10 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@grubpac/shared-types": ["../../packages/shared-types/src/index.ts"]
+      "@grubpac/shared-types": ["../../packages/shared-types/src/index.ts"],
+      "@grubpac/validation": ["../../packages/validation/src/index.ts"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "e2e", "playwright.config.ts"]
 }

@@ -64,7 +64,11 @@ jobs:
             --cidr "$RUNNER_CIDR" \
             || echo "Ingress may already exist; continuing."
           sleep 5
-      - run: npm ci
+      - name: Install dependencies
+        env:
+          HUSKY: '0'
+          CI: 'true'
+        run: npm ci
       - name: Run Drizzle migrations (tier RDS)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -110,7 +114,11 @@ jobs:
         with:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
-      - run: npm ci
+      - name: Install dependencies
+        env:
+          HUSKY: '0'
+          CI: 'true'
+        run: npm ci
       - name: Write samconfig from Environment secrets
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
@@ -124,6 +132,9 @@ jobs:
           AWS_REGION: ${{ vars.AWS_REGION || 'ap-south-1' }}
         run: node scripts/write-samconfig-from-env.mjs ${{ inputs.deploy-label }}
       - name: Prepare Lambda package and deploy SAM stack
+        env:
+          HUSKY: '0'
+          CI: 'true'
         run: |
           npm run prepare:lambda
           node scripts/stage-sam-artifacts.mjs

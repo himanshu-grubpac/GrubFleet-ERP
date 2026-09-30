@@ -9,6 +9,7 @@ import { GlobalHttpExceptionFilter } from '../../common/filters/http-exception.f
 import {
   DEV_ADMIN_EMAIL,
   DEV_ADMIN_PASSWORD,
+  DEV_ADMIN_ROLE_NAME,
   DEV_ORG_SLUG,
   seedDevAdminBootstrap,
 } from '../../database/seed/dev-admin-bootstrap';
@@ -25,6 +26,11 @@ import {
 } from '../../database/schema';
 import { and, eq } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
+import {
+  ensureUserWithPermissions,
+  loginAs,
+  ORG_VIEW_ONLY_USER,
+} from '../../../test/helpers/integration-auth';
 
 describe('RBAC admin (integration)', () => {
   if (process.env.SKIP_DB_INTEGRATION === '1') {
@@ -37,7 +43,10 @@ describe('RBAC admin (integration)', () => {
   let organizationId: string;
   let adminAccessToken: string;
   let viewerAccessToken: string;
+  let viewerRoleId: string;
+  let orgAdminRoleId: string;
   let fleetViewOnlyToken: string;
+  let orgViewOnlyAccessToken: string;
 
   beforeAll(async () => {
     const connectionString =
@@ -112,7 +121,7 @@ describe('RBAC admin (integration)', () => {
     }
 
     const viewerRoleName = 'RBAC Viewer Only';
-    let viewerRoleId: string | undefined;
+    let resolvedViewerRoleId: string | undefined;
     const existingRole = await db
       .select({ id: roles.id })
       .from(roles)
@@ -123,8 +132,8 @@ describe('RBAC admin (integration)', () => {
         ),
       )
       .limit(1);
-    viewerRoleId = existingRole[0]?.id;
-    if (!viewerRoleId) {
+    resolvedViewerRoleId = existingRole[0]?.id;
+    if (!resolvedViewerRoleId) {
       await db
         .insert(roles)
         .values({
@@ -137,7 +146,7 @@ describe('RBAC admin (integration)', () => {
         .onConflictDoNothing({
           target: [roles.organizationId, roles.name],
         });
-      viewerRoleId = (
+      resolvedViewerRoleId = (
         await db
           .select({ id: roles.id })
           .from(roles)
@@ -150,9 +159,10 @@ describe('RBAC admin (integration)', () => {
           .limit(1)
       )[0]?.id;
     }
-    if (!viewerRoleId) {
+    if (!resolvedViewerRoleId) {
       throw new Error('Viewer role missing');
     }
+    viewerRoleId = resolvedViewerRoleId;
 
     await db
       .insert(rolePermissions)
@@ -315,6 +325,30 @@ describe('RBAC admin (integration)', () => {
       .expect(201);
     fleetViewOnlyToken = (fleetLogin.body as { accessToken: string })
       .accessToken;
+
+    await ensureUserWithPermissions(db, organizationId, ORG_VIEW_ONLY_USER);
+    orgViewOnlyAccessToken = await loginAs(
+      app,
+      ORG_VIEW_ONLY_USER.email,
+      ORG_VIEW_ONLY_USER.password,
+    );
+
+    const orgAdminRoleRow = (
+      await db
+        .select({ id: roles.id })
+        .from(roles)
+        .where(
+          and(
+            eq(roles.name, DEV_ADMIN_ROLE_NAME),
+            eq(roles.organizationId, organizationId),
+          ),
+        )
+        .limit(1)
+    )[0];
+    if (!orgAdminRoleRow?.id) {
+      throw new Error('Organization Admin role missing after seed');
+    }
+    orgAdminRoleId = orgAdminRoleRow.id;
   }, 90000);
 
   afterAll(async () => {
@@ -439,18 +473,8 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
 
-    const listRes = await request(app.getHttpServer())
-      .get('/api/v1/roles')
-      .query({ organizationId, page: 1, pageSize: 50 })
-      .set('Authorization', `Bearer ${adminAccessToken}`)
-      .expect(200);
-    const systemRole = (
-      listRes.body as { items: Array<{ id: string; isSystem: boolean }> }
-    ).items.find((r) => r.isSystem);
-    expect(systemRole).toBeDefined();
-
     await request(app.getHttpServer())
-      .delete(`/api/v1/roles/${systemRole!.id}`)
+      .delete(`/api/v1/roles/${orgAdminRoleId}`)
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(409);
@@ -694,16 +718,6 @@ describe('RBAC admin (integration)', () => {
   });
 
   it('invalidates permission cache after role update and assign', async () => {
-    const rolesRes = await request(app.getHttpServer())
-      .get('/api/v1/roles')
-      .query({ organizationId, page: 1, pageSize: 50 })
-      .set('Authorization', `Bearer ${adminAccessToken}`)
-      .expect(200);
-    const viewerRole = (
-      rolesRes.body as { items: Array<{ id: string; name: string }> }
-    ).items.find((r) => r.name === 'RBAC Viewer Only');
-    expect(viewerRole).toBeDefined();
-
     await request(app.getHttpServer())
       .get('/api/v1/audit')
       .query({ organizationId, page: 1 })
@@ -727,7 +741,7 @@ describe('RBAC admin (integration)', () => {
     const revisionBefore = membershipBefore?.permissionRevision ?? 0;
 
     await request(app.getHttpServer())
-      .patch(`/api/v1/roles/${viewerRole!.id}`)
+      .patch(`/api/v1/roles/${viewerRoleId}`)
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
@@ -760,12 +774,87 @@ describe('RBAC admin (integration)', () => {
     expect(membershipAfter?.permissionRevision).toBeGreaterThan(revisionBefore);
 
     await request(app.getHttpServer())
-      .patch(`/api/v1/roles/${viewerRole!.id}`)
+      .patch(`/api/v1/roles/${viewerRoleId}`)
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         moduleAccess: [{ moduleId: 'administration', accessLevel: 'VIEW' }],
       })
       .expect(200);
+  });
+
+  it('organisation.view user cannot PATCH organisation employees (cross-module guard)', async () => {
+    const listRes = await request(app.getHttpServer())
+      .get('/api/v1/organisation/employees')
+      .query({ organizationId, page: 1, pageSize: 1 })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const employeeId = (listRes.body as { items: Array<{ id: string }> })
+      .items[0]?.id;
+    expect(employeeId).toBeDefined();
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/organisation/employees/${employeeId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${orgViewOnlyAccessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({ fullName: 'Blocked By View Only' })
+      .expect(403);
+  });
+
+  it('unassign role invalidates effective permissions on /auth/me', async () => {
+    const viewerUserId = (
+      await drizzle(pool, { schema })
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, 'viewer.rbac@grubpac.local'))
+        .limit(1)
+    )[0]?.id;
+    expect(viewerUserId).toBeDefined();
+
+    const meBefore = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(200);
+    const membershipBefore = (
+      meBefore.body as {
+        memberships: Array<{
+          organizationId: string;
+          permissionKeys: string[];
+        }>;
+      }
+    ).memberships.find((m) => m.organizationId === organizationId);
+    expect(membershipBefore?.permissionKeys).toContain('administration.view');
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${viewerRoleId}/assign`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ organizationId, userId: viewerUserId })
+      .expect(200);
+
+    const meAfter = await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(200);
+    const membershipAfter = (
+      meAfter.body as {
+        memberships: Array<{
+          organizationId: string;
+          permissionKeys: string[];
+        }>;
+      }
+    ).memberships.find((m) => m.organizationId === organizationId);
+    expect(membershipAfter?.permissionKeys ?? []).not.toContain(
+      'administration.view',
+    );
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/roles/${viewerRoleId}/assign`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ organizationId, userId: viewerUserId })
+      .expect(201);
   });
 });

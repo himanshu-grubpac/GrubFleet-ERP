@@ -1,6 +1,7 @@
 "use client";
 
 import { Package, BarChart2, AlertTriangle, CheckCircle2, Plus, RefreshCw } from "lucide-react";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 const kpis = [
   { label: "Total SKUs", value: "—", icon: Package, color: "text-blue-600", bg: "bg-blue-50" },
@@ -14,6 +15,7 @@ const columns = ["SKU", "Item Name", "Category", "Qty on Hand", "Reorder Level",
 export function InventoryModule() {
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/inventory" />
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>

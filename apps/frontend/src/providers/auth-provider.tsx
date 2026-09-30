@@ -380,7 +380,7 @@ export function GrubpacAuthProvider({
         name: me.user.fullName || me.user.email.split("@")[0],
       };
 
-      router.replace("/dashboard");
+      router.replace("/dashboard/");
 
       return {
         success: true,
@@ -542,7 +542,10 @@ export function ProtectedRoute({
   }
 
   if (isLoading) {
-    return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
+    if (isAuthenticated) {
+      return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
+    }
+    return <AuthBootstrapLoader layout="minimal" phase="boot" />;
   }
 
   if (!isAuthenticated) {

@@ -67,6 +67,18 @@ Resources:
         function handler(event) {
           var request = event.request;
           var uri = request.uri;
+          // Next static export emits RSC flight payloads as index.txt. Browsers must not
+          // open them as documents; Next client navigations send RSC: 1.
+          if (uri.indexOf('/_next/') === -1 && uri.endsWith('.txt')) {
+            var rsc = request.headers && request.headers.rsc;
+            if (!rsc || rsc.value !== '1') {
+              if (uri.endsWith('/index.txt')) {
+                request.uri = uri.replace(/index\.txt$/, 'index.html');
+              } else if (uri.endsWith('.txt')) {
+                request.uri = uri.slice(0, -4) + '/index.html';
+              }
+            }
+          }
           var leasePrefix = '/fleet-leasing/lease-contracts/';
           if (uri.indexOf(leasePrefix) === 0) {
             var tail = uri.slice(leasePrefix.length);
