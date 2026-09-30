@@ -380,7 +380,7 @@ export function GrubpacAuthProvider({
         name: me.user.fullName || me.user.email.split("@")[0],
       };
 
-      router.replace("/dashboard");
+      router.replace("/dashboard/");
 
       return {
         success: true,

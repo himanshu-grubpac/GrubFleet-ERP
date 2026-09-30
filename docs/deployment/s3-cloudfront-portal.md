@@ -71,6 +71,8 @@ After each portal deploy, set **`ClientOrigin`** on the matching SAM stack (scri
 
 CloudFront serves `index.html` at `/` and maps **403/404 → `/index.html`** for client-side navigation on unknown paths. Next export uses `trailingSlash: true` so routes resolve as `/login/index.html` on S3.
 
+**Do not browse `index.txt` URLs.** Next.js 15 static export also writes `index.txt` (RSC flight payloads) beside each route. Opening e.g. `/dashboard/index.txt` shows raw flight JSON (including embedded 404 fallback slots in the tree). Use **`/dashboard/`** (trailing slash). The portal stack’s viewer-request function rewrites non-RSC `*.txt` requests to the matching `index.html`; redeploy `grubfleet-portal-{tier}` after changing `infrastructure/grubfleet-portal.yaml`.
+
 **Dynamic resource IDs (static export):** Next cannot emit `index.html` per UUID at build time. Use a **fixed static route** (e.g. `/fleet-leasing/lease-contracts/detail/`) and pass the id via **`?leaseId=`** in links and bookmarks. The portal stack’s **viewer-request CloudFront function** rewrites legacy path-style URLs (`/fleet-leasing/lease-contracts/{id}/`) to that shell and injects `leaseId` on the query string so refresh and direct links work without falling back to root `/index.html` (which would redirect authenticated users away from the detail view). Apply the same pattern for other modules with runtime ids until a server-rendered host is used.
 
 ## Related docs

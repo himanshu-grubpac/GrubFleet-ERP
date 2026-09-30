@@ -35,7 +35,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Dashboard",
-    href: "/dashboard",
+    href: "/dashboard/",
     icon: LayoutDashboard,
     requiredPermission: "dashboard.view",
   },
