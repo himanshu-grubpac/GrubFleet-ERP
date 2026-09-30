@@ -49,7 +49,9 @@ Then verify login from the CloudFront URL (browser sends `Origin: https://dxxx.c
 
 ## GitHub Actions
 
-Job **`frontend-portal-s3-cloudfront`** in `.github/workflows/reusable-container-deploy.yml` runs on staging / pre-prod / production deploy workflows.
+On each tier deploy, job **`portal-cloudformation-stack`** runs **`aws cloudformation deploy`** against `infrastructure/grubfleet-portal.yaml` (same as `scripts/deploy-portal-stack.ps1`) so CloudFront viewer-request rewrites (including **`index.txt` → `index.html`**) stay in sync with git. Job **`frontend-portal-s3-cloudfront`** then builds, syncs S3, and invalidates CloudFront.
+
+Attach **`scripts/iam-grubfleet-gha-portal-stack-policy.json`** to the GitHub OIDC deploy role (`GrubFleetGitHubActionsDeploy`) in addition to **`scripts/iam-grubfleet-gha-portal-deploy-policy.json`** (S3 sync + invalidation).
 
 Configure per **GitHub Environment** (`staging`, `pre-production`, `production`):
 
