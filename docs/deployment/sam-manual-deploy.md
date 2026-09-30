@@ -50,7 +50,7 @@ npm run deploy:preprod:api
 npm run deploy:production:api
 ```
 
-`prepare:lambda` runs `nest build`, copies `apps/backend/dist` into `lambda-package/`, runs `npm ci --omit=dev` for production dependencies, then removes manifests so SAM does not rebuild node_modules.
+`prepare:lambda` builds `@grubpac/validation` and the backend, copies `apps/backend/dist` into `lambda-package/`, runs an isolated `npm install --omit=dev --ignore-scripts` for production dependencies (materializing workspace `file:` packages under `node_modules`), and verifies the bundle (`npm run verify:lambda-package`). CI runs the same prepare step on every backend job.
 
 ## After deploy
 

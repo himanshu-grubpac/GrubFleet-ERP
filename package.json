@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "dev": "node scripts/dev.mjs",
-    "prepare": "node -e \"if(process.env.HUSKY==='0'||process.env.CI==='true')process.exit(0)\" && husky",
+    "prepare": "node scripts/prepare-husky.mjs",
     "ci:local": "node scripts/ci-local.mjs",
     "build": "npm run build -w backend && npm run build -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
@@ -19,6 +19,7 @@
     "db:migrate": "npm run db:migrate -w backend",
     "db:seed": "npm run db:seed -w backend",
     "prepare:lambda": "node scripts/prepare-lambda.mjs",
+    "verify:lambda-package": "node scripts/verify-lambda-package.mjs",
     "sam:build": "sam build",
     "deploy:staging:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs staging",
     "deploy:preprod:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs preprod",

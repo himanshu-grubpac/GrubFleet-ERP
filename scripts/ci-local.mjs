@@ -15,6 +15,8 @@ const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 
 const ciEnv = {
   ...process.env,
+  HUSKY: '0',
+  CI: 'true',
   NODE_ENV: 'test',
   API_PREFIX: process.env.API_PREFIX ?? 'api/v1',
   LOG_LEVEL: process.env.LOG_LEVEL ?? 'error',
@@ -83,6 +85,10 @@ async function main() {
   runStep('Typecheck backend', ['run', 'typecheck', '-w', 'backend']);
   runStep('Test backend', ['run', 'test', '-w', 'backend']);
   runStep('Build backend', ['run', 'build', '-w', 'backend']);
+  runStep('Verify Lambda SAM bundle (prepare:lambda)', [
+    'run',
+    'prepare:lambda',
+  ]);
   runStep('Lint frontend', ['run', 'lint', '-w', 'frontend']);
   runStep('Typecheck frontend', ['run', 'typecheck', '-w', 'frontend']);
   runStep('Build frontend', ['run', 'build', '-w', 'frontend']);
