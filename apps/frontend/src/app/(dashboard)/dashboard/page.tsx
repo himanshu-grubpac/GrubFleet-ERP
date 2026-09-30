@@ -13,7 +13,7 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 mt-5 px-5">
       <div>
         <h2 className="text-2xl font-bold text-blue-950">Dashboard</h2>
         <p className="mt-1 text-sm text-slate-600">

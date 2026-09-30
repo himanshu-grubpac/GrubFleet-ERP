@@ -1,38 +1,77 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
+
 import {
-  createOrganisationLocationTypeApi,
-  deleteOrganisationLocationTypeApi,
-  fetchOrganisationLocationTypesApi,
+    createOrganisationLocationTypeApi,
+    deleteOrganisationLocationTypeApi,
+    fetchOrganisationLocationTypesApi,
 } from "@/lib/api/organisation/location-types";
+
 import {
     createOrganisationLocationApi,
     fetchOrganisationLocationByIdApi,
     updateOrganisationLocationApi,
 } from "@/lib/api/organisation/locations";
+
+import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+
+import OrganizationAddressForm from "@/components/common/OrganizationAddressForm";
+import LocationTypeSelector, {
+    type LocationType,
+} from "@/components/modules/organization/locations/LocationTypeSelector";
+import {
+    validateOrganizationAddress,
+    hasValidationErrors,
+    type OrganizationValidationErrors,
+} from "@/components/common/OrganizationValidation";
+
 import {
     Plus,
     X,
-    Info,
     ChevronDown,
 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
 
 /* -------------------------------------------------------------------------- */
-/* Types                                                                      */
+/* Default Location Types                                                    */
 /* -------------------------------------------------------------------------- */
 
-type LocationType = {
-    id: string;
-    name: string;
-    isCustom: boolean;
-    isUsed: boolean;
-};
+const DEFAULT_LOCATION_TYPES: LocationType[] = [
+    {
+        id: "office",
+        name: "Office",
+        isCustom: false,
+        isUsed: false,
+    },
+    {
+        id: "workshop",
+        name: "Workshop",
+        isCustom: false,
+        isUsed: false,
+    },
+    {
+        id: "warehouse",
+        name: "Warehouse",
+        isCustom: false,
+        isUsed: false,
+    },
+    {
+        id: "retail-outlet",
+        name: "Retail Outlet",
+        isCustom: false,
+        isUsed: false,
+    },
+];
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
 type Contact = {
     id: string;
@@ -76,27 +115,8 @@ type LocationFormData = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Mock Location Types                                                        */
-/* -------------------------------------------------------------------------- */
-/*
- * TEMPORARY MOCK DATA
- *
- * This will later come from the backend.
- */
-
-/* -------------------------------------------------------------------------- */
 /* Mock Contacts                                                              */
 /* -------------------------------------------------------------------------- */
-/*
- * TEMPORARY MOCK DATA
- *
- * Later this list will come from the backend.
- *
- * When a person is selected:
- * - Name is selected from dropdown
- * - Phone is automatically populated
- * - Email is automatically populated
- */
 
 const MOCK_CONTACTS: Contact[] = [
     {
@@ -125,11 +145,19 @@ const MOCK_CONTACTS: Contact[] = [
     },
 ];
 
+/* -------------------------------------------------------------------------- */
+/* Helpers                                                                    */
+/* -------------------------------------------------------------------------- */
+
 const UUID_RE =
     /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-function employeeIdForApi(id: string): string | undefined {
-    return id && UUID_RE.test(id) ? id : undefined;
+function employeeIdForApi(
+    id: string
+): string | undefined {
+    return id && UUID_RE.test(id)
+        ? id
+        : undefined;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -138,8 +166,12 @@ function employeeIdForApi(id: string): string | undefined {
 
 type AddLocationFormProps = {
     locationId?: string;
+
     onCancel?: () => void;
-    onSaved?: (location: LocationFormData) => void;
+
+    onSaved?: (
+        location: LocationFormData
+    ) => void;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -151,61 +183,154 @@ export default function AddLocationForm({
     onCancel,
     onSaved,
 }: AddLocationFormProps) {
-    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
-    const queryClient = useQueryClient();
-    const isEditMode = Boolean(locationId);
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+    } = useAuth();
 
-    /* ------------------------------------------------------------------------ */
-    /* State                                                                    */
-    /* ------------------------------------------------------------------------ */
+    const queryClient =
+        useQueryClient();
 
-    const [locationTypes, setLocationTypes] =
-        useState<LocationType[]>([]);
+    const isEditMode =
+        Boolean(locationId);
+
+    /* ---------------------------------------------------------------------- */
+    /* Location Types                                                         */
+    /* ---------------------------------------------------------------------- */
+
+    const [
+        locationTypes,
+        setLocationTypes,
+    ] = useState<LocationType[]>(
+        DEFAULT_LOCATION_TYPES
+    );
 
     const locationTypesQuery = useQuery({
-        queryKey: ["organization", "location-types", organizationId],
+        queryKey: [
+            "organization",
+            "location-types",
+            organizationId,
+        ],
+
         queryFn: () => {
-            if (!token || !organizationId) {
-                throw new Error("Missing auth context");
+            if (
+                !token ||
+                !organizationId
+            ) {
+                throw new Error(
+                    "Missing auth context"
+                );
             }
-            return fetchOrganisationLocationTypesApi(token, organizationId);
+
+            return fetchOrganisationLocationTypesApi(
+                token,
+                organizationId
+            );
         },
-        enabled: !!token && !!organizationId && !isAuthLoading,
+
+        enabled:
+            !!token &&
+            !!organizationId &&
+            !isAuthLoading,
     });
 
+    /* ---------------------------------------------------------------------- */
+    /* Location Details - Edit                                               */
+    /* ---------------------------------------------------------------------- */
+
     const locationDetailQuery = useQuery({
-        queryKey: ["organization", "location", organizationId, locationId],
+        queryKey: [
+            "organization",
+            "location",
+            organizationId,
+            locationId,
+        ],
+
         queryFn: () => {
-            if (!token || !organizationId || !locationId) {
-                throw new Error("Missing auth context");
+            if (
+                !token ||
+                !organizationId ||
+                !locationId
+            ) {
+                throw new Error(
+                    "Missing auth context"
+                );
             }
+
             return fetchOrganisationLocationByIdApi(
                 token,
                 organizationId,
-                locationId,
+                locationId
             );
         },
+
         enabled:
-            !!token && !!organizationId && !!locationId && !isAuthLoading,
+            !!token &&
+            !!organizationId &&
+            !!locationId &&
+            !isAuthLoading,
     });
 
     useEffect(() => {
-        if (!locationTypesQuery.data?.items) return;
-        setLocationTypes(
-            locationTypesQuery.data.items.map((type) => ({
-                id: type.id,
-                name: type.name,
-                isCustom: type.isCustom,
-                isUsed: type.isUsed,
-            })),
-        );
-    }, [locationTypesQuery.data?.items]);
+        if (
+            !locationTypesQuery.data?.items
+        ) {
+            return;
+        }
 
-    const [showAddType, setShowAddType] =
-        useState(false);
+        const apiTypes: LocationType[] =
+            locationTypesQuery.data.items.map(
+                (type) => ({
+                    id: type.id,
+                    name: type.name,
+                    isCustom:
+                        type.isCustom,
+                    isUsed:
+                        type.isUsed,
+                })
+            );
 
-    const [newType, setNewType] =
-        useState("");
+        /*
+         * Keep the API version when the backend
+         * already contains a default type.
+         * This preserves the real backend ID.
+         */
+        const missingDefaults =
+            DEFAULT_LOCATION_TYPES.filter(
+                (defaultType) =>
+                    !apiTypes.some(
+                        (apiType) =>
+                            apiType.name.toLowerCase() ===
+                            defaultType.name.toLowerCase()
+                    )
+            );
+
+        setLocationTypes([
+            ...missingDefaults,
+            ...apiTypes,
+        ]);
+    }, [
+        locationTypesQuery.data?.items,
+    ]);
+
+    /* ---------------------------------------------------------------------- */
+    /* Add Type State                                                         */
+    /* ---------------------------------------------------------------------- */
+
+    const [
+        showAddType,
+        setShowAddType,
+    ] = useState(false);
+
+    const [
+        newType,
+        setNewType,
+    ] = useState("");
+
+    /* ---------------------------------------------------------------------- */
+    /* Form State                                                             */
+    /* ---------------------------------------------------------------------- */
 
     const [form, setForm] =
         useState<LocationFormData>({
@@ -242,48 +367,111 @@ export default function AddLocationForm({
             },
         });
 
+    /* ---------------------------------------------------------------------- */
+    /* Save / Error State                                                     */
+    /* ---------------------------------------------------------------------- */
+
     const [isSaving, setIsSaving] =
         useState(false);
 
     const [error, setError] =
         useState("");
 
+    const [
+        validationErrors,
+        setValidationErrors,
+    ] =
+        useState<OrganizationValidationErrors>(
+            {}
+        );
+
+    /* ---------------------------------------------------------------------- */
+    /* Populate Edit Data                                                     */
+    /* ---------------------------------------------------------------------- */
+
     useEffect(() => {
-        const detail = locationDetailQuery.data;
-        if (!detail) return;
+        const detail =
+            locationDetailQuery.data;
+
+        if (!detail) {
+            return;
+        }
+
         setForm({
             name: detail.name,
+
             type: detail.type,
+
             address: {
-                line1: detail.addressLine1,
-                line2: detail.addressLine2 ?? "",
-                city: detail.addressCity ?? "",
-                state: detail.addressState ?? "",
-                district: detail.addressDistrict ?? "",
-                pincode: detail.addressPincode ?? "",
+                line1:
+                    detail.addressLine1,
+
+                line2:
+                    detail.addressLine2 ??
+                    "",
+
+                city:
+                    detail.addressCity ??
+                    "",
+
+                state:
+                    detail.addressState ??
+                    "",
+
+                district:
+                    detail.addressDistrict ??
+                    "",
+
+                pincode:
+                    detail.addressPincode ??
+                    "",
             },
+
             contactInformation: {
-                phone: detail.siteContactPhone ?? "",
-                email: detail.siteContactEmail ?? "",
+                phone:
+                    detail.siteContactPhone ??
+                    "",
+
+                email:
+                    detail.siteContactEmail ??
+                    "",
             },
+
             responsiblePerson: {
-                id: detail.responsibleEmployeeId ?? "",
-                name: detail.responsiblePerson ?? "",
+                id:
+                    detail.responsibleEmployeeId ??
+                    "",
+
+                name:
+                    detail.responsiblePerson ??
+                    "",
+
                 phone: "",
+
                 email: "",
             },
+
             deputy: {
-                id: detail.deputyEmployeeId ?? "",
-                name: detail.deputyName ?? "",
+                id:
+                    detail.deputyEmployeeId ??
+                    "",
+
+                name:
+                    detail.deputyName ??
+                    "",
+
                 phone: "",
+
                 email: "",
             },
         });
-    }, [locationDetailQuery.data]);
+    }, [
+        locationDetailQuery.data,
+    ]);
 
-    /* ------------------------------------------------------------------------ */
-    /* General Form Update                                                      */
-    /* ------------------------------------------------------------------------ */
+    /* ---------------------------------------------------------------------- */
+    /* General Form Update                                                    */
+    /* ---------------------------------------------------------------------- */
 
     const updateForm = <
         K extends keyof LocationFormData
@@ -297,9 +485,9 @@ export default function AddLocationForm({
         }));
     };
 
-    /* ------------------------------------------------------------------------ */
-    /* Responsible Person                                                       */
-    /* ------------------------------------------------------------------------ */
+    /* ---------------------------------------------------------------------- */
+    /* Responsible Person                                                     */
+    /* ---------------------------------------------------------------------- */
 
     const handleResponsiblePersonChange = (
         contactId: string
@@ -319,9 +507,11 @@ export default function AddLocationForm({
             return;
         }
 
-        const contact = MOCK_CONTACTS.find(
-            (item) => item.id === contactId
-        );
+        const contact =
+            MOCK_CONTACTS.find(
+                (item) =>
+                    item.id === contactId
+            );
 
         if (!contact) {
             return;
@@ -339,9 +529,9 @@ export default function AddLocationForm({
         }));
     };
 
-    /* ------------------------------------------------------------------------ */
-    /* Deputy                                                                   */
-    /* ------------------------------------------------------------------------ */
+    /* ---------------------------------------------------------------------- */
+    /* Deputy                                                                 */
+    /* ---------------------------------------------------------------------- */
 
     const handleDeputyChange = (
         contactId: string
@@ -361,9 +551,11 @@ export default function AddLocationForm({
             return;
         }
 
-        const contact = MOCK_CONTACTS.find(
-            (item) => item.id === contactId
-        );
+        const contact =
+            MOCK_CONTACTS.find(
+                (item) =>
+                    item.id === contactId
+            );
 
         if (!contact) {
             return;
@@ -381,896 +573,936 @@ export default function AddLocationForm({
         }));
     };
 
-    /* ------------------------------------------------------------------------ */
-    /* Add Custom Location Type                                                 */
-    /* ------------------------------------------------------------------------ */
+    /* ---------------------------------------------------------------------- */
+    /* Add Custom Location Type                                               */
+    /* ---------------------------------------------------------------------- */
 
     const handleAddType = async () => {
-        const trimmedType = newType.trim();
+        const trimmedType =
+            newType.trim();
 
-        if (!trimmedType || !token || !organizationId) {
+        if (
+            !trimmedType ||
+            !token ||
+            !organizationId
+        ) {
             return;
         }
 
-        const alreadyExists = locationTypes.some(
-            (type) =>
-                type.name.toLowerCase() === trimmedType.toLowerCase(),
-        );
+        const alreadyExists =
+            locationTypes.some(
+                (type) =>
+                    type.name.toLowerCase() ===
+                    trimmedType.toLowerCase()
+            );
 
         if (alreadyExists) {
-            setError("This location type already exists.");
+            setError(
+                "This location type already exists."
+            );
+
             return;
         }
 
         try {
-            const created = await createOrganisationLocationTypeApi(
-                token,
-                organizationId,
-                trimmedType,
+            const created =
+                await createOrganisationLocationTypeApi(
+                    token,
+                    organizationId,
+                    trimmedType
+                );
+
+            await queryClient.invalidateQueries(
+                {
+                    queryKey: [
+                        "organization",
+                        "location-types",
+                    ],
+                }
             );
-            await queryClient.invalidateQueries({
-                queryKey: ["organization", "location-types"],
-            });
-            updateForm("type", created.name);
+
+            updateForm(
+                "type",
+                created.name
+            );
+
             setNewType("");
+
             setShowAddType(false);
+
             setError("");
         } catch (saveError) {
             const message =
-                saveError instanceof ApiClientError
+                saveError instanceof
+                    ApiClientError
                     ? saveError.message
                     : "Failed to add location type.";
+
             setError(message);
         }
     };
 
-    /* ------------------------------------------------------------------------ */
-    /* Delete Custom Location Type                                              */
-    /* ------------------------------------------------------------------------ */
+    /* ---------------------------------------------------------------------- */
+    /* Delete Custom Location Type                                            */
+    /* ---------------------------------------------------------------------- */
 
-    const handleDeleteType = async (type: LocationType) => {
-        if (!type.isCustom || type.isUsed || !token || !organizationId) {
+    const handleDeleteType = async (
+        type: LocationType
+    ) => {
+        if (
+            !type.isCustom ||
+            type.isUsed ||
+            !token ||
+            !organizationId
+        ) {
             return;
         }
 
-        if (form.type === type.name) {
-            updateForm("type", "");
+        if (
+            form.type === type.name
+        ) {
+            updateForm(
+                "type",
+                ""
+            );
         }
 
         try {
             await deleteOrganisationLocationTypeApi(
                 token,
                 organizationId,
-                type.id,
+                type.id
             );
-            await queryClient.invalidateQueries({
-                queryKey: ["organization", "location-types"],
-            });
+
+            await queryClient.invalidateQueries(
+                {
+                    queryKey: [
+                        "organization",
+                        "location-types",
+                    ],
+                }
+            );
         } catch (deleteError) {
             const message =
-                deleteError instanceof ApiClientError
+                deleteError instanceof
+                    ApiClientError
                     ? deleteError.message
                     : "Failed to delete location type.";
+
             setError(message);
         }
     };
 
-    /* ------------------------------------------------------------------------ */
-    /* Save Location                                                            */
-    /* ------------------------------------------------------------------------ */
+    /* ---------------------------------------------------------------------- */
+    /* Save Location                                                           */
+    /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
         setError("");
 
-        /* Required: Location Name */
+        /*
+         * Clear previous frontend validation errors.
+         */
+        setValidationErrors({});
+
+        const errors: OrganizationValidationErrors =
+            {};
+
+        /* ------------------------------------------------------------------ */
+        /* Location Name                                                      */
+        /* ------------------------------------------------------------------ */
 
         if (!form.name.trim()) {
-            setError(
-                "Location name is required."
-            );
-
-            return;
+            errors.name =
+                "Location name is required.";
         }
 
-        /* Required: Location Type */
+        /* ------------------------------------------------------------------ */
+        /* Location Type                                                      */
+        /* ------------------------------------------------------------------ */
 
-        if (!form.type) {
-            setError(
-                "Please select a location type."
-            );
-
-            return;
+        if (!form.type.trim()) {
+            errors.type =
+                "Please select a location type.";
         }
 
-        /* Required: Address Line 1 */
+        /* ------------------------------------------------------------------ */
+        /* Address                                                            */
+        /* ------------------------------------------------------------------ */
 
-        if (!form.address.line1.trim()) {
-            setError(
-                "Address Line 1 is required."
+        const addressErrors =
+            validateOrganizationAddress(
+                form.address
             );
 
-            return;
-        }
+        Object.entries(
+            addressErrors
+        ).forEach(
+            ([field, message]) => {
+                errors[
+                    `address.${field}`
+                ] = message;
+            }
+        );
 
-        /* Required: City */
+        /* ------------------------------------------------------------------ */
+        /* Set Validation Errors                                               */
+        /* ------------------------------------------------------------------ */
 
-        if (!form.address.city.trim()) {
-            setError(
-                "City is required."
-            );
+        setValidationErrors(
+            errors
+        );
 
-            return;
-        }
-
-        /* Required: State */
-
-        if (!form.address.state.trim()) {
-            setError(
-                "State is required."
-            );
-
-            return;
-        }
-
-        /* Required: District */
-
-        if (!form.address.district.trim()) {
-            setError(
-                "District is required."
-            );
-
-            return;
-        }
-
-        /* Required: Pincode */
-
-        if (!form.address.pincode.trim()) {
-            setError(
-                "Pincode is required."
-            );
-
-            return;
-        }
-
-        /*
-         * Pincode validation
-         */
+        /* ------------------------------------------------------------------ */
+        /* Stop if Frontend Validation Failed                                  */
+        /* ------------------------------------------------------------------ */
 
         if (
-            form.address.pincode.length !== 6
+            hasValidationErrors(
+                errors
+            )
+        ) {
+            return;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Auth Context                                                        */
+        /* ------------------------------------------------------------------ */
+
+        if (
+            !token ||
+            !organizationId
         ) {
             setError(
-                "Pincode must contain 6 digits."
+                "Missing organization context."
             );
 
             return;
         }
 
-        if (!token || !organizationId) {
-            setError("Missing organization context.");
+        /* ------------------------------------------------------------------ */
+        /* Location Type                                                      */
+        /* ------------------------------------------------------------------ */
+
+        const matchedType =
+            locationTypes.find(
+                (type) =>
+                    type.name.toLowerCase() ===
+                    form.type.toLowerCase()
+            );
+
+        if (!matchedType) {
+            setError(
+                "Please select a valid location type."
+            );
+
             return;
         }
 
-        const matchedType = locationTypes.find(
-            (type) =>
-                type.name.toLowerCase() === form.type.toLowerCase(),
-        );
-        if (!matchedType) {
-            setError("Please select a valid location type.");
-            return;
-        }
+        /* ------------------------------------------------------------------ */
+        /* API Payload                                                        */
+        /* ------------------------------------------------------------------ */
 
         const payload = {
             organizationId,
-            name: form.name.trim(),
-            locationTypeId: matchedType.id,
-            addressLine1: form.address.line1.trim(),
-            addressLine2: form.address.line2.trim() || undefined,
-            addressCity: form.address.city.trim() || undefined,
-            addressState: form.address.state.trim() || undefined,
-            addressDistrict: form.address.district.trim() || undefined,
-            addressPincode: form.address.pincode.trim() || undefined,
-            siteContactPhone: form.contactInformation.phone.trim() || undefined,
-            siteContactEmail: form.contactInformation.email.trim() || undefined,
-            responsibleEmployeeId: employeeIdForApi(form.responsiblePerson.id),
-            deputyEmployeeId: employeeIdForApi(form.deputy.id),
+
+            name:
+                form.name.trim(),
+
+            locationTypeId:
+                matchedType.id,
+
+            addressLine1:
+                form.address.line1.trim(),
+
+            addressLine2:
+                form.address.line2.trim() ||
+                undefined,
+
+            addressCity:
+                form.address.city.trim() ||
+                undefined,
+
+            addressState:
+                form.address.state.trim() ||
+                undefined,
+
+            addressDistrict:
+                form.address.district.trim() ||
+                undefined,
+
+            addressPincode:
+                form.address.pincode.trim() ||
+                undefined,
+
+            siteContactPhone:
+                form.contactInformation.phone.trim() ||
+                undefined,
+
+            siteContactEmail:
+                form.contactInformation.email.trim() ||
+                undefined,
+
+            responsibleEmployeeId:
+                employeeIdForApi(
+                    form.responsiblePerson.id
+                ),
+
+            deputyEmployeeId:
+                employeeIdForApi(
+                    form.deputy.id
+                ),
         };
+
+        /* ------------------------------------------------------------------ */
+        /* Save                                                                */
+        /* ------------------------------------------------------------------ */
 
         try {
             setIsSaving(true);
 
-            if (isEditMode && locationId) {
+            if (
+                isEditMode &&
+                locationId
+            ) {
                 await updateOrganisationLocationApi(
                     token,
                     organizationId,
                     locationId,
-                    payload,
+                    payload
                 );
             } else {
-                await createOrganisationLocationApi(token, payload);
+                await createOrganisationLocationApi(
+                    token,
+                    payload
+                );
             }
 
-            await queryClient.invalidateQueries({
-                queryKey: ["organization", "locations"],
-            });
+            await queryClient.invalidateQueries(
+                {
+                    queryKey: [
+                        "organization",
+                        "locations",
+                    ],
+                }
+            );
 
             onSaved?.(form);
         } catch (saveError) {
             const message =
-                saveError instanceof ApiClientError
+                saveError instanceof
+                    ApiClientError
                     ? saveError.message
                     : "Failed to save location.";
+
             setError(message);
         } finally {
             setIsSaving(false);
         }
     };
 
-    /* ------------------------------------------------------------------------ */
-    /* Render                                                                   */
-    /* ------------------------------------------------------------------------ */
+    /* ---------------------------------------------------------------------- */
+    /* Address Error Mapping                                                  */
+    /* ---------------------------------------------------------------------- */
+
+    const addressErrors = {
+        line1:
+            validationErrors[
+            "address.line1"
+            ],
+
+        line2:
+            validationErrors[
+            "address.line2"
+            ],
+
+        city:
+            validationErrors[
+            "address.city"
+            ],
+
+        state:
+            validationErrors[
+            "address.state"
+            ],
+
+        district:
+            validationErrors[
+            "address.district"
+            ],
+
+        pincode:
+            validationErrors[
+            "address.pincode"
+            ],
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* UI                                                                      */
+    /* ---------------------------------------------------------------------- */
 
     return (
-        <div className="mx-auto w-full max-w-3xl">
-            {/* ================================================================== */}
-            {/* FORM CARD                                                          */}
-            {/* ================================================================== */}
+        <OrganizationFormLayout
+            title={
+                isEditMode
+                    ? "Edit Location"
+                    : "Add Location"
+            }
 
-            <div className="rounded-lg border border-gray-200 bg-white p-5">
+            description={
+                isEditMode
+                    ? "Update the location details, address, contacts, and responsible people."
+                    : "Register an office, workshop, warehouse, retail outlet, or other organization location."
+            }
 
-                {/* ---------------------------------------------------------------- */}
-                {/* Location Name                                                     */}
-                {/* ---------------------------------------------------------------- */}
+            infoText="Locations aren't just for warehousing — Offices, Workshops, Retail Outlets and more all live in this same register, and are what Asset Management and Inventory select from when marking a vehicle's or part's location."
 
-                <div>
-                    <label
-                        htmlFor="location-name"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
+            actions={
+                <>
+                    {/* Cancel */}
+
+                    <button
+                        type="button"
+                        onClick={
+                            onCancel
+                        }
+                        className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
-                        Location name
-                    </label>
+                        Cancel
+                    </button>
 
-                    <input
-                        id="location-name"
-                        type="text"
-                        value={form.name}
-                        onChange={(event) => {
-                            updateForm(
-                                "name",
-                                event.target.value
-                            );
-                        }}
-                        placeholder="Enter location name"
-                        className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                    />
-                </div>
+                    {/* Save */}
 
-                {/* ---------------------------------------------------------------- */}
-                {/* Location Type                                                     */}
-                {/* ---------------------------------------------------------------- */}
+                    <Button
+                        type="button"
+                        onClick={
+                            handleSave
+                        }
+                        disabled={
+                            isSaving
+                        }
+                        className="h-10 px-5"
+                    >
+                        {isSaving
+                            ? "Saving..."
+                            : isEditMode
+                                ? "Save changes"
+                                : "Save location"}
+                    </Button>
+                </>
+            }
+        >
+            {/* ============================================================ */}
+            {/* LOCATION NAME                                                */}
+            {/* ============================================================ */}
 
-                <div className="mt-4">
-                    <label className="mb-2 block text-xs font-semibold text-gray-700">
-                        TYPE
-                    </label>
+            <div>
+                <label
+                    htmlFor="location-name"
+                    className="mb-1 block text-xs font-semibold text-gray-700"
+                >
+                    Location name
 
-                    <div className="flex flex-wrap items-center gap-2">
+                    <span className="ml-1 text-red-500">
+                        *
+                    </span>
+                </label>
 
-                        {locationTypes.map((type) => {
-                            const selected =
-                                form.type === type.name;
+                <input
+                    id="location-name"
+                    type="text"
+                    value={
+                        form.name
+                    }
+                    onChange={(
+                        event
+                    ) => {
+                        updateForm(
+                            "name",
+                            event.target
+                                .value
+                        );
 
-                            return (
-                                <div
-                                    key={type.id}
-                                    className="relative"
-                                >
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            updateForm(
-                                                "type",
-                                                type.name
-                                            );
-                                        }}
-                                        className={[
-                                            "h-9 rounded-md border px-4 text-sm font-semibold transition",
-                                            selected
-                                                ? "border-blue-600 bg-blue-50 text-blue-700"
-                                                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-                                        ].join(" ")}
-                                    >
-                                        {type.name}
-                                    </button>
+                        setError("");
 
-                                    {/* Custom type delete button */}
+                        setValidationErrors(
+                            (
+                                previous
+                            ) => {
+                                const next =
+                                {
+                                    ...previous,
+                                };
 
-                                    {type.isCustom && (
-                                        <button
-                                            type="button"
-                                            disabled={type.isUsed}
-                                            onClick={() => {
-                                                handleDeleteType(
-                                                    type
-                                                );
-                                            }}
-                                            title={
-                                                type.isUsed
-                                                    ? "This type is already used by a location"
-                                                    : "Delete location type"
-                                            }
-                                            className={[
-                                                "absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border bg-white shadow-sm",
-                                                type.isUsed
-                                                    ? "cursor-not-allowed border-gray-200 text-gray-300"
-                                                    : "border-gray-300 text-gray-500 hover:border-red-300 hover:text-red-500",
-                                            ].join(" ")}
-                                        >
-                                            <X className="h-3 w-3" />
-                                        </button>
-                                    )}
-                                </div>
-                            );
-                        })}
+                                delete next.name;
 
-                        {/* Add Type */}
+                                return next;
+                            }
+                        );
+                    }}
+                    placeholder="Enter location name"
+                    className={[
+                        "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
+                        validationErrors.name
+                            ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
+                            : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+                    ].join(" ")}
+                />
 
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setShowAddType(
-                                    (previous) =>
-                                        !previous
+                {validationErrors.name && (
+                    <p className="mt-1 text-xs text-red-500">
+                        {
+                            validationErrors.name
+                        }
+                    </p>
+                )}
+            </div>
+
+            {/* ============================================================ */}
+            {/* LOCATION TYPE                                                */}
+            {/* ============================================================ */}
+
+            <LocationTypeSelector
+                locationTypes={
+                    locationTypes
+                }
+                selectedType={
+                    form.type
+                }
+                showAddType={
+                    showAddType
+                }
+                newType={newType}
+                error={
+                    validationErrors.type
+                }
+                onSelect={(type: string) => {
+                    updateForm(
+                        "type",
+                        type
+                    );
+
+                    setError("");
+
+                    setValidationErrors(
+                        (previous) => {
+                            const next = {
+                                ...previous,
+                            };
+
+                            delete next.type;
+
+                            return next;
+                        }
+                    );
+                }}
+
+                onToggleAddType={() =>
+                    setShowAddType(
+                        (previous: boolean) =>
+                            !previous
+                    )
+                }
+
+                onNewTypeChange={(value: string) => {
+                    setNewType(value);
+                    setError("");
+                }}
+                onAddType={
+                    handleAddType
+                }
+                onDeleteType={
+                    handleDeleteType
+                }
+            />
+
+            {/* ============================================================ */}
+            {/* ADDRESS                                                       */}
+            {/* ============================================================ */}
+
+            <OrganizationAddressForm
+                value={
+                    form.address
+                }
+                onChange={(
+                    address
+                ) => {
+                    updateForm(
+                        "address",
+                        address
+                    );
+
+                    setValidationErrors(
+                        (
+                            previous
+                        ) => {
+                            const next =
+                            {
+                                ...previous,
+                            };
+
+                            delete next[
+                                "address.line1"
+                            ];
+
+                            delete next[
+                                "address.line2"
+                            ];
+
+                            delete next[
+                                "address.city"
+                            ];
+
+                            delete next[
+                                "address.state"
+                            ];
+
+                            delete next[
+                                "address.district"
+                            ];
+
+                            delete next[
+                                "address.pincode"
+                            ];
+
+                            return next;
+                        }
+                    );
+                }}
+                errors={
+                    addressErrors
+                }
+                collapsible
+                defaultExpanded={
+                    false
+                }
+                required
+            />
+
+            {/* ============================================================ */}
+            {/* CONTACT INFORMATION                                          */}
+            {/* ============================================================ */}
+
+            <div className="mt-5 border-t border-gray-100 pt-4">
+                <h3 className="text-xs font-semibold text-gray-700">
+                    CONTACT INFORMATION
+                </h3>
+
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+                    {/* Phone */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Phone
+                        </label>
+
+                        <input
+                            type="tel"
+                            value={
+                                form
+                                    .contactInformation
+                                    .phone
+                            }
+                            onChange={(
+                                event
+                            ) => {
+                                setForm(
+                                    (
+                                        previous
+                                    ) => ({
+                                        ...previous,
+
+                                        contactInformation:
+                                        {
+                                            ...previous.contactInformation,
+
+                                            phone:
+                                                event
+                                                    .target
+                                                    .value,
+                                        },
+                                    })
                                 );
                             }}
-                            className="inline-flex h-9 items-center gap-1 rounded-md border border-dashed border-gray-300 px-3 text-sm font-semibold text-gray-600 transition hover:border-gray-400 hover:bg-gray-50"
-                        >
-                            <Plus className="h-4 w-4" />
-                            Add Type
-                        </button>
+                            placeholder="+91 98XXXXXXXX"
+                            className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                        />
                     </div>
 
-                    {/* -------------------------------------------------------------- */}
-                    {/* Add Type Input                                                  */}
-                    {/* -------------------------------------------------------------- */}
+                    {/* Email */}
 
-                    {showAddType && (
-                        <div className="mt-3 flex max-w-md items-center gap-2">
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Email
+                        </label>
 
-                            <input
-                                type="text"
-                                value={newType}
-                                onChange={(event) => {
-                                    setNewType(
-                                        event.target.value
-                                    );
-                                }}
-                                onKeyDown={(event) => {
-                                    if (
-                                        event.key ===
-                                        "Enter"
-                                    ) {
-                                        handleAddType();
-                                    }
-                                }}
-                                autoFocus
-                                placeholder="Enter new location type"
-                                className="h-9 flex-1 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                            />
-
-                            <Button
-                                type="button"
-                                onClick={handleAddType}
-                                className="h-9 px-4"
-                            >
-                                Add
-                            </Button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setNewType("");
-                                    setShowAddType(false);
-                                }}
-                                className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-500 hover:bg-gray-50"
-                                title="Cancel"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                    )}
-                </div>
-
-                {/* ---------------------------------------------------------------- */}
-                {/* Address                                                           */}
-                {/* ---------------------------------------------------------------- */}
-
-                <div className="mt-5">
-
-                    <h3 className="text-xs font-semibold text-gray-700">
-                        ADDRESS
-                    </h3>
-
-                    <div className="mt-2 space-y-3">
-
-                        {/* Address Line 1 */}
-
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                Address Line 1
-                            </label>
-
-                            <input
-                                type="text"
-                                value={
-                                    form.address.line1
-                                }
-                                onChange={(event) => {
-                                    setForm((previous) => ({
+                        <input
+                            type="email"
+                            value={
+                                form
+                                    .contactInformation
+                                    .email
+                            }
+                            onChange={(
+                                event
+                            ) => {
+                                setForm(
+                                    (
+                                        previous
+                                    ) => ({
                                         ...previous,
 
-                                        address: {
-                                            ...previous.address,
-                                            line1:
-                                                event.target.value,
+                                        contactInformation:
+                                        {
+                                            ...previous.contactInformation,
+
+                                            email:
+                                                event
+                                                    .target
+                                                    .value,
                                         },
-                                    }));
-                                }}
-                                placeholder="Street, building, area"
-                                className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                            />
-                        </div>
-
-                        {/* Address Line 2 */}
-
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                Address Line 2
-                            </label>
-
-                            <input
-                                type="text"
-                                value={
-                                    form.address.line2
-                                }
-                                onChange={(event) => {
-                                    setForm((previous) => ({
-                                        ...previous,
-
-                                        address: {
-                                            ...previous.address,
-                                            line2:
-                                                event.target.value,
-                                        },
-                                    }));
-                                }}
-                                placeholder="Landmark, locality, apartment, etc."
-                                className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                            />
-                        </div>
-
-                        {/* City + State */}
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                            {/* City */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    City
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        form.address.city
-                                    }
-                                    onChange={(event) => {
-                                        setForm((previous) => ({
-                                            ...previous,
-
-                                            address: {
-                                                ...previous.address,
-                                                city:
-                                                    event.target.value,
-                                            },
-                                        }));
-                                    }}
-                                    placeholder="City"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                />
-                            </div>
-
-                            {/* State */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    State
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        form.address.state
-                                    }
-                                    onChange={(event) => {
-                                        setForm((previous) => ({
-                                            ...previous,
-
-                                            address: {
-                                                ...previous.address,
-                                                state:
-                                                    event.target.value,
-                                            },
-                                        }));
-                                    }}
-                                    placeholder="State"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                />
-                            </div>
-                        </div>
-
-                        {/* District + Pincode */}
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                            {/* District */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    District
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        form.address.district
-                                    }
-                                    onChange={(event) => {
-                                        setForm((previous) => ({
-                                            ...previous,
-
-                                            address: {
-                                                ...previous.address,
-                                                district:
-                                                    event.target.value,
-                                            },
-                                        }));
-                                    }}
-                                    placeholder="District"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                />
-                            </div>
-
-                            {/* Pincode */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Pincode
-                                </label>
-
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={6}
-                                    value={
-                                        form.address.pincode
-                                    }
-                                    onChange={(event) => {
-                                        setForm((previous) => ({
-                                            ...previous,
-
-                                            address: {
-                                                ...previous.address,
-
-                                                pincode:
-                                                    event.target.value.replace(
-                                                        /\D/g,
-                                                        ""
-                                                    ),
-                                            },
-                                        }));
-                                    }}
-                                    placeholder="Pincode"
-                                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                />
-                            </div>
-
-
-                        </div>
-
-                        {/* ------------------------------------------------------------------ */}
-                        {/* Contact Information                                                */
-                       /* ------------------------------------------------------------------ */}
-
-                        <div className="mt-4">
-                            <h3 className="text-xs font-semibold text-gray-700">
-                                CONTACT INFORMATION
-                            </h3>
-
-                            <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                                {/* Phone */}
-
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                        Phone
-                                    </label>
-
-                                    <input
-                                        type="tel"
-                                        value={form.contactInformation.phone}
-                                        onChange={(event) => {
-                                            setForm((previous) => ({
-                                                ...previous,
-
-                                                contactInformation: {
-                                                    ...previous.contactInformation,
-                                                    phone:
-                                                        event.target.value,
-                                                },
-                                            }));
-                                        }}
-                                        placeholder="+91 98XXXXXXXX"
-                                        className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    />
-                                </div>
-
-                                {/* Email */}
-
-                                <div>
-                                    <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                        Email
-                                    </label>
-
-                                    <input
-                                        type="email"
-                                        value={form.contactInformation.email}
-                                        onChange={(event) => {
-                                            setForm((previous) => ({
-                                                ...previous,
-
-                                                contactInformation: {
-                                                    ...previous.contactInformation,
-                                                    email:
-                                                        event.target.value,
-                                                },
-                                            }));
-                                        }}
-                                        placeholder="name@company.com"
-                                        className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    />
-                                </div>
-                            </div>
-                        </div>
+                                    })
+                                );
+                            }}
+                            placeholder="name@company.com"
+                            className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                        />
                     </div>
-
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Responsible Person                                                */}
-                    {/* ---------------------------------------------------------------- */}
-
-                    <div className="mt-6">
-
-                        <h3 className="text-xs font-semibold text-gray-700">
-                            RESPONSIBLE PERSON (OPTIONAL)
-                        </h3>
-
-                        <p className="mt-0.5 text-xs text-gray-500"> Select the person responsible for this location&apos;s day-to-day operations. </p>
-
-                        {/* Name + Phone + Email */}
-
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
-                            {/* Name */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Name
-                                </label>
-
-                                <div className="relative">
-
-                                    <select
-                                        value={form.responsiblePerson.id}
-                                        onChange={(event) => {
-                                            handleResponsiblePersonChange(
-                                                event.target.value
-                                            );
-                                        }}
-                                        className="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    >
-                                        <option value="">
-                                            Select responsible person
-                                        </option>
-
-                                        {MOCK_CONTACTS.map((contact) => (
-                                            <option
-                                                key={contact.id}
-                                                value={contact.id}
-                                            >
-                                                {contact.name}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-
-                                </div>
-                            </div>
-
-                            {/* Phone */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Phone
-                                </label>
-
-                                <input
-                                    type="tel"
-                                    value={form.responsiblePerson.phone}
-                                    readOnly
-                                    placeholder="+91 98XXXXXXXX"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
-                                />
-                            </div>
-
-                            {/* Email */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Email
-                                </label>
-
-                                <input
-                                    type="email"
-                                    value={form.responsiblePerson.email}
-                                    readOnly
-                                    placeholder="name@company.com"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
-                                />
-                            </div>
-
-                        </div>
-                    </div>
-
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Deputy                                                            */}
-                    {/* ---------------------------------------------------------------- */}
-
-
-                    <div className="mt-6">
-
-                        <h3 className="text-xs font-semibold text-gray-700">
-                            DEPUTY (OPTIONAL)
-                        </h3>
-
-                        <p className="mt-0.5 text-xs text-gray-500">
-                            Alternate contact if the responsible person is unavailable.
-                        </p>
-
-                        {/* Name + Phone + Email */}
-
-                        <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
-                            {/* Name */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Name
-                                </label>
-
-                                <div className="relative">
-
-                                    <select
-                                        value={form.deputy.id}
-                                        onChange={(event) => {
-                                            handleDeputyChange(
-                                                event.target.value
-                                            );
-                                        }}
-                                        className="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                                    >
-                                        <option value="">
-                                            Select deputy
-                                        </option>
-
-                                        {MOCK_CONTACTS.map((contact) => (
-                                            <option
-                                                key={contact.id}
-                                                value={contact.id}
-                                            >
-                                                {contact.name}
-                                            </option>
-                                        ))}
-                                    </select>
-
-                                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
-
-                                </div>
-                            </div>
-
-                            {/* Phone */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Phone
-                                </label>
-
-                                <input
-                                    type="tel"
-                                    value={form.deputy.phone}
-                                    readOnly
-                                    placeholder="+91 98XXXXXXXX"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
-                                />
-                            </div>
-
-                            {/* Email */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Email
-                                </label>
-
-                                <input
-                                    type="email"
-                                    value={form.deputy.email}
-                                    readOnly
-                                    placeholder="name@company.com"
-                                    className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none placeholder:text-gray-400"
-                                />
-                            </div>
-
-                        </div>
-                    </div>
-
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Error                                                             */}
-                    {/* ---------------------------------------------------------------- */}
-
-                    {error && (
-                        <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
-                            {error}
-                        </div>
-                    )}
-
-                    {/* ---------------------------------------------------------------- */}
-                    {/* Actions                                                           */}
-                    {/* ---------------------------------------------------------------- */}
-
-                    <div className="mt-6 flex justify-end gap-2">
-
-                        <button
-                            type="button"
-                            onClick={onCancel}
-                            className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                        >
-                            Cancel
-                        </button>
-
-                        <Button
-                            type="button"
-                            onClick={handleSave}
-                            disabled={isSaving}
-                            className="h-10 px-5"
-                        >
-                            {isSaving
-                                ? "Saving..."
-                                : "Save location"}
-                        </Button>
-                    </div>
-                </div>
-
-                {/* ================================================================== */}
-                {/* Information Box                                                    */}
-                {/* ================================================================== */}
-
-                {/* Information Box */}
-                <div className="mt-4 flex gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500 sm:px-5">
-                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-gray-500" />
-
-                    <p> Locations aren&apos;t just for warehousing — Offices, Workshops, Retail Outlets and more all live in this same register, and are what Asset Management and Inventory select from when marking a vehicle&apos;s or part&apos;s location. </p>
                 </div>
             </div>
-        </div>
+
+            {/* ============================================================ */}
+            {/* RESPONSIBLE PERSON                                           */}
+            {/* ============================================================ */}
+
+            <div className="mt-6">
+                <h3 className="text-xs font-semibold text-gray-700">
+                    RESPONSIBLE PERSON (OPTIONAL)
+                </h3>
+
+                <p className="mt-0.5 text-xs text-gray-500">
+                    Select the person responsible for this
+                    location&apos;s day-to-day operations.
+                </p>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+                    {/* Name */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Name
+                        </label>
+
+                        <div className="relative">
+                            <select
+                                value={
+                                    form
+                                        .responsiblePerson
+                                        .id
+                                }
+                                onChange={(
+                                    event
+                                ) =>
+                                    handleResponsiblePersonChange(
+                                        event
+                                            .target
+                                            .value
+                                    )
+                                }
+                                className="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                            >
+                                <option value="">
+                                    Select responsible person
+                                </option>
+
+                                {MOCK_CONTACTS.map(
+                                    (
+                                        contact
+                                    ) => (
+                                        <option
+                                            key={
+                                                contact.id
+                                            }
+                                            value={
+                                                contact.id
+                                            }
+                                        >
+                                            {
+                                                contact.name
+                                            }
+                                        </option>
+                                    )
+                                )}
+                            </select>
+
+                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        </div>
+                    </div>
+
+                    {/* Phone */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Phone
+                        </label>
+
+                        <input
+                            type="tel"
+                            value={
+                                form
+                                    .responsiblePerson
+                                    .phone
+                            }
+                            readOnly
+                            placeholder="+91 98XXXXXXXX"
+                            className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none"
+                        />
+                    </div>
+
+                    {/* Email */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Email
+                        </label>
+
+                        <input
+                            type="email"
+                            value={
+                                form
+                                    .responsiblePerson
+                                    .email
+                            }
+                            readOnly
+                            placeholder="name@company.com"
+                            className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ============================================================ */}
+            {/* DEPUTY                                                         */}
+            {/* ============================================================ */}
+
+            <div className="mt-6">
+                <h3 className="text-xs font-semibold text-gray-700">
+                    DEPUTY (OPTIONAL)
+                </h3>
+
+                <p className="mt-0.5 text-xs text-gray-500">
+                    Alternate contact if the responsible
+                    person is unavailable.
+                </p>
+
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+
+                    {/* Name */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Name
+                        </label>
+
+                        <div className="relative">
+                            <select
+                                value={
+                                    form
+                                        .deputy
+                                        .id
+                                }
+                                onChange={(
+                                    event
+                                ) =>
+                                    handleDeputyChange(
+                                        event
+                                            .target
+                                            .value
+                                    )
+                                }
+                                className="h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-700 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                            >
+                                <option value="">
+                                    Select deputy
+                                </option>
+
+                                {MOCK_CONTACTS.map(
+                                    (
+                                        contact
+                                    ) => (
+                                        <option
+                                            key={
+                                                contact.id
+                                            }
+                                            value={
+                                                contact.id
+                                            }
+                                        >
+                                            {
+                                                contact.name
+                                            }
+                                        </option>
+                                    )
+                                )}
+                            </select>
+
+                            <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                        </div>
+                    </div>
+
+                    {/* Phone */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Phone
+                        </label>
+
+                        <input
+                            type="tel"
+                            value={
+                                form
+                                    .deputy
+                                    .phone
+                            }
+                            readOnly
+                            placeholder="+91 98XXXXXXXX"
+                            className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none"
+                        />
+                    </div>
+
+                    {/* Email */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Email
+                        </label>
+
+                        <input
+                            type="email"
+                            value={
+                                form
+                                    .deputy
+                                    .email
+                            }
+                            readOnly
+                            placeholder="name@company.com"
+                            className="h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-600 outline-none"
+                        />
+                    </div>
+                </div>
+            </div>
+
+            {/* ============================================================ */}
+            {/* API / GENERAL ERROR                                           */}
+            {/* ============================================================ */}
+
+            {error && (
+                <div className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                    {error}
+                </div>
+            )}
+        </OrganizationFormLayout>
     );
 }

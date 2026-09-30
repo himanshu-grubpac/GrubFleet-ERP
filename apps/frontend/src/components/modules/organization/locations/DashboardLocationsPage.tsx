@@ -471,7 +471,7 @@ export default function LocationsPage() {
             <DashboardTableActions
               status={location.status}
               locationId={location.id}
-              onCopy={() => handleCopy(location)}
+
               onEdit={() => handleEdit(location)}
               onToggleStatus={() => handleToggleStatus(location)}
             />

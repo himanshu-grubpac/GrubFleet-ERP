@@ -42,7 +42,7 @@ export default function DashboardTable<T>({
 
                             {renderActions && (
                                 <th className="w-[150px] px-4 py-3 text-right text-xs font-semibold text-gray-600">
-                                    Actions
+                                    ACTIONS
                                 </th>
                             )}
                         </tr>

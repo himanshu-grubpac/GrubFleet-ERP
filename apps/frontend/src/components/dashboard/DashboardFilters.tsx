@@ -66,7 +66,7 @@ export default function DashboardFilters({
         );
 
     return (
-        <div className="mb-4 flex flex-wrap items-center gap-3">
+        <div className="mb-4 flex items-center gap-3">
             {/* Search */}
             {onSearchChange && (
                 <div className="relative min-w-[240px] flex-1">
@@ -89,35 +89,62 @@ export default function DashboardFilters({
                 </div>
             )}
 
-            {/* Select Filters */}
-            {selectFilters.map((filter) => (
-                <select
-                    key={filter.key}
-                    value={
-                        filterValues[filter.key] ?? ""
-                    }
-                    onChange={(event) =>
-                        onFilterChange?.(
-                            filter.key,
-                            event.target.value
-                        )
-                    }
-                    className="h-9 min-w-[140px] rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
-                >
-                    <option value="">
-                        {filter.label}
-                    </option>
 
-                    {filter.options.map((option) => (
-                        <option
-                            key={option.value}
-                            value={option.value}
-                        >
-                            {option.label}
-                        </option>
-                    ))}
-                </select>
+            {/* Filter Buttons */}
+            {selectFilters.map((filter) => (
+                <div
+                    key={filter.key}
+                    className="flex shrink-0 items-center gap-1.5"
+                >
+                    {/* Default / All */}
+                    <button
+                        type="button"
+                        onClick={() =>
+                            onFilterChange?.(
+                                filter.key,
+                                ""
+                            )
+                        }
+                        className={[
+                            "h-9 rounded-md border px-3 text-sm font-medium transition-colors",
+                            !filterValues[filter.key]
+                                ? "border-gray-900 bg-gray-900 text-white"
+                                : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
+                        ].join(" ")}
+                    >
+                        {filter.label}
+                    </button>
+
+                    {/* Filter Options */}
+                    {filter.options.map((option) => {
+                        const isActive =
+                            filterValues[filter.key] ===
+                            option.value;
+
+                        return (
+                            <button
+                                key={option.value}
+                                type="button"
+                                onClick={() =>
+                                    onFilterChange?.(
+                                        filter.key,
+                                        option.value
+                                    )
+                                }
+                                className={[
+                                    "h-9 rounded-md border px-3 text-sm font-medium transition-colors",
+                                    isActive
+                                        ? "border-gray-900 bg-gray-900 text-white"
+                                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
+                                ].join(" ")}
+                            >
+                                {option.label}
+                            </button>
+                        );
+                    })}
+                </div>
             ))}
+
 
             {/* Custom filters/actions */}
             {children}
@@ -139,5 +166,5 @@ export default function DashboardFilters({
                     </Button>
                 )}
         </div>
-    ); 
+    );
 }

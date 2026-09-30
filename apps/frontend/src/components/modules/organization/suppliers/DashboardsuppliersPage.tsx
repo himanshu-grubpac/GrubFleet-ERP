@@ -235,19 +235,19 @@ export default function SuppliersPage() {
     const supplierColumns = [
         {
             key: "name",
-            label: "Supplier",
+            label: "COMPANY",
         },
         {
             key: "type",
-            label: "Type",
+            label: "SUPPLIES",
         },
         {
             key: "contactPerson",
-            label: "Contact Person",
+            label: "CONTACT PERSON",
         },
         {
             key: "contact",
-            label: "Contact",
+            label: "CONTACT",
             render: (supplier: Supplier) => (
                 <DashboardContact
                     phone={supplier.phone}
@@ -257,7 +257,7 @@ export default function SuppliersPage() {
         },
         {
             key: "status",
-            label: "Status",
+            label: "STATUS",
 
             render: (supplier: Supplier) => (
                 <span
@@ -392,16 +392,12 @@ export default function SuppliersPage() {
                         <DashboardTableActions
                             status={supplier.status}
                             locationId={supplier.id}
-                            onCopy={() =>
-                                handleCopy(supplier)
-                            }
-                            onEdit={() =>
-                                handleEdit(supplier)
-                            }
+                            viewHref={`/organization/suppliers/${supplier.id}`}
+                            onEdit={() => handleEdit(supplier)}
                             onToggleStatus={() => {
                                 console.log(
                                     "Toggle supplier status:",
-                                    supplier.id,
+                                    supplier.id
                                 );
                             }}
                         />
