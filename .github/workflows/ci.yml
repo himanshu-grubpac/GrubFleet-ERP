@@ -14,6 +14,8 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    env:
+      HUSKY: '0'
     services:
       postgres:
         image: postgres:16-alpine
@@ -76,6 +78,11 @@ jobs:
         run: npm run test -w backend
       - name: Build backend
         run: npm run build -w backend
+      - name: Verify Lambda SAM bundle (prepare:lambda)
+        env:
+          HUSKY: '0'
+          CI: 'true'
+        run: npm run prepare:lambda
 
   frontend:
     runs-on: ubuntu-latest
