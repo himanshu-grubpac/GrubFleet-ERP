@@ -1,0 +1,129 @@
+# TEMPORARY — automatic develop → staging → pre-prod promotion (production/main stays manual).
+# Revert: delete this file + remove "Temporary auto-promotion" in docs/deployment/git-workflow.md
+# Optional secret GH_AUTO_PROMOTE_TOKEN (PAT): merges trigger downstream CI/deploy; GITHUB_TOKEN alone may not.
+
+name: Auto-promote non-production (TEMPORARY)
+
+on:
+  workflow_run:
+    workflows: [CI, 'Deploy Staging']
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: auto-promote-temp-${{ github.event.workflow_run.name }}-${{ github.event.workflow_run.head_branch }}-${{ github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  develop-to-staging:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.name == 'CI' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'develop'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Open or merge PR develop → staging
+        env:
+          GH_TOKEN: ${{ secrets.GH_AUTO_PROMOTE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin develop staging
+
+          AHEAD="$(git rev-list --count origin/staging..origin/develop || echo 0)"
+          if [ "${AHEAD}" -eq 0 ]; then
+            echo "staging is already up to date with develop — nothing to promote."
+            exit 0
+          fi
+
+          OPEN_PR="$(gh pr list --base staging --head develop --state open --json number -q '.[0].number' 2>/dev/null || true)"
+          if [ -z "${OPEN_PR}" ] || [ "${OPEN_PR}" = "null" ]; then
+            gh pr create --base staging --head develop \
+              --title "chore(promotion): develop → staging (auto, temporary)" \
+              --body "Temporary auto-promotion after green CI on \`develop\`. See docs/deployment/git-workflow.md. \`main\` remains manual."
+            OPEN_PR="$(gh pr list --base staging --head develop --state open --json number -q '.[0].number')"
+          fi
+
+          echo "Waiting for PR #${OPEN_PR} checks..."
+          gh pr checks "${OPEN_PR}" --watch --interval 30
+          gh pr merge "${OPEN_PR}" --merge --delete-branch=false
+
+  staging-to-preprod:
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.name == 'Deploy Staging' &&
+      github.event.workflow_run.head_branch == 'staging'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Wait for CI green on staging at deployed SHA
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TARGET_SHA="${{ github.event.workflow_run.head_sha }}"
+          echo "Deploy Staging succeeded for ${TARGET_SHA}; waiting for CI on staging..."
+
+          for attempt in $(seq 1 90); do
+            ROW="$(gh run list --workflow=CI --branch=staging --limit=30 \
+              --json headSha,status,conclusion \
+              -q ".[] | select(.headSha==\"${TARGET_SHA}\") | \"\(.status):\(.conclusion)\"" | head -1 || true)"
+
+            if [ -z "${ROW}" ]; then
+              echo "Attempt ${attempt}/90: no CI run yet for ${TARGET_SHA}"
+              sleep 20
+              continue
+            fi
+
+            STATUS="${ROW%%:*}"
+            CONCLUSION="${ROW#*:}"
+
+            if [ "${STATUS}" = "completed" ]; then
+              if [ "${CONCLUSION}" = "success" ]; then
+                echo "CI succeeded for ${TARGET_SHA}"
+                exit 0
+              fi
+              echo "CI finished with conclusion=${CONCLUSION} — aborting pre-prod promotion."
+              exit 1
+            fi
+
+            echo "Attempt ${attempt}/90: CI status=${STATUS}"
+            sleep 20
+          done
+
+          echo "Timed out waiting for CI on staging for ${TARGET_SHA}"
+          exit 1
+
+      - name: Open or merge PR staging → pre-prod
+        env:
+          GH_TOKEN: ${{ secrets.GH_AUTO_PROMOTE_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin staging pre-prod
+
+          AHEAD="$(git rev-list --count origin/pre-prod..origin/staging || echo 0)"
+          if [ "${AHEAD}" -eq 0 ]; then
+            echo "pre-prod is already up to date with staging — nothing to promote."
+            exit 0
+          fi
+
+          OPEN_PR="$(gh pr list --base pre-prod --head staging --state open --json number -q '.[0].number' 2>/dev/null || true)"
+          if [ -z "${OPEN_PR}" ] || [ "${OPEN_PR}" = "null" ]; then
+            gh pr create --base pre-prod --head staging \
+              --title "chore(promotion): staging → pre-prod (auto, temporary)" \
+              --body "Temporary auto-promotion after Deploy Staging + green CI on \`staging\`. See docs/deployment/git-workflow.md. \`main\` remains manual."
+            OPEN_PR="$(gh pr list --base pre-prod --head staging --state open --json number -q '.[0].number')"
+          fi
+
+          echo "Waiting for PR #${OPEN_PR} checks..."
+          gh pr checks "${OPEN_PR}" --watch --interval 30
+          gh pr merge "${OPEN_PR}" --merge --delete-branch=false
