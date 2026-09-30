@@ -195,9 +195,56 @@ jobs:
           echo "backend_image=ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/backend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
           echo "frontend_image=ghcr.io/${{ steps.vars.outputs.ghcr_repo }}/frontend:${{ steps.vars.outputs.sha_tag }}" >> "$GITHUB_OUTPUT"
 
-  frontend-portal-s3-cloudfront:
+  portal-cloudformation-stack:
     needs: db-migrate
     if: always() && (needs.db-migrate.result == 'success' || needs.db-migrate.result == 'skipped')
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.github-environment }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Map portal stack tier
+        id: tier
+        run: |
+          case "${{ inputs.deploy-label }}" in
+            staging) echo "environment=staging" >> "$GITHUB_OUTPUT" ;;
+            preprod) echo "environment=preprod" >> "$GITHUB_OUTPUT" ;;
+            production) echo "environment=production" >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "Unknown deploy-label: ${{ inputs.deploy-label }}" >&2
+              exit 1
+              ;;
+          esac
+      - name: Configure AWS credentials (OIDC)
+        if: vars.PORTAL_S3_BUCKET != ''
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION || 'ap-south-1' }}
+      - name: Deploy portal CloudFormation stack (CloudFront rewrite + OAC)
+        if: vars.PORTAL_S3_BUCKET != ''
+        run: |
+          aws cloudformation deploy \
+            --template-file infrastructure/grubfleet-portal.yaml \
+            --stack-name "grubfleet-portal-${{ steps.tier.outputs.environment }}" \
+            --parameter-overrides "Environment=${{ steps.tier.outputs.environment }}" \
+            --no-fail-on-empty-changeset \
+            --region "${{ vars.AWS_REGION || 'ap-south-1' }}"
+      - name: Portal stack deploy skipped (missing AWS config)
+        if: vars.PORTAL_S3_BUCKET == ''
+        run: |
+          echo "Set GitHub Environment vars to deploy portal stack + S3 sync:"
+          echo "  secrets.AWS_ROLE_ARN, vars.PORTAL_S3_BUCKET"
+          echo "Attach scripts/iam-grubfleet-gha-portal-stack-policy.json to the GHA deploy role."
+          echo "See docs/deployment/s3-cloudfront-portal.md"
+
+  frontend-portal-s3-cloudfront:
+    needs:
+      - db-migrate
+      - portal-cloudformation-stack
+    if: >-
+      always()
+      && (needs.db-migrate.result == 'success' || needs.db-migrate.result == 'skipped')
+      && (needs.portal-cloudformation-stack.result == 'success' || needs.portal-cloudformation-stack.result == 'skipped')
     runs-on: ubuntu-latest
     environment: ${{ inputs.github-environment }}
     steps:
