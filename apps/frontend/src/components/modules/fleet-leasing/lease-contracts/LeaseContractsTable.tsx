@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { DashboardRowViewLink } from "@/components/dashboard/dashboard-row-icon-button";
+import { useRouter } from "next/navigation";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { formatLeaseContractRowCopyText } from "@/components/dashboard/dashboard-row-copy-text";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
 import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
@@ -12,11 +14,24 @@ import type {
   LeaseContractListItem,
   LeaseContractStatusFilter,
 } from "@/lib/api/lease-contracts";
+import { ApiClientError } from "@/lib/api/client";
+import { useAuth } from "@/providers/auth-provider";
+import { showErrorToast } from "@/lib/toast/show-toast";
 import {
   isDashboardCatalogEmptyState,
   shouldShowDashboardListFilters,
 } from "@/lib/hooks/dashboard-list-search-ui";
 import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import LeaseContractActionModal, {
+  type LeaseContractAction,
+} from "./LeaseContractActionModal";
+import LeaseContractTableActions from "./LeaseContractTableActions";
+import {
+  canActivateDraftLeaseContractListRow,
+  canDeactivateLeaseContractListRow,
+  canEditLeaseContractListRow,
+  canReactivateLeaseContractListRow,
+} from "./lease-contract-list-row-actions";
 
 // ─── KPI Summary Bar ──────────────────────────────────────────────────────────
 
@@ -90,12 +105,29 @@ const LEASE_STATUS_FILTER_OPTIONS: {
 
 // ─── Table ────────────────────────────────────────────────────────────────────
 
+type LeaseActionModalTarget = {
+  contract: LeaseContractListItem;
+  action: LeaseContractAction;
+};
+
 export default function LeaseContractsTable() {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { permissions } = useAuth();
   const { api, organizationId } = useLeaseApi();
+
+  const canUpdate =
+    permissions.has("fleet_leasing.update") ||
+    permissions.has("fleet_leasing.manage");
+
   const { searchInput, setSearchInput, debouncedSearch } =
     useDashboardListSearch();
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
+  const [activateDraftTarget, setActivateDraftTarget] =
+    useState<LeaseContractListItem | null>(null);
+  const [actionModalTarget, setActionModalTarget] =
+    useState<LeaseActionModalTarget | null>(null);
 
   useEffect(() => {
     setPage(1);
@@ -157,6 +189,72 @@ export default function LeaseContractsTable() {
     setStatusFilter("");
   };
 
+  const invalidateLeaseListQueries = () => {
+    void queryClient.invalidateQueries({
+      queryKey: ["lease-contracts-list", organizationId],
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["lease-contracts-summary", organizationId],
+    });
+  };
+
+  const statusMutation = useMutation({
+    mutationFn: async (input: {
+      contractId: string;
+      kind: "activate" | "deactivate" | "reactivate";
+    }) => {
+      if (input.kind === "activate") {
+        return api.activate(input.contractId);
+      }
+      if (input.kind === "deactivate") {
+        return api.deactivate(input.contractId);
+      }
+      return api.reactivate(input.contractId);
+    },
+    onSuccess: () => {
+      invalidateLeaseListQueries();
+      setActivateDraftTarget(null);
+      setActionModalTarget(null);
+    },
+    onError: (error) => {
+      const message =
+        error instanceof ApiClientError
+          ? error.message
+          : "Could not update contract status. Please try again.";
+      showErrorToast(message);
+    },
+  });
+
+  const handleEdit = (contract: LeaseContractListItem) => {
+    router.push(
+      `/fleet-leasing/lease-contracts/${encodeURIComponent(contract.id)}/edit`,
+    );
+  };
+
+  const handleConfirmDraftActivate = () => {
+    if (!activateDraftTarget || statusMutation.isPending) {
+      return;
+    }
+    void statusMutation.mutateAsync({
+      contractId: activateDraftTarget.id,
+      kind: "activate",
+    });
+  };
+
+  const handleConfirmActionModal = () => {
+    if (!actionModalTarget || statusMutation.isPending) {
+      return;
+    }
+    const kind =
+      actionModalTarget.action === "deactivate"
+        ? "deactivate"
+        : "reactivate";
+    void statusMutation.mutateAsync({
+      contractId: actionModalTarget.contract.id,
+      kind,
+    });
+  };
+
   const columns: Column<LeaseContractListItem>[] = [
     {
       header: "Contract No.",
@@ -188,16 +286,52 @@ export default function LeaseContractsTable() {
     {
       header: "Action",
       accessorKey: "id",
-      headerClassName: "text-right",
+      headerClassName: "text-right w-[168px]",
       className: "text-right",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <DashboardRowViewLink
-            href={`/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(row.id)}`}
-            ariaLabel="View lease contract"
+      cell: ({ row }) => {
+        const showEdit = canUpdate && canEditLeaseContractListRow(row);
+        const showDeactivate =
+          canUpdate && canDeactivateLeaseContractListRow(row);
+        const showReactivate =
+          canUpdate && canReactivateLeaseContractListRow(row);
+        const showActivateDraft =
+          canUpdate && canActivateDraftLeaseContractListRow(row);
+
+        return (
+          <LeaseContractTableActions
+            leaseId={row.id}
+            copyText={formatLeaseContractRowCopyText(row)}
+            showEdit={showEdit}
+            showDeactivate={showDeactivate}
+            showReactivate={showReactivate}
+            showActivateDraft={showActivateDraft}
+            onEdit={showEdit ? () => handleEdit(row) : undefined}
+            onDeactivate={
+              showDeactivate
+                ? () =>
+                    setActionModalTarget({
+                      contract: row,
+                      action: "deactivate",
+                    })
+                : undefined
+            }
+            onReactivate={
+              showReactivate
+                ? () =>
+                    setActionModalTarget({
+                      contract: row,
+                      action: "reactivate",
+                    })
+                : undefined
+            }
+            onActivateDraft={
+              showActivateDraft
+                ? () => setActivateDraftTarget(row)
+                : undefined
+            }
           />
-        </div>
-      ),
+        );
+      },
     },
   ];
 
@@ -286,13 +420,48 @@ export default function LeaseContractsTable() {
                   pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
                   total={listTotal}
                   onPageChange={setPage}
-                  disabled={listQuery.isFetching}
+                  disabled={
+                    listQuery.isFetching || statusMutation.isPending
+                  }
                 />
               </div>
             </>
           )}
         </>
       )}
+
+      <ConfirmDialog
+        open={activateDraftTarget !== null}
+        title="Activate contract?"
+        message={
+          activateDraftTarget
+            ? `${activateDraftTarget.contractNumber} will be activated and move forward in the contract lifecycle.`
+            : "This contract will be activated."
+        }
+        confirmLabel="Activate"
+        isConfirmPending={statusMutation.isPending}
+        onClose={() => {
+          if (!statusMutation.isPending) {
+            setActivateDraftTarget(null);
+          }
+        }}
+        onConfirm={handleConfirmDraftActivate}
+      />
+
+      <LeaseContractActionModal
+        isOpen={actionModalTarget !== null}
+        action={actionModalTarget?.action ?? "deactivate"}
+        contractNumber={
+          actionModalTarget?.contract.contractNumber ?? ""
+        }
+        isConfirmPending={statusMutation.isPending}
+        onClose={() => {
+          if (!statusMutation.isPending) {
+            setActionModalTarget(null);
+          }
+        }}
+        onConfirm={handleConfirmActionModal}
+      />
     </div>
   );
 }

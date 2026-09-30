@@ -1,8 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-
-import LeaseContractStepper from "./LeaseContractStepper";
 import Button from "@/components/ui/GrubpacButton";
 import {
     Plus,
@@ -250,29 +248,13 @@ export default function AssetLinesStep({
     };
 
     return (
-        <div className="min-h-full w-full bg-[#f7f7f7]">
-            {/* =====================================================
-                STEPPER
-            ====================================================== */}
-
-            <LeaseContractStepper currentStep={2} />
-
-            {/* =====================================================
-                CONTENT
-            ====================================================== */}
-
-            <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6 lg:px-8">
-                <div className="w-full max-w-[860px]">
-                    {/* =================================================
-                        HEADER
-                    ================================================== */}
-
+        <>
                     <div className="mb-5">
                         <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
                             Asset classes & committed counts
                         </h1>
 
-                        <p className="mt-1 max-w-[720px] text-xs leading-5 text-slate-500 sm:text-sm">
+                        <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
                             A contract can cover several
                             asset-class lines, each with its
                             own count and rate. Vehicles
@@ -676,7 +658,7 @@ export default function AssetLinesStep({
                     <button
                         type="button"
                         onClick={addAssetLine}
-                        className="mx-auto mt-5 flex items-center gap-1.5 text-sm font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline"
+                        className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline"
                     >
                         <Plus className="h-4 w-4" />
                         Add another asset-class line
@@ -738,9 +720,7 @@ export default function AssetLinesStep({
                             Next: Terms
                         </Button>
                     </div>
-                </div>
-            </main>
-        </div>
+        </>
     );
 }
 

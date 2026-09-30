@@ -110,60 +110,8 @@ export default function SelectClientStep({
         ]);
 
     return (
-        <div className="min-h-full bg-[#f7f7f7]">
-
-            {/* =====================================================
-                STEPPER
-            ====================================================== */}
-
-            <div className="border-b border-slate-200 bg-white px-4 py-4 sm:px-6">
-                <div className="mx-auto max-w-7xl">
-
-                    <div className="mx-auto flex w-full max-w-[560px] items-start justify-between gap-1 sm:gap-3">
-
-                        <Step
-                            number={1}
-                            label="Client"
-                            active
-                        />
-
-                        <StepConnector />
-
-                        <Step
-                            number={2}
-                            label="Asset Lines"
-                        />
-
-                        <StepConnector />
-
-                        <Step
-                            number={3}
-                            label="Terms"
-                        />
-
-                        <StepConnector />
-
-                        <Step
-                            number={4}
-                            label="Review"
-                        />
-
-                    </div>
-
-                </div>
-            </div>
-
-            {/* =====================================================
-                CONTENT
-            ====================================================== */}
-
-            <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-
-                <div className="w-full max-w-[760px]">
-
-                    {/* HEADER */}
-
-                    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <>
+            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
 
                         <div>
                             <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
@@ -365,60 +313,6 @@ export default function SelectClientStep({
 
                     </div>
 
-                </div>
-
-            </main>
-
-        </div>
-    );
-}
-
-
-/* ================================================================
-   STEPPER
-================================================================ */
-
-function Step({
-    number,
-    label,
-    active = false,
-}: {
-    number: number;
-    label: string;
-    active?: boolean;
-}) {
-    return (
-        <div className="flex min-w-[54px] flex-1 flex-col items-center sm:min-w-[70px]">
-
-            <div
-                className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold transition-colors sm:h-8 sm:w-8 sm:text-sm ${active
-                        ? "bg-[#FE5720] text-white shadow-sm"
-                        : "border border-slate-300 bg-white text-slate-400"
-                    }`}
-            >
-                {number}
-            </div>
-
-            <span
-                className={`mt-1.5 text-[10px] whitespace-nowrap sm:text-xs ${active
-                        ? "font-semibold text-[#FE5720]"
-                        : "text-slate-400"
-                    }`}
-            >
-                {label}
-            </span>
-
-        </div>
-    );
-}
-
-
-/* ================================================================
-   STEPPER CONNECTOR
-================================================================ */
-
-function StepConnector() {
-    return (
-        <div className="mt-3.5 h-px min-w-3 flex-1 bg-slate-200 sm:mt-4" />
+        </>
     );
 }

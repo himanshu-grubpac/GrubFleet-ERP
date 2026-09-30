@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { ReactNode } from "react";
 
 import SelectClientStep from "./SelectClientStep";
 
@@ -19,7 +20,7 @@ import CustomerRegistrationForm from "./CustomerRegistrationForm";
 import type {
     FleetClientListItem,
 } from "@/lib/api/lease-contracts";
-import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
+import NewContractWizardShell from "./NewContractWizardShell";
 
 type Screen =
     | "select-client"
@@ -28,17 +29,17 @@ type Screen =
     | "terms"
     | "review";
 
-export default function NewLeaseContractPage() {
-    // ============================================================
-    // CURRENT SCREEN
-    // ============================================================
+const SCREEN_STEP: Record<Screen, 1 | 2 | 3 | 4> = {
+    "select-client": 1,
+    "register-client": 1,
+    "asset-lines": 2,
+    terms: 3,
+    review: 4,
+};
 
+export default function NewLeaseContractPage() {
     const [screen, setScreen] =
         useState<Screen>("select-client");
-
-    // ============================================================
-    // SELECTED CLIENT
-    // ============================================================
 
     const [selectedClientId, setSelectedClientId] =
         useState("");
@@ -46,16 +47,8 @@ export default function NewLeaseContractPage() {
     const [selectedClientName, setSelectedClientName] =
         useState("");
 
-    // ============================================================
-    // ASSET LINES
-    // ============================================================
-
     const [assetLines, setAssetLines] =
         useState<AssetLine[]>([]);
-
-    // ============================================================
-    // LEASE TERMS
-    // ============================================================
 
     const [terms, setTerms] =
         useState<LeaseTerms>({
@@ -64,10 +57,6 @@ export default function NewLeaseContractPage() {
             securityDeposit: "",
             billingFrequency: "monthly",
         });
-
-    // ============================================================
-    // EXISTING CLIENT SELECTED
-    // ============================================================
 
     const handleClientSelected = (
         client: FleetClientListItem,
@@ -83,18 +72,9 @@ export default function NewLeaseContractPage() {
         setScreen("asset-lines");
     };
 
-    // ============================================================
-    // NEW CLIENT CREATED
-    // ============================================================
-
     const handleClientCreated = (
         customer: unknown,
     ) => {
-        /*
-         * Keep the response extraction defensive until
-         * the exact POST /clients response is confirmed.
-         */
-
         const response =
             customer as {
                 id?: string;
@@ -140,140 +120,93 @@ export default function NewLeaseContractPage() {
             createdClientName,
         );
 
-        // Newly created client becomes the selected client.
-        // Continue directly to Asset Lines.
         setScreen("asset-lines");
     };
 
-    // ============================================================
-    // SELECT CLIENT
-    // ============================================================
-
-    const newContractBreadcrumb = (
-        <div className="border-b border-gray-200 bg-white px-6 py-2.5">
-            <DashboardBreadcrumbsFromPath pathname="/fleet-leasing/lease-contracts/new" />
-        </div>
-    );
+    let stepContent: ReactNode = null;
 
     if (screen === "select-client") {
-        return (
-            <div className="min-h-full w-full bg-[#f7f7f7]">
-                {newContractBreadcrumb}
-                <SelectClientStep
-                    onClientSelected={
-                        handleClientSelected
-                    }
-                    onAddNewClient={() =>
-                        setScreen(
-                            "register-client",
-                        )
-                    }
-                />
-            </div>
+        stepContent = (
+            <SelectClientStep
+                onClientSelected={
+                    handleClientSelected
+                }
+                onAddNewClient={() =>
+                    setScreen(
+                        "register-client",
+                    )
+                }
+            />
         );
-    }
-
-    // ============================================================
-    // REGISTER NEW CLIENT
-    // ============================================================
-
-    if (screen === "register-client") {
-        return (
-            <div className="min-h-full w-full bg-[#f7f7f7]">
-                {newContractBreadcrumb}
-                <CustomerRegistrationForm
-                    onSuccess={
-                        handleClientCreated
-                    }
-                    onCancel={() =>
-                        setScreen(
-                            "select-client",
-                        )
-                    }
-                    redirectOnSuccess={false}
-                />
-            </div>
+    } else if (screen === "register-client") {
+        stepContent = (
+            <CustomerRegistrationForm
+                onSuccess={
+                    handleClientCreated
+                }
+                onCancel={() =>
+                    setScreen(
+                        "select-client",
+                    )
+                }
+                redirectOnSuccess={false}
+            />
         );
-    }
+    } else if (screen === "asset-lines") {
+        stepContent = (
+            <AssetLinesStep
+                clientId={
+                    selectedClientId
+                }
+                clientName={
+                    selectedClientName
+                }
+                initialAssetLines={
+                    assetLines
+                }
+                onBack={() =>
+                    setScreen(
+                        "select-client",
+                    )
+                }
+                onContinue={(lines) => {
+                    setAssetLines(
+                        lines,
+                    );
 
-    // ============================================================
-    // ASSET LINES
-    // ============================================================
-
-    if (screen === "asset-lines") {
-        return (
-            <div className="min-h-full w-full bg-[#f7f7f7]">
-                {newContractBreadcrumb}
-                <AssetLinesStep
-                    clientId={
-                        selectedClientId
-                    }
-                    clientName={
-                        selectedClientName
-                    }
-                    initialAssetLines={
-                        assetLines
-                    }
-                    onBack={() =>
-                        setScreen(
-                            "select-client",
-                        )
-                    }
-                    onContinue={(lines) => {
-                        setAssetLines(
-                            lines,
-                        );
-
-                        setScreen(
-                            "terms",
-                        );
-                    }}
-                />
-            </div>
+                    setScreen(
+                        "terms",
+                    );
+                }}
+            />
         );
-    }
-
-    // ============================================================
-    // TERMS
-    // ============================================================
-
-    if (screen === "terms") {
-        return (
-            <div className="min-h-full w-full bg-[#f7f7f7]">
-                {newContractBreadcrumb}
-                <TermsStep
-                    clientName={
-                        selectedClientName
-                    }
-                    initialTerms={terms}
-                    onBack={() =>
-                        setScreen(
-                            "asset-lines",
-                        )
-                    }
-                    onContinue={(
+    } else if (screen === "terms") {
+        stepContent = (
+            <TermsStep
+                clientName={
+                    selectedClientName
+                }
+                initialTerms={terms}
+                onBack={() =>
+                    setScreen(
+                        "asset-lines",
+                    )
+                }
+                onContinue={(
+                    nextTerms,
+                ) => {
+                    setTerms(
                         nextTerms,
-                    ) => {
-                        setTerms(
-                            nextTerms,
-                        );
+                    );
 
-                        setScreen(
-                            "review",
-                        );
-                    }}
-                />
-            </div>
+                    setScreen(
+                        "review",
+                    );
+                }}
+            />
         );
-    }
-
-    // ============================================================
-    // REVIEW
-    // ============================================================
-
-    return (
-        <div className="min-h-full w-full bg-[#f7f7f7]">
-            {newContractBreadcrumb}
+    } else {
+        stepContent = (
             <ReviewStep
                 clientId={
                     selectedClientId
@@ -291,6 +224,14 @@ export default function NewLeaseContractPage() {
                     )
                 }
             />
-        </div>
+        );
+    }
+
+    return (
+        <NewContractWizardShell
+            currentStep={SCREEN_STEP[screen]}
+        >
+            {stepContent}
+        </NewContractWizardShell>
     );
 }

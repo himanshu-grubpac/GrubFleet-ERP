@@ -3,10 +3,8 @@
 import { useState } from "react";
 
 import Button from "@/components/ui/GrubpacButton";
-import LeaseContractStepper from "./LeaseContractStepper";
 
 import {
-
     AlertCircle,
     Loader2,
 } from "lucide-react";
@@ -171,21 +169,7 @@ export default function ReviewStep({
         };
 
     return (
-        <div className="min-h-full w-full bg-[#f7f7f7]">
-            {/* ==================================================
-                STEPPER
-            ================================================== */}
-
-            <LeaseContractStepper currentStep={4} />
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
-
-            <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-                <div className="w-full max-w-[860px]">
-                    {/* HEADER */}
-
+        <>
                     <div className="mb-5">
                         <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
                             Review contract
@@ -424,9 +408,7 @@ export default function ReviewStep({
                             )}
                         </Button>
                     </div>
-                </div>
-            </main>
-        </div>
+        </>
     );
 }
 
