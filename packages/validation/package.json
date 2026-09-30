@@ -9,6 +9,8 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "i18n-iso-countries": "^7.14.0",
+    "postcode-validator": "^3.10.22",
     "zod": "^4.6.5"
   },
   "devDependencies": {

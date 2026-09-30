@@ -1,5 +1,5 @@
-import { OrganizationModule } from '@/components/modules/organization';
+import { redirect } from 'next/navigation';
 
 export default function OrganizationPage() {
-  return <OrganizationModule />;
+  redirect('/organization/locations');
 }

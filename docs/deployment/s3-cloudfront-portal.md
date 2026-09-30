@@ -49,7 +49,9 @@ Then verify login from the CloudFront URL (browser sends `Origin: https://dxxx.c
 
 ## GitHub Actions
 
-Job **`frontend-portal-s3-cloudfront`** in `.github/workflows/reusable-container-deploy.yml` runs on staging / pre-prod / production deploy workflows.
+On each tier deploy, job **`portal-cloudformation-stack`** runs **`aws cloudformation deploy`** against `infrastructure/grubfleet-portal.yaml` (same as `scripts/deploy-portal-stack.ps1`) so CloudFront viewer-request rewrites (including **`index.txt` → `index.html`**) stay in sync with git. Job **`frontend-portal-s3-cloudfront`** then builds, syncs S3, and invalidates CloudFront.
+
+Attach **`scripts/iam-grubfleet-gha-portal-stack-policy.json`** to the GitHub OIDC deploy role (`GrubFleetGitHubActionsDeploy`) in addition to **`scripts/iam-grubfleet-gha-portal-deploy-policy.json`** (S3 sync + invalidation).
 
 Configure per **GitHub Environment** (`staging`, `pre-production`, `production`):
 
@@ -70,6 +72,8 @@ After each portal deploy, set **`ClientOrigin`** on the matching SAM stack (scri
 ## Routing
 
 CloudFront serves `index.html` at `/` and maps **403/404 → `/index.html`** for client-side navigation on unknown paths. Next export uses `trailingSlash: true` so routes resolve as `/login/index.html` on S3.
+
+**Do not browse `index.txt` URLs.** Next.js 15 static export also writes `index.txt` (RSC flight payloads) beside each route. Opening e.g. `/dashboard/index.txt` shows raw flight JSON (including embedded 404 fallback slots in the tree). Use **`/dashboard/`** (trailing slash). The portal stack’s viewer-request function rewrites non-RSC `*.txt` requests to the matching `index.html`; redeploy `grubfleet-portal-{tier}` after changing `infrastructure/grubfleet-portal.yaml`.
 
 **Dynamic resource IDs (static export):** Next cannot emit `index.html` per UUID at build time. Use a **fixed static route** (e.g. `/fleet-leasing/lease-contracts/detail/`) and pass the id via **`?leaseId=`** in links and bookmarks. The portal stack’s **viewer-request CloudFront function** rewrites legacy path-style URLs (`/fleet-leasing/lease-contracts/{id}/`) to that shell and injects `leaseId` on the query string so refresh and direct links work without falling back to root `/index.html` (which would redirect authenticated users away from the detail view). Apply the same pattern for other modules with runtime ids until a server-rendered host is used.
 

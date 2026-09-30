@@ -1,6 +1,7 @@
 "use client";
 
 import { Wrench, ClipboardCheck, Clock, AlertCircle, CheckCircle2, Plus } from "lucide-react";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 const kpis = [
   { label: "Open Jobs", value: "—", icon: Wrench, color: "text-blue-600", bg: "bg-blue-50" },
@@ -21,6 +22,7 @@ const priorities = [
 export function WorkshopModule() {
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/workshop" />
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>

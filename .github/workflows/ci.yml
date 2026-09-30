@@ -38,6 +38,7 @@ jobs:
           --health-timeout 3s
           --health-retries 5
     env:
+      HUSKY: '0'
       # Use 127.0.0.1 — GitHub Actions service containers often fail on localhost (::1).
       DATABASE_URL: postgresql://grubpac:grubpac_dev@127.0.0.1:5432/grubpac_erp
       REDIS_URL: redis://127.0.0.1:6379
@@ -76,6 +77,11 @@ jobs:
         run: npm run test -w backend
       - name: Build backend
         run: npm run build -w backend
+      - name: Verify Lambda SAM bundle (prepare:lambda)
+        env:
+          HUSKY: '0'
+          CI: 'true'
+        run: npm run prepare:lambda
 
   frontend:
     runs-on: ubuntu-latest

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
@@ -15,6 +15,12 @@ import {
   RolesListTable,
   RolesListToolbar,
 } from "./roles/RolesListTable";
+import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
+import {
+  DASHBOARD_DEFAULT_PAGE_SIZE,
+  paginateClientRows,
+} from "@/components/dashboard/dashboard-pagination";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 export function AdministrationModule() {
   const { token, organizationId, permissions } = useAuth();
@@ -22,6 +28,7 @@ export function AdministrationModule() {
   const canUpdate = canUpdateRole(permissions);
   const canDelete = canDeleteRole(permissions);
   const [searchQuery, setSearchQuery] = useState("");
+  const [page, setPage] = useState(1);
 
   const {
     data: rolesData,
@@ -48,6 +55,20 @@ export function AdministrationModule() {
     [roles, searchQuery],
   );
 
+  useEffect(() => {
+    setPage(1);
+  }, [searchQuery]);
+
+  const {
+    rows: paginatedRoles,
+    safePage: rolesPage,
+    total: rolesTotal,
+  } = paginateClientRows(
+    filteredRoles,
+    page,
+    DASHBOARD_DEFAULT_PAGE_SIZE,
+  );
+
   if (!organizationId) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
@@ -69,6 +90,7 @@ export function AdministrationModule() {
 
   return (
     <div className="space-y-6">
+      <DashboardBreadcrumbsFromPath pathname="/administration" />
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
@@ -106,11 +128,20 @@ export function AdministrationModule() {
                 : "No roles yet. Create a role to get started."}
             </div>
           ) : (
-            <RolesListTable
-              roles={filteredRoles}
-              canUpdateRole={canUpdate}
-              canDeleteRole={canDelete}
-            />
+            <>
+              <RolesListTable
+                roles={paginatedRoles}
+                canUpdateRole={canUpdate}
+                canDeleteRole={canDelete}
+              />
+              <DashboardTablePagination
+                page={rolesPage}
+                pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
+                total={rolesTotal}
+                onPageChange={setPage}
+                disabled={isLoading}
+              />
+            </>
           )}
         </>
       )}

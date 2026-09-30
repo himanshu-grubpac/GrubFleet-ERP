@@ -1,14 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import {
+  useCloseDropdownOnOutsideAndEscape,
+  useFixedDropdownMenuPosition,
+} from "@/components/dashboard/DashboardRowActionsMenu";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Eye,
@@ -47,67 +45,26 @@ export function RoleRowActionsMenu({
 }: RoleRowActionsMenuProps) {
   const [open, setOpen] = useState(false);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm>(null);
-  const [menuPosition, setMenuPosition] = useState<{
-    top: number;
-    left: number;
-  } | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const { token, organizationId, refetchMe } = useAuth();
 
-  const MENU_MIN_WIDTH = 168;
+  const { menuPosition } = useFixedDropdownMenuPosition({
+    open,
+    triggerRef,
+    menuRef,
+    menuMinWidth: 168,
+    deps: [canEdit, canDeactivate, canDelete, isActive],
+  });
 
-  const updateMenuPosition = useCallback(() => {
-    const trigger = triggerRef.current;
-    if (!trigger) {
-      return;
-    }
-    const rect = trigger.getBoundingClientRect();
-    const menuWidth = menuRef.current?.offsetWidth ?? MENU_MIN_WIDTH;
-    setMenuPosition({
-      top: rect.bottom + 4,
-      left: Math.max(8, rect.right - menuWidth),
-    });
-  }, []);
+  useCloseDropdownOnOutsideAndEscape({
+    open,
+    onClose: () => setOpen(false),
+    triggerRef,
+    menuRef,
+  });
+
   const queryClient = useQueryClient();
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setMenuPosition(null);
-      return;
-    }
-    updateMenuPosition();
-  }, [open, updateMenuPosition]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    window.addEventListener("scroll", updateMenuPosition, true);
-    window.addEventListener("resize", updateMenuPosition);
-    return () => {
-      window.removeEventListener("scroll", updateMenuPosition, true);
-      window.removeEventListener("resize", updateMenuPosition);
-    };
-  }, [open, updateMenuPosition]);
-
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const onDocClick = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        triggerRef.current?.contains(target) ||
-        menuRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, [open]);
 
   const toggleActiveMutation = useMutation({
     mutationFn: async (nextActive: boolean) => {

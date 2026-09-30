@@ -31,6 +31,7 @@ import {
 } from "@/lib/administration/module-access-ui";
 import { ModuleAccessMatrix } from "./ModuleAccessMatrix";
 import Button from "@/components/ui/GrubpacButton";
+import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 type RoleEditorMode = "create" | "edit";
 
@@ -235,17 +236,24 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
   const pageTitle = isEdit ? roleMeta?.name ?? "Edit role" : "Create role";
   const isSystemRole = Boolean(roleMeta?.isSystem);
 
+  const breadcrumbCurrentLabel = isEdit
+    ? roleMeta?.name
+    : undefined;
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="space-y-2">
           <Link
             href="/administration/"
-            className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#FE5720]"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-[#FE5720]"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to roles
           </Link>
+          <DashboardBreadcrumbsFromPath
+            currentLabel={breadcrumbCurrentLabel}
+          />
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             {pageTitle}
           </h1>
