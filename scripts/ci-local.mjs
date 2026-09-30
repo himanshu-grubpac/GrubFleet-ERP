@@ -81,6 +81,7 @@ async function main() {
   await waitForPort('127.0.0.1', 6379, 'Redis');
 
   runStep('Migrate database', ['run', 'db:migrate', '-w', 'backend']);
+  // Workspace lint scripts use --max-warnings 0 (same as ci.yml npm run lint).
   runStep('Lint backend', ['run', 'lint', '-w', 'backend']);
   runStep('Typecheck backend', ['run', 'typecheck', '-w', 'backend']);
   runStep('Test backend', ['run', 'test', '-w', 'backend']);

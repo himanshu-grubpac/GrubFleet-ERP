@@ -37,7 +37,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!isLoading && !isLoggingOut && isAuthenticated) {
-      router.replace("/dashboard");
+      router.replace("/dashboard/");
     }
   }, [isLoading, isLoggingOut, isAuthenticated, router]);
 

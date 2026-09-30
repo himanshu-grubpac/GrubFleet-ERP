@@ -35,28 +35,6 @@ pre-prod           →  PR  →  main         →  deploy-production.yml
 
 After a promotion PR merges, GitHub Actions deploys the target environment (see [environments.md](./environments.md) and [blue-green.md](./blue-green.md)). Merges to `staging`, `pre-prod`, and `main` should be done by someone with permission to promote; still use PRs, not direct pushes.
 
-## Temporary auto-promotion (develop → staging → pre-prod)
-
-**Status: TEMPORARY** — remove when the team reverts to manual promotion only.
-
-| Trigger | Action |
-|---------|--------|
-| **CI** succeeds on a **push** to `develop` | Opens/merges PR **`develop` → `staging`** (waits for PR checks) |
-| **Deploy Staging** succeeds on `staging`, and **CI** on the same commit is green | Opens/merges PR **`staging` → `pre-prod`** (waits for PR checks) |
-| **`pre-prod` → `main`** | **Manual only** — no automation |
-
-Workflow: [`.github/workflows/auto-promote-nonprod.yml`](../../.github/workflows/auto-promote-nonprod.yml)
-
-**GitHub secret (recommended):** `GH_AUTO_PROMOTE_TOKEN` — a PAT with `contents` and `pull_requests` write on this repo. Merges performed with the default `GITHUB_TOKEN` may **not** trigger push workflows (CI / Deploy Staging) on the target branch; the PAT avoids that gap. If unset, the workflow falls back to `GITHUB_TOKEN`.
-
-**Loop safety:** Only **push** CI on `develop` starts develop→staging. Staging CI after merge does not re-merge develop. Pre-prod promotion runs only after **Deploy Staging** success, not after pre-prod deploy.
-
-**Revert (restore manual promotion for staging and pre-prod):**
-
-1. Delete [`.github/workflows/auto-promote-nonprod.yml`](../../.github/workflows/auto-promote-nonprod.yml) and merge to `develop` (then promote manually as needed).
-2. Remove this section from `docs/deployment/git-workflow.md`.
-3. Delete `.project-tracking/AUTO-PROMOTE-TEMP.local.md` if present.
-
 ## CI
 
 Workflow [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on:

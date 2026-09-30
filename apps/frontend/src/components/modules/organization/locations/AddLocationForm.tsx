@@ -468,7 +468,10 @@ export default function AddLocationForm({
         enabled: !!token && !!organizationId && !isAuthLoading,
     });
 
-    const activeEmployees = activeEmployeesQuery.data?.items ?? [];
+    const activeEmployees = useMemo(
+        () => activeEmployeesQuery.data?.items ?? [],
+        [activeEmployeesQuery.data?.items],
+    );
 
     useEffect(() => {
         const detail = locationDetailQuery.data;

@@ -227,7 +227,10 @@ export default function AddEmployeeForm({
   }, [employeeDetailQuery.data]);
 
   const branchLocations = locationsQuery.data?.items ?? [];
-  const allEmployees = employeesPickerQuery.data?.items ?? [];
+  const allEmployees = useMemo(
+    () => employeesPickerQuery.data?.items ?? [],
+    [employeesPickerQuery.data?.items],
+  );
 
   const selectedBranchLocation = branchLocations.find(
     (location) => location.id === form.locationId,

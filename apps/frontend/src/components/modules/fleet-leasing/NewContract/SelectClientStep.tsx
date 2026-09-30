@@ -72,16 +72,13 @@ export default function SelectClientStep({
         refetchOnWindowFocus: false,
     });
 
-    const clients =
-        clientsQuery.data
-            ?.items ?? [];
-
     // ============================================================
     // LOCAL SEARCH FILTER
     // ============================================================
 
     const filteredClients =
         useMemo(() => {
+            const clients = clientsQuery.data?.items ?? [];
             const value =
                 search
                     .trim()
@@ -105,7 +102,7 @@ export default function SelectClientStep({
                         ),
             );
         }, [
-            clients,
+            clientsQuery.data?.items,
             search,
         ]);
 
