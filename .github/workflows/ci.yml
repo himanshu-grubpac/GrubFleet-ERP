@@ -14,8 +14,6 @@ on:
 jobs:
   backend:
     runs-on: ubuntu-latest
-    env:
-      HUSKY: '0'
     services:
       postgres:
         image: postgres:16-alpine
@@ -40,6 +38,7 @@ jobs:
           --health-timeout 3s
           --health-retries 5
     env:
+      HUSKY: '0'
       # Use 127.0.0.1 — GitHub Actions service containers often fail on localhost (::1).
       DATABASE_URL: postgresql://grubpac:grubpac_dev@127.0.0.1:5432/grubpac_erp
       REDIS_URL: redis://127.0.0.1:6379
