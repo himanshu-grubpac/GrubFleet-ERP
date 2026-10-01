@@ -4,6 +4,7 @@ import { useEffect, useId, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@/components/ui/GrubpacButton";
+import { ORGANISATION_DEACTIVATE_REASON_MAX } from "@/lib/validation/organisation-deactivate.constants";
 
 export type ReasonRequiredDialogProps = {
   open: boolean;
@@ -17,6 +18,7 @@ export type ReasonRequiredDialogProps = {
   isPending?: boolean;
   /** Server or mutation errors — not used for empty required reason (primary stays disabled). */
   error?: string | null;
+  reasonMaxLength?: number;
   onClose: () => void;
   onConfirm: (trimmedReason: string) => void;
 };
@@ -32,6 +34,7 @@ export function ReasonRequiredDialog({
   cancelLabel = "Cancel",
   isPending = false,
   error = null,
+  reasonMaxLength = ORGANISATION_DEACTIVATE_REASON_MAX,
   onClose,
   onConfirm,
 }: ReasonRequiredDialogProps) {
@@ -105,7 +108,12 @@ export function ReasonRequiredDialog({
           <textarea
             id={reasonFieldId}
             value={reason}
-            onChange={(event) => setReason(event.target.value)}
+            onChange={(event) =>
+              setReason(
+                event.target.value.slice(0, reasonMaxLength),
+              )
+            }
+            maxLength={reasonMaxLength}
             rows={3}
             className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
             placeholder={reasonPlaceholder}

@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import {
   and,
+  asc,
   desc,
   eq,
   exists,
@@ -145,6 +146,19 @@ export class FleetLeasingRepository {
       .from(leaseContractVehicles)
       .where(eq(leaseContractVehicles.contractId, contractId));
     return rows.map((r) => r.vehicleId);
+  }
+
+  /** Distinct asset classes from fleet vehicle master (org-scoped). */
+  async listDistinctAssetClasses(organizationId: string): Promise<string[]> {
+    const rows = await this.db
+      .selectDistinct({ assetClass: fleetVehicles.assetClass })
+      .from(fleetVehicles)
+      .where(eq(fleetVehicles.organizationId, organizationId))
+      .orderBy(asc(fleetVehicles.assetClass));
+
+    return rows
+      .map((row) => row.assetClass.trim())
+      .filter((assetClass) => assetClass.length > 0);
   }
 
   /** Allocated vehicles on contract, grouped by fleet vehicle asset class. */
@@ -395,6 +409,29 @@ export class FleetLeasingRepository {
       .from(leaseContracts)
       .where(eq(leaseContracts.clientId, clientId));
     return row?.count ?? 0;
+  }
+
+  async countContractsForClients(
+    clientIds: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (clientIds.length === 0) {
+      return out;
+    }
+    const rows = await this.db
+      .select({
+        clientId: leaseContracts.clientId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(leaseContracts)
+      .where(inArray(leaseContracts.clientId, clientIds))
+      .groupBy(leaseContracts.clientId);
+    for (const row of rows) {
+      if (row.clientId) {
+        out.set(row.clientId, row.count);
+      }
+    }
+    return out;
   }
 
   async searchClients(
@@ -673,6 +710,138 @@ export class FleetLeasingRepository {
       .values(values)
       .returning();
     return row;
+  }
+
+  async listDriverAssignableFromAllocations(params: {
+    organizationId: string;
+    excludeVehicleCodes?: string[];
+  }) {
+    const { organizationId, excludeVehicleCodes } = params;
+    const conditions = [
+      eq(fleetVehicleAllocations.organizationId, organizationId),
+      eq(leaseContracts.status, 'active'),
+    ];
+    if (excludeVehicleCodes && excludeVehicleCodes.length > 0) {
+      conditions.push(
+        notInArray(fleetVehicles.registrationNo, excludeVehicleCodes),
+      );
+    }
+    return this.db
+      .select({
+        vehicleId: fleetVehicles.id,
+        vehicleCode: fleetVehicles.registrationNo,
+        assetClass: fleetVehicles.assetClass,
+        activeLeaseId: leaseContracts.id,
+      })
+      .from(fleetVehicleAllocations)
+      .innerJoin(
+        leaseContracts,
+        eq(fleetVehicleAllocations.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(fleetVehicleAllocations.vehicleId, fleetVehicles.id),
+      )
+      .where(and(...conditions))
+      .orderBy(asc(fleetVehicles.registrationNo));
+  }
+
+  async listDriverAssignableFromActiveContracts(params: {
+    organizationId: string;
+    excludeVehicleCodes?: string[];
+  }) {
+    const { organizationId, excludeVehicleCodes } = params;
+    const conditions = [
+      eq(leaseContracts.organizationId, organizationId),
+      eq(leaseContracts.status, 'active'),
+      eq(fleetVehicles.organizationId, organizationId),
+    ];
+    if (excludeVehicleCodes && excludeVehicleCodes.length > 0) {
+      conditions.push(
+        notInArray(fleetVehicles.registrationNo, excludeVehicleCodes),
+      );
+    }
+    return this.db
+      .select({
+        vehicleId: fleetVehicles.id,
+        vehicleCode: fleetVehicles.registrationNo,
+        assetClass: fleetVehicles.assetClass,
+        activeLeaseId: leaseContracts.id,
+      })
+      .from(leaseContractVehicles)
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractVehicles.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(leaseContractVehicles.vehicleId, fleetVehicles.id),
+      )
+      .where(and(...conditions))
+      .orderBy(asc(fleetVehicles.registrationNo));
+  }
+
+  async findActiveLeaseVehicleAssignment(
+    organizationId: string,
+    vehicleCode: string,
+    activeLeaseId: string,
+  ) {
+    const trimmedCode = vehicleCode.trim();
+    const [fromAllocation] = await this.db
+      .select({
+        vehicleId: fleetVehicles.id,
+        vehicleCode: fleetVehicles.registrationNo,
+        assetClass: fleetVehicles.assetClass,
+        contractId: leaseContracts.id,
+        contractStatus: leaseContracts.status,
+      })
+      .from(fleetVehicleAllocations)
+      .innerJoin(
+        leaseContracts,
+        eq(fleetVehicleAllocations.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(fleetVehicleAllocations.vehicleId, fleetVehicles.id),
+      )
+      .where(
+        and(
+          eq(fleetVehicleAllocations.organizationId, organizationId),
+          eq(fleetVehicles.registrationNo, trimmedCode),
+          eq(leaseContracts.id, activeLeaseId),
+          eq(leaseContracts.status, 'active'),
+        ),
+      )
+      .limit(1);
+    if (fromAllocation) return fromAllocation;
+
+    const [fromContractLink] = await this.db
+      .select({
+        vehicleId: fleetVehicles.id,
+        vehicleCode: fleetVehicles.registrationNo,
+        assetClass: fleetVehicles.assetClass,
+        contractId: leaseContracts.id,
+        contractStatus: leaseContracts.status,
+      })
+      .from(leaseContractVehicles)
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractVehicles.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(leaseContractVehicles.vehicleId, fleetVehicles.id),
+      )
+      .where(
+        and(
+          eq(leaseContracts.organizationId, organizationId),
+          eq(fleetVehicles.registrationNo, trimmedCode),
+          eq(leaseContracts.id, activeLeaseId),
+          eq(leaseContracts.status, 'active'),
+        ),
+      )
+      .limit(1);
+    return fromContractLink ?? null;
   }
 
   async listVehicleAllocations(params: {

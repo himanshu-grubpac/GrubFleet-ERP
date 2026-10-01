@@ -336,6 +336,37 @@
       "description": "Lease contract wizard and lifecycle. Set leaseContractId from Create draft response.",
       "item": [
         {
+          "name": "List fleet asset classes",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/asset-classes?organizationId={{organizationId}}",
+            "description": "GET /fleet-leasing/asset-classes — distinct asset classes from fleet vehicle master (wizard dropdown)."
+          },
+          "response": []
+        },
+        {
+          "name": "Preview asset availability (batch)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"lines\": [\n    { \"assetClass\": \"Sedan\", \"committedQuantity\": 2 }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/asset-classes/availability/preview",
+            "description": "POST /fleet-leasing/asset-classes/availability/preview — LEASE-03 MVP gate (mvpAllLinesCovered)."
+          },
+          "response": []
+        },
+        {
           "name": "Create draft lease contract",
           "request": {
             "method": "POST",
@@ -703,6 +734,303 @@
             },
             "url": "{{baseUrl}}/organisation/locations/{{locationId}}/status?organizationId={{organizationId}}",
             "description": "PATCH /organisation/locations/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        },
+        {
+          "name": "List suppliers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/suppliers?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /organisation/suppliers — paginated list with optional search, supplierType, status."
+          },
+          "response": []
+        },
+        {
+          "name": "List supplier types",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/suppliers/types?organizationId={{organizationId}}",
+            "description": "GET /organisation/suppliers/types — fixed supplier type catalog (key + label)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create supplier",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Skyline Parts Distributors\",\n  \"supplierType\": \"spare_parts\",\n  \"contactPerson\": \"Meenal Kulkarni\",\n  \"contactPhone\": \"+919867022110\",\n  \"contactEmail\": \"meenal@skylineparts.com\",\n  \"agreementReference\": \"AGR-2025-0087\",\n  \"addressLine1\": \"MIDC Industrial Estate\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Thane\",\n  \"addressPincode\": \"421302\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/suppliers",
+            "description": "POST /organisation/suppliers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get supplier",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/suppliers/{{supplierId}}?organizationId={{organizationId}}",
+            "description": "GET /organisation/suppliers/{id} — detail with linkedSections. Driver-type suppliers return linked drivers (page 1, max 50). Other linked rows empty until inventory/asset/compliance modules ship."
+          },
+          "response": []
+        },
+        {
+          "name": "Update supplier",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Supplier Name\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/suppliers/{{supplierId}}?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/suppliers/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update supplier status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Contract ended\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/suppliers/{{supplierId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/suppliers/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        },
+        {
+          "name": "List clients",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/clients?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /organisation/clients — paginated list with optional search and status."
+          },
+          "response": []
+        },
+        {
+          "name": "Create client",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"clientName\": \"Meridian Logistics Pvt Ltd\",\n  \"addressLine1\": \"12 Industrial Estate\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai\",\n  \"addressPincode\": \"400001\",\n  \"pointsOfContact\": [\n    {\n      \"name\": \"Aditi Rao\",\n      \"contactNumber\": \"+919876543201\",\n      \"email\": \"aditi@meridian.example\",\n      \"isPrimary\": true\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/organisation/clients",
+            "description": "POST /organisation/clients"
+          },
+          "response": []
+        },
+        {
+          "name": "Get client",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/clients/{{clientId}}?organizationId={{organizationId}}",
+            "description": "GET /organisation/clients/{id} — detail with pointsOfContact; contractHistory empty until fleet link."
+          },
+          "response": []
+        },
+        {
+          "name": "Update client",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientName\": \"Updated Client Name\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/clients/{{clientId}}?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/clients/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update client status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Contract ended\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/clients/{{clientId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/clients/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        },
+        {
+          "name": "List drivers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/drivers?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /organisation/drivers — paginated list with optional search and status (active, inactive, license-expired)."
+          },
+          "response": []
+        },
+        {
+          "name": "Create driver",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Sample Driver\",\n  \"cprNo\": \"123456789\",\n  \"phone\": \"+919876543210\",\n  \"email\": \"driver.sample@example.com\",\n  \"licenseNumber\": \"DL-100001\",\n  \"licenseExpiry\": \"2028-12-31\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"addressLine1\": \"Line 1\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai\",\n  \"addressPincode\": \"400001\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/drivers",
+            "description": "POST /organisation/drivers — new drivers start inactive."
+          },
+          "response": []
+        },
+        {
+          "name": "Get driver",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/drivers/{{driverId}}?organizationId={{organizationId}}",
+            "description": "GET /organisation/drivers/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update driver",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sample Driver (updated)\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/drivers/{{driverId}}?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/drivers/{id} — inactive drivers return 400."
+          },
+          "response": []
+        },
+        {
+          "name": "Update driver status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"License review pending\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/drivers/{{driverId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/drivers/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "Assign driver to vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"vehicleCode\": \"VH-2011\",\n  \"assetClass\": \"Sedan — Standard\",\n  \"activeLeaseId\": \"LC-240018\",\n  \"vehicleTiedToContract\": true\n}"
+            },
+            "url": "{{baseUrl}}/organisation/drivers/{{driverId}}/assign?organizationId={{organizationId}}",
+            "description": "POST /organisation/drivers/{id}/assign"
+          },
+          "response": []
+        },
+        {
+          "name": "Unassign driver vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/drivers/{{driverId}}/unassign?organizationId={{organizationId}}",
+            "description": "POST /organisation/drivers/{id}/unassign — clears assignment; inactive when tied to contract."
+          },
+          "response": []
+        },
+        {
+          "name": "List assignable vehicles",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/drivers/assignable-vehicles?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /organisation/drivers/assignable-vehicles — active lease contract vehicles without a linked driver."
           },
           "response": []
         },

@@ -8,6 +8,9 @@ export type AssetClassAvailabilitySnapshot = {
   inbound: number;
   totalCover: number;
   shortfallCount: number;
+  /** Figma LEASE-03 MVP — lease only against units available today (no inbound/awaiting). */
+  mvpAvailableNowCovers: boolean;
+  mvpShortByCount: number;
   status: AssetLineAvailabilityStatus;
   availabilityCovered: boolean;
   awaitingAssetsLine: boolean;
@@ -42,6 +45,9 @@ export function computeAssetLineAvailability(
     message = `${availableNow} Available + ${inbound} Inbound covers the committed count, but only ${availableNow} are Available today — the rest allocates once the Inbound vehicle(s) arrive.`;
   }
 
+  const mvpAvailableNowCovers = committedQuantity <= availableNow;
+  const mvpShortByCount = Math.max(0, committedQuantity - availableNow);
+
   return {
     assetClass,
     committedQuantity,
@@ -49,6 +55,8 @@ export function computeAssetLineAvailability(
     inbound,
     totalCover,
     shortfallCount,
+    mvpAvailableNowCovers,
+    mvpShortByCount,
     status,
     availabilityCovered,
     awaitingAssetsLine,

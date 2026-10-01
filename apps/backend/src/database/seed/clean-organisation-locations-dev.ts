@@ -1,54 +1,1 @@
-/**
- * Dev-only cleanup: clears organisation employees + locations for grubpac-dev, then
- * removes integration-test RBAC users/roles (keeps dev admin + Organization Admin).
- *
- * Run (local Docker Postgres): npm run clean:dev:organisation-data -w backend
- * Manual: npx ts-node -r tsconfig-paths/register src/database/seed/clean-organisation-locations-dev.ts --confirm-dev
- */
-import { drizzle } from 'drizzle-orm/node-postgres';
-import { Pool } from 'pg';
-import { pgPoolOptions } from '../pg-pool-options';
-import * as schema from '../schema';
-import {
-  assertDevOnly,
-  cleanDevOrganisationEmployeesAndLocations,
-  cleanDevRbacTestArtifacts,
-  maskDatabaseUrl,
-  resolveDevDatabaseUrl,
-  resolveDevOrganizationId,
-} from './organisation-dev-data-guards';
-
-async function main(): Promise<void> {
-  const connectionString = resolveDevDatabaseUrl();
-  assertDevOnly(connectionString);
-
-  const pool = new Pool(pgPoolOptions(connectionString));
-  const db = drizzle(pool, { schema });
-
-  const devOrgId = await resolveDevOrganizationId(db);
-  const organisationData = await cleanDevOrganisationEmployeesAndLocations(
-    db,
-    pool,
-    devOrgId,
-  );
-  const rbac = await cleanDevRbacTestArtifacts(db, devOrgId);
-
-  console.log(
-    JSON.stringify(
-      {
-        connection: maskDatabaseUrl(connectionString),
-        organisationData,
-        rbac,
-      },
-      null,
-      2,
-    ),
-  );
-
-  await pool.end();
-}
-
-main().catch((err: unknown) => {
-  console.error(err);
-  process.exit(1);
-});
+/** * Dev-only: purge organisation location **instances** for the dev org (grubpac-dev). * * Default — removes integration junk (Lattice Location *, Employee Fixture Hub *, etc.), * manual/API rows, and any row that is not a canonical dev seed marker * (dev.seed.location.* name or dev.seed.location.*@grubpac.local site email). * Does **not** delete system location types. * *   npm run clean:dev:organisation-locations -w backend * * --purge-all — delete every location for the dev org (including seed markers). Pair with seed. * *   npx ts-node -r tsconfig-paths/register src/database/seed/clean-organisation-locations-dev.ts --confirm-dev --purge-all * * Integration tests accumulate junk — run reset after test runs: *   npm run reset:dev:organisation-locations -w backend */import { and, eq, isNotNull, or, sql } from 'drizzle-orm';import { drizzle } from 'drizzle-orm/node-postgres';import { Pool } from 'pg';import { pgPoolOptions } from '../pg-pool-options';import * as schema from '../schema';import { organisationLocations } from '../schema';import {  assertDevOnly,  maskDatabaseUrl,  resolveDevDatabaseUrl,  resolveDevOrganizationId,} from './organisation-dev-data-guards';import {  DEV_SEED_LOCATION_EMAIL_DOMAIN,  DEV_SEED_LOCATION_EMAIL_PREFIX,  DEV_SEED_LOCATION_NAME_PREFIX,} from './seed-organisation-locations-dev';function devSeedLocationKeepCondition() {  const emailPattern = `${DEV_SEED_LOCATION_EMAIL_PREFIX}%${DEV_SEED_LOCATION_EMAIL_DOMAIN}`;  return or(    sql`${organisationLocations.name} LIKE ${`${DEV_SEED_LOCATION_NAME_PREFIX}%`}`,    and(      isNotNull(organisationLocations.siteContactEmail),      sql`lower(${organisationLocations.siteContactEmail}) LIKE ${emailPattern.toLowerCase()}`,    ),  );}async function main(): Promise<void> {  const connectionString = resolveDevDatabaseUrl();  assertDevOnly(connectionString);  const purgeAll = process.argv.includes('--purge-all');  const pool = new Pool(pgPoolOptions(connectionString));  const db = drizzle(pool, { schema });  const devOrgId = await resolveDevOrganizationId(db);  const beforeRows = await db    .select({      id: organisationLocations.id,      name: organisationLocations.name,      siteContactEmail: organisationLocations.siteContactEmail,    })    .from(organisationLocations)    .where(eq(organisationLocations.organizationId, devOrgId));  await pool.query(    `UPDATE organisation_locations     SET responsible_employee_id = NULL, deputy_employee_id = NULL     WHERE organization_id = $1`,    [devOrgId],  );  const markerNamePrefix = `${DEV_SEED_LOCATION_NAME_PREFIX}%`;  const markerEmailPattern =    `${DEV_SEED_LOCATION_EMAIL_PREFIX}%${DEV_SEED_LOCATION_EMAIL_DOMAIN}`.toLowerCase();  if (purgeAll) {    await pool.query(      `UPDATE organisation_employees       SET location_id = NULL       WHERE organization_id = $1`,      [devOrgId],    );  } else {    await pool.query(      `UPDATE organisation_employees e       SET location_id = NULL       FROM organisation_locations l       WHERE e.organization_id = $1         AND l.organization_id = $1         AND e.location_id = l.id         AND NOT (           l.name LIKE $2           OR (             l.site_contact_email IS NOT NULL             AND lower(l.site_contact_email) LIKE $3           )         )`,      [devOrgId, markerNamePrefix, markerEmailPattern],    );  }  const deleteWhere = purgeAll    ? eq(organisationLocations.organizationId, devOrgId)    : and(        eq(organisationLocations.organizationId, devOrgId),        sql`NOT (${devSeedLocationKeepCondition()})`,      );  const deleted = await db    .delete(organisationLocations)    .where(deleteWhere)    .returning({      name: organisationLocations.name,      siteContactEmail: organisationLocations.siteContactEmail,    });  const afterRows = await db    .select({ id: organisationLocations.id })    .from(organisationLocations)    .where(eq(organisationLocations.organizationId, devOrgId));  console.log(    `Cleaned dev organisation locations (org=${devOrgId}, db=${maskDatabaseUrl(connectionString)}, mode=${purgeAll ? 'purge-all' : 'purge-non-seed'}).`,  );  console.log(    `Before: ${beforeRows.length}, deleted: ${deleted.length}, remaining: ${afterRows.length}`,  );  for (const row of deleted) {    console.log(`  - ${row.name} <${row.siteContactEmail ?? ''}>`);  }  await pool.end();}if (require.main === module) {  main().catch((err: unknown) => {    console.error(err);    process.exit(1);  });}

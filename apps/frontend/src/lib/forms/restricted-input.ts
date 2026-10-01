@@ -24,6 +24,53 @@ export const ORG_INPUT_LIMITS = {
   department: 120,
 } as const;
 
+/** Organisation suppliers — mirrors backend CreateSupplierDto @MaxLength. */
+export const ORGANISATION_SUPPLIER_INPUT_LIMITS = {
+  name: 255,
+  contactPerson: 255,
+  agreementReference: 120,
+  phone: ORG_INPUT_LIMITS.phone,
+  email: ORG_INPUT_LIMITS.email,
+  addressLine: ORG_INPUT_LIMITS.addressLine,
+  addressRegion: ORG_INPUT_LIMITS.addressRegion,
+  addressPincode: ORG_INPUT_LIMITS.postalGeneric,
+} as const;
+
+/** Organisation driver register — mirrors backend CreateDriverDto @MaxLength. */
+export const DRIVER_INPUT_LIMITS = {
+  name: ORG_INPUT_LIMITS.employeeFullName,
+  cprNo: 20,
+  phone: ORG_INPUT_LIMITS.phone,
+  email: ORG_INPUT_LIMITS.email,
+  licenseNumber: 64,
+  addressLine: ORG_INPUT_LIMITS.addressLine,
+  addressRegion: ORG_INPUT_LIMITS.addressRegion,
+  addressPincode: ORG_INPUT_LIMITS.postalGeneric,
+  vehicleCode: 64,
+  assetClass: ORG_INPUT_LIMITS.locationName,
+  activeLeaseId: 64,
+} as const;
+
+/** Organisation client register — mirrors CreateOrganisationClientDto limits. */
+export const ORGANISATION_CLIENT_INPUT_LIMITS = {
+  clientName: 255,
+  pocName: 255,
+  pocEmail: ORG_INPUT_LIMITS.email,
+  pocPhone: ORG_INPUT_LIMITS.phone,
+  addressLine: ORG_INPUT_LIMITS.addressLine,
+  addressRegion: ORG_INPUT_LIMITS.addressRegion,
+  addressPincode: ORG_INPUT_LIMITS.postalGeneric,
+} as const;
+
+/** Fleet client register — mirrors backend CreateFleetClientDto @MaxLength. */
+export const FLEET_CLIENT_INPUT_LIMITS = {
+  companyName: 255,
+  taxId: 32,
+  pocName: 255,
+  pocEmail: ORG_INPUT_LIMITS.email,
+  pocPhone: ORG_INPUT_LIMITS.phone,
+} as const;
+
 /** ITU E.164 maximum significant digits (excludes leading +). */
 export const ORG_PHONE_MAX_DIGITS = 15;
 
