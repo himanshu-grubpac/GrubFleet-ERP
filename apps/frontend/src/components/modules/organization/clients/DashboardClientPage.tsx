@@ -395,6 +395,7 @@ export default function ClientDashboardPage() {
             <DashboardTableActions
               status={client.status}
               locationId={client.id}
+              viewHref={`/organization/clients/${client.id}`}
               onEdit={() =>
                 handleEdit(client)
               }

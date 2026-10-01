@@ -471,9 +471,11 @@ export default function LocationsPage() {
             <DashboardTableActions
               status={location.status}
               locationId={location.id}
-
+              viewHref={`/organization/locations/${location.id}`}
               onEdit={() => handleEdit(location)}
-              onToggleStatus={() => handleToggleStatus(location)}
+              onToggleStatus={() =>
+                handleToggleStatus(location)
+              }
             />
           )}
         />

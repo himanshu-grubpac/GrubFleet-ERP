@@ -3,8 +3,12 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Info } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  AlertTriangle,
+  ChevronRight,
+  Info,
+} from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
@@ -201,50 +205,121 @@ export default function LocationDetailsPage() {
       </main>
 
       {deactivateOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl">
-            <h2 className="text-base font-semibold text-gray-900">
-              Deactivate {location.name}?
-            </h2>
-            <textarea
-              value={deactivateReason}
-              onChange={(event) => setDeactivateReason(event.target.value)}
-              rows={3}
-              className="mt-4 w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              placeholder="Reason for deactivation"
-            />
-            {statusError && (
-              <p className="mt-2 text-sm text-red-600">{statusError}</p>
-            )}
-            <div className="mt-4 flex justify-end gap-2">
-              <button
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div
+            className="w-full max-w-[460px] rounded-lg bg-white p-5 shadow-xl"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="deactivate-location-title"
+          >
+            {/* Modal Header */}
+            <div className="flex items-start gap-3">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50">
+                <AlertTriangle
+                  className="h-4 w-4 text-red-500"
+                  strokeWidth={1.8}
+                />
+              </div>
+
+              <div>
+                <h2
+                  id="deactivate-location-title"
+                  className="text-sm font-semibold text-gray-900"
+                >
+                  Deactivate this location?
+                </h2>
+
+                <p className="mt-1 text-xs leading-5 text-gray-500">
+                  This will deactivate{" "}
+                  <span className="font-medium text-gray-700">
+                    &quot;
+                    {location.name}
+                    &quot;
+                  </span>{" "}
+                  from the location register.
+                </p>
+              </div>
+            </div>
+
+            {/* Reason */}
+            <div className="mt-4">
+              <label
+                htmlFor="deactivate-reason"
+                className="mb-1.5 block text-xs font-medium text-gray-700"
+              >
+                Reason
+                <span className="ml-1 text-red-500">*</span>
+              </label>
+
+              <textarea
+                id="deactivate-reason"
+                value={deactivateReason}
+                onChange={(event) => {
+                  const value = event.target.value;
+
+                  setDeactivateReason(value);
+
+                  if (value.trim()) {
+                    setStatusError(null);
+                  }
+                }}
+                placeholder="Enter reason for deactivation..."
+                rows={3}
+                className={[
+                  "w-full resize-none rounded-md bg-white px-3 py-2 text-xs text-gray-900 outline-none placeholder:text-gray-400",
+                  statusError
+                    ? "border border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
+                    : "border border-gray-200 focus:border-gray-300 focus:ring-1 focus:ring-gray-200",
+                ].join(" ")}
+              />
+
+              {statusError && (
+                <p className="mt-1 text-xs text-red-500">
+                  {statusError}
+                </p>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="mt-5 flex justify-end gap-2">
+              <Button
                 type="button"
-                className="rounded-md border border-gray-300 px-4 py-2 text-sm"
+                variant="neutral"
                 onClick={() => {
                   setDeactivateOpen(false);
                   setDeactivateReason("");
                   setStatusError(null);
                 }}
                 disabled={statusMutation.isPending}
+                className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
               >
                 Cancel
-              </button>
+              </Button>
+
               <Button
                 type="button"
+                variant="neutral"
                 disabled={statusMutation.isPending}
                 onClick={() => {
                   const reason = deactivateReason.trim();
+
                   if (!reason) {
-                    setStatusError("Please enter a deactivation reason.");
+                    setStatusError(
+                      "Please enter a deactivation reason."
+                    );
                     return;
                   }
+
                   void statusMutation.mutateAsync({
                     action: "deactivate",
                     reason,
                   });
                 }}
+                className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
               >
-                {statusMutation.isPending ? "Deactivating..." : "Deactivate"}
+                {statusMutation.isPending
+                  ? "Deactivating..."
+                  : "Deactivate"}
               </Button>
             </div>
           </div>

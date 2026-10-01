@@ -6,6 +6,10 @@ import { useRouter } from "next/navigation";
 
 import Button from "@/components/ui/GrubpacButton";
 
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
 type SupplierStatus = "active" | "inactive";
 
 type Supplier = {
@@ -96,8 +100,11 @@ export default function SupplierViewPage() {
     const [deactivateReason, setDeactivateReason] =
         useState("");
 
+    const [deactivateReasonError, setDeactivateReasonError] =
+        useState("");
+
     /* ---------------------------------------------------------------------- */
-    /* Actions                                                                */
+    /* Edit                                                                    */
     /* ---------------------------------------------------------------------- */
 
     const handleEdit = () => {
@@ -106,62 +113,84 @@ export default function SupplierViewPage() {
         );
     };
 
+    /* ---------------------------------------------------------------------- */
+    /* Deactivate                                                             */
+    /* ---------------------------------------------------------------------- */
+
     const handleDeactivate = () => {
+        const reason = deactivateReason.trim();
+
+        if (!reason) {
+            setDeactivateReasonError(
+                "Reason is required."
+            );
+            return;
+        }
+
         setSupplier((previous) => ({
             ...previous,
             status: "inactive",
         }));
 
+        console.log("Supplier deactivated:", {
+            supplierId: supplier.id,
+            reason,
+        });
+
         setShowDeactivateModal(false);
         setDeactivateReason("");
+        setDeactivateReasonError("");
     };
+
+    /* ---------------------------------------------------------------------- */
+    /* Cancel Deactivate                                                      */
+    /* ---------------------------------------------------------------------- */
 
     const handleCancelDeactivate = () => {
         setShowDeactivateModal(false);
         setDeactivateReason("");
+        setDeactivateReasonError("");
     };
+
+    /* ---------------------------------------------------------------------- */
+    /* Activate                                                                */
+    /* ---------------------------------------------------------------------- */
+
+    const handleActivate = () => {
+        setSupplier((previous) => ({
+            ...previous,
+            status: "active",
+        }));
+
+        console.log(
+            "Supplier activated:",
+            supplier.id
+        );
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* UI                                                                      */
+    /* ---------------------------------------------------------------------- */
 
     return (
         <div className="min-h-full bg-gray-50">
             <div className="px-5 py-4">
 
-                {/* ---------------------------------------------------------------- */}
-                {/* Breadcrumb                                                       */}
-                {/* ---------------------------------------------------------------- */}
-
-                <div className="mb-3 flex items-center gap-1.5 text-xs">
-                    <span className="text-gray-400">
-                        Organisation
-                    </span>
-
-                    <span className="text-gray-300">
-                        ›
-                    </span>
-
-                    <span className="text-gray-400">
-                        Suppliers
-                    </span>
-
-                    <span className="font-medium text-gray-700">
-                        &quot;{supplier.name}&quot;
-                    </span>
-
-
-                </div>
-
-                {/* ---------------------------------------------------------------- */}
-                {/* Header                                                           */}
-                {/* ---------------------------------------------------------------- */}
+                {/* ========================================================== */}
+                {/* Header                                                     */}
+                {/* ========================================================== */}
 
                 <div className="mb-4 flex items-start justify-between">
+
+                    {/* Supplier Name + Status */}
 
                     <div className="flex items-center gap-2">
                         <h1 className="text-xl font-semibold text-gray-900">
                             {supplier.name}
                         </h1>
 
-                        {/* Supplier Type */}
-                        {supplier.status === "active" ? (
+                        {supplier.status ===
+                            "active" ? (
                             <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
                                 {supplier.supplierType}
                             </span>
@@ -172,9 +201,13 @@ export default function SupplierViewPage() {
                         )}
                     </div>
 
-                    {/* Actions */}
+                    {/* ====================================================== */}
+                    {/* Actions                                                  */}
+                    {/* ====================================================== */}
 
                     <div className="flex items-center gap-2">
+
+                        {/* Edit */}
 
                         <Button
                             type="button"
@@ -185,13 +218,24 @@ export default function SupplierViewPage() {
                             Edit
                         </Button>
 
-                        {supplier.status === "active" ? (
+                        {/* Deactivate / Activate */}
+
+                        {supplier.status ===
+                            "active" ? (
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={() =>
-                                    setShowDeactivateModal(true)
-                                }
+                                onClick={() => {
+                                    setDeactivateReason(
+                                        ""
+                                    );
+                                    setDeactivateReasonError(
+                                        ""
+                                    );
+                                    setShowDeactivateModal(
+                                        true
+                                    );
+                                }}
                                 className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
                             >
                                 Deactivate
@@ -200,12 +244,9 @@ export default function SupplierViewPage() {
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={() => {
-                                    setSupplier((previous) => ({
-                                        ...previous,
-                                        status: "active",
-                                    }));
-                                }}
+                                onClick={
+                                    handleActivate
+                                }
                                 className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
                             >
                                 Activate
@@ -214,11 +255,13 @@ export default function SupplierViewPage() {
                     </div>
                 </div>
 
-                {/* ---------------------------------------------------------------- */}
-                {/* Supplier Information                                             */}
-                {/* ---------------------------------------------------------------- */}
+                {/* ========================================================== */}
+                {/* Supplier Information                                       */}
+                {/* ========================================================== */}
 
                 <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+
+                    {/* First Row */}
 
                     <div className="grid grid-cols-4 gap-6">
 
@@ -231,12 +274,16 @@ export default function SupplierViewPage() {
 
                         <InfoItem
                             label="PHONE"
-                            value={supplier.phone}
+                            value={
+                                supplier.phone
+                            }
                         />
 
                         <InfoItem
                             label="EMAIL"
-                            value={supplier.email}
+                            value={
+                                supplier.email
+                            }
                         />
 
                         <InfoItem
@@ -246,6 +293,8 @@ export default function SupplierViewPage() {
                             }
                         />
                     </div>
+
+                    {/* Address */}
 
                     <div className="mt-3">
                         <p className="text-[10px] font-medium text-gray-400">
@@ -258,20 +307,17 @@ export default function SupplierViewPage() {
                     </div>
                 </div>
 
-                {/* ---------------------------------------------------------------- */}
-                {/* Linked Parts                                                    */}
-                {/* ---------------------------------------------------------------- */}
+                {/* ========================================================== */}
+                {/* Linked Parts                                               */}
+                {/* ========================================================== */}
 
                 <section className="mt-4">
-
                     <h2 className="mb-3 text-sm font-semibold text-gray-900">
                         Linked parts
                     </h2>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-
                         <table className="w-full text-left">
-
                             <thead>
                                 <tr className="border-b border-gray-200">
 
@@ -294,14 +340,12 @@ export default function SupplierViewPage() {
                             </thead>
 
                             <tbody>
-
                                 {supplier.linkedParts.map(
                                     (part) => (
                                         <tr
                                             key={part.part}
                                             className="border-b border-gray-100 last:border-0"
                                         >
-
                                             <td className="px-3 py-2.5 text-xs text-gray-700">
                                                 {part.part}
                                             </td>
@@ -321,35 +365,29 @@ export default function SupplierViewPage() {
                                                     part.onHandQty
                                                 }
                                             </td>
-
                                         </tr>
                                     )
                                 )}
-
                             </tbody>
                         </table>
                     </div>
                 </section>
             </div>
 
-            {/* ================================================================== */}
-            {/* DEACTIVATE MODAL                                                   */}
-            {/* ================================================================== */}
+            {/* ============================================================= */}
+            {/* DEACTIVATE MODAL                                              */}
+            {/* ============================================================= */}
 
             {showDeactivateModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
                     <div
                         className="w-full max-w-[460px] rounded-lg bg-white p-5 shadow-xl"
                         role="dialog"
                         aria-modal="true"
                         aria-labelledby="deactivate-supplier-title"
                     >
-
                         {/* Modal Header */}
-
                         <div className="flex items-start gap-3">
-
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50">
                                 <AlertTriangle
                                     className="h-4 w-4 text-red-500"
@@ -368,51 +406,63 @@ export default function SupplierViewPage() {
                                 <p className="mt-1 text-xs leading-5 text-gray-500">
                                     This will deactivate{" "}
                                     <span className="font-medium text-gray-700">
-                                        &quot;{supplier.name}&quot;
+                                        &quot;
+                                        {supplier.name}
+                                        &quot;
                                     </span>{" "}
                                     from the supplier register.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Reason */}
-
+                        {/* Required Reason */}
                         <div className="mt-4">
-
                             <label
                                 htmlFor="deactivate-reason"
                                 className="mb-1.5 block text-xs font-medium text-gray-700"
                             >
                                 Reason
-                                <span className="ml-1 font-normal text-gray-400">
-                                    (optional)
+                                <span className="ml-1 text-red-500">
+                                    *
                                 </span>
                             </label>
 
                             <textarea
                                 id="deactivate-reason"
                                 value={deactivateReason}
-                                onChange={(event) =>
-                                    setDeactivateReason(
-                                        event.target.value
-                                    )
-                                }
+                                onChange={(event) => {
+                                    const value =
+                                        event.target.value;
+
+                                    setDeactivateReason(value);
+
+                                    if (value.trim()) {
+                                        setDeactivateReasonError("");
+                                    }
+                                }}
                                 placeholder="Enter reason for deactivation..."
                                 rows={3}
-                                className="w-full resize-none rounded-md border border-gray-200 bg-white px-3 py-2 text-xs text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
+                                className={[
+                                    "w-full resize-none rounded-md bg-white px-3 py-2 text-xs text-gray-900 outline-none placeholder:text-gray-400",
+                                    deactivateReasonError
+                                        ? "border border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
+                                        : "border border-gray-200 focus:border-gray-300 focus:ring-1 focus:ring-gray-200",
+                                ].join(" ")}
                             />
+
+                            {deactivateReasonError && (
+                                <p className="mt-1 text-xs text-red-500">
+                                    {deactivateReasonError}
+                                </p>
+                            )}
                         </div>
 
                         {/* Modal Actions */}
-
                         <div className="mt-5 flex justify-end gap-2">
-
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={
-                                    handleCancelDeactivate
-                                }
+                                onClick={handleCancelDeactivate}
                                 className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
                             >
                                 Cancel
@@ -421,14 +471,11 @@ export default function SupplierViewPage() {
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={
-                                    handleDeactivate
-                                }
+                                onClick={handleDeactivate}
                                 className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
                             >
                                 Deactivate
                             </Button>
-
                         </div>
                     </div>
                 </div>

@@ -439,9 +439,14 @@ export default function DriverRegisterPage() {
                   : "inactive"
               }
               locationId={driver.id}
+              viewHref={`/organization/driver-register/${driver.id}`}
               onEdit={() => handleEdit(driver)}
-              onToggleStatus={() => handleToggleStatus(driver)}
+              onToggleStatus={() =>
+                handleToggleStatus(driver)
+              }
             />
+
+
           )}
         />
       )}
