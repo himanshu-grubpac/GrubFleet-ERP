@@ -97,7 +97,7 @@ export const mainNavItems: NavItem[] = [
       },
       {
         label: "Asset Assignment",
-        href: "/asset-register/assetassignment",
+        href: "/asset-register/asset-assign",
         icon: ArrowLeftRight,
       },
       {
