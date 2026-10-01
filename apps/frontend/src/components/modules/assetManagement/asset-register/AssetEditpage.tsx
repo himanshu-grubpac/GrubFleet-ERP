@@ -33,7 +33,8 @@ const MOCK_ASSET_CLASSES: Array<
 
             fuelTankCapacity: "5.5",
 
-            ratedLoadCapacity: "150",
+            ratedLoadCapacityFrom: "150",
+            ratedLoadCapacityTo: "150",
 
             defaultIntakeChecklist:
                 "Standard Intake Checklist",
@@ -58,7 +59,8 @@ const MOCK_ASSET_CLASSES: Array<
 
             fuelTankCapacity: "8",
 
-            ratedLoadCapacity: "500",
+            ratedLoadCapacityFrom: "500",
+            ratedLoadCapacityTo: "500",
 
             defaultIntakeChecklist:
                 "Standard Intake Checklist",

@@ -19,7 +19,10 @@ export type AssetClassFormData = {
     mileageTo: string;
     mileageUnit: string;
     fuelTankCapacity: string;
-    ratedLoadCapacity: string;
+
+    ratedLoadCapacityFrom: string;
+    ratedLoadCapacityTo: string;
+
     defaultIntakeChecklist: string;
     notes: string;
 };
@@ -81,24 +84,37 @@ export default function CreateAssetClassForm({
     const [form, setForm] =
         useState<AssetClassFormData>({
             name: initialData?.name ?? "",
+
             classCode:
                 initialData?.classCode ?? "",
+
             vehicleType:
                 initialData?.vehicleType ?? "",
+
             fuelType:
                 initialData?.fuelType ?? "",
+
             mileageFrom:
                 initialData?.mileageFrom ?? "",
+
             mileageTo:
                 initialData?.mileageTo ?? "",
+
             mileageUnit:
                 initialData?.mileageUnit ?? "km/L",
+
             fuelTankCapacity:
                 initialData?.fuelTankCapacity ?? "",
-            ratedLoadCapacity:
-                initialData?.ratedLoadCapacity ?? "",
+
+            ratedLoadCapacityFrom:
+                initialData?.ratedLoadCapacityFrom ?? "",
+
+            ratedLoadCapacityTo:
+                initialData?.ratedLoadCapacityTo ?? "",
+
             defaultIntakeChecklist:
                 initialData?.defaultIntakeChecklist ?? "",
+
             notes:
                 initialData?.notes ?? "",
         });
@@ -187,9 +203,16 @@ export default function CreateAssetClassForm({
             return;
         }
 
-        if (!form.ratedLoadCapacity.trim()) {
+        if (!form.ratedLoadCapacityFrom.trim()) {
             setError(
-                "Rated load capacity is required.",
+                "Rated load capacity (From) is required.",
+            );
+            return;
+        }
+
+        if (!form.ratedLoadCapacityTo.trim()) {
+            setError(
+                "Rated load capacity (To) is required.",
             );
             return;
         }
@@ -201,6 +224,10 @@ export default function CreateAssetClassForm({
             return;
         }
 
+        /* ------------------------------------------------------------------ */
+        /* Range Validation                                                   */
+        /* ------------------------------------------------------------------ */
+
         if (
             Number(form.mileageFrom) >
             Number(form.mileageTo)
@@ -211,8 +238,18 @@ export default function CreateAssetClassForm({
             return;
         }
 
+        if (
+            Number(form.ratedLoadCapacityFrom) >
+            Number(form.ratedLoadCapacityTo)
+        ) {
+            setError(
+                "Rated load capacity from cannot be greater than rated load capacity to.",
+            );
+            return;
+        }
+
         /* ------------------------------------------------------------------ */
-        /* Save                                                                */
+        /* Save                                                               */
         /* ------------------------------------------------------------------ */
 
         try {
@@ -246,8 +283,11 @@ export default function CreateAssetClassForm({
                 fuelTankCapacity:
                     form.fuelTankCapacity.trim(),
 
-                ratedLoadCapacity:
-                    form.ratedLoadCapacity.trim(),
+                ratedLoadCapacityFrom:
+                    form.ratedLoadCapacityFrom.trim(),
+
+                ratedLoadCapacityTo:
+                    form.ratedLoadCapacityTo.trim(),
 
                 defaultIntakeChecklist:
                     form.defaultIntakeChecklist.trim(),
@@ -275,7 +315,7 @@ export default function CreateAssetClassForm({
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Input Classes                                                          */
+    /* Input Classes                                                           */
     /* ---------------------------------------------------------------------- */
 
     const inputClassName =
@@ -357,34 +397,10 @@ export default function CreateAssetClassForm({
                         className={inputClassName}
                     />
                 </div>
-
-                {/* Class Code */}
-
-                <div>
-                    <label
-                        htmlFor="asset-class-code"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
-                        Class code
-                    </label>
-
-                    <input
-                        id="asset-class-code"
-                        type="text"
-                        value={
-                            form.classCode ||
-                            "Auto-assigned on save"
-                        }
-                        readOnly
-                        className={
-                            readOnlyInputClassName
-                        }
-                    />
-                </div>
             </div>
 
             {/* ================================================================ */}
-            {/* VEHICLE TYPE + FUEL TYPE                                         */}
+            {/* VEHICLE TYPE + FUEL TYPE                                        */}
             {/* ================================================================ */}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -472,7 +488,7 @@ export default function CreateAssetClassForm({
             </div>
 
             {/* ================================================================ */}
-            {/* MILEAGE + FUEL TANK CAPACITY                                     */}
+            {/* MILEAGE + FUEL TANK CAPACITY                                    */}
             {/* ================================================================ */}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -484,11 +500,12 @@ export default function CreateAssetClassForm({
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
                         Mileage
-                        <span className="ml-1 text-red-500">*</span>
+                        <span className="ml-1 text-red-500">
+                            *
+                        </span>
                     </label>
 
                     <div className="flex h-10 w-full overflow-hidden rounded-md border border-gray-300 bg-white focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20">
-
                         {/* From */}
 
                         <div className="flex w-[32%] items-center">
@@ -548,19 +565,102 @@ export default function CreateAssetClassForm({
                             }
                             className="w-[36%] shrink-0 border-0 border-l border-gray-200 bg-white px-1.5 text-xs text-gray-700 outline-none"
                         >
-                            {MILEAGE_UNITS.map((unit) => (
-                                <option
-                                    key={unit}
-                                    value={unit}
-                                >
-                                    {unit}
-                                </option>
-                            ))}
+                            {MILEAGE_UNITS.map(
+                                (unit) => (
+                                    <option
+                                        key={unit}
+                                        value={unit}
+                                    >
+                                        {unit}
+                                    </option>
+                                ),
+                            )}
                         </select>
                     </div>
                 </div>
 
+                {/* Rated Load Capacity */}
 
+                <div>
+                    <label
+                        htmlFor="rated-load-capacity-from"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Rated load capacity
+                        <span className="ml-1 text-red-500">
+                            *
+                        </span>
+                    </label>
+
+                    <div className="flex h-10 w-full overflow-hidden rounded-md border border-gray-300 bg-white focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20">
+                        {/* From */}
+
+                        <div className="flex w-[32%] items-center">
+                            <span className="shrink-0 border-r border-gray-200 px-2 text-xs text-gray-500">
+                                From
+                            </span>
+
+                            <input
+                                id="rated-load-capacity-from"
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={
+                                    form.ratedLoadCapacityFrom
+                                }
+                                onChange={(event) =>
+                                    updateForm(
+                                        "ratedLoadCapacityFrom",
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="150"
+                                className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-sm text-gray-900 outline-none"
+                            />
+                        </div>
+
+                        {/* To */}
+
+                        <div className="flex w-[32%] items-center border-l border-gray-200">
+                            <span className="shrink-0 border-r border-gray-200 px-2 text-xs text-gray-500">
+                                To
+                            </span>
+
+                            <input
+                                id="rated-load-capacity-to"
+                                type="number"
+                                min="0"
+                                step="1"
+                                value={
+                                    form.ratedLoadCapacityTo
+                                }
+                                onChange={(event) =>
+                                    updateForm(
+                                        "ratedLoadCapacityTo",
+                                        event.target.value,
+                                    )
+                                }
+                                placeholder="250"
+                                className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-sm text-gray-900 outline-none"
+                            />
+                        </div>
+
+                        {/* Unit */}
+
+                        <span className="flex w-[36%] shrink-0 items-center justify-center border-l border-gray-200 text-xs text-gray-500">
+                            kg
+                        </span>
+                    </div>
+                </div>
+
+
+            </div>
+
+            {/* ================================================================ */}
+            {/* RATED LOAD + DEFAULT INTAKE CHECKLIST                           */}
+            {/* ================================================================ */}
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
                 {/* Fuel Tank Capacity */}
 
@@ -570,7 +670,9 @@ export default function CreateAssetClassForm({
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
                         Fuel tank capacity
-                        <span className="ml-1 text-red-500">*</span>
+                        <span className="ml-1 text-red-500">
+                            *
+                        </span>
                     </label>
 
                     <div className="flex h-10 w-full overflow-hidden rounded-md border border-gray-300 bg-white focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20">
@@ -595,46 +697,7 @@ export default function CreateAssetClassForm({
                         </span>
                     </div>
                 </div>
-            </div>
 
-            {/* ================================================================ */}
-            {/* RATED LOAD + DEFAULT INTAKE CHECKLIST                            */}
-            {/* ================================================================ */}
-
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {/* Rated Load Capacity */}
-
-                <div>
-                    <label
-                        htmlFor="rated-load-capacity"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
-                        Rated load capacity
-                        <span className="ml-1 text-red-500">*</span>
-                    </label>
-
-                    <div className="flex h-10 w-full overflow-hidden rounded-md border border-gray-300 bg-white focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20">
-                        <input
-                            id="rated-load-capacity"
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={form.ratedLoadCapacity}
-                            onChange={(event) =>
-                                updateForm(
-                                    "ratedLoadCapacity",
-                                    event.target.value,
-                                )
-                            }
-                            placeholder="e.g. 150"
-                            className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-gray-900 outline-none"
-                        />
-
-                        <span className="flex w-12 shrink-0 items-center justify-center border-l border-gray-200 text-xs text-gray-500">
-                            kg
-                        </span>
-                    </div>
-                </div>
 
                 {/* Default Intake Checklist */}
 
@@ -681,7 +744,7 @@ export default function CreateAssetClassForm({
             </div>
 
             {/* ================================================================ */}
-            {/* NOTES                                                             */}
+            {/* NOTES                                                            */}
             {/* ================================================================ */}
 
             <div className="mt-4">
@@ -708,7 +771,7 @@ export default function CreateAssetClassForm({
             </div>
 
             {/* ================================================================ */}
-            {/* GENERAL ERROR                                                     */}
+            {/* GENERAL ERROR                                                    */}
             {/* ================================================================ */}
 
             {error && (

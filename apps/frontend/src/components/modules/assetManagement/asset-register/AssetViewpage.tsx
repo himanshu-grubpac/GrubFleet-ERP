@@ -23,7 +23,8 @@ type AssetClass = {
     mileageTo: string;
     mileageUnit: string;
     fuelTankCapacity: string;
-    ratedLoadCapacity: string;
+    ratedLoadCapacityFrom: string;
+    ratedLoadCapacityTo: string;
     defaultIntakeChecklist: string;
     notes: string;
 };
@@ -44,7 +45,8 @@ const MOCK_ASSET_CLASSES: AssetClass[] = [
         mileageTo: "45",
         mileageUnit: "km/L",
         fuelTankCapacity: "5.5",
-        ratedLoadCapacity: "150",
+        ratedLoadCapacityFrom: "500",
+        ratedLoadCapacityTo: "500",
         defaultIntakeChecklist:
             "Standard Intake Checklist",
         notes: "Standard petrol scooter class.",
@@ -61,7 +63,8 @@ const MOCK_ASSET_CLASSES: AssetClass[] = [
         mileageTo: "17",
         mileageUnit: "km/L",
         fuelTankCapacity: "8",
-        ratedLoadCapacity: "500",
+        ratedLoadCapacityFrom: "500",
+        ratedLoadCapacityTo: "500",
         defaultIntakeChecklist:
             "Standard Intake Checklist",
         notes: "Cargo-oriented three-wheeler class.",
@@ -83,7 +86,7 @@ export default function AssetClassViewPage() {
             MOCK_ASSET_CLASSES.find(
                 (item) => item.id === assetClassId,
             ) ??
-                MOCK_ASSET_CLASSES[0],
+            MOCK_ASSET_CLASSES[0],
         );
 
     const [showDeactivateModal, setShowDeactivateModal] =
@@ -166,7 +169,7 @@ export default function AssetClassViewPage() {
 
     const mileage =
         assetClass.mileageFrom ===
-        assetClass.mileageTo
+            assetClass.mileageTo
             ? `${assetClass.mileageFrom} ${assetClass.mileageUnit}`
             : `${assetClass.mileageFrom}–${assetClass.mileageTo} ${assetClass.mileageUnit}`;
 
@@ -191,7 +194,7 @@ export default function AssetClassViewPage() {
                             </h1>
 
                             {assetClass.status ===
-                            "active" ? (
+                                "active" ? (
                                 <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
                                     Active
                                 </span>
@@ -226,7 +229,7 @@ export default function AssetClassViewPage() {
                         {/* Deactivate / Activate */}
 
                         {assetClass.status ===
-                        "active" ? (
+                            "active" ? (
                             <Button
                                 type="button"
                                 variant="neutral"
@@ -303,10 +306,14 @@ export default function AssetClassViewPage() {
                         />
 
                         {/* Rated Load Capacity */}
-
                         <InfoRow
                             label="Rated load capacity"
-                            value={`${assetClass.ratedLoadCapacity} kg`}
+                            value={
+                                assetClass.ratedLoadCapacityFrom ===
+                                    assetClass.ratedLoadCapacityTo
+                                    ? `${assetClass.ratedLoadCapacityFrom} kg`
+                                    : `${assetClass.ratedLoadCapacityFrom}–${assetClass.ratedLoadCapacityTo} kg`
+                            }
                         />
 
                         {/* Default Intake Checklist */}
