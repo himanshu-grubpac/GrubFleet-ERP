@@ -8,82 +8,92 @@ export interface LeaseAssetClass {
     committed: number;
     ratePerVehicle: string;
     availability: "Covered" | "Partial" | "Not Covered";
+    lineStatusLabel?: string;
 }
 
 interface LeaseAssetClassTableProps {
-    assetClasses?: LeaseAssetClass[];
+    assetClasses: LeaseAssetClass[];
+    /** Figma LEASE-06 active detail — qty + allocation status only */
+    variant?: "default" | "allocation";
 }
 
-// ============================================================
-// MOCK DATA
-// Later this will come from the Lease Contract API
-// ============================================================
-
-const mockAssetClasses: LeaseAssetClass[] = [
-    {
-        id: "asset-class-1",
-        assetClass: "Sedan",
-        committed: 3,
-        ratePerVehicle: "Rs. 34,500",
-        availability: "Covered",
-    },
-    {
-        id: "asset-class-2",
-        assetClass: "SUV",
-        committed: 4,
-        ratePerVehicle: "Rs. 41,000",
-        availability: "Covered",
-    },
-    {
-        id: "asset-class-3",
-        assetClass: "Pickup",
-        committed: 2,
-        ratePerVehicle: "Rs. 28,000",
-        availability: "Covered",
-    },
-];
-
 export default function LeaseAssetClassTable({
-    assetClasses = mockAssetClasses,
+    assetClasses,
+    variant = "default",
 }: LeaseAssetClassTableProps) {
-    const columns: Column<LeaseAssetClass>[] = [
+    const allocationColumns: Column<LeaseAssetClass>[] = [
         {
-            header: "Asset Class",
+            header: "Asset class",
             accessorKey: "assetClass",
             sortable: true,
         },
         {
-            header: "Committed",
+            header: "Qty",
             accessorKey: "committed",
             sortable: true,
         },
         {
-            header: "Rate / Vehicle / Month",
-            accessorKey: "ratePerVehicle",
-            sortable: true,
-        },
-        {
-            header: "Availability",
-            accessorKey: "availability",
+            header: "Status",
+            accessorKey: "lineStatusLabel",
             cell: ({ row }) => {
-                const availability = row.availability;
-
+                const label = row.lineStatusLabel ?? "—";
+                const isAllocated = label === "Allocated";
                 return (
                     <span
                         className={
-                            availability === "Covered"
+                            isAllocated
                                 ? "rounded-md bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"
-                                : availability === "Partial"
-                                    ? "rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700"
-                                    : "rounded-md bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700"
+                                : "rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700"
                         }
                     >
-                        {availability}
+                        {label}
                     </span>
                 );
             },
         },
     ];
+
+    const columns: Column<LeaseAssetClass>[] =
+        variant === "allocation"
+            ? allocationColumns
+            : [
+                  {
+                      header: "Asset Class",
+                      accessorKey: "assetClass",
+                      sortable: true,
+                  },
+                  {
+                      header: "Committed",
+                      accessorKey: "committed",
+                      sortable: true,
+                  },
+                  {
+                      header: "Rate / Vehicle / Month",
+                      accessorKey: "ratePerVehicle",
+                      sortable: true,
+                  },
+                  {
+                      header: "Availability",
+                      accessorKey: "availability",
+                      cell: ({ row }) => {
+                          const availability = row.availability;
+
+                          return (
+                              <span
+                                  className={
+                                      availability === "Covered"
+                                          ? "rounded-md bg-green-100 px-2.5 py-1 text-xs font-semibold text-green-700"
+                                          : availability === "Partial"
+                                            ? "rounded-md bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700"
+                                            : "rounded-md bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700"
+                                  }
+                              >
+                                  {availability}
+                              </span>
+                          );
+                      },
+                  },
+              ];
 
     return (
         <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -93,11 +103,17 @@ export default function LeaseAssetClassTable({
                 </h2>
             </div>
 
-            <DataTable
-                data={assetClasses}
-                columns={columns}
-                getRowId={(row) => row.id}
-            />
+            {assetClasses.length === 0 ? (
+                <p className="px-5 py-8 text-center text-sm text-slate-500">
+                    No asset-class lines on this contract yet.
+                </p>
+            ) : (
+                <DataTable
+                    data={assetClasses}
+                    columns={columns}
+                    getRowId={(row) => row.id}
+                />
+            )}
         </div>
     );
 }

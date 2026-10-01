@@ -5,6 +5,7 @@ import { AlertTriangle, Info } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
 
 export type LeaseContractAction =
+    | "activate"
     | "deactivate"
     | "reactivate"
     | "terminate";
@@ -31,6 +32,14 @@ export default function LeaseContractActionModal({
     }
 
     const config = {
+        activate: {
+            title: "Activate contract?",
+            description:
+                "This contract will become Active immediately when within standard pricing limits.",
+            confirmText: "Activate",
+            icon: Info,
+        },
+
         deactivate: {
             title: `Deactivate contract ${contractNumber}?`,
             description:

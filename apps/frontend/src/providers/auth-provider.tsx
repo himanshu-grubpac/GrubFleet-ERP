@@ -65,6 +65,12 @@ export interface GrubpacAuthContextType {
   /** Initial app boot: read storage + validate token once. Not login submit. */
   isLoading?: boolean;
 
+  /**
+   * True during boot when localStorage had an access token pending validation.
+   * Used by ProtectedRoute for dashboard shell skeleton — not for /login.
+   */
+  sessionRestoreHint?: boolean;
+
   /** True while clearing session and navigating to login (avoids stale dashboard chrome). */
   isLoggingOut?: boolean;
 
@@ -113,6 +119,7 @@ export function GrubpacAuthProvider({
   const [moduleAccess, setModuleAccess] = useState<Record<string, string>>({});
   const [permissions, setPermissions] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [sessionRestoreHint, setSessionRestoreHint] = useState<boolean>(false);
   const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
   const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
   const permissionRevisionRef = React.useRef<number | null>(null);
@@ -245,30 +252,22 @@ export function GrubpacAuthProvider({
     };
   }, [token, isLoading, isLoggingOut, refetchMe]);
 
-  // Initial session hydration
+  // Initial session hydration — do not set token until /auth/me (or refresh) succeeds.
   useEffect(() => {
     let hydrateMounted = true;
 
     async function hydrateSession() {
+      const savedToken = localStorage.getItem("access_token");
+      if (hydrateMounted && mountedRef.current) {
+        setSessionRestoreHint(!!savedToken);
+      }
+
       try {
-        const savedToken = localStorage.getItem("access_token");
-        const savedUser = localStorage.getItem("auth_user");
-
-        if (savedUser && hydrateMounted) {
-          try {
-            setUser(JSON.parse(savedUser));
-          } catch {
-            // Ignore parse errors
-          }
-        }
-
         if (savedToken) {
-          if (hydrateMounted) {
-            setTokenState(savedToken);
-          }
           try {
             const me = await getMeApi(savedToken);
             if (hydrateMounted && mountedRef.current) {
+              setTokenState(savedToken);
               applyMeData(me);
             }
           } catch (err) {
@@ -287,6 +286,7 @@ export function GrubpacAuthProvider({
         }
       } finally {
         if (hydrateMounted && mountedRef.current) {
+          setSessionRestoreHint(false);
           setIsLoading(false);
         }
       }
@@ -459,6 +459,7 @@ export function GrubpacAuthProvider({
     () => ({
       isAuthenticated: !!token,
       isLoading,
+      sessionRestoreHint,
       isLoggingOut,
       isAuthenticating,
       token,
@@ -480,6 +481,7 @@ export function GrubpacAuthProvider({
     [
       token,
       isLoading,
+      sessionRestoreHint,
       isLoggingOut,
       isAuthenticating,
       user,
@@ -528,7 +530,8 @@ export function ProtectedRoute({
 }: {
   children: React.ReactNode;
 }) {
-  const { isAuthenticated, isLoading, isLoggingOut } = useGrubpacAuth();
+  const { isAuthenticated, isLoading, isLoggingOut, sessionRestoreHint } =
+    useGrubpacAuth();
   const router = useRouter();
 
   useEffect(() => {
@@ -538,11 +541,11 @@ export function ProtectedRoute({
   }, [isAuthenticated, isLoading, isLoggingOut, router]);
 
   if (isLoggingOut) {
-    return <AuthBootstrapLoader layout="dashboard" phase="sign-out" />;
+    return <AuthBootstrapLoader layout="login" phase="sign-out" />;
   }
 
   if (isLoading) {
-    if (isAuthenticated) {
+    if (isAuthenticated || sessionRestoreHint) {
       return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
     }
     return <AuthBootstrapLoader layout="minimal" phase="boot" />;

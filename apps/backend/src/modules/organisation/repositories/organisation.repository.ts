@@ -5,20 +5,28 @@ import {
   count,
   desc,
   eq,
+  exists,
   ilike,
   inArray,
   isNotNull,
+  lt,
   ne,
   or,
+  sql,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
 import {
+  organisationClientPocs,
+  organisationClients,
+  organisationDrivers,
   organisationEmployees,
   organisationLocations,
   organisationLocationTypes,
+  organisationSuppliers,
 } from '../../../database/schema';
+import type { OrganisationSupplierType } from '../constants/supplier-type.constants';
 import { SYSTEM_LOCATION_TYPE_PRESETS } from '../constants/system-location-type-presets';
 
 export type LocationInsert = typeof organisationLocations.$inferInsert;
@@ -26,6 +34,19 @@ export type LocationRow = typeof organisationLocations.$inferSelect;
 export type LocationTypeRow = typeof organisationLocationTypes.$inferSelect;
 export type EmployeeInsert = typeof organisationEmployees.$inferInsert;
 export type EmployeeRow = typeof organisationEmployees.$inferSelect;
+export type SupplierInsert = typeof organisationSuppliers.$inferInsert;
+export type SupplierRow = typeof organisationSuppliers.$inferSelect;
+export type DriverInsert = typeof organisationDrivers.$inferInsert;
+export type DriverRow = typeof organisationDrivers.$inferSelect;
+export type OrganisationClientInsert = typeof organisationClients.$inferInsert;
+export type OrganisationClientRow = typeof organisationClients.$inferSelect;
+export type OrganisationClientPocRow =
+  typeof organisationClientPocs.$inferSelect;
+
+export type DriverListRow = {
+  driver: DriverRow;
+  supplierName: string;
+};
 
 const reportsToEmployee = alias(organisationEmployees, 'reports_to_employee');
 
@@ -528,5 +549,487 @@ export class OrganisationRepository {
       )
       .returning();
     return row;
+  }
+
+  async listSuppliers(
+    organizationId: string,
+    page: number,
+    pageSize: number,
+    options: {
+      search?: string;
+      supplierType?: OrganisationSupplierType;
+      isActive?: boolean;
+    },
+  ): Promise<{ rows: SupplierRow[]; total: number }> {
+    const conditions = [
+      eq(organisationSuppliers.organizationId, organizationId),
+    ];
+    if (options.supplierType) {
+      conditions.push(
+        eq(organisationSuppliers.supplierType, options.supplierType),
+      );
+    }
+    if (options.isActive !== undefined) {
+      conditions.push(eq(organisationSuppliers.isActive, options.isActive));
+    }
+    const search = options.search?.trim();
+    if (search) {
+      const pattern = `%${search}%`;
+      conditions.push(
+        or(
+          ilike(organisationSuppliers.name, pattern),
+          ilike(organisationSuppliers.contactPerson, pattern),
+          ilike(organisationSuppliers.contactEmail, pattern),
+          ilike(organisationSuppliers.contactPhone, pattern),
+          ilike(organisationSuppliers.agreementReference, pattern),
+        )!,
+      );
+    }
+    const where = and(...conditions);
+    const offset = (page - 1) * pageSize;
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select()
+        .from(organisationSuppliers)
+        .where(where)
+        .orderBy(
+          desc(organisationSuppliers.createdAt),
+          desc(organisationSuppliers.id),
+        )
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: count() })
+        .from(organisationSuppliers)
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async getSupplierInOrg(
+    organizationId: string,
+    supplierId: string,
+  ): Promise<SupplierRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(organisationSuppliers)
+      .where(
+        and(
+          eq(organisationSuppliers.organizationId, organizationId),
+          eq(organisationSuppliers.id, supplierId),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  async insertSupplier(values: SupplierInsert): Promise<SupplierRow> {
+    const [row] = await this.db
+      .insert(organisationSuppliers)
+      .values(values)
+      .returning();
+    return row;
+  }
+
+  async updateSupplier(
+    organizationId: string,
+    supplierId: string,
+    patch: Partial<Omit<SupplierInsert, 'id' | 'organizationId' | 'createdAt'>>,
+  ): Promise<SupplierRow | undefined> {
+    const [row] = await this.db
+      .update(organisationSuppliers)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(
+        and(
+          eq(organisationSuppliers.organizationId, organizationId),
+          eq(organisationSuppliers.id, supplierId),
+        ),
+      )
+      .returning();
+    return row;
+  }
+
+  async listDrivers(
+    organizationId: string,
+    page: number,
+    pageSize: number,
+    options: {
+      search?: string;
+      isActive?: boolean;
+      licenseExpired?: boolean;
+    },
+  ): Promise<{ rows: DriverListRow[]; total: number }> {
+    const conditions = [eq(organisationDrivers.organizationId, organizationId)];
+    if (options.isActive !== undefined) {
+      conditions.push(eq(organisationDrivers.isActive, options.isActive));
+    }
+    if (options.licenseExpired) {
+      conditions.push(lt(organisationDrivers.licenseExpiry, sql`CURRENT_DATE`));
+    }
+    const search = options.search?.trim();
+    if (search) {
+      const pattern = `%${search}%`;
+      conditions.push(
+        or(
+          ilike(organisationDrivers.name, pattern),
+          ilike(organisationDrivers.cprNo, pattern),
+          ilike(organisationDrivers.licenseNumber, pattern),
+          ilike(organisationDrivers.email, pattern),
+          ilike(organisationDrivers.phone, pattern),
+          ilike(organisationDrivers.assignedVehicleCode, pattern),
+          ilike(organisationSuppliers.name, pattern),
+        )!,
+      );
+    }
+    const where = and(...conditions);
+    const offset = (page - 1) * pageSize;
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          driver: organisationDrivers,
+          supplierName: organisationSuppliers.name,
+        })
+        .from(organisationDrivers)
+        .innerJoin(
+          organisationSuppliers,
+          eq(organisationDrivers.supplierId, organisationSuppliers.id),
+        )
+        .where(where)
+        .orderBy(
+          desc(organisationDrivers.createdAt),
+          desc(organisationDrivers.id),
+        )
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: count() })
+        .from(organisationDrivers)
+        .innerJoin(
+          organisationSuppliers,
+          eq(organisationDrivers.supplierId, organisationSuppliers.id),
+        )
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async getDriverInOrg(
+    organizationId: string,
+    driverId: string,
+  ): Promise<DriverRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(organisationDrivers)
+      .where(
+        and(
+          eq(organisationDrivers.organizationId, organizationId),
+          eq(organisationDrivers.id, driverId),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  async getDriverWithSupplierInOrg(
+    organizationId: string,
+    driverId: string,
+  ): Promise<DriverListRow | undefined> {
+    const [row] = await this.db
+      .select({
+        driver: organisationDrivers,
+        supplierName: organisationSuppliers.name,
+      })
+      .from(organisationDrivers)
+      .innerJoin(
+        organisationSuppliers,
+        eq(organisationDrivers.supplierId, organisationSuppliers.id),
+      )
+      .where(
+        and(
+          eq(organisationDrivers.organizationId, organizationId),
+          eq(organisationDrivers.id, driverId),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  async insertDriver(values: DriverInsert): Promise<DriverRow> {
+    const [row] = await this.db
+      .insert(organisationDrivers)
+      .values(values)
+      .returning();
+    return row;
+  }
+
+  async listAssignedVehicleCodes(organizationId: string): Promise<string[]> {
+    const rows = await this.db
+      .select({
+        code: organisationDrivers.assignedVehicleCode,
+      })
+      .from(organisationDrivers)
+      .where(
+        and(
+          eq(organisationDrivers.organizationId, organizationId),
+          sql`${organisationDrivers.assignedVehicleCode} IS NOT NULL`,
+        ),
+      );
+    return rows
+      .map((row) => row.code?.trim())
+      .filter((code): code is string => Boolean(code));
+  }
+
+  async listDriversBySupplierId(
+    organizationId: string,
+    supplierId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ rows: DriverListRow[]; total: number }> {
+    const where = and(
+      eq(organisationDrivers.organizationId, organizationId),
+      eq(organisationDrivers.supplierId, supplierId),
+    );
+    const offset = (page - 1) * pageSize;
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          driver: organisationDrivers,
+          supplierName: organisationSuppliers.name,
+        })
+        .from(organisationDrivers)
+        .innerJoin(
+          organisationSuppliers,
+          eq(organisationDrivers.supplierId, organisationSuppliers.id),
+        )
+        .where(where)
+        .orderBy(
+          desc(organisationDrivers.createdAt),
+          desc(organisationDrivers.id),
+        )
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: count() })
+        .from(organisationDrivers)
+        .where(
+          and(
+            eq(organisationDrivers.organizationId, organizationId),
+            eq(organisationDrivers.supplierId, supplierId),
+          ),
+        ),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async listDriversByActiveLeaseId(
+    organizationId: string,
+    activeLeaseId: string,
+  ): Promise<DriverRow[]> {
+    const trimmed = activeLeaseId.trim();
+    if (!trimmed) return [];
+    return this.db
+      .select()
+      .from(organisationDrivers)
+      .where(
+        and(
+          eq(organisationDrivers.organizationId, organizationId),
+          eq(organisationDrivers.assignedActiveLeaseId, trimmed),
+          sql`${organisationDrivers.assignedVehicleCode} IS NOT NULL`,
+        ),
+      );
+  }
+
+  async findDriverByAssignedVehicleCode(
+    organizationId: string,
+    vehicleCode: string,
+  ): Promise<DriverRow | undefined> {
+    const trimmed = vehicleCode.trim();
+    if (!trimmed) return undefined;
+    const [row] = await this.db
+      .select()
+      .from(organisationDrivers)
+      .where(
+        and(
+          eq(organisationDrivers.organizationId, organizationId),
+          eq(organisationDrivers.assignedVehicleCode, trimmed),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  async updateDriver(
+    organizationId: string,
+    driverId: string,
+    patch: Partial<Omit<DriverInsert, 'id' | 'organizationId' | 'createdAt'>>,
+  ): Promise<DriverRow | undefined> {
+    const [row] = await this.db
+      .update(organisationDrivers)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(
+        and(
+          eq(organisationDrivers.organizationId, organizationId),
+          eq(organisationDrivers.id, driverId),
+        ),
+      )
+      .returning();
+    return row;
+  }
+
+  async listOrganisationClients(
+    organizationId: string,
+    page: number,
+    pageSize: number,
+    options: {
+      search?: string;
+      isActive?: boolean;
+    } = {},
+  ): Promise<{ rows: OrganisationClientRow[]; total: number }> {
+    const offset = (page - 1) * pageSize;
+    const conditions = [eq(organisationClients.organizationId, organizationId)];
+    if (options.isActive !== undefined) {
+      conditions.push(eq(organisationClients.isActive, options.isActive));
+    }
+    if (options.search?.trim()) {
+      const pattern = `%${options.search.trim()}%`;
+      conditions.push(
+        or(
+          ilike(organisationClients.name, pattern),
+          exists(
+            this.db
+              .select({ one: sql`1` })
+              .from(organisationClientPocs)
+              .where(
+                and(
+                  eq(organisationClientPocs.clientId, organisationClients.id),
+                  or(
+                    ilike(organisationClientPocs.name, pattern),
+                    ilike(organisationClientPocs.email, pattern),
+                  ),
+                ),
+              ),
+          ),
+        )!,
+      );
+    }
+    const where = and(...conditions);
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select()
+        .from(organisationClients)
+        .where(where)
+        .orderBy(
+          desc(organisationClients.createdAt),
+          desc(organisationClients.id),
+        )
+        .limit(pageSize)
+        .offset(offset),
+      this.db.select({ count: count() }).from(organisationClients).where(where),
+    ]);
+    return { rows, total: Number(countRows[0]?.count ?? 0) };
+  }
+
+  async getOrganisationClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<OrganisationClientRow | undefined> {
+    const [row] = await this.db
+      .select()
+      .from(organisationClients)
+      .where(
+        and(
+          eq(organisationClients.organizationId, organizationId),
+          eq(organisationClients.id, clientId),
+        ),
+      )
+      .limit(1);
+    return row;
+  }
+
+  async getOrganisationClientWithPocs(
+    organizationId: string,
+    clientId: string,
+  ): Promise<{
+    client: OrganisationClientRow;
+    pocs: OrganisationClientPocRow[];
+  } | null> {
+    const client = await this.getOrganisationClientInOrg(
+      organizationId,
+      clientId,
+    );
+    if (!client) return null;
+    const pocs = await this.db
+      .select()
+      .from(organisationClientPocs)
+      .where(eq(organisationClientPocs.clientId, clientId))
+      .orderBy(asc(organisationClientPocs.sortOrder));
+    return { client, pocs };
+  }
+
+  async insertOrganisationClient(
+    values: OrganisationClientInsert,
+  ): Promise<OrganisationClientRow> {
+    const [row] = await this.db
+      .insert(organisationClients)
+      .values(values)
+      .returning();
+    return row;
+  }
+
+  async updateOrganisationClient(
+    organizationId: string,
+    clientId: string,
+    patch: Partial<
+      Omit<OrganisationClientInsert, 'id' | 'organizationId' | 'createdAt'>
+    >,
+  ): Promise<OrganisationClientRow | undefined> {
+    const [row] = await this.db
+      .update(organisationClients)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(
+        and(
+          eq(organisationClients.organizationId, organizationId),
+          eq(organisationClients.id, clientId),
+        ),
+      )
+      .returning();
+    return row;
+  }
+
+  async replaceOrganisationClientPocs(
+    clientId: string,
+    pocs: Omit<
+      typeof organisationClientPocs.$inferInsert,
+      'id' | 'clientId' | 'createdAt' | 'updatedAt'
+    >[],
+  ): Promise<OrganisationClientPocRow[]> {
+    await this.db
+      .delete(organisationClientPocs)
+      .where(eq(organisationClientPocs.clientId, clientId));
+    if (pocs.length === 0) return [];
+    return this.db
+      .insert(organisationClientPocs)
+      .values(pocs.map((p) => ({ ...p, clientId })))
+      .returning();
+  }
+
+  async getPrimaryPocsForOrganisationClients(
+    clientIds: string[],
+  ): Promise<Map<string, OrganisationClientPocRow>> {
+    if (clientIds.length === 0) return new Map();
+    const rows = await this.db
+      .select()
+      .from(organisationClientPocs)
+      .where(
+        and(
+          inArray(organisationClientPocs.clientId, clientIds),
+          eq(organisationClientPocs.isPrimary, true),
+        ),
+      );
+    const map = new Map<string, OrganisationClientPocRow>();
+    for (const row of rows) {
+      map.set(row.clientId, row);
+    }
+    return map;
   }
 }

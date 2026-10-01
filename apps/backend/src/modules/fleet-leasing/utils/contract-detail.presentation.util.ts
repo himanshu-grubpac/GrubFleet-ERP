@@ -143,7 +143,11 @@ export function buildDetailSubtitle(input: {
   clientCompanyName: string | null;
   billingPaused: boolean;
   onHold: boolean;
+  contractFullyAllocated?: boolean;
 }): string {
+  if (input.rawStatus === 'active' && input.contractFullyAllocated) {
+    return 'All requested vehicles allocated.';
+  }
   const client = input.clientCompanyName ?? 'the client';
   const base = `Fleet & Leasing contract with ${client}.`;
   if (input.rawStatus === 'closed' || input.rawStatus === 'concluded') {
@@ -169,6 +173,7 @@ export function buildStatusBanner(input: {
   rawStatus: LeaseContractStatus;
   events: ContractEventRow[];
   labelsByUserId: Map<string, string>;
+  contractFullyAllocated?: boolean;
 }): {
   level: StatusBannerLevel;
   text: string;
@@ -176,6 +181,14 @@ export function buildStatusBanner(input: {
   actorLabel: string | null;
 } | null {
   const { rawStatus, events, labelsByUserId } = input;
+  if (rawStatus === 'active' && input.contractFullyAllocated) {
+    return {
+      level: 'success',
+      text: 'Contract is Active — every asset-class line is fully allocated.',
+      occurredAt: null,
+      actorLabel: null,
+    };
+  }
   if (rawStatus === 'closed' || rawStatus === 'concluded') {
     const term = findLatestEventByType(events, 'contract.termination_approved');
     const actorLabel = term

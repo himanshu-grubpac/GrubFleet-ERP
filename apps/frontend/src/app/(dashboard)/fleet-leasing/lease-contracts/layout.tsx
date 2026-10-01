@@ -6,9 +6,9 @@ import { LeaseContractsProvider } from "@/lib/api/lease-contracts-context";
  * in this subtree can call useLeaseApi() without touching useAuth() directly.
  */
 export default function LeaseContractsLayout({
-    children,
+  children,
 }: {
-    children: React.ReactNode;
+  children: React.ReactNode;
 }) {
-    return <LeaseContractsProvider>{children}</LeaseContractsProvider>;
+  return <LeaseContractsProvider>{children}</LeaseContractsProvider>;
 }

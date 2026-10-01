@@ -66,6 +66,8 @@ export interface AssetLine {
     inboundCount: number;
     shortfallCount: number;
     awaitingAssetsLine: boolean;
+    lineAllocationStatus?: 'allocated' | 'partially_allocated' | 'awaiting_assets';
+    lineStatusLabel?: string;
 }
 
 export interface ContractVehicle {
@@ -102,7 +104,7 @@ export interface LeaseContractDetail {
         canPauseBilling: boolean;
     };
 
-    availableActions: string[];
+    availableActions: LeaseContractAvailableActions | string[];
 
     lifecycleLogs: unknown[];
     logs: unknown[];
@@ -131,23 +133,76 @@ export interface LeaseContractDetail {
         pocs?: unknown[];
     } | null;
 
-    statusBanner?: unknown;
+    statusBanner?: {
+        level: 'success' | 'info' | 'warning';
+        text: string;
+        occurredAt: string | null;
+        actorLabel: string | null;
+    } | null;
     statusTags?: string[];
     requiresEditReview?: boolean;
     billingPaused?: boolean;
     onHold?: boolean;
+    contractFullyAllocated?: boolean;
+}
+
+export type LeaseContractAvailableActions = {
+    editContract?: { allowed: boolean; disabledReason?: string };
+    deactivate?: { allowed: boolean; disabledReason?: string };
+    reactivate?: { allowed: boolean; disabledReason?: string };
+    pauseBilling?: { allowed: boolean; disabledReason?: string };
+    requestTermination?: { allowed: boolean; disabledReason?: string };
+    approveTermination?: { allowed: boolean; disabledReason?: string };
+    renew?: { allowed: boolean; disabledReason?: string };
+};
+
+export interface ConfirmLeaseContractResponse {
+    contract: LeaseContractDetail;
+    activatedStatus: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Client
 // ─────────────────────────────────────────────────────────────────────────────
 
+export interface FleetClientPrimaryPoc {
+    id: string;
+    name: string;
+    email: string;
+    contactNumber: string;
+}
+
 export interface FleetClientListItem {
     id: string;
     companyName: string;
     clientCode?: string;
+    taxId?: string | null;
     isActive?: boolean;
+    primaryPoc?: FleetClientPrimaryPoc | null;
+    contractCount?: number;
 }
+
+export interface FleetClientDetail extends FleetClientListItem {
+    address?: string | null;
+    pointsOfContact?: Array<
+        FleetClientPrimaryPoc & { isPrimary: boolean }
+    >;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export type CreateFleetClientPayload = {
+    organizationId: string;
+    companyName: string;
+    taxId?: string;
+    address?: string;
+    pointsOfContact: Array<{
+        name: string;
+        contactNumber: string;
+        email: string;
+        isPrimary: boolean;
+    }>;
+};
 
 export interface PaginatedFleetClients {
     items: FleetClientListItem[];
@@ -218,7 +273,32 @@ export interface AssetAvailabilityRequest {
     committedQuantity: string;
 }
 
-export type AssetAvailabilityResponse = unknown;
+export interface AssetClassAvailabilitySnapshot {
+    assetClass: string;
+    committedQuantity: number;
+    availableNow: number;
+    inbound: number;
+    totalCover: number;
+    shortfallCount: number;
+    mvpAvailableNowCovers: boolean;
+    mvpShortByCount: number;
+    status: 'covered' | 'partial_today' | 'shortfall';
+    availabilityCovered: boolean;
+    awaitingAssetsLine: boolean;
+    message: string;
+}
+
+export interface AssetAvailabilityBatchPreviewResponse {
+    lines: AssetClassAvailabilitySnapshot[];
+    mvpAllLinesCovered: boolean;
+}
+
+export type AssetAvailabilityResponse =
+    AssetClassAvailabilitySnapshot;
+
+export interface FleetAssetClassListResponse {
+    items: string[];
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Lease contract create/update
@@ -230,26 +310,42 @@ export interface ContractAssetLineInput {
     ratePerVehicleMonth: string;
 }
 
-export interface CreateLeaseContractInput {
+/** Wizard draft — only `organizationId` (+ optional client) required on POST. */
+export type CreateLeaseContractDraftPayload = {
     clientId?: string;
+    startDate?: string;
+    endDate?: string;
+    termMonths?: number;
+    securityDeposit?: string;
+    billingFrequency?: 'monthly' | 'quarterly' | 'annual';
+    additionalTerms?: string;
+    amcTier?: string;
+    description?: string;
+    assetLines?: ContractAssetLineInput[];
+    vehicleIds?: string[];
+};
 
+export interface CreateLeaseContractInput extends CreateLeaseContractDraftPayload {
     startDate: string;
     endDate: string;
     termMonths: number;
     securityDeposit: string;
+    billingFrequency: 'monthly' | 'quarterly' | 'annual';
+    assetLines: ContractAssetLineInput[];
+}
 
-    billingFrequency:
-    | 'monthly'
-    | 'quarterly'
-    | 'annual';
+export interface UpdateContractAssetLinesPayload {
+    assetLines: ContractAssetLineInput[];
+    confirmShortfall?: boolean;
+}
 
+export interface UpdateContractTermsPayload {
+    startDate: string;
+    termMonths: number;
+    securityDeposit: string;
+    billingFrequency: 'monthly' | 'quarterly' | 'annual';
     additionalTerms?: string;
     amcTier?: string;
-    description?: string;
-
-    assetLines: ContractAssetLineInput[];
-
-    vehicleIds?: string[];
 }
 
 export interface UpdateLeaseContractInput {
@@ -549,12 +645,18 @@ export const confirmLeaseContract = (
     token: string,
     organizationId: string,
     contractId: string,
-) =>
-    contractAction(
-        token,
-        organizationId,
-        contractId,
-        'confirm',
+): Promise<ConfirmLeaseContractResponse> =>
+    apiFetch<ConfirmLeaseContractResponse>(
+        `/fleet-leasing/lease-contracts/${contractId}/confirm?${orgQuery(
+            organizationId,
+        )}`,
+        {
+            method: 'POST',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+        },
     );
 
 export const approveLeaseContract = (
@@ -621,10 +723,52 @@ export const renewLeaseContract = (
 // POST create lease contract
 // ─────────────────────────────────────────────────────────────────────────────
 
+export async function updateLeaseContractAssetLines(
+    token: string,
+    organizationId: string,
+    contractId: string,
+    payload: UpdateContractAssetLinesPayload,
+): Promise<unknown> {
+    return apiFetch<unknown>(
+        `/fleet-leasing/lease-contracts/${contractId}/asset-lines?${orgQuery(
+            organizationId,
+        )}`,
+        {
+            method: 'PUT',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+            body: JSON.stringify(payload),
+        },
+    );
+}
+
+export async function updateLeaseContractTerms(
+    token: string,
+    organizationId: string,
+    contractId: string,
+    payload: UpdateContractTermsPayload,
+): Promise<unknown> {
+    return apiFetch<unknown>(
+        `/fleet-leasing/lease-contracts/${contractId}/terms?${orgQuery(
+            organizationId,
+        )}`,
+        {
+            method: 'PUT',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+            body: JSON.stringify(payload),
+        },
+    );
+}
+
 export async function createLeaseContract(
     token: string,
     organizationId: string,
-    payload: CreateLeaseContractInput,
+    payload: CreateLeaseContractDraftPayload,
 ): Promise<LeaseContractDetail> {
     return apiFetch<LeaseContractDetail>(
         `/fleet-leasing/lease-contracts?${orgQuery(
@@ -726,6 +870,24 @@ export async function fetchFleetClients(
     );
 }
 
+export async function createFleetClient(
+    token: string,
+    organizationId: string,
+    payload: Omit<CreateFleetClientPayload, 'organizationId'>,
+): Promise<FleetClientDetail> {
+    return apiFetch<FleetClientDetail>(`/fleet-leasing/clients`, {
+        method: 'POST',
+        token,
+        headers: {
+            'x-organization-id': organizationId,
+        },
+        body: JSON.stringify({
+            organizationId,
+            ...payload,
+        }),
+    });
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GET asset availability
 // ─────────────────────────────────────────────────────────────────────────────
@@ -740,6 +902,43 @@ export async function fetchFleetClients(
 // assetClass
 // committedQuantity
 // ─────────────────────────────────────────────────────────────────────────────
+
+export async function fetchFleetAssetClasses(
+    token: string,
+    organizationId: string,
+): Promise<FleetAssetClassListResponse> {
+    return apiFetch<FleetAssetClassListResponse>(
+        `/fleet-leasing/asset-classes?${orgQuery(organizationId)}`,
+        {
+            method: 'GET',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+        },
+    );
+}
+
+export async function previewAssetAvailabilityBatch(
+    token: string,
+    organizationId: string,
+    lines: Array<{ assetClass: string; committedQuantity: number }>,
+): Promise<AssetAvailabilityBatchPreviewResponse> {
+    return apiFetch<AssetAvailabilityBatchPreviewResponse>(
+        `/fleet-leasing/asset-classes/availability/preview`,
+        {
+            method: 'POST',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+            body: JSON.stringify({
+                organizationId,
+                lines,
+            }),
+        },
+    );
+}
 
 export async function fetchAssetAvailability(
     token: string,

@@ -1,26 +1,23 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import {
     Plus,
     Trash2,
     AlertCircle,
     Minus,
-    Check,
+    Loader2,
+    Info,
 } from "lucide-react";
 
-const ASSET_CLASSES = [
-    "Sedan",
-    "SUV",
-    "Pickup",
-    "Van",
-    "Electric 2W",
-    "Electric 3W",
-    "Electric 4W",
-    "Hatchback",
-    "Commercial Truck",
-];
+import { useGrubpacAuth } from "@/lib/auth-context";
+import {
+    fetchFleetAssetClasses,
+    previewAssetAvailabilityBatch,
+    type AssetClassAvailabilitySnapshot,
+} from "@/lib/api/lease-contracts";
 
 export interface AssetLine {
     id: string;
@@ -34,7 +31,7 @@ interface AssetLinesStepProps {
     clientName: string;
     initialAssetLines?: AssetLine[];
     onBack: () => void;
-    onContinue: (assetLines: AssetLine[]) => void;
+    onContinue: (assetLines: AssetLine[]) => void | Promise<void>;
 }
 
 export default function AssetLinesStep({
@@ -44,689 +41,438 @@ export default function AssetLinesStep({
     onBack,
     onContinue,
 }: AssetLinesStepProps) {
-    const [assetLines, setAssetLines] =
-        useState<AssetLine[]>(
-            initialAssetLines?.length
-                ? initialAssetLines
-                : [
-                    {
-                        id: "line-1",
-                        assetClass: "Sedan",
-                        committedQuantity: 1,
-                        ratePerVehicleMonth: "",
-                    },
-                ],
-        );
+    const { token, organizationId } = useGrubpacAuth();
 
-    const [formError, setFormError] =
-        useState<string | null>(null);
+    const [assetLines, setAssetLines] = useState<AssetLine[]>(
+        initialAssetLines?.length ? initialAssetLines : [],
+    );
 
-    // ============================================================
-    // ADD ASSET LINE
-    // ============================================================
+    const [formError, setFormError] = useState<string | null>(null);
+    const [isContinuing, setIsContinuing] = useState(false);
+
+    const assetClassesQuery = useQuery({
+        queryKey: ["fleet-leasing-asset-classes", organizationId],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error(
+                    "Authentication or organization information is missing.",
+                );
+            }
+            return fetchFleetAssetClasses(token, organizationId);
+        },
+        enabled: Boolean(token && organizationId),
+        staleTime: 60_000,
+        refetchOnWindowFocus: false,
+    });
+
+    const assetClassOptions = assetClassesQuery.data?.items ?? [];
+
+    useEffect(() => {
+        if (initialAssetLines?.length) {
+            return;
+        }
+        const options = assetClassesQuery.data?.items ?? [];
+        if (!options.length) {
+            return;
+        }
+        setAssetLines((previous) => {
+            if (previous.length > 0) {
+                return previous;
+            }
+            return [
+                {
+                    id: "line-1",
+                    assetClass: options[0],
+                    committedQuantity: 1,
+                    ratePerVehicleMonth: "",
+                },
+            ];
+        });
+    }, [assetClassesQuery.data, initialAssetLines]);
+
+    const availabilityPreviewQuery = useQuery({
+        queryKey: [
+            "fleet-leasing-availability-batch",
+            organizationId,
+            assetLines.map(
+                (line) =>
+                    `${line.id}:${line.assetClass}:${line.committedQuantity}`,
+            ),
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error(
+                    "Authentication or organization information is missing.",
+                );
+            }
+            return previewAssetAvailabilityBatch(
+                token,
+                organizationId,
+                assetLines.map((line) => ({
+                    assetClass: line.assetClass,
+                    committedQuantity: line.committedQuantity,
+                })),
+            );
+        },
+        enabled:
+            Boolean(token && organizationId) &&
+            assetLines.length > 0 &&
+            assetLines.every(
+                (line) =>
+                    line.assetClass.trim().length > 0 &&
+                    line.committedQuantity >= 1,
+            ),
+        staleTime: 10_000,
+        refetchOnWindowFocus: false,
+    });
+
+    const availabilityByIndex = useMemo(() => {
+        const map = new Map<number, AssetClassAvailabilitySnapshot>();
+        availabilityPreviewQuery.data?.lines.forEach((snapshot, index) => {
+            map.set(index, snapshot);
+        });
+        return map;
+    }, [availabilityPreviewQuery.data?.lines]);
+
+    const mvpAllLinesCovered =
+        availabilityPreviewQuery.data?.mvpAllLinesCovered ?? false;
+
+    const firstShortfallLine = useMemo(() => {
+        for (let i = 0; i < assetLines.length; i += 1) {
+            const snapshot = availabilityByIndex.get(i);
+            if (snapshot && !snapshot.mvpAvailableNowCovers) {
+                return { line: assetLines[i], snapshot };
+            }
+        }
+        return null;
+    }, [assetLines, availabilityByIndex]);
 
     const addAssetLine = () => {
         setFormError(null);
+        if (!assetClassOptions.length) {
+            setFormError(
+                "No asset classes are available from the fleet register yet.",
+            );
+            return;
+        }
+        const nextClass =
+            assetClassOptions.find(
+                (option) =>
+                    !assetLines.some((line) => line.assetClass === option),
+            ) ?? assetClassOptions[0];
 
         setAssetLines((previous) => [
             ...previous,
             {
                 id: `line-${Date.now()}`,
-                assetClass: "SUV",
+                assetClass: nextClass,
                 committedQuantity: 1,
                 ratePerVehicleMonth: "",
             },
         ]);
     };
 
-    // ============================================================
-    // REMOVE ASSET LINE
-    // ============================================================
-
     const removeAssetLine = (id: string) => {
         if (assetLines.length === 1) {
-            setFormError(
-                "At least one asset line is required.",
-            );
+            setFormError("At least one asset line is required.");
             return;
         }
-
         setFormError(null);
-
         setAssetLines((previous) =>
-            previous.filter(
-                (line) => line.id !== id,
-            ),
+            previous.filter((line) => line.id !== id),
         );
     };
-
-    // ============================================================
-    // UPDATE ASSET LINE
-    // ============================================================
 
     const updateAssetLine = (
         id: string,
         patch: Partial<Omit<AssetLine, "id">>,
     ) => {
         setFormError(null);
-
         setAssetLines((previous) =>
             previous.map((line) =>
-                line.id === id
-                    ? {
-                        ...line,
-                        ...patch,
-                    }
-                    : line,
+                line.id === id ? { ...line, ...patch } : line,
             ),
         );
     };
-
-    // ============================================================
-    // QUANTITY
-    // ============================================================
-
-    const decreaseQuantity = (line: AssetLine) => {
-        updateAssetLine(line.id, {
-            committedQuantity: Math.max(
-                1,
-                line.committedQuantity - 1,
-            ),
-        });
-    };
-
-    const increaseQuantity = (line: AssetLine) => {
-        updateAssetLine(line.id, {
-            committedQuantity:
-                line.committedQuantity + 1,
-        });
-    };
-
-    const handleQuantityChange = (
-        line: AssetLine,
-        value: string,
-    ) => {
-        const numericValue = Number(value);
-
-        updateAssetLine(line.id, {
-            committedQuantity:
-                Number.isFinite(numericValue) &&
-                    numericValue >= 1
-                    ? Math.floor(numericValue)
-                    : 1,
-        });
-    };
-
-    // ============================================================
-    // TOTAL COMMITTED VEHICLES
-    // ============================================================
-
-    const totalCommittedVehicles = useMemo(
-        () =>
-            assetLines.reduce(
-                (sum, line) =>
-                    sum +
-                    (Number(
-                        line.committedQuantity,
-                    ) || 0),
-                0,
-            ),
-        [assetLines],
-    );
-
-    // ============================================================
-    // MONTHLY ESTIMATED REVENUE
-    // ============================================================
-
-    const monthlyEstimatedRevenue = useMemo(
-        () =>
-            assetLines.reduce(
-                (sum, line) =>
-                    sum +
-                    (Number(
-                        line.committedQuantity,
-                    ) || 0) *
-                    (Number(
-                        line.ratePerVehicleMonth,
-                    ) || 0),
-                0,
-            ),
-        [assetLines],
-    );
-
-    // ============================================================
-    // CONTINUE
-    // ============================================================
 
     const handleContinue = () => {
         setFormError(null);
 
         if (!clientId) {
-            setFormError(
-                "Please select a client first.",
-            );
+            setFormError("Please select a client first.");
+            return;
+        }
+
+        if (!assetLines.length) {
+            setFormError("Add at least one asset-class line to continue.");
             return;
         }
 
         for (const line of assetLines) {
             if (!line.assetClass) {
-                setFormError(
-                    "All asset lines must have an asset class.",
-                );
+                setFormError("All asset lines must have an asset class.");
                 return;
             }
-
-            if (
-                !line.committedQuantity ||
-                line.committedQuantity < 1
-            ) {
-                setFormError(
-                    "Committed quantity must be at least 1.",
-                );
-                return;
-            }
-
-            if (
-                line.ratePerVehicleMonth === "" ||
-                Number.isNaN(
-                    Number(
-                        line.ratePerVehicleMonth,
-                    ),
-                ) ||
-                Number(
-                    line.ratePerVehicleMonth,
-                ) < 0
-            ) {
-                setFormError(
-                    "Please enter a valid monthly rate for all asset lines.",
-                );
+            if (!line.committedQuantity || line.committedQuantity < 1) {
+                setFormError("Requested quantity must be at least 1.");
                 return;
             }
         }
 
-        onContinue(assetLines);
+        if (availabilityPreviewQuery.isLoading) {
+            setFormError("Still checking fleet availability. Please wait.");
+            return;
+        }
+
+        if (!mvpAllLinesCovered) {
+            setFormError(
+                "Reduce requested quantities or remove lines that exceed available fleet before continuing.",
+            );
+            return;
+        }
+
+        setIsContinuing(true);
+        void Promise.resolve(onContinue(assetLines)).finally(() => {
+            setIsContinuing(false);
+        });
     };
+
+    const subtitle = mvpAllLinesCovered
+        ? "Every requested line covered by available fleet."
+        : firstShortfallLine
+          ? "One line requests more than the fleet currently has available."
+          : "Set asset-class lines and requested quantities for this contract.";
 
     return (
         <>
-                    <div className="mb-5">
-                        <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                            Asset classes & committed counts
-                        </h1>
+            <div className="mb-5">
+                <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
+                    {clientName || "Selected client"}
+                </h1>
+                <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
+                    {subtitle}
+                </p>
+            </div>
 
-                        <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                            A contract can cover several
-                            asset-class lines, each with its
-                            own count and rate. Vehicles
-                            resolve automatically per line at
-                            confirmation — nothing is
-                            hand-picked here.
-                        </p>
-                    </div>
+            {formError && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                    <span>{formError}</span>
+                </div>
+            )}
 
-                    {/* =================================================
-                        CLIENT
-                    ================================================== */}
+            {assetClassesQuery.isLoading && (
+                <div
+                    className="mb-4 flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600"
+                    aria-busy="true"
+                >
+                    <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    Loading asset classes from fleet register…
+                </div>
+            )}
 
-                    <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                            Client
-                        </p>
+            {assetClassesQuery.isError && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                    <span>
+                        Could not load asset classes. Please retry or register
+                        fleet vehicles first.
+                    </span>
+                </div>
+            )}
 
-                        <p className="mt-1 text-sm font-semibold text-slate-800">
-                            {clientName ||
-                                "Selected client"}
-                        </p>
-                    </div>
+            <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+                <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
+                    <h2 className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                        Asset-class lines
+                    </h2>
+                </div>
 
-                    {/* =================================================
-                        ERROR
-                    ================================================== */}
+                <div className="hidden grid-cols-[1.2fr_0.9fr_1fr_40px] gap-3 border-b border-slate-100 bg-slate-50 px-4 py-2.5 sm:grid sm:px-5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Asset class
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Qty requested
+                    </span>
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+                        Available
+                    </span>
+                    <span />
+                </div>
 
-                    {formError && (
-                        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
-                            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+                {assetLines.map((line, index) => {
+                    const snapshot = availabilityByIndex.get(index);
+                    const availabilityLoading =
+                        availabilityPreviewQuery.isLoading &&
+                        !availabilityPreviewQuery.isError;
 
-                            <span>
-                                {formError}
-                            </span>
-                        </div>
-                    )}
-
-                    {/* =================================================
-                        ASSET LINES
-                    ================================================== */}
-
-                    <div className="space-y-3">
-                        {assetLines.map((line) => {
-                            const lineTotal =
-                                (Number(
-                                    line.committedQuantity,
-                                ) || 0) *
-                                (Number(
-                                    line.ratePerVehicleMonth,
-                                ) || 0);
-
-                            return (
-                                <div
-                                    key={line.id}
-                                    className="rounded-lg border border-slate-200 bg-white shadow-sm"
+                    return (
+                        <div
+                            key={line.id}
+                            className="border-b border-slate-100 px-4 py-4 last:border-b-0 sm:px-5"
+                        >
+                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.9fr_1fr_40px] sm:items-center sm:gap-3">
+                                <select
+                                    value={line.assetClass}
+                                    onChange={(event) =>
+                                        updateAssetLine(line.id, {
+                                            assetClass: event.target.value,
+                                        })
+                                    }
+                                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
                                 >
-                                    {/* =================================
-                                        DESKTOP / TABLE HEADER
-                                    ================================== */}
+                                    {assetClassOptions.map((assetClass) => (
+                                        <option key={assetClass} value={assetClass}>
+                                            {assetClass}
+                                        </option>
+                                    ))}
+                                </select>
 
-                                    <div className="hidden grid-cols-[1.1fr_1.05fr_1.55fr_40px] items-center gap-4 border-b border-slate-100 px-4 py-2.5 sm:grid sm:px-5">
-                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                            Asset Class
-                                        </span>
+                                <QuantityControl
+                                    value={line.committedQuantity}
+                                    onDecrease={() =>
+                                        updateAssetLine(line.id, {
+                                            committedQuantity: Math.max(
+                                                1,
+                                                line.committedQuantity - 1,
+                                            ),
+                                        })
+                                    }
+                                    onIncrease={() =>
+                                        updateAssetLine(line.id, {
+                                            committedQuantity:
+                                                line.committedQuantity + 1,
+                                        })
+                                    }
+                                    onChange={(value) => {
+                                        const numericValue = Number(value);
+                                        updateAssetLine(line.id, {
+                                            committedQuantity:
+                                                Number.isFinite(numericValue) &&
+                                                numericValue >= 1
+                                                    ? Math.floor(numericValue)
+                                                    : 1,
+                                        });
+                                    }}
+                                />
 
-                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                            Committed Count
-                                        </span>
+                                <AvailabilityCell
+                                    loading={availabilityLoading}
+                                    snapshot={snapshot}
+                                    error={availabilityPreviewQuery.isError}
+                                />
 
-                                        <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                            Rate (per vehicle / month)
-                                        </span>
-
-                                        <span />
-                                    </div>
-
-                                    {/* =================================
-                                        DESKTOP ROW
-                                    ================================== */}
-
-                                    <div className="hidden grid-cols-[1.1fr_1.05fr_1.55fr_40px] items-center gap-4 px-4 py-3.5 sm:grid sm:px-5">
-                                        {/* ASSET CLASS */}
-
-                                        <div>
-                                            <select
-                                                value={
-                                                    line.assetClass
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    updateAssetLine(
-                                                        line.id,
-                                                        {
-                                                            assetClass:
-                                                                event
-                                                                    .target
-                                                                    .value,
-                                                        },
-                                                    )
-                                                }
-                                                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                            >
-                                                {ASSET_CLASSES.map(
-                                                    (
-                                                        assetClass,
-                                                    ) => (
-                                                        <option
-                                                            key={
-                                                                assetClass
-                                                            }
-                                                            value={
-                                                                assetClass
-                                                            }
-                                                        >
-                                                            {
-                                                                assetClass
-                                                            }
-                                                        </option>
-                                                    ),
-                                                )}
-                                            </select>
-                                        </div>
-
-                                        {/* COMMITTED COUNT */}
-
-                                        <QuantityControl
-                                            value={
-                                                line.committedQuantity
-                                            }
-                                            onDecrease={() =>
-                                                decreaseQuantity(
-                                                    line,
-                                                )
-                                            }
-                                            onIncrease={() =>
-                                                increaseQuantity(
-                                                    line,
-                                                )
-                                            }
-                                            onChange={(
-                                                value,
-                                            ) =>
-                                                handleQuantityChange(
-                                                    line,
-                                                    value,
-                                                )
-                                            }
-                                        />
-
-                                        {/* RATE */}
-
-                                        <div className="relative">
-                                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                                                ₹
-                                            </span>
-
-                                            <input
-                                                type="number"
-                                                min="0"
-                                                step="500"
-                                                value={
-                                                    line.ratePerVehicleMonth
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    updateAssetLine(
-                                                        line.id,
-                                                        {
-                                                            ratePerVehicleMonth:
-                                                                event
-                                                                    .target
-                                                                    .value,
-                                                        },
-                                                    )
-                                                }
-                                                placeholder="e.g. 32,000"
-                                                className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                            />
-                                        </div>
-
-                                        {/* DELETE */}
-
-                                        <button
-                                            type="button"
-                                            onClick={() =>
-                                                removeAssetLine(
-                                                    line.id,
-                                                )
-                                            }
-                                            className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500"
-                                            title="Remove asset line"
-                                        >
-                                            <Trash2 className="h-4 w-4" />
-                                        </button>
-                                    </div>
-
-                                    {/* =================================
-                                        MOBILE ROW
-                                    ================================== */}
-
-                                    <div className="space-y-4 p-4 sm:hidden">
-                                        {/* Asset class */}
-
-                                        <div>
-                                            <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                                Asset Class
-                                            </label>
-
-                                            <select
-                                                value={
-                                                    line.assetClass
-                                                }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    updateAssetLine(
-                                                        line.id,
-                                                        {
-                                                            assetClass:
-                                                                event
-                                                                    .target
-                                                                    .value,
-                                                        },
-                                                    )
-                                                }
-                                                className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                            >
-                                                {ASSET_CLASSES.map(
-                                                    (
-                                                        assetClass,
-                                                    ) => (
-                                                        <option
-                                                            key={
-                                                                assetClass
-                                                            }
-                                                            value={
-                                                                assetClass
-                                                            }
-                                                        >
-                                                            {
-                                                                assetClass
-                                                            }
-                                                        </option>
-                                                    ),
-                                                )}
-                                            </select>
-                                        </div>
-
-                                        <div className="grid grid-cols-1 gap-4">
-                                            {/* Quantity */}
-
-                                            <div>
-                                                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                                    Committed Count
-                                                </label>
-
-                                                <QuantityControl
-                                                    value={
-                                                        line.committedQuantity
-                                                    }
-                                                    onDecrease={() =>
-                                                        decreaseQuantity(
-                                                            line,
-                                                        )
-                                                    }
-                                                    onIncrease={() =>
-                                                        increaseQuantity(
-                                                            line,
-                                                        )
-                                                    }
-                                                    onChange={(
-                                                        value,
-                                                    ) =>
-                                                        handleQuantityChange(
-                                                            line,
-                                                            value,
-                                                        )
-                                                    }
-                                                />
-                                            </div>
-
-                                            {/* Rate */}
-
-                                            <div>
-                                                <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                                    Rate / vehicle / month
-                                                </label>
-
-                                                <div className="relative">
-                                                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                                                        ₹
-                                                    </span>
-
-                                                    <input
-                                                        type="number"
-                                                        min="0"
-                                                        step="500"
-                                                        value={
-                                                            line.ratePerVehicleMonth
-                                                        }
-                                                        onChange={(
-                                                            event,
-                                                        ) =>
-                                                            updateAssetLine(
-                                                                line.id,
-                                                                {
-                                                                    ratePerVehicleMonth:
-                                                                        event
-                                                                            .target
-                                                                            .value,
-                                                                },
-                                                            )
-                                                        }
-                                                        placeholder="e.g. 32,000"
-                                                        className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Total / Delete */}
-
-                                        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                                            <div>
-                                                <p className="text-[10px] uppercase tracking-wide text-slate-400">
-                                                    Monthly line total
-                                                </p>
-
-                                                <p className="mt-0.5 text-sm font-semibold text-slate-800">
-                                                    ₹
-                                                    {lineTotal.toLocaleString(
-                                                        "en-IN",
-                                                    )}
-                                                </p>
-                                            </div>
-
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    removeAssetLine(
-                                                        line.id,
-                                                    )
-                                                }
-                                                className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-500"
-                                                title="Remove asset line"
-                                            >
-                                                <Trash2 className="h-4 w-4" />
-                                            </button>
-                                        </div>
-                                    </div>
-
-                                    {/* =================================
-                                        LINE TOTAL / STATUS
-                                    ================================== */}
-
-                                    <div className="flex flex-col gap-2 border-t border-slate-100 bg-slate-50/70 px-4 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-                                        <div className="flex items-center gap-2">
-                                            <span className="inline-flex items-center gap-1.5 rounded-full bg-orange-50 px-2.5 py-1 text-[10px] font-semibold text-[#FE5720]">
-                                                <Check className="h-3 w-3" />
-                                                Committed
-                                            </span>
-
-                                            <span className="text-xs text-slate-500">
-                                                {
-                                                    line.committedQuantity
-                                                }{" "}
-                                                vehicle
-                                                {line.committedQuantity !==
-                                                    1
-                                                    ? "s"
-                                                    : ""}{" "}
-                                                committed
-                                            </span>
-                                        </div>
-
-                                        <div className="hidden text-right sm:block">
-                                            <span className="text-[10px] uppercase tracking-wide text-slate-400">
-                                                Monthly line total
-                                            </span>
-
-                                            <span className="ml-2 text-sm font-semibold text-slate-800">
-                                                ₹
-                                                {lineTotal.toLocaleString(
-                                                    "en-IN",
-                                                )}
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            );
-                        })}
-                    </div>
-
-                    {/* =================================================
-                        ADD ASSET LINE
-                    ================================================== */}
-
-                    <button
-                        type="button"
-                        onClick={addAssetLine}
-                        className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline"
-                    >
-                        <Plus className="h-4 w-4" />
-                        Add another asset-class line
-                    </button>
-
-                    {/* =================================================
-                        SUMMARY
-                    ================================================== */}
-
-                    <div className="mt-6 rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-5">
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                            <div>
-                                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                    Total committed vehicles
-                                </p>
-
-                                <p className="mt-1 text-lg font-semibold text-slate-800">
-                                    {
-                                        totalCommittedVehicles
-                                    }{" "}
-                                    units
-                                </p>
-                            </div>
-
-                            <div className="sm:text-right">
-                                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                                    Estimated monthly billing
-                                </p>
-
-                                <p className="mt-1 text-lg font-bold text-[#FE5720]">
-                                    ₹
-                                    {monthlyEstimatedRevenue.toLocaleString(
-                                        "en-IN",
-                                    )}
-                                </p>
+                                <button
+                                    type="button"
+                                    onClick={() => removeAssetLine(line.id)}
+                                    className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 sm:justify-self-end"
+                                    title="Remove asset line"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
                             </div>
                         </div>
-                    </div>
+                    );
+                })}
+            </div>
 
-                    {/* =================================================
-                        ACTIONS
-                    ================================================== */}
+            {!mvpAllLinesCovered && firstShortfallLine && (
+                <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-700">
+                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#FE5720]" />
+                    <p>
+                        <span className="font-semibold">
+                            {firstShortfallLine.line.assetClass}
+                        </span>{" "}
+                        can&apos;t be added to this contract — only{" "}
+                        {firstShortfallLine.snapshot.availableNow} of the{" "}
+                        {firstShortfallLine.line.committedQuantity} requested
+                        units are currently available. Reduce the requested
+                        quantity, remove the line, or wait until more fleet
+                        becomes available. A lease can only be created against
+                        currently available fleet — there&apos;s no
+                        partial/Awaiting-Assets path in this MVP.
+                    </p>
+                </div>
+            )}
 
-                    <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <button
-                            type="button"
-                            onClick={onBack}
-                            className="inline-flex h-10 w-full items-center justify-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
-                        >
+            <button
+                type="button"
+                onClick={addAssetLine}
+                disabled={
+                    assetClassesQuery.isLoading || !assetClassOptions.length
+                }
+                className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+            >
+                <Plus className="h-4 w-4" />
+                Add another asset-class line
+            </button>
 
-                            Back
-                        </button>
+            <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <button
+                    type="button"
+                    onClick={onBack}
+                    className="inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
+                >
+                    Back
+                </button>
 
-                        <Button
-                            type="button"
-                            variant="primary"
-                            onClick={handleContinue}
-                        >
-                            Next: Terms
-                        </Button>
-                    </div>
+                <Button
+                    type="button"
+                    variant="primary"
+                    onClick={handleContinue}
+                    disabled={
+                        isContinuing ||
+                        assetClassesQuery.isLoading ||
+                        !assetClassOptions.length ||
+                        !assetLines.length ||
+                        availabilityPreviewQuery.isLoading ||
+                        !mvpAllLinesCovered
+                    }
+                >
+                    {isContinuing ? "Saving…" : "Continue"}
+                </Button>
+            </div>
         </>
     );
 }
 
-/* ================================================================
-   QUANTITY CONTROL
-================================================================ */
+function AvailabilityCell({
+    loading,
+    snapshot,
+    error,
+}: {
+    loading: boolean;
+    snapshot?: AssetClassAvailabilitySnapshot;
+    error: boolean;
+}) {
+    if (loading) {
+        return (
+            <span className="text-xs text-slate-400">Checking…</span>
+        );
+    }
+
+    if (error || !snapshot) {
+        return (
+            <span className="text-xs text-slate-400">—</span>
+        );
+    }
+
+    if (snapshot.mvpAvailableNowCovers) {
+        return (
+            <span className="text-sm font-semibold text-green-700">
+                {snapshot.availableNow} available
+            </span>
+        );
+    }
+
+    return (
+        <span className="text-sm font-semibold text-red-600">
+            {snapshot.availableNow} available — short by{" "}
+            {snapshot.mvpShortByCount}
+        </span>
+    );
+}
 
 function QuantityControl({
     value,
@@ -746,7 +492,7 @@ function QuantityControl({
                 onClick={onDecrease}
                 disabled={value <= 1}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-l-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
-                aria-label="Decrease committed quantity"
+                aria-label="Decrease requested quantity"
             >
                 <Minus className="h-4 w-4" />
             </button>
@@ -755,19 +501,16 @@ function QuantityControl({
                 type="number"
                 min="1"
                 value={value}
-                onChange={(event) =>
-                    onChange(event.target.value)
-                }
+                onChange={(event) => onChange(event.target.value)}
                 className="h-10 min-w-0 flex-1 border-y border-slate-300 bg-white px-2 text-center text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                aria-label="Committed quantity"
+                aria-label="Requested quantity"
             />
-
 
             <button
                 type="button"
                 onClick={onIncrease}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-r-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50"
-                aria-label="Increase committed quantity"
+                aria-label="Increase requested quantity"
             >
                 <Plus className="h-4 w-4" />
             </button>

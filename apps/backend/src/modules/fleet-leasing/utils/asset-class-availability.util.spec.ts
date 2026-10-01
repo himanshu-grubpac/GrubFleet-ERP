@@ -6,12 +6,16 @@ describe('computeAssetLineAvailability', () => {
     expect(r.status).toBe('covered');
     expect(r.availabilityCovered).toBe(true);
     expect(r.shortfallCount).toBe(0);
+    expect(r.mvpAvailableNowCovers).toBe(true);
+    expect(r.mvpShortByCount).toBe(0);
   });
 
   it('returns partial_today when inbound fills gap', () => {
     const r = computeAssetLineAvailability('SUV', 4, 2, 2, false);
     expect(r.status).toBe('partial_today');
     expect(r.availabilityCovered).toBe(true);
+    expect(r.mvpAvailableNowCovers).toBe(false);
+    expect(r.mvpShortByCount).toBe(2);
   });
 
   it('returns shortfall when total cover insufficient', () => {

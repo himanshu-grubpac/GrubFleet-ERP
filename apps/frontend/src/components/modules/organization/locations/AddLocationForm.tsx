@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import { InlineAddField } from "@/components/ui/inline-add-field";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import {
     ORG_INPUT_LIMITS,
@@ -406,6 +407,9 @@ export default function AddLocationForm({
     const [newType, setNewType] =
         useState("");
 
+    const [isAddingLocationType, setIsAddingLocationType] =
+        useState(false);
+
     const [form, setForm] =
         useState<LocationFormData>({
             name: "",
@@ -654,6 +658,7 @@ export default function AddLocationForm({
             return;
         }
 
+        setIsAddingLocationType(true);
         try {
             const created = await createOrganisationLocationTypeApi(
                 token,
@@ -673,6 +678,8 @@ export default function AddLocationForm({
                     ? saveError.message
                     : "Failed to add location type.";
             setError(message);
+        } finally {
+            setIsAddingLocationType(false);
         }
     };
 
@@ -978,45 +985,23 @@ export default function AddLocationForm({
                     {/* Add Type Input                                                  */}
                     {/* -------------------------------------------------------------- */}
 
-                    {showAddType && (
-                        <div className="mt-3 flex max-w-md items-center gap-2">
-
-                            <RestrictedInput
-                                restrictedKind="text"
-                                maxLength={ORG_INPUT_LIMITS.locationTypeName}
-                                value={newType}
-                                onChange={setNewType}
-                                onKeyDown={(event) => {
-                                    if (event.key === "Enter") {
-                                        handleAddType();
-                                    }
-                                }}
-                                autoFocus
-                                placeholder="Enter new location type"
-                                className="h-9 flex-1 rounded-md border border-gray-300 px-3 text-sm outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                            />
-
-                            <Button
-                                type="button"
-                                onClick={handleAddType}
-                                className="h-9 px-4"
-                            >
-                                Add
-                            </Button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setNewType("");
-                                    setShowAddType(false);
-                                }}
-                                className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-500 hover:bg-gray-50"
-                                title="Cancel"
-                            >
-                                <X className="h-4 w-4" />
-                            </button>
-                        </div>
-                    )}
+                    {showAddType ? (
+                        <InlineAddField
+                            className="mt-3"
+                            value={newType}
+                            onChange={setNewType}
+                            onAdd={() => void handleAddType()}
+                            isPending={isAddingLocationType}
+                            maxLength={ORG_INPUT_LIMITS.locationTypeName}
+                            placeholder="Enter new location type"
+                            autoFocus
+                            onCancel={() => {
+                                setNewType("");
+                                setShowAddType(false);
+                                setError("");
+                            }}
+                        />
+                    ) : null}
                 </div>
 
                 {/* ---------------------------------------------------------------- */}

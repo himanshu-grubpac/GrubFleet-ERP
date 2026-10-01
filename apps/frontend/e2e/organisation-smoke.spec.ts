@@ -1,20 +1,7 @@
-import { expect, test, type APIRequestContext } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
-const adminEmail =
-  process.env.E2E_ADMIN_EMAIL ?? "admin@grubpac.local";
-const adminPassword = process.env.E2E_ADMIN_PASSWORD ?? "Grubpac123";
-const apiBase =
-  process.env.E2E_API_BASE_URL ??
-  process.env.NEXT_PUBLIC_API_BASE_URL ??
-  "http://localhost:4000/api/v1";
-
-async function loginViaUi(page: import("@playwright/test").Page) {
-  await page.goto("/login");
-  await page.getByLabel("Email address").fill(adminEmail);
-  await page.getByLabel("Password").fill(adminPassword);
-  await page.getByRole("button", { name: /sign in/i }).click();
-  await page.waitForURL("**/dashboard**", { timeout: 60_000 });
-}
+import { apiJson } from "./helpers/api";
+import { loginViaUi } from "./helpers/login";
 
 async function readAccessToken(
   page: import("@playwright/test").Page,
@@ -24,34 +11,6 @@ async function readAccessToken(
   );
   if (!token) throw new Error("access_token missing after login");
   return token;
-}
-
-async function apiJson<T>(
-  request: APIRequestContext,
-  token: string,
-  organizationId: string | undefined,
-  method: "GET" | "POST" | "PATCH",
-  path: string,
-  body?: unknown,
-): Promise<T> {
-  const url = `${apiBase.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`;
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-  };
-  if (organizationId) {
-    headers["x-organization-id"] = organizationId;
-  }
-  const res = await request.fetch(url, {
-    method,
-    headers,
-    data: body,
-  });
-  if (!res.ok()) {
-    const text = await res.text();
-    throw new Error(`${method} ${path} failed ${res.status()}: ${text}`);
-  }
-  return (await res.json()) as T;
 }
 
 test.describe("Organisation smoke", () => {
@@ -73,6 +32,159 @@ test.describe("Organisation smoke", () => {
     await page.goto("/organization/employees");
     await expect(page.getByRole("heading", { name: /employees/i })).toBeVisible({
       timeout: 60_000,
+    });
+
+    await page.goto("/organization/suppliers");
+    await expect(page.getByRole("heading", { name: /suppliers/i })).toBeVisible({
+      timeout: 60_000,
+    });
+
+    const supplierUnique = Date.now();
+    const supplier = await apiJson<{ id: string; name: string }>(
+      request,
+      token,
+      organizationId!,
+      "POST",
+      "/organisation/suppliers",
+      {
+        organizationId,
+        name: `E2E Supplier ${supplierUnique}`,
+        supplierType: "spare_parts",
+        contactPerson: "E2E Contact",
+        contactPhone: "+919876543210",
+        contactEmail: `e2e.supplier.${supplierUnique}@grubpac.local`,
+        addressLine1: "E2E Line 1",
+        addressCountry: "IN",
+        addressState: "Maharashtra",
+        addressDistrict: "Mumbai",
+        addressPincode: "400001",
+      },
+    );
+
+    await page.goto("/organization/suppliers");
+    await expect(page.getByText(supplier.name)).toBeVisible({
+      timeout: 60_000,
+    });
+
+    await page.getByRole("button", { name: /^spare parts$/i }).click();
+    await expect(page.getByText(supplier.name)).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.getByRole("button", { name: /^all$/i }).click();
+
+    const supplierTypes = await apiJson<{
+      items: Array<{ key: string; label: string }>;
+    }>(
+      request,
+      token,
+      organizationId!,
+      "GET",
+      `/organisation/suppliers/types?organizationId=${organizationId}`,
+    );
+    expect(supplierTypes.items.some((t) => t.key === "spare_parts")).toBe(true);
+
+    const supplierRow = page.getByRole("row", {
+      name: new RegExp(supplier.name),
+    });
+    await supplierRow.getByRole("link", { name: /view supplier/i }).click();
+    await expect(page.getByRole("heading", { name: supplier.name })).toBeVisible({
+      timeout: 30_000,
+    });
+    await page.goto("/organization/suppliers");
+
+    const searchInput = page.getByPlaceholder(
+      /search by supplier or contact person name/i,
+    );
+    await searchInput.fill(String(supplierUnique));
+    await expect(page.getByText(supplier.name)).toBeVisible({
+      timeout: 30_000,
+    });
+    await searchInput.fill("");
+
+    await supplierRow
+      .getByRole("button", { name: /supplier actions/i })
+      .click();
+    await page.getByRole("menuitem", { name: /deactivate/i }).click();
+    await page.getByLabel(/reason/i).fill("E2E supplier smoke deactivate");
+    await page.getByRole("button", { name: /^deactivate$/i }).click();
+    await expect(page.getByRole("dialog")).not.toBeVisible({
+      timeout: 30_000,
+    });
+
+    await page.getByRole("combobox").selectOption({ label: "Inactive" });
+    await expect(
+      page.getByRole("cell", { name: supplier.name, exact: true }),
+    ).toBeVisible({
+      timeout: 30_000,
+    });
+
+    const inactiveSeedName = "Dev Seed Supplier — NorthStar Fleet Parts (US)";
+    const inactiveSeedRow = page.getByRole("row", {
+      name: new RegExp(inactiveSeedName),
+    });
+    if (await inactiveSeedRow.isVisible().catch(() => false)) {
+      await inactiveSeedRow
+        .getByRole("button", { name: /supplier actions/i })
+        .click();
+      await page.getByRole("menuitem", { name: /activate/i }).click();
+      await page.getByRole("button", { name: /^activate$/i }).click();
+      await expect(page.getByRole("dialog")).not.toBeVisible({
+        timeout: 30_000,
+      });
+    }
+    await page.getByRole("combobox").selectOption({ label: "All statuses" });
+
+    const clientUnique = Date.now();
+    const client = await apiJson<{ id: string; clientName: string }>(
+      request,
+      token,
+      organizationId!,
+      "POST",
+      "/organisation/clients",
+      {
+        organizationId,
+        clientName: `E2E Client ${clientUnique}`,
+        addressLine1: "E2E Line 1",
+        addressCountry: "IN",
+        addressState: "Maharashtra",
+        addressDistrict: "Mumbai",
+        addressPincode: "400001",
+        pointsOfContact: [
+          {
+            name: "E2E POC",
+            contactNumber: "+919876543211",
+            email: `e2e.client.${clientUnique}@grubpac.local`,
+            isPrimary: true,
+          },
+        ],
+      },
+    );
+
+    await page.goto("/organization/clients");
+    await expect(page.getByRole("heading", { name: /^clients$/i })).toBeVisible({
+      timeout: 60_000,
+    });
+    await expect(page.getByText(client.clientName)).toBeVisible({
+      timeout: 60_000,
+    });
+
+    const clientRow = page.getByRole("row", {
+      name: new RegExp(client.clientName),
+    });
+    await clientRow.getByRole("link", { name: /view client/i }).click();
+    await expect(
+      page.getByRole("heading", { name: client.clientName }),
+    ).toBeVisible({ timeout: 30_000 });
+
+    await page.goto("/organization/clients");
+    await clientRow
+      .getByRole("button", { name: /client actions/i })
+      .click();
+    await page.getByRole("menuitem", { name: /deactivate/i }).click();
+    await page.getByLabel(/reason/i).fill("E2E client smoke deactivate");
+    await page.getByRole("button", { name: /^deactivate$/i }).click();
+    await expect(page.getByRole("dialog")).not.toBeVisible({
+      timeout: 30_000,
     });
 
     const types = await apiJson<{ items: Array<{ id: string; name: string }> }>(
@@ -134,13 +246,22 @@ test.describe("Organisation smoke", () => {
       .getByRole("button", { name: /employee actions/i })
       .click();
     await page.getByRole("menuitem", { name: /deactivate/i }).click();
-
-    const reasonField = page.getByLabel(/reason/i);
-    await reasonField.fill("E2E smoke deactivate");
+    await page.getByRole("button", { name: /^resignation$/i }).click();
+    await page.locator("#employee-deactivate-comment").fill(
+      "E2E smoke deactivate",
+    );
     await page.getByRole("button", { name: /^deactivate$/i }).click();
-
-    await expect(page.getByText(/deactivated|inactive/i).first()).toBeVisible({
+    await expect(page.getByRole("dialog")).not.toBeVisible({
       timeout: 30_000,
     });
+
+    const employeeDetail = await apiJson<{ status: string }>(
+      request,
+      token,
+      organizationId!,
+      "GET",
+      `/organisation/employees/${employee.id}?organizationId=${organizationId}`,
+    );
+    expect(employeeDetail.status).toBe("inactive");
   });
 });

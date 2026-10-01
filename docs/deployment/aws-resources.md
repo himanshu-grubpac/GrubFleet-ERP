@@ -2,7 +2,7 @@
 
 
 
-**Last updated:** 2026-09-25
+**Last updated:** 2026-10-01
 
 
 
@@ -42,7 +42,7 @@ GrubFleet **frontend** is deployed via **S3 + CloudFront** (stack `grubfleet-por
 |------|-------------------------------------|
 | All | `{NEXT_PUBLIC_API_BASE_URL}/docs` (e.g. staging: `https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com/api/v1/docs`) |
 
-**Seed admin (all tiers after migrate/seed):** `admin@grubpac.local` — password in local `SEED_CREDENTIALS.local.md` only (not in git).
+**Seed admin (all tiers after migrate/seed):** `admin@grubpac.local` — password in local `.project-tracking/SEED_CREDENTIALS.local.md` only (not in git). Bootstrap logic: `apps/backend/src/database/seed/dev-admin-bootstrap.ts` via `run-seed.ts` / `run-seed-from-samconfig.ps1`.
 
 ## CloudFormation stacks
 
@@ -54,11 +54,11 @@ GrubFleet **frontend** is deployed via **S3 + CloudFront** (stack `grubfleet-por
 
 | `grubfleet-network` | Shared VPC, subnets, security groups | `CREATE_COMPLETE` |
 
-| `grubfleet-data-staging` | RDS + Redis (staging) | `UPDATE_COMPLETE` |
+| `grubfleet-data-staging` | ElastiCache Redis (staging); ERP Postgres on shared `grubpac-v2` | `UPDATE_COMPLETE` |
 
-| `grubfleet-data-preprod` | RDS + Redis (pre-prod) | `CREATE_COMPLETE` |
+| `grubfleet-data-preprod` | ElastiCache Redis (pre-prod); ERP Postgres on shared `grubpac-v2` | `CREATE_COMPLETE` |
 
-| `grubfleet-data-production` | RDS + Redis (production) | `CREATE_COMPLETE` |
+| `grubfleet-data-production` | ElastiCache Redis (production); ERP Postgres on shared `grubpac-v2` | `CREATE_COMPLETE` |
 
 | `grubfleet-api-staging` | SAM — Lambda + HTTP API (staging) | `UPDATE_COMPLETE` |
 
@@ -98,7 +98,9 @@ Stack ARNs follow: `arn:aws:cloudformation:ap-south-1:662252246711:stack/<stack-
 
 | Lambda SG | `sg-0732094de05e8f03b` | Egress for API Lambda |
 
-| RDS SG | `sg-0198b9781297f8bf7` | PostgreSQL 5432 from Lambda SG (+ optional migration CIDR) |
+| RDS SG (legacy `grubfleet-data-*` RDS) | `sg-0198b9781297f8bf7` | Was used for per-tier ERP RDS (decommissioned 2026-10-01) |
+
+| VPC peering | `pcx-0ce6f67302db55f59` | GrubFleet `vpc-004c4f6f228ce6050` ↔ default `vpc-0bf9223b5ad1e995a` — **required** for API Lambda → shared `grubpac-v2`; do not remove |
 
 | Redis SG | `sg-0ce5684ac8b0d778e` | Redis 6379 from Lambda SG |
 
@@ -108,15 +110,75 @@ Template: `infrastructure/grubfleet-network.yaml`
 
 
 
-## Data tiers (`grubfleet-data-tier.yaml`)
+## Shared ERP PostgreSQL (`grubpac-v2`)
 
 
 
-Per-tier stack: `grubfleet-data-<tier>` where `<tier>` is `staging`, `preprod`, or `production`.
+As of **2026-10-01**, GrubFleet ERP Postgres for all tiers runs on one shared RDS instance (not per-tier `grubfleet-data-*` RDS). **Redis** remains per-tier from `grubfleet-data-*` stacks (unchanged).
 
 
 
-Pre-prod sizing: `db.t3.small`, Redis `cache.t4g.micro` (see template `TierSizing` map).
+| Resource | Value |
+
+|----------|--------|
+
+| RDS identifier | `grubpac-v2` |
+
+| Host | `grubpac-v2.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com` |
+
+| Port | `5432` |
+
+| Security group | `sg-051971289031e4d64` |
+
+| Ingress (ERP Lambda) | TCP `5432` from GrubFleet private subnets `10.42.10.0/24`, `10.42.11.0/24` |
+
+| VPC reachability | Peering `pcx-0ce6f67302db55f59` (GrubFleet VPC ↔ default VPC where `grubpac-v2` lives) — **do not remove** |
+
+
+
+| Logical database | Environment(s) | Notes |
+
+|------------------|----------------|--------|
+
+| `grubfleet_erp_nonprod` | Staging + pre-prod | Same `DATABASE_URL` in GitHub Environments `staging` and `pre-production` (separate schemas/data; one server DB name) |
+
+| `grubfleet_erp_production` | Production | GitHub Environment `production` `DATABASE_URL` |
+
+
+
+Full connection strings (user, password, URL) are **not** in git — gitignored `samconfig.*.toml`, GitHub Environment secrets, and local `.project-tracking/` only.
+
+
+
+### Decommissioned per-tier ERP RDS (2026-10-01)
+
+
+
+| Former identifier | Status | Final snapshot (naming pattern) |
+
+|-------------------|--------|-----------------------------------|
+
+| `grubfleet-staging-postgres` | Removed / deleting | `grubfleet-staging-postgres-final-20261001` |
+
+| `grubfleet-preprod-postgres` | Removed / deleting | `grubfleet-preprod-postgres-final-20261001` |
+
+| `grubfleet-production-postgres` | Removed / deleting | `grubfleet-production-postgres-final-20261001` |
+
+
+
+Former hosts (`grubfleet-*-postgres.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com`) are obsolete. Cutover record: `.project-tracking/infrastructure-rds-cutover.local.md`.
+
+
+
+## Data tiers — Redis (`grubfleet-data-tier.yaml`)
+
+
+
+Per-tier stack: `grubfleet-data-<tier>` where `<tier>` is `staging`, `preprod`, or `production`. Stacks still provision **ElastiCache Redis** per environment; ERP RDS in these stacks is decommissioned (template/stack cleanup may follow).
+
+
+
+Pre-prod Redis sizing: `cache.t4g.micro` (see template `TierSizing` map).
 
 
 
@@ -128,17 +190,7 @@ Pre-prod sizing: `db.t3.small`, Redis `cache.t4g.micro` (see template `TierSizin
 
 |----------|--------|
 
-| RDS identifier | `grubfleet-staging-postgres` |
-
-| Engine | PostgreSQL 16.15 |
-
-| DB name | `grubfleet_staging` |
-
-| RDS host | `grubfleet-staging-postgres.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com` |
-
-| Port | `5432` |
-
-| Publicly accessible | Yes (migrations from trusted client CIDR) |
+| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_nonprod` |
 
 | Redis cluster id | `grubfleet-staging-redis` |
 
@@ -156,17 +208,7 @@ Pre-prod sizing: `db.t3.small`, Redis `cache.t4g.micro` (see template `TierSizin
 
 |----------|--------|
 
-| RDS identifier | `grubfleet-preprod-postgres` |
-
-| Engine | PostgreSQL 16.15 |
-
-| DB name | `grubfleet_preprod` |
-
-| RDS host | `grubfleet-preprod-postgres.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com` |
-
-| Port | `5432` |
-
-| Publicly accessible | Yes (bootstrap migrations; update `MigrationClientCidr` when your IP changes) |
+| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_nonprod` (same server DB as staging; tier isolation via app/env) |
 
 | Redis cluster id | `grubfleet-preprod-redis` |
 
@@ -184,17 +226,7 @@ Pre-prod sizing: `db.t3.small`, Redis `cache.t4g.micro` (see template `TierSizin
 
 |----------|--------|
 
-| RDS identifier | `grubfleet-production-postgres` |
-
-| Engine | PostgreSQL 16.15 |
-
-| DB name | `grubfleet_production` |
-
-| RDS host | `grubfleet-production-postgres.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com` |
-
-| Port | `5432` |
-
-| Publicly accessible | No (private subnets) |
+| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_production` |
 
 | Redis cluster id | `grubfleet-production-redis` |
 
@@ -204,7 +236,7 @@ Pre-prod sizing: `db.t3.small`, Redis `cache.t4g.micro` (see template `TierSizin
 
 
 
-Credentials (master user `grubfleet`, passwords, full `DATABASE_URL`) are **not** stored in git. They live in gitignored `samconfig.*.toml` and CloudFormation parameters.
+`REDIS_URL` and tier-specific secrets remain in gitignored `samconfig.*.toml` and GitHub Environment secrets. See [environments.md](./environments.md) for `DATABASE_URL` / `REDIS_URL` per tier.
 
 
 
@@ -348,7 +380,7 @@ Current GHA workflows (`.github/workflows/reusable-container-deploy.yml`) still 
 
 | `infrastructure/grubfleet-network.yaml` | Shared VPC stack |
 
-| `infrastructure/grubfleet-data-tier.yaml` | Per-environment RDS + Redis |
+| `infrastructure/grubfleet-data-tier.yaml` | Per-environment Redis (ERP RDS on shared `grubpac-v2`) |
 
 | `template.yaml` | SAM — Lambda + HTTP API |
 
@@ -453,7 +485,7 @@ powershell -File scripts/run-seed-from-samconfig.ps1 -Tier preprod
 
 
 
-If RDS migrate times out from your laptop, update pre-prod (or staging) data stack `MigrationClientCidr` to your current public IP (`/32`) while `RdsPubliclyAccessible=true`.
+ERP migrate/seed from a laptop uses gitignored `samconfig.<tier>.toml` (`DatabaseUrl` → `grubpac-v2`). Ensure your client can reach the shared instance (security group / VPN / bastion per ops policy). GHA `db-migrate` on staging/pre-prod may need `RDS_MIGRATION_SECURITY_GROUP_ID` updated to `grubpac-v2` SG (`sg-051971289031e4d64`) — see cutover follow-ups in `.project-tracking/infrastructure-rds-cutover.local.md`.
 
 
 

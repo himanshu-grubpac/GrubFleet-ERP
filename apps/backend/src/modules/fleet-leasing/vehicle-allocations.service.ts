@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import { DriversService } from '../organisation/drivers.service';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -20,7 +23,72 @@ export class VehicleAllocationsService {
   constructor(
     private readonly repo: FleetLeasingRepository,
     private readonly audit: AuditService,
+    @Inject(forwardRef(() => DriversService))
+    private readonly driversService: DriversService,
   ) {}
+
+  async listAssignableForDriverRegister(
+    organizationId: string,
+    page: number,
+    pageSize: number,
+    excludeVehicleCodes: string[],
+  ) {
+    const [fromAllocations, fromContractLinks] = await Promise.all([
+      this.repo.listDriverAssignableFromAllocations({
+        organizationId,
+        excludeVehicleCodes,
+      }),
+      this.repo.listDriverAssignableFromActiveContracts({
+        organizationId,
+        excludeVehicleCodes,
+      }),
+    ]);
+    const byVehicleId = new Map<
+      string,
+      {
+        vehicleId: string;
+        vehicleCode: string;
+        assetClass: string;
+        activeLeaseId: string;
+      }
+    >();
+    for (const row of [...fromAllocations, ...fromContractLinks]) {
+      byVehicleId.set(row.vehicleId, row);
+    }
+    const merged = [...byVehicleId.values()].sort((a, b) =>
+      a.vehicleCode.localeCompare(b.vehicleCode),
+    );
+    const offset = (page - 1) * pageSize;
+    const pageRows = merged.slice(offset, offset + pageSize);
+    const items = pageRows.map((row) => ({
+      id: row.vehicleId,
+      vehicleCode: row.vehicleCode,
+      assetClass: row.assetClass,
+      activeLeaseId: row.activeLeaseId,
+    }));
+    return toPaginatedResult(items, page, pageSize, merged.length);
+  }
+
+  async assertVehicleAssignableForDriver(
+    organizationId: string,
+    vehicleCode: string,
+    activeLeaseId: string,
+    assetClass: string,
+  ) {
+    const match = await this.repo.findActiveLeaseVehicleAssignment(
+      organizationId,
+      vehicleCode,
+      activeLeaseId,
+    );
+    if (!match) {
+      throw new BadRequestException(
+        'Vehicle is not on an active lease allocation in this organisation',
+      );
+    }
+    if (match.assetClass.trim() !== assetClass.trim()) {
+      throw new BadRequestException('Asset class does not match fleet record');
+    }
+  }
 
   async listHub(query: ListVehicleAllocationsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
@@ -95,6 +163,11 @@ export class VehicleAllocationsService {
 
     if (other) {
       await this.repo.removeContractVehicle(other.contractId, dto.vehicleId);
+      await this.driversService.clearAssignmentForVehicleCode(
+        organizationId,
+        vehicle.registrationNo,
+        'fleet_reassignment',
+      );
       await this.repo.insertEvent({
         contractId: other.contractId,
         organizationId,
