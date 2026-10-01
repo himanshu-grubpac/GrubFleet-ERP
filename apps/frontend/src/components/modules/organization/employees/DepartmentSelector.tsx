@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 
-import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { InlineAddField } from "@/components/ui/inline-add-field";
 import { ORG_INPUT_LIMITS } from "@/lib/validation/org-input-constraints";
 
 import {
@@ -172,43 +172,21 @@ export default function DepartmentSelector({
         </button>
       </div>
 
-      {showAdd && (
-        <div className="flex max-w-md items-center gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-          <RestrictedInput
-            restrictedKind="text"
-            maxLength={ORG_INPUT_LIMITS.department}
-            value={newName}
-            onChange={setNewName}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                event.preventDefault();
-                handleAdd();
-              }
-            }}
-            placeholder="Department name"
-            autoFocus
-            className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-          />
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="h-9 rounded-md bg-[#FE5720] px-4 text-sm font-medium text-white hover:opacity-90"
-          >
-            Add
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setNewName("");
-              setShowAdd(false);
-            }}
-            className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"
-            title="Cancel"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      )}
+      {showAdd ? (
+        <InlineAddField
+          layout="panel"
+          value={newName}
+          onChange={setNewName}
+          onAdd={handleAdd}
+          maxLength={ORG_INPUT_LIMITS.department}
+          placeholder="Department name"
+          autoFocus
+          onCancel={() => {
+            setNewName("");
+            setShowAdd(false);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

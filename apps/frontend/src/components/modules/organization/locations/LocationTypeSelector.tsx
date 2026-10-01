@@ -11,7 +11,7 @@ import {
   deleteOrganisationLocationTypeApi,
   fetchOrganisationLocationTypesApi,
 } from "@/lib/api/organisation/location-types";
-import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { InlineAddField } from "@/components/ui/inline-add-field";
 import { ORG_INPUT_LIMITS } from "@/lib/validation/org-input-constraints";
 
 type LocationType = {
@@ -37,6 +37,7 @@ export default function LocationTypeSelector({
   const [showAddType, setShowAddType] = useState(false);
   const [newType, setNewType] = useState("");
   const [typeError, setTypeError] = useState("");
+  const [isAddingType, setIsAddingType] = useState(false);
 
   const locationTypesQuery = useQuery({
     queryKey: ["organization", "location-types", organizationId],
@@ -76,6 +77,7 @@ export default function LocationTypeSelector({
     }
 
     setTypeError("");
+    setIsAddingType(true);
     try {
       const created = await createOrganisationLocationTypeApi(
         token,
@@ -94,6 +96,8 @@ export default function LocationTypeSelector({
           ? error.message
           : "Failed to add location type.";
       setTypeError(message);
+    } finally {
+      setIsAddingType(false);
     }
   };
 
@@ -188,50 +192,29 @@ export default function LocationTypeSelector({
         </button>
       </div>
 
-      {showAddType && (
-        <div className="flex max-w-md flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3">
-          <div className="flex items-center gap-2">
-            <RestrictedInput
-              restrictedKind="text"
-              maxLength={ORG_INPUT_LIMITS.locationTypeName}
-              value={newType}
-              onChange={setNewType}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  void handleAddType();
-                }
-              }}
-              placeholder="Enter location type"
-              autoFocus
-              className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-            />
-
-            <button
-              type="button"
-              onClick={() => void handleAddType()}
-              className="h-9 rounded-md bg-[#FE5720] px-4 text-sm font-medium text-white hover:opacity-90"
-            >
-              Add
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                setNewType("");
-                setShowAddType(false);
-                setTypeError("");
-              }}
-              className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"
-              title="Cancel"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          </div>
-          {typeError ? (
-            <p className="text-xs text-red-600">{typeError}</p>
-          ) : null}
-        </div>
-      )}
+      {showAddType ? (
+        <InlineAddField
+          layout="panel"
+          value={newType}
+          onChange={(value) => {
+            setNewType(value);
+            if (typeError) {
+              setTypeError("");
+            }
+          }}
+          onAdd={() => void handleAddType()}
+          isPending={isAddingType}
+          maxLength={ORG_INPUT_LIMITS.locationTypeName}
+          placeholder="Enter location type"
+          error={typeError}
+          autoFocus
+          onCancel={() => {
+            setNewType("");
+            setShowAddType(false);
+            setTypeError("");
+          }}
+        />
+      ) : null}
     </div>
   );
 }

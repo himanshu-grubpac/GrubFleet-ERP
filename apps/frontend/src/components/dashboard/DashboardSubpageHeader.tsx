@@ -2,11 +2,13 @@
 
 import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
 import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
+import type { DashboardBreadcrumbItem } from "@/lib/navigation/dashboard-breadcrumbs";
 
 type DashboardSubpageHeaderProps = {
   backHref?: string;
   backLabel?: string;
   currentLabel?: string;
+  breadcrumbItems?: DashboardBreadcrumbItem[];
   className?: string;
 };
 
@@ -14,6 +16,7 @@ export function DashboardSubpageHeader({
   backHref,
   backLabel,
   currentLabel,
+  breadcrumbItems,
   className,
 }: DashboardSubpageHeaderProps) {
   const showBack = Boolean(backHref && backLabel);
@@ -27,7 +30,10 @@ export function DashboardSubpageHeader({
             label={backLabel!}
           />
         ) : null}
-        <DashboardBreadcrumbsFromPath currentLabel={currentLabel} />
+        <DashboardBreadcrumbsFromPath
+          currentLabel={currentLabel}
+          items={breadcrumbItems}
+        />
       </div>
     </div>
   );

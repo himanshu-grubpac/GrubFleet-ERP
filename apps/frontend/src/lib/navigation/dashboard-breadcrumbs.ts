@@ -1,4 +1,5 @@
 import { mainNavItems, type NavItem } from "@/lib/navigation/modules";
+import { normalizeNavPath } from "@/lib/navigation/nav-path-match";
 
 export type DashboardBreadcrumbItem = {
   label: string;
@@ -7,14 +8,6 @@ export type DashboardBreadcrumbItem = {
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
-function normalizePathname(pathname: string): string {
-  const trimmed = pathname.split("?")[0]?.split("#")[0] ?? pathname;
-  if (trimmed.length > 1 && trimmed.endsWith("/")) {
-    return trimmed.slice(0, -1);
-  }
-  return trimmed || "/";
-}
 
 function findNavMatch(pathname: string): {
   module: NavItem;
@@ -104,6 +97,8 @@ function labelForStaticSegment(
       return `Edit ${singular}`;
     case "detail":
       return "Detail";
+    case "assign":
+      return "Assign to Vehicle";
     case "offboard":
       return "Offboard";
     case "complete":
@@ -119,7 +114,12 @@ function labelForStaticSegment(
 }
 
 function isDynamicIdSegment(segment: string): boolean {
-  return UUID_RE.test(segment) || segment === "[id]" || segment === "[leaseId]";
+  return (
+    UUID_RE.test(segment) ||
+    segment === "[id]" ||
+    segment === "[leaseId]" ||
+    /^client-[0-9a-f-]+$/i.test(segment)
+  );
 }
 
 export type BuildDashboardBreadcrumbsOptions = {
@@ -137,7 +137,7 @@ export function buildDashboardBreadcrumbs(
     return options.items;
   }
 
-  const normalized = normalizePathname(pathname);
+  const normalized = normalizeNavPath(pathname);
 
   if (normalized === "/dashboard") {
     return [{ label: "Dashboard" }];

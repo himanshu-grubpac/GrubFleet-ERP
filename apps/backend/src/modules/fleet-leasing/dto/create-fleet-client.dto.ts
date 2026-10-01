@@ -21,6 +21,12 @@ export class CreateFleetClientDto {
   @MaxLength(255)
   companyName!: string;
 
+  @ApiPropertyOptional({ description: 'GSTIN / Tax ID' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  taxId?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

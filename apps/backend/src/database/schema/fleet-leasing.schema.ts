@@ -64,6 +64,8 @@ export const fleetClients = pgTable(
     organizationId: uuid('organization_id').notNull(),
     clientCode: varchar('client_code', { length: 32 }).notNull(),
     companyName: varchar('company_name', { length: 255 }).notNull(),
+    /** GSTIN or other tax identifier (optional until country-specific validation ships). */
+    taxId: varchar('tax_id', { length: 32 }),
     address: text('address'),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true })

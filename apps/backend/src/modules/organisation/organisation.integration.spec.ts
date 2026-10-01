@@ -214,6 +214,47 @@ describe('Organisation locations (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 for unknown JSON key on PATCH', async () => {
+      const id = await createLocationAsAdmin();
+      await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/locations/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ name: 'Valid Name', hackField: 'x' })
+        .expect(400);
+    });
+
+    it('returns 403 when organisation context is missing on list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/organisation/locations')
+        .query({ page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(403);
+    });
+
+    it('returns 403 or 404 on GET with another organisation id (IDOR)', async () => {
+      const id = await createLocationAsAdmin();
+      const fakeOrgId = '00000000-0000-4000-8000-000000000099';
+      await request(app.getHttpServer())
+        .get(`/api/v1/organisation/locations/${id}`)
+        .query({ organizationId: fakeOrgId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', fakeOrgId)
+        .expect((res) => expect([403, 404]).toContain(res.status));
+    });
+
+    it('returns 403 when organisation context is missing on create', async () => {
+      const { organizationId: _organizationIdOmit, ...bodyWithoutOrg } =
+        buildLocationCreatePayload();
+      void _organizationIdOmit;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/locations')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send(bodyWithoutOrg)
+        .expect(403);
+    });
+
     it('writes an audit row on deactivate', async () => {
       const id = await createLocationAsAdmin();
       await request(app.getHttpServer())
@@ -301,6 +342,48 @@ describe('Organisation locations (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 for unknown JSON key on PATCH', async () => {
+      const id = await createEmployeeAsAdmin();
+      await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ fullName: 'Valid Name', hackField: 'x' })
+        .expect(400);
+    });
+
+    it('returns 403 when organisation context is missing on list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/organisation/employees')
+        .query({ page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(403);
+    });
+
+    it('returns 403 or 404 on PATCH with another organisation id (IDOR)', async () => {
+      const id = await createEmployeeAsAdmin();
+      const fakeOrgId = '00000000-0000-4000-8000-000000000099';
+      await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${id}`)
+        .query({ organizationId: fakeOrgId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', fakeOrgId)
+        .send({ fullName: 'Cross Org Rename' })
+        .expect((res) => expect([403, 404]).toContain(res.status));
+    });
+
+    it('returns 403 when organisation context is missing on create', async () => {
+      const { organizationId: _organizationIdOmit, ...bodyWithoutOrg } =
+        buildEmployeeCreatePayload();
+      void _organizationIdOmit;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send(bodyWithoutOrg)
+        .expect(403);
+    });
+
     it('writes an audit row on deactivate', async () => {
       const id = await createEmployeeAsAdmin();
       await request(app.getHttpServer())
@@ -325,6 +408,30 @@ describe('Organisation locations (integration)', () => {
         reasonType: 'end_of_contract',
         comment: 'Audit lattice',
       });
+    });
+
+    it('returns 400 when PATCH on inactive employee', async () => {
+      const id = await createEmployeeAsAdmin();
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${id}/status`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          action: 'deactivate',
+          reasonType: 'resignation',
+          comment: 'Inactive edit test',
+        })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ fullName: 'Should Not Apply' })
+        .expect(400);
     });
   });
 

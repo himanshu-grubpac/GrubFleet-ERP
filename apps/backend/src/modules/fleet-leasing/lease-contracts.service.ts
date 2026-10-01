@@ -1,9 +1,12 @@
 import {
   BadRequestException,
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import { DriversService } from '../organisation/drivers.service';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -58,6 +61,8 @@ export class LeaseContractsService {
   constructor(
     private readonly repo: FleetLeasingRepository,
     private readonly audit: AuditService,
+    @Inject(forwardRef(() => DriversService))
+    private readonly driversService: DriversService,
   ) {}
 
   async getSummary(organizationId: string) {
@@ -886,6 +891,11 @@ export class LeaseContractsService {
       resourceId: contractId,
       status: 'SUCCESS',
     });
+    await this.driversService.clearAssignmentsForActiveLease(
+      organizationId,
+      contractId,
+      'fleet_contract_inactive',
+    );
     return this.getById(organizationId, contractId);
   }
 
@@ -1133,6 +1143,11 @@ export class LeaseContractsService {
       resourceId: contractId,
       status: 'SUCCESS',
     });
+    await this.driversService.clearAssignmentsForActiveLease(
+      organizationId,
+      contractId,
+      'fleet_contract_inactive',
+    );
     return this.getById(organizationId, contractId);
   }
 
@@ -1284,6 +1299,22 @@ export class LeaseContractsService {
         );
       }
     }
+    const previousIds = await this.repo.listContractVehicleIds(contractId);
+    const nextIdSet = new Set(vehicleIds);
+    const removedIds = previousIds.filter((id) => !nextIdSet.has(id));
+    for (const vehicleId of removedIds) {
+      const removedVehicle = await this.repo.getVehicleInOrg(
+        organizationId,
+        vehicleId,
+      );
+      if (removedVehicle) {
+        await this.driversService.clearAssignmentForVehicleCode(
+          organizationId,
+          removedVehicle.registrationNo,
+          'fleet_vehicle_removed',
+        );
+      }
+    }
     await this.repo.replaceContractVehicles(contractId, vehicleIds);
   }
 
@@ -1373,6 +1404,7 @@ export class LeaseContractsService {
       committed,
       pendingTermination,
       editLogs,
+      allocatedByClass,
     ] = await Promise.all([
       this.repo.listAssetLines(contract.id),
       this.repo.listContractVehicleIds(contract.id),
@@ -1384,7 +1416,23 @@ export class LeaseContractsService {
       this.repo.countCommittedVehicles(contract.id),
       this.repo.findPendingApproval(contract.id, 'contract_termination'),
       this.repo.listEditLogs(contract.id, 50),
+      this.repo.countAllocatedVehiclesByAssetClass(contract.id),
     ]);
+    const allocationByLine = lines.map((line) =>
+      buildContractLineAllocationRow({
+        assetClass: line.assetClass,
+        committedQuantity: line.committedQuantity,
+        allocatedCount: allocatedByClass[line.assetClass] ?? 0,
+        inboundCount: line.inboundCount,
+        shortfallCount: line.shortfallCount,
+        awaitingAssetsLine: line.awaitingAssetsLine,
+        availabilityStatus: line.availabilityStatus,
+      }),
+    );
+    const contractFullyAllocated =
+      rawStatus === 'active' &&
+      lines.length > 0 &&
+      lines.every((l) => l.availabilityCovered && !l.awaitingAssetsLine);
     const vehicles = (
       await this.repo.getVehiclesByIds(organizationId, vehicleIds)
     ).map((v) => ({
@@ -1415,11 +1463,13 @@ export class LeaseContractsService {
       clientCompanyName: client?.client.companyName ?? null,
       billingPaused: contract.billingPaused,
       onHold: contract.onHold,
+      contractFullyAllocated,
     });
     const statusBanner = buildStatusBanner({
       rawStatus,
       events,
       labelsByUserId,
+      contractFullyAllocated,
     });
     const availableActions = buildAvailableActions({
       rawStatus,
@@ -1478,18 +1528,34 @@ export class LeaseContractsService {
       onHold: contract.onHold,
       rateRequiresApproval: contract.rateRequiresApproval,
       description: contract.description,
-      assetLines: lines.map((l) => ({
-        id: l.id,
-        assetClass: l.assetClass,
-        committedQuantity: l.committedQuantity,
-        ratePerVehicleMonth: l.ratePerVehicleMonth,
-        availabilityCovered: l.availabilityCovered,
-        availabilityStatus: l.availabilityStatus,
-        availableNowCount: l.availableNowCount,
-        inboundCount: l.inboundCount,
-        shortfallCount: l.shortfallCount,
-        awaitingAssetsLine: l.awaitingAssetsLine,
-      })),
+      assetLines: lines.map((l, index) => {
+        const allocation = allocationByLine[index];
+        const lineStatusLabel =
+          rawStatus === 'active' &&
+          l.availabilityCovered &&
+          !l.awaitingAssetsLine
+            ? 'Allocated'
+            : allocation.lineStatus === 'allocated'
+              ? 'Allocated'
+              : allocation.lineStatus === 'partially_allocated'
+                ? 'Partially allocated'
+                : 'Awaiting Assets';
+        return {
+          id: l.id,
+          assetClass: l.assetClass,
+          committedQuantity: l.committedQuantity,
+          ratePerVehicleMonth: l.ratePerVehicleMonth,
+          availabilityCovered: l.availabilityCovered,
+          availabilityStatus: l.availabilityStatus,
+          availableNowCount: l.availableNowCount,
+          inboundCount: l.inboundCount,
+          shortfallCount: l.shortfallCount,
+          awaitingAssetsLine: l.awaitingAssetsLine,
+          lineAllocationStatus: allocation.lineStatus,
+          lineStatusLabel,
+        };
+      }),
+      contractFullyAllocated,
       vehicleIds,
       vehicles,
       renewedFromContractId: contract.renewedFromContractId ?? null,

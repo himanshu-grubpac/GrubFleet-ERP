@@ -15,6 +15,7 @@ import {
     filterNavByPermissions,
     type NavItem,
 } from "@/lib/navigation/modules";
+import { isNavHrefActive } from "@/lib/navigation/nav-path-match";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -300,9 +301,7 @@ function SidebarItem({
     const hasChildren =
         !!item.children && item.children.length > 0;
 
-    const isActive =
-        pathname === item.href ||
-        pathname.startsWith(`${item.href}/`);
+    const isActive = isNavHrefActive(pathname, item.href);
 
     const [open, setOpen] = useState(isActive);
     const [flyoutOpen, setFlyoutOpen] = useState(false);
@@ -348,9 +347,10 @@ function SidebarItem({
                                 {item.label}
                             </p>
                             {item.children!.map((child) => {
-                                const childActive =
-                                    pathname === child.href ||
-                                    pathname.startsWith(`${child.href}/`);
+                                const childActive = isNavHrefActive(
+                                    pathname,
+                                    child.href,
+                                );
 
                                 return (
                                     <Link
@@ -437,9 +437,10 @@ function SidebarItem({
                 {open && (
                     <div className="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-3">
                         {item.children!.map((child) => {
-                            const childActive =
-                                pathname === child.href ||
-                                pathname.startsWith(`${child.href}/`);
+                            const childActive = isNavHrefActive(
+                                pathname,
+                                child.href,
+                            );
 
                             return (
                                 <Link

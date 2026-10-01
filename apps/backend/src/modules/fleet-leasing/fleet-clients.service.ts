@@ -27,28 +27,29 @@ export class FleetClientsService {
       pageSize,
       query.search,
     );
-    const items = await Promise.all(
-      rows.map(async (row) => {
-        const contractCount = await this.repo.countContractsForClient(row.id);
-        const primary = row.primaryPoc;
-        return {
-          id: row.id,
-          clientCode: row.clientCode,
-          companyName: row.companyName,
-          address: row.address,
-          isActive: row.isActive,
-          primaryPoc: primary
-            ? {
-                id: primary.id,
-                name: primary.name,
-                email: primary.email,
-                contactNumber: primary.contactNumber,
-              }
-            : null,
-          contractCount,
-        };
-      }),
+    const contractCounts = await this.repo.countContractsForClients(
+      rows.map((row) => row.id),
     );
+    const items = rows.map((row) => {
+      const primary = row.primaryPoc;
+      return {
+        id: row.id,
+        clientCode: row.clientCode,
+        companyName: row.companyName,
+        taxId: row.taxId,
+        address: row.address,
+        isActive: row.isActive,
+        primaryPoc: primary
+          ? {
+              id: primary.id,
+              name: primary.name,
+              email: primary.email,
+              contactNumber: primary.contactNumber,
+            }
+          : null,
+        contractCount: contractCounts.get(row.id) ?? 0,
+      };
+    });
     return toPaginatedResult(items, page, pageSize, total);
   }
 
@@ -60,6 +61,7 @@ export class FleetClientsService {
       id: client.client.id,
       clientCode: client.client.clientCode,
       companyName: client.client.companyName,
+      taxId: client.client.taxId,
       address: client.client.address,
       isActive: client.client.isActive,
       contractCount,
@@ -82,6 +84,7 @@ export class FleetClientsService {
       organizationId: dto.organizationId,
       clientCode: `CL-${1000 + seq + 1}`,
       companyName: dto.companyName.trim(),
+      taxId: dto.taxId?.trim() || null,
       address: dto.address?.trim() ?? null,
     });
     await this.repo.replaceClientPocs(
@@ -103,6 +106,7 @@ export class FleetClientsService {
     }
     await this.repo.updateClient(clientId, organizationId, {
       companyName: dto.companyName?.trim(),
+      taxId: dto.taxId === undefined ? undefined : dto.taxId.trim() || null,
       address: dto.address?.trim(),
     });
     if (dto.pointsOfContact) {
