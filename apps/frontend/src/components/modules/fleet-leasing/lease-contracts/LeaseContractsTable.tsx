@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatLeaseContractRowCopyText } from "@/components/dashboard/dashboard-row-copy-text";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
@@ -16,6 +16,7 @@ import type {
 } from "@/lib/api/lease-contracts";
 import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { showErrorToast } from "@/lib/toast/show-toast";
 import {
   isDashboardCatalogEmptyState,
@@ -113,7 +114,7 @@ type LeaseActionModalTarget = {
 export default function LeaseContractsTable() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { permissions } = useAuth();
+  const { permissions, isLoading: isAuthLoading } = useAuth();
   const { api, organizationId } = useLeaseApi();
 
   const canUpdate =
@@ -133,10 +134,13 @@ export default function LeaseContractsTable() {
     setPage(1);
   }, [debouncedSearch, statusFilter]);
 
+  const listEnabled = !!organizationId && !isAuthLoading;
+
   const { data: summary } = useQuery({
     queryKey: ["lease-contracts-summary", organizationId],
     queryFn: () => api.getSummary(),
-    enabled: !!organizationId,
+    enabled: listEnabled,
+    ...dashboardListQueryOptions,
   });
 
   const listQuery = useQuery({
@@ -156,8 +160,8 @@ export default function LeaseContractsTable() {
           ? (statusFilter as LeaseContractStatusFilter)
           : undefined,
       }),
-    enabled: !!organizationId,
-    placeholderData: keepPreviousData,
+    enabled: listEnabled,
+    ...dashboardListQueryOptions,
   });
 
   const contracts: LeaseContractListItem[] = listQuery.data?.items ?? [];
@@ -165,7 +169,7 @@ export default function LeaseContractsTable() {
   const listPage = listQuery.data?.page ?? page;
 
   const isInitialLoading =
-    listQuery.isLoading && !listQuery.data;
+    isAuthLoading || (listQuery.isLoading && !listQuery.data);
 
   const showFilters = shouldShowDashboardListFilters({
     total: listTotal,
@@ -340,9 +344,11 @@ export default function LeaseContractsTable() {
       {summary && <SummaryBar {...summary} />}
 
       {isInitialLoading && (
-        <div className="flex items-center justify-center py-16 text-sm text-slate-400">
-          Loading contracts…
-        </div>
+        <div
+          className="min-h-[240px] animate-pulse rounded-lg bg-gray-100 mx-5 my-4"
+          aria-busy="true"
+          aria-label="Loading lease contracts"
+        />
       )}
 
       {listQuery.isError && !isInitialLoading && (
@@ -400,14 +406,7 @@ export default function LeaseContractsTable() {
             </div>
           ) : (
             <>
-              <div
-                className={
-                  listQuery.isFetching && !isInitialLoading
-                    ? "opacity-60 transition-opacity"
-                    : undefined
-                }
-                aria-busy={listQuery.isFetching}
-              >
+              <div aria-busy={listQuery.isFetching && listQuery.isPlaceholderData}>
                 <DataTable
                   data={contracts}
                   columns={columns}
