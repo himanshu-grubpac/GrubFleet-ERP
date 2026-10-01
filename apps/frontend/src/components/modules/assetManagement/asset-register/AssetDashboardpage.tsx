@@ -264,12 +264,6 @@ export default function AssetClassesPage() {
     <DashboardLayout
       title="Asset Classes"
       description="The master list of vehicle classes offered when adding a vehicle or building a lease contract line."
-      tabs={[
-        {
-          label: "Asset Classes",
-          href: "/asset-register/assestclass",
-        },
-      ]}
       activeTab="/asset-register/assestclass"
       action={
         <Button

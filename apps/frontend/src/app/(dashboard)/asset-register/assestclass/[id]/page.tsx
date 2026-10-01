@@ -1,4 +1,4 @@
-import AssetViewPage from "@/components/modules/asset-register/AssetViewpage";
+import AssetViewPage from "@/components/modules/assetManagement/asset-register/AssetViewpage";
 
 export default function Page() {
     return (

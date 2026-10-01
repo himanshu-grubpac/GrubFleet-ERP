@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 
 import CreateAssetClassForm, {
     type AssetClassFormData,
-} from "@/components/modules/asset-register/AssetFormPage";
+} from "@/components/modules/assetManagement/asset-register/AssetFormPage";
 
 /* -------------------------------------------------------------------------- */
 /* Mock Asset Classes                                                         */
