@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId } from "react";
+import { useEffect, useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
@@ -15,6 +15,8 @@ export type ConfirmDialogProps = {
   isConfirmPending?: boolean;
   /** When true, confirm stays disabled (e.g. required reason not filled). Uses GrubpacButton disabled styling on primary. */
   confirmDisabled?: boolean;
+  /** Optional block below message (e.g. grey warning callout). */
+  children?: ReactNode;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -28,6 +30,7 @@ export function ConfirmDialog({
   variant = "default",
   isConfirmPending = false,
   confirmDisabled = false,
+  children,
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
@@ -79,6 +82,7 @@ export function ConfirmDialog({
             {title}
           </h2>
           <p className="mt-2 text-sm leading-5 text-slate-600">{message}</p>
+          {children ? <div className="mt-4">{children}</div> : null}
         </div>
         <div className="flex justify-end gap-2 px-6 py-5">
           <Button

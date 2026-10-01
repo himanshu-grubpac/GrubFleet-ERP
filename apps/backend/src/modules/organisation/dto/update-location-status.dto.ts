@@ -1,5 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsString, MinLength, ValidateIf } from 'class-validator';
+import {
+  IsIn,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateIf,
+} from 'class-validator';
+import { ORGANISATION_DEACTIVATE_REASON_MAX_LENGTH } from '../constants/organisation-deactivate.constants';
 
 export class UpdateLocationStatusDto {
   @ApiProperty({ enum: ['activate', 'deactivate'] })
@@ -12,5 +19,6 @@ export class UpdateLocationStatusDto {
   @ValidateIf((o: UpdateLocationStatusDto) => o.action === 'deactivate')
   @IsString()
   @MinLength(1)
+  @MaxLength(ORGANISATION_DEACTIVATE_REASON_MAX_LENGTH)
   reason?: string;
 }

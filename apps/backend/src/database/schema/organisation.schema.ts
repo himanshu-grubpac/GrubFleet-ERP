@@ -4,6 +4,7 @@ import {
   boolean,
   date,
   index,
+  integer,
   pgEnum,
   pgTable,
   text,
@@ -21,6 +22,11 @@ export const organisationEmploymentTypeEnum = pgEnum(
 export const organisationOffBoardReasonEnum = pgEnum(
   'organisation_off_board_reason_type',
   ['resignation', 'termination', 'end_of_contract', 'other'],
+);
+
+export const organisationSupplierTypeEnum = pgEnum(
+  'organisation_supplier_type',
+  ['bike', 'driver', 'spare_parts', 'compliance'],
 );
 
 export const organisationLocationTypes = pgTable(
@@ -230,6 +236,194 @@ export const organisationEmployeesRelations = relations(
     branchLocation: one(organisationLocations, {
       fields: [organisationEmployees.locationId],
       references: [organisationLocations.id],
+    }),
+  }),
+);
+
+export const organisationSuppliers = pgTable(
+  'organisation_suppliers',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    organizationId: uuid('organization_id').notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    supplierType: organisationSupplierTypeEnum('supplier_type').notNull(),
+    contactPerson: varchar('contact_person', { length: 255 }).notNull(),
+    contactPhone: varchar('contact_phone', { length: 32 }).notNull(),
+    contactEmail: varchar('contact_email', { length: 320 }).notNull(),
+    agreementReference: varchar('agreement_reference', { length: 120 }),
+    addressLine1: varchar('address_line1', { length: 255 }).notNull(),
+    addressLine2: varchar('address_line2', { length: 255 }),
+    addressCity: varchar('address_city', { length: 120 }),
+    addressState: varchar('address_state', { length: 120 }),
+    addressDistrict: varchar('address_district', { length: 120 }),
+    addressPincode: varchar('address_pincode', { length: 20 }),
+    addressCountry: varchar('address_country', { length: 2 })
+      .notNull()
+      .default('IN'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('organisation_suppliers_organization_id_idx').on(t.organizationId),
+    index('organisation_suppliers_org_active_idx').on(
+      t.organizationId,
+      t.isActive,
+    ),
+    index('organisation_suppliers_org_type_idx').on(
+      t.organizationId,
+      t.supplierType,
+    ),
+    index('organisation_suppliers_name_idx').on(t.organizationId, t.name),
+  ],
+);
+
+export const organisationDrivers = pgTable(
+  'organisation_drivers',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    organizationId: uuid('organization_id').notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    cprNo: varchar('cpr_no', { length: 20 }).notNull(),
+    phone: varchar('phone', { length: 32 }).notNull(),
+    email: varchar('email', { length: 320 }).notNull(),
+    licenseNumber: varchar('license_number', { length: 64 }).notNull(),
+    licenseExpiry: date('license_expiry').notNull(),
+    supplierId: uuid('supplier_id').notNull(),
+    addressLine1: varchar('address_line1', { length: 255 }).notNull(),
+    addressLine2: varchar('address_line2', { length: 255 }),
+    addressCity: varchar('address_city', { length: 120 }),
+    addressState: varchar('address_state', { length: 120 }),
+    addressDistrict: varchar('address_district', { length: 120 }),
+    addressPincode: varchar('address_pincode', { length: 20 }),
+    addressCountry: varchar('address_country', { length: 2 })
+      .notNull()
+      .default('IN'),
+    assignedVehicleCode: varchar('assigned_vehicle_code', { length: 64 }),
+    assignedVehicleAssetClass: varchar('assigned_vehicle_asset_class', {
+      length: 255,
+    }),
+    assignedActiveLeaseId: varchar('assigned_active_lease_id', { length: 64 }),
+    vehicleTiedToContract: boolean('vehicle_tied_to_contract')
+      .notNull()
+      .default(false),
+    isActive: boolean('is_active').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('organisation_drivers_organization_id_idx').on(t.organizationId),
+    index('organisation_drivers_org_active_idx').on(
+      t.organizationId,
+      t.isActive,
+    ),
+    index('organisation_drivers_org_supplier_idx').on(
+      t.organizationId,
+      t.supplierId,
+    ),
+    index('organisation_drivers_license_expiry_idx').on(
+      t.organizationId,
+      t.licenseExpiry,
+    ),
+    uniqueIndex('organisation_drivers_org_cpr_uidx').on(
+      t.organizationId,
+      t.cprNo,
+    ),
+    index('organisation_drivers_name_idx').on(t.organizationId, t.name),
+  ],
+);
+
+export const organisationDriversRelations = relations(
+  organisationDrivers,
+  ({ one }) => ({
+    supplier: one(organisationSuppliers, {
+      fields: [organisationDrivers.supplierId],
+      references: [organisationSuppliers.id],
+    }),
+  }),
+);
+
+/** Organisation client register (Decision E — separate from fleet_clients). */
+export const organisationClients = pgTable(
+  'organisation_clients',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    organizationId: uuid('organization_id').notNull(),
+    name: varchar('name', { length: 255 }).notNull(),
+    addressLine1: varchar('address_line1', { length: 255 }).notNull(),
+    addressLine2: varchar('address_line2', { length: 255 }),
+    addressCity: varchar('address_city', { length: 120 }),
+    addressState: varchar('address_state', { length: 120 }),
+    addressDistrict: varchar('address_district', { length: 120 }),
+    addressPincode: varchar('address_pincode', { length: 20 }),
+    addressCountry: varchar('address_country', { length: 2 })
+      .notNull()
+      .default('IN'),
+    isActive: boolean('is_active').notNull().default(true),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('organisation_clients_organization_id_idx').on(t.organizationId),
+    index('organisation_clients_org_active_idx').on(
+      t.organizationId,
+      t.isActive,
+    ),
+    index('organisation_clients_name_idx').on(t.organizationId, t.name),
+  ],
+);
+
+export const organisationClientPocs = pgTable(
+  'organisation_client_pocs',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    clientId: uuid('client_id')
+      .notNull()
+      .references(() => organisationClients.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 255 }).notNull(),
+    contactNumber: varchar('contact_number', { length: 32 }).notNull(),
+    email: varchar('email', { length: 320 }).notNull(),
+    isPrimary: boolean('is_primary').notNull().default(false),
+    sortOrder: integer('sort_order').notNull().default(0),
+    createdAt: timestamp('created_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    index('organisation_client_pocs_client_id_idx').on(t.clientId),
+    index('organisation_client_pocs_name_idx').on(t.name),
+    index('organisation_client_pocs_email_idx').on(t.email),
+  ],
+);
+
+export const organisationClientsRelations = relations(
+  organisationClients,
+  ({ many }) => ({
+    pointsOfContact: many(organisationClientPocs),
+  }),
+);
+
+export const organisationClientPocsRelations = relations(
+  organisationClientPocs,
+  ({ one }) => ({
+    client: one(organisationClients, {
+      fields: [organisationClientPocs.clientId],
+      references: [organisationClients.id],
     }),
   }),
 );

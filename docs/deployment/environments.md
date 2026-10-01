@@ -58,12 +58,14 @@ Local: `http://localhost:3000` (default in `.env.example`).
 
 Configure under **Settings → Environments** for `staging`, `pre-production`, and `production`.
 
+Local deploy/migrate uses the same values in **gitignored** `samconfig.staging.toml`, `samconfig.preprod.toml`, and `samconfig.production.toml` (committed template: `samconfig.staging.example.toml` only). Do not commit real `DATABASE_URL` or passwords.
+
 ### Secrets (never commit values)
 
 | Secret | Used by | Description |
 |--------|---------|-------------|
-| `DATABASE_URL` | Runtime / deploy | PostgreSQL connection string for that tier |
-| `REDIS_URL` | Runtime / deploy | Redis connection string |
+| `DATABASE_URL` | Runtime / deploy | PostgreSQL connection string for that tier. **ERP (2026-10-01):** all tiers use shared RDS `grubpac-v2` (`grubpac-v2.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com`). Staging and pre-production share the same URL target database `grubfleet_erp_nonprod`; production uses `grubfleet_erp_production`. Values live in GitHub Environment secrets and gitignored `samconfig.*.toml` — never commit passwords. Inventory: [aws-resources.md](./aws-resources.md). |
+| `REDIS_URL` | Runtime / deploy | Redis connection string — still **per tier** from `grubfleet-data-*` ElastiCache (unchanged by RDS cutover) |
 | `JWT_ACCESS_SECRET` | Backend | Required when `APP_ENV=production` |
 | `JWT_REFRESH_SECRET` | Backend | Required when `APP_ENV=production` |
 | `DEPLOY_HEALTH_URL` | Deploy workflow | API base for smoke test, e.g. `https://api-staging.example.com/api/v1` |
@@ -85,7 +87,7 @@ Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permissio
 | `SAM_CLIENT_ORIGIN` | `https://dxxx.cloudfront.net,http://localhost:3000` | Unquoted comma list for SAM `ClientOrigin` (staging/pre-prod); production portal HTTPS only |
 | `VPC_SUBNET_IDS` | `subnet-aaa,subnet-bbb` | Optional; Lambda VPC (staging SAM) — comma-separated, no spaces |
 | `VPC_SECURITY_GROUP_IDS` | `sg-xxx` | Optional; pair with `VPC_SUBNET_IDS` |
-| `RDS_MIGRATION_SECURITY_GROUP_ID` | `sg-0198b9781297f8bf7` | **Required** for GHA `db-migrate` on staging/pre-prod — shared network RDS SG; job opens runner `/32` on 5432 then revokes. Attach `scripts/iam-grubfleet-gha-rds-migrate-sg-policy.json` to `GrubFleetGitHubActionsDeploy`. |
+| `RDS_MIGRATION_SECURITY_GROUP_ID` | `sg-051971289031e4d64` (target) | **Required** for GHA `db-migrate` on staging/pre-prod — SG on **`grubpac-v2`**; job opens runner `/32` on 5432 then revokes. Attach `scripts/iam-grubfleet-gha-rds-migrate-sg-policy.json` to `GrubFleetGitHubActionsDeploy`. Legacy value `sg-0198b9781297f8bf7` was for decommissioned per-tier ERP RDS — update Environment vars after cutover (see `.project-tracking/infrastructure-rds-cutover.local.md`). |
 
 ## CI vs deploy
 

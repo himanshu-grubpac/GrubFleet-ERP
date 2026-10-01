@@ -22,8 +22,12 @@ export default function HomePage() {
   }, [isAuthenticated, isLoading, isLoggingOut, router]);
 
   if (isLoggingOut) {
-    return <AuthBootstrapLoader layout="minimal" phase="sign-out" />;
+    return <AuthBootstrapLoader layout="login" phase="sign-out" />;
   }
 
-  return <AuthBootstrapLoader layout="minimal" phase="boot" />;
+  if (isAuthenticated) {
+    return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
+  }
+
+  return <AuthBootstrapLoader layout="login" phase="boot" />;
 }

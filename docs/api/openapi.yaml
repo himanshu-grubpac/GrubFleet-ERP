@@ -662,6 +662,68 @@ paths:
           description: Created draft contract
         '403':
           $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/asset-classes:
+    get:
+      tags: [fleet-leasing]
+      summary: Distinct asset classes from fleet vehicle master
+      operationId: listFleetAssetClasses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Sorted distinct asset class names for wizard dropdowns
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: string
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/asset-classes/availability/preview:
+    post:
+      tags: [fleet-leasing]
+      summary: Batch availability preview for wizard step 2 (LEASE-03)
+      operationId: previewAssetClassAvailabilityBatch
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, lines]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                lines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [assetClass, committedQuantity]
+                    properties:
+                      assetClass:
+                        type: string
+                        maxLength: 64
+                      committedQuantity:
+                        type: integer
+                        minimum: 1
+      responses:
+        '200':
+          description: Per-line snapshots plus mvpAllLinesCovered (available-now gate)
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /fleet-leasing/asset-classes/availability:
     get:
       tags: [fleet-leasing]
@@ -1216,6 +1278,45 @@ paths:
       operationId: createFleetClient
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, companyName, pointsOfContact]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                companyName:
+                  type: string
+                  maxLength: 255
+                taxId:
+                  type: string
+                  maxLength: 32
+                  description: GSTIN / Tax ID (optional)
+                address:
+                  type: string
+                pointsOfContact:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [name, contactNumber, email, isPrimary]
+                    properties:
+                      name:
+                        type: string
+                        maxLength: 255
+                      contactNumber:
+                        type: string
+                        maxLength: 32
+                      email:
+                        type: string
+                        format: email
+                        maxLength: 320
+                      isPrimary:
+                        type: boolean
       responses:
         '201':
           description: Client created
@@ -1442,6 +1543,482 @@ paths:
           description: Status updated
         '400':
           description: Missing deactivate reason or invalid transition
+  /organisation/suppliers:
+    get:
+      tags: [organisation]
+      summary: List organisation suppliers (paginated)
+      description: >-
+        Default sort: createdAt descending (newest first), then id descending.
+      operationId: listOrganisationSuppliers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: supplierType
+          in: query
+          schema:
+            type: string
+            enum: [bike, driver, spare_parts, spareparts, compliance]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated supplier rows for dashboard
+    post:
+      tags: [organisation]
+      summary: Create organisation supplier
+      operationId: createOrganisationSupplier
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisationSupplierRequest'
+      responses:
+        '201':
+          description: Supplier created
+        '400':
+          description: Validation error
+  /organisation/suppliers/types:
+    get:
+      tags: [organisation]
+      summary: Catalog of organisation supplier types
+      description: >-
+        Fixed product enum (bike, driver, spare_parts, compliance). Not user-extensible.
+      operationId: listOrganisationSupplierTypes
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Supplier type catalog
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [key, label]
+                      properties:
+                        key:
+                          type: string
+                          enum: [bike, driver, spare_parts, compliance]
+                        label:
+                          type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+  /organisation/suppliers/{id}:
+    get:
+      tags: [organisation]
+      summary: Organisation supplier detail
+      operationId: getOrganisationSupplier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            Supplier detail with linkedSections. Driver-type suppliers include
+            paginated linked drivers (supplierId FK). Inventory, bike, and
+            compliance linked rows remain empty until those modules ship.
+    patch:
+      tags: [organisation]
+      summary: Update organisation supplier
+      operationId: updateOrganisationSupplier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganisationSupplierRequest'
+      responses:
+        '200':
+          description: Updated supplier
+        '400':
+          description: Validation error or inactive supplier cannot be edited
+  /organisation/suppliers/{id}/status:
+    patch:
+      tags: [organisation]
+      summary: Activate or deactivate supplier (deactivate requires reason)
+      operationId: updateOrganisationSupplierStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Required when action is deactivate
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason or invalid transition
+  /organisation/clients:
+    get:
+      tags: [organisation]
+      summary: List organisation clients (paginated)
+      description: >-
+        Default sort: createdAt descending (newest first), then id descending.
+        List contract counts are 0 until fleet lease contracts link organisation_client_id.
+      operationId: listOrganisationClients
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated client rows for dashboard
+    post:
+      tags: [organisation]
+      summary: Create organisation client
+      operationId: createOrganisationClient
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisationClientRequest'
+      responses:
+        '201':
+          description: Client created
+        '400':
+          description: Validation error
+  /organisation/clients/{id}:
+    get:
+      tags: [organisation]
+      summary: Organisation client detail
+      operationId: getOrganisationClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            Client detail with pointsOfContact. contractHistory is empty until
+            fleet lease contracts reference organisation clients (Decision E).
+    patch:
+      tags: [organisation]
+      summary: Update organisation client
+      operationId: updateOrganisationClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganisationClientRequest'
+      responses:
+        '200':
+          description: Updated client
+        '400':
+          description: Validation error or inactive client cannot be edited
+  /organisation/clients/{id}/status:
+    patch:
+      tags: [organisation]
+      summary: Activate or deactivate client (deactivate requires reason)
+      operationId: updateOrganisationClientStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Required when action is deactivate
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason or invalid transition
+  /organisation/drivers:
+    get:
+      tags: [organisation]
+      summary: List organisation drivers (paginated)
+      description: >-
+        Default sort: createdAt descending (newest first), then id descending.
+      operationId: listOrganisationDrivers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, license-expired]
+      responses:
+        '200':
+          description: Paginated driver rows for dashboard
+    post:
+      tags: [organisation]
+      summary: Create organisation driver (starts inactive)
+      operationId: createOrganisationDriver
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisationDriverRequest'
+      responses:
+        '201':
+          description: Driver created
+        '400':
+          description: Validation error
+        '409':
+          description: Duplicate CPR in organisation
+  /organisation/drivers/assignable-vehicles:
+    get:
+      tags: [organisation]
+      summary: List vehicles available for driver assignment
+      description: >-
+        Paginated list of vehicles on active lease contracts (allocation rows or contract vehicle
+        links) that are not already linked via assigned vehicle code on a driver register row.
+      operationId: listOrganisationDriverAssignableVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated assignable vehicles (may be empty)
+  /organisation/drivers/{id}:
+    get:
+      tags: [organisation]
+      summary: Organisation driver detail
+      operationId: getOrganisationDriver
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Driver detail
+        '404':
+          description: Not found
+    patch:
+      tags: [organisation]
+      summary: Update organisation driver
+      operationId: updateOrganisationDriver
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrganisationDriverRequest'
+      responses:
+        '200':
+          description: Updated driver
+        '400':
+          description: Validation error or inactive driver cannot be edited
+  /organisation/drivers/{id}/status:
+    patch:
+      tags: [organisation]
+      summary: Activate or deactivate driver (deactivate requires reason)
+      operationId: updateOrganisationDriverStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Required when action is deactivate
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason or invalid transition
+  /organisation/drivers/{id}/unassign:
+    post:
+      tags: [organisation]
+      summary: Remove driver vehicle assignment
+      description: >-
+        Clears assigned vehicle fields. When the driver was tied to the lease
+        contract, the register status is set to inactive until reassigned.
+      operationId: unassignOrganisationDriverVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignment removed
+        '400':
+          description: Driver has no assignment
+  /organisation/drivers/{id}/assign:
+    post:
+      tags: [organisation]
+      summary: Assign driver to lease vehicle (marks driver active)
+      operationId: assignOrganisationDriverVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignOrganisationDriverVehicleRequest'
+      responses:
+        '200':
+          description: Driver assigned
+        '400':
+          description: License expired or validation error
   /organisation/employees:
     get:
       tags: [organisation]
@@ -1870,6 +2447,349 @@ components:
           type: string
           format: uuid
           nullable: true
+    CreateOrganisationSupplierRequest:
+      type: object
+      required:
+        - organizationId
+        - name
+        - supplierType
+        - contactPerson
+        - contactPhone
+        - contactEmail
+        - addressLine1
+        - addressCountry
+        - addressState
+        - addressDistrict
+        - addressPincode
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        supplierType:
+          type: string
+          enum: [bike, driver, spare_parts, compliance]
+        contactPerson:
+          type: string
+          maxLength: 255
+        contactPhone:
+          type: string
+          maxLength: 32
+        contactEmail:
+          type: string
+          format: email
+          maxLength: 320
+        agreementReference:
+          type: string
+          maxLength: 120
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+        addressCity:
+          type: string
+          maxLength: 120
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+    UpdateOrganisationSupplierRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        supplierType:
+          type: string
+          enum: [bike, driver, spare_parts, compliance]
+        contactPerson:
+          type: string
+          maxLength: 255
+        contactPhone:
+          type: string
+          maxLength: 32
+        contactEmail:
+          type: string
+          format: email
+          maxLength: 320
+        agreementReference:
+          type: string
+          maxLength: 120
+          nullable: true
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+          nullable: true
+        addressCity:
+          type: string
+          maxLength: 120
+          nullable: true
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+    OrganisationClientPoc:
+      type: object
+      required: [name, contactNumber, email, isPrimary]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        contactNumber:
+          type: string
+          maxLength: 32
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        isPrimary:
+          type: boolean
+    CreateOrganisationClientRequest:
+      type: object
+      required:
+        - organizationId
+        - clientName
+        - addressLine1
+        - addressCountry
+        - addressState
+        - addressDistrict
+        - addressPincode
+        - pointsOfContact
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        clientName:
+          type: string
+          maxLength: 255
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+        addressCity:
+          type: string
+          maxLength: 120
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+        pointsOfContact:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrganisationClientPoc'
+    UpdateOrganisationClientRequest:
+      type: object
+      properties:
+        clientName:
+          type: string
+          maxLength: 255
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+          nullable: true
+        addressCity:
+          type: string
+          maxLength: 120
+          nullable: true
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+        pointsOfContact:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OrganisationClientPoc'
+    CreateOrganisationDriverRequest:
+      type: object
+      required:
+        - organizationId
+        - name
+        - cprNo
+        - phone
+        - email
+        - licenseNumber
+        - licenseExpiry
+        - supplierId
+        - addressLine1
+        - addressCountry
+        - addressState
+        - addressDistrict
+        - addressPincode
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        cprNo:
+          type: string
+          maxLength: 20
+        phone:
+          type: string
+          maxLength: 32
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        licenseNumber:
+          type: string
+          maxLength: 64
+        licenseExpiry:
+          type: string
+          format: date
+        supplierId:
+          type: string
+          format: uuid
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+        addressCity:
+          type: string
+          maxLength: 120
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+    UpdateOrganisationDriverRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        cprNo:
+          type: string
+          maxLength: 20
+        phone:
+          type: string
+          maxLength: 32
+        email:
+          type: string
+          format: email
+          maxLength: 320
+        licenseNumber:
+          type: string
+          maxLength: 64
+        licenseExpiry:
+          type: string
+          format: date
+        supplierId:
+          type: string
+          format: uuid
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+          nullable: true
+        addressCity:
+          type: string
+          maxLength: 120
+          nullable: true
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+    AssignOrganisationDriverVehicleRequest:
+      type: object
+      required:
+        - vehicleCode
+        - assetClass
+        - activeLeaseId
+      properties:
+        vehicleCode:
+          type: string
+          maxLength: 64
+        assetClass:
+          type: string
+          maxLength: 255
+        activeLeaseId:
+          type: string
+          maxLength: 64
+        vehicleTiedToContract:
+          type: boolean
+          default: true
     ModuleStatus:
       type: object
       required: [module, implemented]
@@ -2549,6 +3469,9 @@ components:
           nullable: true
           allOf:
             - $ref: '#/components/schemas/LeaseContractStatusBanner'
+        contractFullyAllocated:
+          type: boolean
+          description: True when every line is covered by available fleet (active MVP banner)
         availableActions:
           type: object
           required:

@@ -1,4 +1,4 @@
-import { SuppliersModule } from "@/components/modules/organization/suppliers/suppliersPage";
+import SuppliersModule from "@/components/modules/organization/suppliers/DashboardsuppliersPage";
 
 export default function OrganizationSuppliersPage() {
   return <SuppliersModule />;
