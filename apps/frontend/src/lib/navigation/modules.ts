@@ -24,11 +24,10 @@ import {
 export type NavItem = {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   requiredPermission?: string;
   children?: NavItem[];
 };
-
 export const mainNavItems: NavItem[] = [
   // ============================================================
   // DASHBOARD
@@ -77,15 +76,36 @@ export const mainNavItems: NavItem[] = [
       },
     ],
   },
-
   // ============================================================
-  // ASSET REGISTER
+  // ASSET MANAGEMENT
   // ============================================================
   {
-    label: "Asset Register",
-    href: "/asset-register",
+    label: "Asset Management",
+    href: "/asset-management",
     icon: ClipboardList,
     requiredPermission: "asset_register.view",
+    children: [
+      {
+        label: "Asset Classes",
+        href: "/asset-register/assestclass",
+        icon: ClipboardList,
+      },
+      {
+        label: "Fleet Register",
+        href: "/asset-register/fleetregister",
+        icon: Car,
+      },
+      {
+        label: "Asset Assignment",
+        href: "/asset-register/assetassignment",
+        icon: ArrowLeftRight,
+      },
+      {
+        label: "Compliance & Renewals",
+        href: "/asset-register/compliance-renewals",
+        icon: Shield,
+      },
+    ],
   },
 
   // ============================================================
