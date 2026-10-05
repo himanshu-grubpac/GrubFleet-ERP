@@ -24,7 +24,16 @@ export default function DashboardTable<T>({
 }: DashboardTableProps<T>) {
     return (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-            <div className="overflow-x-auto">
+            <div
+                className="
+                    w-full
+                    overflow-x-auto
+                    overflow-y-clip
+                    [scrollbar-width:none]
+                    [-ms-overflow-style:none]
+                    [&::-webkit-scrollbar]:hidden
+                "
+            >
                 <table className="w-full min-w-[900px] border-collapse">
                     <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">

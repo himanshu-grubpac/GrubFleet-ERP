@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
 
@@ -14,6 +13,18 @@ type AssignmentStatus =
     | "available"
     | "assigned"
     | "contract-required";
+
+type LeaseContract = {
+    id: string;
+    contractNumber: string;
+    clientName: string;
+    status: "Active" | "Expired" | "Draft";
+    startDate: string;
+    endDate: string;
+    matchingLine: string;
+    allocated: number;
+    total: number;
+};
 
 type AssetAssignmentDetails = {
     id: string;
@@ -46,16 +57,7 @@ type AssetAssignmentDetails = {
         name: string;
     };
 
-    leaseContract?: {
-        id: string;
-        contractNumber: string;
-        status: "Active" | "Expired" | "Draft";
-        startDate: string;
-        endDate: string;
-        matchingLine: string;
-        allocated: number;
-        total: number;
-    };
+    leaseContracts?: LeaseContract[];
 };
 
 /* -------------------------------------------------------------------------- */
@@ -66,18 +68,23 @@ const MOCK_ASSIGNMENT_ASSETS: AssetAssignmentDetails[] = [
     {
         id: "vehicle-001",
         fleetCode: "VH-1001",
+
         assetClass: "Petrol Scooter — Standard",
+
         registrationNumber: "MH04 AB 1001",
+
         odometerReading: "12,480 km",
 
         registrationStartDate: "01-Apr-2024",
         registrationEndDate: "31-Mar-2039",
 
         modelYear: "2023",
+
         chassisNumber: "MD2A1XX1234567890",
 
         insuranceSupplier: "ICICI Lombard",
         insurancePremium: "Rs. 3,200/yr",
+
         insuranceStartDate: "15-Mar-2026",
         insuranceEndDate: "14-Mar-2027",
 
@@ -95,33 +102,63 @@ const MOCK_ASSIGNMENT_ASSETS: AssetAssignmentDetails[] = [
             name: "Silverline Distribution Co",
         },
 
-        leaseContract: {
-            id: "contract-001",
-            contractNumber: "LEASE-2026-0098",
-            status: "Active",
-            startDate: "01-Sep-2026",
-            endDate: "31-Aug-2028",
-            matchingLine: "Petrol Scooter — Standard",
-            allocated: 11,
-            total: 14,
-        },
+        leaseContracts: [
+            {
+                id: "contract-001",
+                contractNumber: "LEASE-2026-0098",
+                clientName: "Silverline Distribution Co",
+                status: "Active",
+                startDate: "01-Sep-2026",
+                endDate: "31-Aug-2028",
+                matchingLine: "Petrol Scooter — Standard",
+                allocated: 11,
+                total: 14,
+            },
+            {
+                id: "contract-002",
+                contractNumber: "LEASE-2026-0112",
+                clientName: "ABC Logistics",
+                status: "Active",
+                startDate: "15-Sep-2026",
+                endDate: "14-Sep-2028",
+                matchingLine: "Petrol Scooter — Standard",
+                allocated: 5,
+                total: 10,
+            },
+            {
+                id: "contract-003",
+                contractNumber: "LEASE-2026-0135",
+                clientName: "Metro Distribution",
+                status: "Active",
+                startDate: "01-Oct-2026",
+                endDate: "30-Sep-2028",
+                matchingLine: "Petrol Scooter — Standard",
+                allocated: 7,
+                total: 12,
+            },
+        ],
     },
 
     {
         id: "vehicle-002",
         fleetCode: "VH-1002",
+
         assetClass: "Petrol Scooter — Standard",
+
         registrationNumber: "MH04 AB 1002",
+
         odometerReading: "8,930 km",
 
         registrationStartDate: "02-Apr-2024",
         registrationEndDate: "01-Apr-2039",
 
         modelYear: "2024",
+
         chassisNumber: "MD2A1XX1234567891",
 
         insuranceSupplier: "HDFC ERGO",
         insurancePremium: "Rs. 3,400/yr",
+
         insuranceStartDate: "21-Aug-2026",
         insuranceEndDate: "20-Aug-2027",
 
@@ -133,23 +170,30 @@ const MOCK_ASSIGNMENT_ASSETS: AssetAssignmentDetails[] = [
         notes: "Standard fleet vehicle. No additional notes.",
 
         status: "available",
+
+        leaseContracts: [],
     },
 
     {
         id: "vehicle-008",
         fleetCode: "VH-1008",
+
         assetClass: "Petrol Scooter — Standard",
+
         registrationNumber: "MH04 AB 1008",
+
         odometerReading: "9,540 km",
 
         registrationStartDate: "05-Feb-2026",
         registrationEndDate: "04-Feb-2041",
 
         modelYear: "2025",
+
         chassisNumber: "MD2A1XX1234567898",
 
         insuranceSupplier: "ICICI Lombard",
         insurancePremium: "Rs. 3,500/yr",
+
         insuranceStartDate: "05-Feb-2026",
         insuranceEndDate: "04-Feb-2027",
 
@@ -161,6 +205,20 @@ const MOCK_ASSIGNMENT_ASSETS: AssetAssignmentDetails[] = [
         notes: "Recently added fleet vehicle.",
 
         status: "contract-required",
+
+        leaseContracts: [
+            {
+                id: "contract-008",
+                contractNumber: "LEASE-2026-0142",
+                clientName: "Northstar Retail Pvt Ltd",
+                status: "Active",
+                startDate: "01-Oct-2026",
+                endDate: "30-Sep-2028",
+                matchingLine: "Petrol Scooter — Standard",
+                allocated: 3,
+                total: 8,
+            },
+        ],
     },
 ];
 
@@ -168,7 +226,9 @@ const MOCK_ASSIGNMENT_ASSETS: AssetAssignmentDetails[] = [
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
 
-const getStatusLabel = (status: AssignmentStatus) => {
+const getStatusLabel = (
+    status: AssignmentStatus,
+) => {
     switch (status) {
         case "available":
             return "Available";
@@ -184,7 +244,9 @@ const getStatusLabel = (status: AssignmentStatus) => {
     }
 };
 
-const getStatusClass = (status: AssignmentStatus) => {
+const getStatusClass = (
+    status: AssignmentStatus,
+) => {
     switch (status) {
         case "available":
             return "bg-orange-50 text-[#FE5720]";
@@ -210,46 +272,87 @@ export default function AssetAssignmentViewPage() {
 
     const assetId = String(params.id);
 
-    const [asset] = useState<AssetAssignmentDetails | undefined>(
-        MOCK_ASSIGNMENT_ASSETS.find(
-            (item) => item.id === assetId,
-        ),
+    const assetFromMock = MOCK_ASSIGNMENT_ASSETS.find(
+        (item) => item.id === assetId,
+    );
+
+    const [asset, setAsset] = useState<
+        AssetAssignmentDetails | undefined
+    >(assetFromMock);
+
+    /* ---------------------------------------------------------------------- */
+    /* Active contracts                                                       */
+    /* ---------------------------------------------------------------------- */
+
+    const activeLeaseContracts = useMemo(
+        () =>
+            asset?.leaseContracts?.filter(
+                (contract) =>
+                    contract.status === "Active",
+            ) ?? [],
+        [asset],
     );
 
     /* ---------------------------------------------------------------------- */
-    /* Navigation                                                              */
+    /* Selected contract                                                      */
     /* ---------------------------------------------------------------------- */
 
-    const handleBack = () => {
-        router.push("/asset-register/asset-assignment");
+    const [selectedLeaseContractId, setSelectedLeaseContractId] =
+        useState(
+            activeLeaseContracts[0]?.id ?? "",
+        );
+
+    const selectedLeaseContract =
+        activeLeaseContracts.find(
+            (contract) =>
+                contract.id === selectedLeaseContractId,
+        );
+
+    /* ---------------------------------------------------------------------- */
+    /* Assignment state                                                       */
+    /* ---------------------------------------------------------------------- */
+
+    const [isAssigned, setIsAssigned] =
+        useState(false);
+
+    /* ---------------------------------------------------------------------- */
+    /* Navigation                                                             */
+    /* ---------------------------------------------------------------------- */
+
+    const handleCancel = () => {
+        router.push(
+            "/asset-register/asset-assign",
+        );
     };
 
-    /**
-     * Assignment is a separate flow from the view page.
-     *
-     * The view page only displays the current state of the asset.
-     * The assign page handles:
-     *
-     * 1. Client selection
-     * 2. Active lease contract selection
-     * 3. Matching contract line
-     * 4. Allocation validation
-     * 5. Final assignment
-     */
+    /* ---------------------------------------------------------------------- */
+    /* Assign                                                                */
+    /* ---------------------------------------------------------------------- */
+
     const handleAssign = () => {
-        if (!asset) return;
+        if (
+            !asset ||
+            !selectedLeaseContract
+        ) {
+            return;
+        }
 
-        router.push(
-            `/asset-register/asset-assignment/${asset.id}/assign`,
-        );
-    };
+        /*
+         * Mock assignment behaviour.
+         *
+         * Replace this section later with the
+         * actual API request.
+         */
+        setAsset({
+            ...asset,
+            status: "assigned",
+            client: {
+                id: selectedLeaseContract.id,
+                name: selectedLeaseContract.clientName,
+            },
+        });
 
-    const handleViewContract = () => {
-        if (!asset?.leaseContract) return;
-
-        router.push(
-            `/lease-contract/${asset.leaseContract.id}`,
-        );
+        setIsAssigned(true);
     };
 
     /* ---------------------------------------------------------------------- */
@@ -267,7 +370,7 @@ export default function AssetAssignmentViewPage() {
 
                         <button
                             type="button"
-                            onClick={handleBack}
+                            onClick={handleCancel}
                             className="mt-3 text-xs font-medium text-[#FE5720] hover:underline"
                         >
                             Back to asset assignment
@@ -279,26 +382,6 @@ export default function AssetAssignmentViewPage() {
     }
 
     /* ---------------------------------------------------------------------- */
-    /* Assignment State                                                       */
-    /* ---------------------------------------------------------------------- */
-
-    const hasActiveContract =
-        asset.leaseContract?.status === "Active";
-
-    /**
-     * Asset can only be assigned when:
-     *
-     * - It is currently available
-     * - An active lease contract exists
-     *
-     * The actual client/contract selection still happens on
-     * the separate Assign page.
-     */
-    const canAssign =
-        asset.status === "available" &&
-        hasActiveContract;
-
-    /* ---------------------------------------------------------------------- */
     /* UI                                                                     */
     /* ---------------------------------------------------------------------- */
 
@@ -307,60 +390,36 @@ export default function AssetAssignmentViewPage() {
             <div className="px-5 py-4">
 
                 {/* ========================================================== */}
-                {/* Header                                                       */}
+                {/* Page Header                                                 */}
                 {/* ========================================================== */}
 
-                <div className="mb-4 flex items-start justify-between">
-                    <div>
-                        <div className="flex items-center gap-2">
-
-
-                            <h1 className="text-xl font-semibold text-gray-900">
-                                {asset.fleetCode}
-                            </h1>
-
-                            <span
-                                className={[
-                                    "rounded-full px-2 py-0.5",
-                                    "text-[10px] font-medium",
-                                    getStatusClass(asset.status),
-                                ].join(" ")}
-                            >
-                                {getStatusLabel(asset.status)}
-                            </span>
-                        </div>
-
-                        <p className="mt-0.5 text-[10px] text-gray-500">
-                            {asset.assetClass} ·{" "}
-                            {asset.registrationNumber}
-                        </p>
-                    </div>
-
-                    {/* ------------------------------------------------------ */}
-                    {/* Header Actions                                          */}
-                    {/* ------------------------------------------------------ */}
-
+                <div className="mb-4">
                     <div className="flex items-center gap-2">
-                        {canAssign && (
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={handleAssign}
-                                className="h-9 border-[#FE5720] bg-[#FE5720] px-5 text-white hover:bg-[#e84e1d]"
-                            >
-                                Assign
-                            </Button>
+                        <h1 className="text-xl font-semibold text-gray-900">
+                            Assign {asset.fleetCode}
+                        </h1>
+
+                        {isAssigned && (
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                                Assigned
+                            </span>
                         )}
                     </div>
+
+                    <p className="mt-0.5 text-[10px] text-gray-500">
+                        Allocates this vehicle to a lease
+                        contract. This isn&apos;t be undone from
+                        here once confirmed.
+                    </p>
                 </div>
 
                 {/* ========================================================== */}
-                {/* Vehicle Information                                         */}
+                {/* VEHICLE                                                     */}
                 {/* ========================================================== */}
 
                 <section>
-                    <h2 className="mb-3 text-sm font-semibold text-gray-900">
-                        Vehicle Information
+                    <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                        Vehicle
                     </h2>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -371,179 +430,193 @@ export default function AssetAssignmentViewPage() {
 
                         <InfoRow
                             label="Registration number"
-                            value={asset.registrationNumber}
-                        />
-
-                        <InfoRow
-                            label="Chassis number"
-                            value={asset.chassisNumber}
-                        />
-
-                        <InfoRow
-                            label="Model / year"
-                            value={asset.modelYear}
+                            value={
+                                asset.registrationNumber
+                            }
                         />
 
                         <InfoRow
                             label="Odometer reading"
-                            value={asset.odometerReading}
+                            value={
+                                asset.odometerReading
+                            }
                         />
 
                         <InfoRow
-                            label="Registration period"
-                            value={`${asset.registrationStartDate} — ${asset.registrationEndDate}`}
-                        />
-
-                        <InfoRow
-                            label="Insurance supplier"
-                            value={asset.insuranceSupplier}
-                        />
-
-                        <InfoRow
-                            label="Insurance premium"
-                            value={asset.insurancePremium}
-                        />
-
-                        <InfoRow
-                            label="Insurance period"
-                            value={`${asset.insuranceStartDate} — ${asset.insuranceEndDate}`}
-                        />
-
-                        <InfoRow
-                            label="Warranty period"
-                            value={`${asset.warrantyStartDate} — ${asset.warrantyEndDate}`}
-                        />
-
-                        <InfoRow
-                            label="Purchase invoice"
-                            value={asset.purchaseInvoice}
-                        />
-
-                        <InfoRow
-                            label="Notes"
-                            value={asset.notes}
+                            label="Available since"
+                            value={
+                                asset.registrationStartDate
+                            }
                         />
                     </div>
                 </section>
 
                 {/* ========================================================== */}
-                {/* Assignment Information                                      */}
+                {/* ASSIGN TO                                                    */}
                 {/* ========================================================== */}
 
                 <section className="mt-4">
-                    <h2 className="text-sm font-semibold text-gray-900">
-                        Assignment
+                    <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                        Assign To
                     </h2>
 
-                    <p className="mb-3 mt-0.5 text-[10px] text-gray-500">
-                        Current client and lease contract information
-                        for this vehicle.
-                    </p>
-
                     {/* ------------------------------------------------------ */}
-                    {/* No Active Contract                                      */}
+                    {/* Lease Contract                                          */}
                     {/* ------------------------------------------------------ */}
 
-                    {!hasActiveContract ? (
-                        <div className="rounded-lg border border-gray-200 bg-white px-3 py-3">
-                            <div className="flex items-center gap-2">
-                                <span className="text-[10px] font-medium text-gray-400">
-                                    Lease contract
-                                </span>
+                    <div className="rounded-lg border border-gray-200 bg-white px-3 py-3">
+                        <label
+                            htmlFor="lease-contract"
+                            className="mb-1.5 block text-[10px] font-semibold text-gray-700"
+                        >
+                            Lease contract
+                        </label>
 
-                                <span className="ml-auto text-[10px] font-medium text-gray-500">
-                                    No active lease contract
-                                </span>
+                        {activeLeaseContracts.length ===
+                            0 ? (
+                            <div className="flex h-10 items-center rounded-md border border-gray-200 bg-gray-50 px-3 text-xs text-gray-500">
+                                No active lease contract
+                                available
                             </div>
-
-                            <div className="mt-2 border-t border-gray-100 pt-2">
-                                <p className="text-[10px] leading-4 text-gray-500">
-                                    This vehicle is not currently
-                                    assigned to an active lease
-                                    contract.
-                                </p>
-                            </div>
-                        </div>
-                    ) : (
-                        /* ---------------------------------------------------- */
-                        /* Active Contract                                      */
-                        /* ---------------------------------------------------- */
-
-                        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                            <InfoRow
-                                label="Client"
+                        ) : (
+                            <select
+                                id="lease-contract"
                                 value={
-                                    asset.client?.name ?? "—"
+                                    selectedLeaseContractId
                                 }
-                            />
-
-                            <InfoRow
-                                label="Lease contract"
-                                value={
-                                    asset.leaseContract
-                                        ?.contractNumber ?? "—"
+                                disabled={isAssigned}
+                                onChange={(event) =>
+                                    setSelectedLeaseContractId(
+                                        event.target.value,
+                                    )
                                 }
-                            />
+                                className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-800 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
+                            >
+                                {activeLeaseContracts.map(
+                                    (contract) => (
+                                        <option
+                                            key={
+                                                contract.id
+                                            }
+                                            value={
+                                                contract.id
+                                            }
+                                        >
+                                            {
+                                                contract.contractNumber
+                                            }{" "}
+                                            —{" "}
+                                            {
+                                                contract.clientName
+                                            }
+                                        </option>
+                                    ),
+                                )}
+                            </select>
+                        )}
+                    </div>
 
-                            <InfoRow
-                                label="Contract status"
-                                value={
-                                    asset.leaseContract?.status ??
-                                    "—"
-                                }
-                            />
+                    {/* ------------------------------------------------------ */}
+                    {/* Selected Contract Information                          */}
+                    {/* ------------------------------------------------------ */}
 
-                            <InfoRow
-                                label="Contract period"
-                                value={
-                                    asset.leaseContract
-                                        ? `${asset.leaseContract.startDate} — ${asset.leaseContract.endDate}`
-                                        : "—"
-                                }
-                            />
-
+                    {selectedLeaseContract && (
+                        <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
                             <InfoRow
                                 label="Matching line"
                                 value={
-                                    asset.leaseContract
-                                        ?.matchingLine ?? "—"
+                                    selectedLeaseContract.matchingLine
                                 }
                             />
 
-                            <InfoRow
-                                label="Current allocation"
-                                value={
-                                    asset.leaseContract
-                                        ? `${asset.leaseContract.allocated} of ${asset.leaseContract.total} allocated`
-                                        : "—"
-                                }
-                            />
+                            <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
+                                <p className="w-1/2 text-[10px] font-medium text-gray-400">
+                                    Current allocation
+                                </p>
 
-                            <div className="flex justify-end border-t border-gray-100 px-3 py-2">
-                                <Button
-                                    type="button"
-                                    variant="neutral"
-                                    onClick={handleViewContract}
-                                    className="h-8 border-gray-300 bg-white px-4 text-xs text-gray-700 hover:bg-gray-50"
-                                >
-                                    View Lease Contract
-                                </Button>
+                                <p className="w-1/2 text-right text-[10px] font-semibold text-[#FE5720]">
+                                    {
+                                        selectedLeaseContract.allocated
+                                    }{" "}
+                                    of{" "}
+                                    {
+                                        selectedLeaseContract.total
+                                    }{" "}
+                                    allocated
+                                </p>
                             </div>
                         </div>
                     )}
                 </section>
 
                 {/* ========================================================== */}
-                {/* Footer                                                       */}
+                {/* ACTIONS                                                      */}
                 {/* ========================================================== */}
 
-                <div className="mt-4 border-t border-gray-200 pt-3">
-                    <p className="text-[8px] leading-3 text-gray-400">
-                        View only · Asset Assignment module. Vehicle
-                        information is maintained through Fleet &amp;
-                        Asset Management.
+                <div className="mt-4 flex items-center gap-2">
+                    {/* Cancel */}
+                    <Button
+                        type="button"
+                        variant="neutral"
+                        onClick={handleCancel}
+                        disabled={isAssigned}
+                        className="h-8 border-gray-300 bg-white px-4 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        Cancel
+                    </Button>
+
+                    {/* Assign */}
+                    <Button
+                        type="button"
+                        variant="neutral"
+                        onClick={handleAssign}
+                        disabled={
+                            !selectedLeaseContract ||
+                            isAssigned
+                        }
+                        className="h-8 border-[#FE5720] bg-[#FE5720] px-5 text-xs font-medium text-white hover:bg-[#E94E1C] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        {isAssigned
+                            ? "Assigned"
+                            : "Assign"}
+                    </Button>
+                </div>
+
+                {/* ========================================================== */}
+                {/* INFORMATION                                                  */}
+                {/* ========================================================== */}
+
+                <div className="mt-3 flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2.5">
+                    <span className="mt-0.5 shrink-0 text-[9px] font-medium text-[#FE5720]">
+                        i
+                    </span>
+
+                    <p className="text-[9px] leading-3.5 text-gray-500">
+
+                        Assignment is immediate — no approval
+                        step. The vehicle moves to Leased and
+                        stays on this contract; reassignment
+                        isn&apos;t supported for MVP. Returns are
+                        handled by Workshop and simply free the
+                        vehicle up again.
+
                     </p>
                 </div>
+
+                {/* ========================================================== */}
+                {/* SUCCESS MESSAGE                                              */}
+                {/* ========================================================== */}
+
+                {isAssigned && (
+                    <div className="mt-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2.5">
+                        <p className="text-[10px] font-medium text-[#FE5720]">
+                            Vehicle assigned successfully to{" "}
+                            {selectedLeaseContract?.contractNumber}{" "}
+                            —{" "}
+                            {selectedLeaseContract?.clientName}.
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     );

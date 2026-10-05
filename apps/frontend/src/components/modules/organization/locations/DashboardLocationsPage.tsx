@@ -351,12 +351,6 @@ export default function LocationsPage() {
     <DashboardLayout
       title="Locations"
       description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
-      tabs={[
-        {
-          label: "Locations",
-          href: "/organization/locations",
-        },
-      ]}
       activeTab="/organization/locations"
       action={
         <Button

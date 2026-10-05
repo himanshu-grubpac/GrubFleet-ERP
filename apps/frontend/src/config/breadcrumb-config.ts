@@ -5,33 +5,23 @@ export interface BreadcrumbItem {
     href?: string;
 }
 
-export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
-    // Organisation
+export const breadcrumbConfig: Record<
+    string,
+    BreadcrumbItem[]
+> = {
+    // ============================================================
+    // ORGANISATION
+    // ============================================================
+
     "/organization": [
         {
             label: "Organisation",
         },
     ],
 
-    "/organization/locations": [
-        {
-            label: "Organisation",
-            href: "/organization",
-        },
-        {
-            label: "Locations",
-        },
-    ],
-
-    "/organization/suppliers": [
-        {
-            label: "Organisation",
-            href: "/organization",
-        },
-        {
-            label: "Suppliers",
-        },
-    ],
+    // ----------------------------
+    // Clients
+    // ----------------------------
 
     "/organization/clients": [
         {
@@ -43,6 +33,24 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         },
     ],
 
+    "/organization/clients/create": [
+        {
+            label: "Organisation",
+            href: "/organization",
+        },
+        {
+            label: "Clients",
+            href: "/organization/clients",
+        },
+        {
+            label: "Create Client",
+        },
+    ],
+
+    // ----------------------------
+    // Driver Register
+    // ----------------------------
+
     "/organization/driver-register": [
         {
             label: "Organisation",
@@ -53,6 +61,21 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         },
     ],
 
+    "/organization/driver-register/create": [
+        {
+            label: "Organisation",
+            href: "/organization",
+        },
+        {
+            label: "Driver Register",
+            href: "/organization/driver-register",
+        },
+        {
+            label: "Create Driver",
+        },
+    ],
+
+    // Existing route support
     "/organization/driver-register/add-driver": [
         {
             label: "Organisation",
@@ -67,7 +90,9 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         },
     ],
 
-
+    // ----------------------------
+    // Employees
+    // ----------------------------
 
     "/organization/employees": [
         {
@@ -89,10 +114,164 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
             href: "/organization/employees",
         },
         {
-            label: "Add Employee",
+            label: "Create Employee",
         },
     ],
-    // Procurement
+
+    // ----------------------------
+    // Locations
+    // ----------------------------
+
+    "/organization/locations": [
+        {
+            label: "Organisation",
+            href: "/organization",
+        },
+        {
+            label: "Locations",
+        },
+    ],
+
+    "/organization/locations/create": [
+        {
+            label: "Organisation",
+            href: "/organization",
+        },
+        {
+            label: "Locations",
+            href: "/organization/locations",
+        },
+        {
+            label: "Create Location",
+        },
+    ],
+
+    // ----------------------------
+    // Suppliers
+    // ----------------------------
+
+    "/organization/suppliers": [
+        {
+            label: "Organisation",
+            href: "/organization",
+        },
+        {
+            label: "Suppliers",
+        },
+    ],
+
+    "/organization/suppliers/create": [
+        {
+            label: "Organisation",
+            href: "/organization",
+        },
+        {
+            label: "Suppliers",
+            href: "/organization/suppliers",
+        },
+        {
+            label: "Create Supplier",
+        },
+    ],
+
+    // ============================================================
+    // ASSET MANAGEMENT
+    // ============================================================
+
+    "/asset-register": [
+        {
+            label: "Asset Management",
+        },
+    ],
+
+    // ----------------------------
+    // Asset Classes
+    // ----------------------------
+
+    "/asset-register/assestclass": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Asset Classes",
+        },
+    ],
+
+    "/asset-register/assestclass/create": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Asset Classes",
+            href: "/asset-register/assestclass",
+        },
+        {
+            label: "Create Asset Class",
+        },
+    ],
+
+    // ----------------------------
+    // Fleet Register
+    // ----------------------------
+
+    "/asset-register/fleetregister": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Fleet Register",
+        },
+    ],
+
+    "/asset-register/fleetregister/create": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Fleet Register",
+            href: "/asset-register/fleetregister",
+        },
+        {
+            label: "Create Fleet",
+        },
+    ],
+
+    // ----------------------------
+    // Asset Assignment
+    // ----------------------------
+
+    "/asset-register/asset-assign": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Asset Assignment",
+        },
+    ],
+
+    // ----------------------------
+    // Compliance & Renewals
+    // ----------------------------
+
+    "/asset-register/compliance-renewals": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Compliance & Renewals",
+        },
+    ],
+
+    // ============================================================
+    // PROCUREMENT
+    // ============================================================
+
     "/procurement": [
         {
             label: "Procurement",
@@ -123,7 +302,10 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         },
     ],
 
-    // Fleet Leasing
+    // ============================================================
+    // FLEET LEASING
+    // ============================================================
+
     "/fleet-leasing": [
         {
             label: "Fleet Leasing",
@@ -140,7 +322,10 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
         },
     ],
 
-    // Customers
+    // ============================================================
+    // CUSTOMERS
+    // ============================================================
+
     "/customers": [
         {
             label: "Customers",
@@ -156,6 +341,4 @@ export const breadcrumbConfig: Record<string, BreadcrumbItem[]> = {
             label: "Corporate Customers",
         },
     ],
-
-
 };

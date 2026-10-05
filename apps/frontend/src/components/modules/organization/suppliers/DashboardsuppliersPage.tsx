@@ -279,13 +279,8 @@ export default function SuppliersPage() {
     return (
         <DashboardLayout
             title="Suppliers"
-            description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts, used across Asset Management and Inventory."
-            tabs={[
-                {
-                    label: "Suppliers",
-                    href: "/organization/suppliers",
-                },
-            ]}
+            description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts,
+             used across Asset Management and Inventory."
             activeTab="/organization/suppliers"
             action={
                 <Button

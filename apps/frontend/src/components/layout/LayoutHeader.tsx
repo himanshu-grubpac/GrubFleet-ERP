@@ -8,7 +8,10 @@ import { usePathname } from "next/navigation";
 import Button from "@/components/ui/GrubpacButton";
 import Breadcrumb from "./Breadcrumb";
 
-import { breadcrumbConfig } from "@/config/breadcrumb-config";
+import {
+  breadcrumbConfig,
+  type BreadcrumbItem,
+} from "@/config/breadcrumb-config";
 
 interface LayoutHeaderProps {
   onMenuClick?: () => void;
@@ -23,7 +26,9 @@ export default function LayoutHeader({
 
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4">
-      {/* Left */}
+      {/* ============================================================
+          LEFT
+      ============================================================ */}
       <div className="flex min-w-0 items-center gap-3">
         {/* Mobile menu */}
         <div className="md:hidden">
@@ -43,7 +48,9 @@ export default function LayoutHeader({
         <Breadcrumb items={breadcrumbs} />
       </div>
 
-      {/* Right */}
+      {/* ============================================================
+          RIGHT
+      ============================================================ */}
       <div className="ml-4 flex shrink-0 items-center gap-3">
         {/* Search */}
         <div className="hidden sm:block">
@@ -79,34 +86,231 @@ export default function LayoutHeader({
   );
 }
 
+/* ================================================================
+   BREADCRUMB RESOLUTION
+================================================================ */
+
 /**
- * Finds the breadcrumb configuration for the current route.
+ * Builds breadcrumbs for the current pathname.
  *
- * Exact route:
+ * Static route:
  * /organization/locations
+ *
+ * Result:
+ * Organisation > Locations
  *
  * Dynamic route:
  * /organization/locations/123
  *
- * Both will use:
- * Organisation > Locations
+ * Result:
+ * Organisation > Locations > 123
+ *
+ * Dynamic edit route:
+ * /organization/locations/123/edit
+ *
+ * Result:
+ * Organisation > Locations > 123 > Edit
  */
-function getBreadcrumbs(pathname: string) {
-  // Exact match
+function getBreadcrumbs(
+  pathname: string,
+): BreadcrumbItem[] {
+  /* ==============================================================
+     1. EXACT ROUTE MATCH
+     ============================================================== */
+
   if (breadcrumbConfig[pathname]) {
     return breadcrumbConfig[pathname];
   }
 
-  // Find the most specific parent route
+  /* ==============================================================
+     2. FIND THE MOST SPECIFIC STATIC PARENT
+     ============================================================== */
+
   const matchingRoute = Object.keys(breadcrumbConfig)
     .sort((a, b) => b.length - a.length)
     .find((route) =>
       pathname.startsWith(`${route}/`),
     );
 
-  if (matchingRoute) {
-    return breadcrumbConfig[matchingRoute];
+  if (!matchingRoute) {
+    return [];
   }
 
-  return [];
+  const baseBreadcrumbs =
+    breadcrumbConfig[matchingRoute];
+
+  /* ==============================================================
+     3. GET REMAINING URL SEGMENTS
+     ============================================================== */
+
+  const remainingPath = pathname.slice(
+    matchingRoute.length,
+  );
+
+  const segments = remainingPath
+    .split("/")
+    .filter(Boolean);
+
+  if (!segments.length) {
+    return baseBreadcrumbs;
+  }
+
+  /* ==============================================================
+     4. BUILD DYNAMIC BREADCRUMBS
+     ============================================================== */
+
+  const dynamicBreadcrumbs: BreadcrumbItem[] = [
+    ...baseBreadcrumbs,
+  ];
+
+  let currentPath = matchingRoute;
+
+  segments.forEach((segment, index) => {
+    currentPath += `/${segment}`;
+
+    const isLastSegment =
+      index === segments.length - 1;
+
+    const label = getDynamicSegmentLabel(
+      segment,
+      matchingRoute,
+      segments,
+      index,
+    );
+
+    const isActionSegment =
+      isActionPageSegment(segment);
+
+    dynamicBreadcrumbs.push({
+      label,
+      href:
+        !isLastSegment && !isActionSegment
+          ? currentPath
+          : undefined,
+    });
+  });
+
+  return dynamicBreadcrumbs;
+}
+
+/* ================================================================
+   DYNAMIC SEGMENT LABEL
+================================================================ */
+
+/**
+ * Converts URL segments into readable breadcrumb labels.
+ *
+ * Examples:
+ *
+ * VH-1006
+ *     -> VH-1006
+ *
+ * vehicle-001
+ *     -> Vehicle 001
+ *
+ * location-001
+ *     -> Location 001
+ *
+ * edit
+ *     -> Edit
+ *
+ * lease-history
+ *     -> Lease History
+ */
+function getDynamicSegmentLabel(
+  segment: string,
+  matchingRoute: string,
+  segments: string[],
+  index: number,
+): string {
+  /* ==============================================================
+     ACTION PAGES
+     ============================================================== */
+
+  if (segment === "edit") {
+    return "Edit";
+  }
+
+  if (segment === "lease-history") {
+    return "Lease History";
+  }
+
+  /* ==============================================================
+     COMPLIANCE RENEWAL
+     ============================================================== */
+
+  if (
+    matchingRoute ===
+    "/asset-register/compliance-renewals" &&
+    index === segments.length - 1
+  ) {
+    return "Renew";
+  }
+
+  /* ==============================================================
+     NORMAL DYNAMIC ID
+     ============================================================== */
+
+  return formatDynamicId(segment);
+}
+
+/* ================================================================
+   FORMAT DYNAMIC ID
+================================================================ */
+
+/**
+ * Formats a dynamic URL ID for display.
+ *
+ * Examples:
+ *
+ * VH-1006
+ *     -> VH-1006
+ *
+ * vehicle-001
+ *     -> Vehicle 001
+ *
+ * location-001
+ *     -> Location 001
+ *
+ * abc123
+ *     -> Abc123
+ */
+function formatDynamicId(
+  value: string,
+): string {
+  /*
+   * Preserve codes such as:
+   *
+   * VH-1006
+   * DL-01-AB-1234
+   * KA-05-MN-1234
+   */
+  if (
+    /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/.test(
+      value,
+    )
+  ) {
+    return value;
+  }
+
+  return value
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) =>
+      char.toUpperCase(),
+    );
+}
+
+/* ================================================================
+   ACTION PAGE CHECK
+================================================================ */
+
+function isActionPageSegment(
+  segment: string,
+): boolean {
+  return (
+    segment === "edit" ||
+    segment === "lease-history"
+  );
 }
