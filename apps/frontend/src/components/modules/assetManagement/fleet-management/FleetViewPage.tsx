@@ -25,6 +25,12 @@ type FleetAsset = {
 
     assetClass: string;
 
+    /*
+     * Vehicle selected from the vehicles connected
+     * to the selected Asset Class.
+     */
+    vehicleName: string;
+
     registrationNumber: string;
     odometerReading: string;
 
@@ -63,6 +69,8 @@ const MOCK_FLEET_ASSETS: FleetAsset[] = [
 
         assetClass: "Petrol Scooter — Standard",
 
+        vehicleName: "Honda Activa 6G",
+
         registrationNumber: "MH04 AB 1001",
 
         odometerReading: "12,480 km",
@@ -100,6 +108,8 @@ const MOCK_FLEET_ASSETS: FleetAsset[] = [
         fleetCode: "VH-1002",
 
         assetClass: "Petrol Scooter — Standard",
+
+        vehicleName: "Honda Activa 6G",
 
         registrationNumber: "MH04 AB 1002",
 
@@ -211,7 +221,7 @@ export default function FleetViewPage() {
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Deactivate                                                            */
+    /* Deactivate                                                             */
     /* ---------------------------------------------------------------------- */
 
     const handleDeactivate = () => {
@@ -328,17 +338,18 @@ export default function FleetViewPage() {
                             </span>
                         </div>
 
+                        {/* Updated: Asset Class + Vehicle Name + Registration */}
                         <p className="mt-0.5 text-[10px] text-gray-500">
-                            {asset.assetClass} · {asset.registrationNumber}
+                            {asset.assetClass} · {asset.vehicleName} ·{" "}
+                            {asset.registrationNumber}
                         </p>
                     </div>
 
                     {/* ====================================================== */}
-                    {/* Actions                                                 */}
+                    {/* Actions                                                   */}
                     {/* ====================================================== */}
 
                     <div className="flex items-center gap-2">
-
                         <Button
                             type="button"
                             variant="neutral"
@@ -375,7 +386,7 @@ export default function FleetViewPage() {
                 </div>
 
                 {/* ========================================================== */}
-                {/* Vehicle Information                                        */}
+                {/* Vehicle Information                                          */}
                 {/* ========================================================== */}
 
                 <section>
@@ -390,6 +401,13 @@ export default function FleetViewPage() {
                         <InfoRow
                             label="Asset class"
                             value={asset.assetClass}
+                        />
+
+                        {/* Vehicle name */}
+
+                        <InfoRow
+                            label="Vehicle name"
+                            value={asset.vehicleName}
                         />
 
                         {/* Registration number */}
@@ -430,7 +448,7 @@ export default function FleetViewPage() {
                         />
 
                         {/* ================================================== */}
-                        {/* Insurance Supplier                                */}
+                        {/* Insurance Supplier                                 */}
                         {/* ================================================== */}
 
                         <InfoRow
@@ -453,7 +471,7 @@ export default function FleetViewPage() {
                         />
 
                         {/* ================================================== */}
-                        {/* Warranty Period                                   */}
+                        {/* Warranty Period                                    */}
                         {/* ================================================== */}
 
                         <InfoRow
@@ -486,7 +504,6 @@ export default function FleetViewPage() {
                 {/* ========================================================== */}
 
                 <section className="mt-4">
-
                     <h2 className="text-sm font-semibold text-gray-900">
                         TCO
                     </h2>
@@ -527,7 +544,6 @@ export default function FleetViewPage() {
                         {/* TCO Total */}
 
                         <div className="flex min-h-[30px] items-center border-t border-gray-200 px-3">
-
                             <p className="w-1/2 text-[10px] font-semibold text-gray-700">
                                 TCO
                             </p>
@@ -535,13 +551,12 @@ export default function FleetViewPage() {
                             <p className="w-1/2 text-right text-[10px] font-bold text-gray-900">
                                 Rs. 83,000
                             </p>
-
                         </div>
                     </div>
                 </section>
 
                 {/* ========================================================== */}
-                {/* Accident & Damage                                          */}
+                {/* Accident & Damage                                           */}
                 {/* ========================================================== */}
 
                 <section className="mt-4">
@@ -590,18 +605,17 @@ export default function FleetViewPage() {
                         </div>
                     )}
                 </section>
+
                 {/* ========================================================== */}
                 {/* Driver                                                       */}
                 {/* ========================================================== */}
 
                 <section className="mt-4">
-
                     <h2 className="mb-3 text-sm font-semibold text-gray-900">
                         Driver
                     </h2>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-
                         <InfoRow
                             label="Assigned driver"
                             value="No driver assigned"
@@ -615,11 +629,10 @@ export default function FleetViewPage() {
                 </section>
 
                 {/* ========================================================== */}
-                {/* Lease History                                              */}
+                {/* Lease History                                               */}
                 {/* ========================================================== */}
 
                 <div className="mt-4 border-t border-gray-200 pt-3">
-
                     <Button
                         type="button"
                         variant="neutral"
@@ -632,22 +645,19 @@ export default function FleetViewPage() {
                     >
                         View Lease History
                     </Button>
-
                 </div>
 
                 {/* ========================================================== */}
-                {/* Footer                                                      */}
+                {/* Footer                                                       */}
                 {/* ========================================================== */}
 
                 <div className="mt-2 border-t border-gray-200 pt-2">
-
                     <p className="text-[8px] leading-3 text-gray-400">
                         View only · Fleet &amp; Asset Management module.
                         View, edit and deactivate require field-level
                         permissions. Accident &amp; Damage is managed by
                         Workshop.
                     </p>
-
                 </div>
             </div>
 
@@ -657,7 +667,6 @@ export default function FleetViewPage() {
 
             {showDeactivateModal && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-
                     <div
                         className="w-full max-w-[460px] rounded-lg bg-white p-5 shadow-xl"
                         role="dialog"
@@ -680,12 +689,12 @@ export default function FleetViewPage() {
                                 from the fleet register.
                             </p>
                         </div>
+
                         {/* ================================================== */}
-                        {/* Reason                                             */}
+                        {/* Reason                                               */}
                         {/* ================================================== */}
 
                         <div className="mt-4">
-
                             <label
                                 htmlFor="deactivate-reason"
                                 className="mb-1.5 block text-xs font-medium text-gray-700"
@@ -700,8 +709,7 @@ export default function FleetViewPage() {
                                 id="deactivate-reason"
                                 value={deactivateReason}
                                 onChange={(event) => {
-                                    const value =
-                                        event.target.value;
+                                    const value = event.target.value;
 
                                     setDeactivateReason(value);
 
@@ -729,11 +737,10 @@ export default function FleetViewPage() {
                         </div>
 
                         {/* ================================================== */}
-                        {/* Modal Actions                                      */}
+                        {/* Modal Actions                                       */}
                         {/* ================================================== */}
 
                         <div className="mt-5 flex justify-end gap-2">
-
                             <Button
                                 type="button"
                                 variant="neutral"
@@ -755,7 +762,6 @@ export default function FleetViewPage() {
                             >
                                 Deactivate
                             </Button>
-
                         </div>
                     </div>
                 </div>
@@ -777,7 +783,6 @@ function InfoRow({
 }) {
     return (
         <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
-
             <p className="w-1/2 text-[10px] font-medium text-gray-400">
                 {label}
             </p>
@@ -785,7 +790,6 @@ function InfoRow({
             <p className="w-1/2 text-right text-[10px] font-medium text-gray-800">
                 {value}
             </p>
-
         </div>
     );
 }

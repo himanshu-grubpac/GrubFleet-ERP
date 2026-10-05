@@ -12,6 +12,11 @@ import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 
 export type FleetVehicleFormData = {
     assetClassId: string;
+
+    // Asset Master reference
+    assetMasterId: string;
+    vehicleName: string;
+
     purchaseInvoiceId: string;
 
     registrationNumber: string;
@@ -49,6 +54,16 @@ type AssetClass = {
     ratedLoadCapacity: string;
 
     defaultIntakeChecklist: string;
+};
+
+type AssetMasterVehicle = {
+    id: string;
+    assetCode: string;
+    vehicleName: string;
+    assetClass: string;
+    vehicleType: string;
+    fuelType: string;
+    status: "Active" | "Inactive";
 };
 
 type PurchaseInvoice = {
@@ -95,6 +110,71 @@ const ASSET_CLASSES: AssetClass[] = [
     },
 ];
 
+/* -------------------------------------------------------------------------- */
+/* Asset Master vehicles                                                      */
+/* -------------------------------------------------------------------------- */
+
+const ASSET_MASTER_VEHICLES: AssetMasterVehicle[] = [
+    {
+        id: "asset-001",
+        assetCode: "AST-1001",
+        vehicleName: "Activa 6G",
+        assetClass: "Petrol Scooter — Standard",
+        vehicleType: "2-Wheeler",
+        fuelType: "Petrol",
+        status: "Active",
+    },
+    {
+        id: "asset-002",
+        assetCode: "AST-1002",
+        vehicleName: "Activa 6G Black",
+        assetClass: "Petrol Scooter — Standard",
+        vehicleType: "2-Wheeler",
+        fuelType: "Petrol",
+        status: "Active",
+    },
+    {
+        id: "asset-003",
+        assetCode: "AST-1003",
+        vehicleName: "Activa 6G White",
+        assetClass: "Petrol Scooter — Standard",
+        vehicleType: "2-Wheeler",
+        fuelType: "Petrol",
+        status: "Active",
+    },
+    {
+        id: "asset-004",
+        assetCode: "AST-1004",
+        vehicleName: "Tata 407",
+        assetClass: "Petrol Auto — Cargo",
+        vehicleType: "3-Wheeler",
+        fuelType: "Petrol",
+        status: "Active",
+    },
+    {
+        id: "asset-005",
+        assetCode: "AST-1005",
+        vehicleName: "Ola S1",
+        assetClass: "Petrol Scooter — Standard",
+        vehicleType: "2-Wheeler",
+        fuelType: "Electric",
+        status: "Active",
+    },
+    {
+        id: "asset-006",
+        assetCode: "AST-1006",
+        vehicleName: "TVS iQube",
+        assetClass: "Petrol Scooter — Standard",
+        vehicleType: "2-Wheeler",
+        fuelType: "Electric",
+        status: "Inactive",
+    },
+];
+
+/* -------------------------------------------------------------------------- */
+/* Purchase invoices                                                          */
+/* -------------------------------------------------------------------------- */
+
 const PURCHASE_INVOICES: PurchaseInvoice[] = [
     {
         id: "invoice-001",
@@ -107,6 +187,10 @@ const PURCHASE_INVOICES: PurchaseInvoice[] = [
         supplierName: "ABC Automobiles",
     },
 ];
+
+/* -------------------------------------------------------------------------- */
+/* Insurance suppliers                                                        */
+/* -------------------------------------------------------------------------- */
 
 const INSURANCE_SUPPLIERS: InsuranceSupplier[] = [
     {
@@ -158,7 +242,12 @@ export default function CreateFleetVehicleForm({
 
     const [form, setForm] = useState<FleetVehicleFormData>({
         assetClassId: initialData?.assetClassId ?? "",
-        purchaseInvoiceId: initialData?.purchaseInvoiceId ?? "",
+
+        assetMasterId: initialData?.assetMasterId ?? "",
+        vehicleName: initialData?.vehicleName ?? "",
+
+        purchaseInvoiceId:
+            initialData?.purchaseInvoiceId ?? "",
 
         registrationNumber:
             initialData?.registrationNumber ?? "",
@@ -212,6 +301,19 @@ export default function CreateFleetVehicleForm({
     );
 
     /* ---------------------------------------------------------------------- */
+    /* Available Asset Master Vehicles                                        */
+    /* ---------------------------------------------------------------------- */
+
+    const availableVehicles = selectedAssetClass
+        ? ASSET_MASTER_VEHICLES.filter(
+            (vehicle) =>
+                vehicle.assetClass ===
+                selectedAssetClass.name &&
+                vehicle.status === "Active",
+        )
+        : [];
+
+    /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
     /* ---------------------------------------------------------------------- */
 
@@ -251,6 +353,11 @@ export default function CreateFleetVehicleForm({
 
         if (!form.assetClassId) {
             setError("Asset class is required.");
+            return;
+        }
+
+        if (!form.assetMasterId) {
+            setError("Vehicle name is required.");
             return;
         }
 
@@ -361,6 +468,12 @@ export default function CreateFleetVehicleForm({
             const vehicle: FleetVehicleFormData = {
                 assetClassId:
                     form.assetClassId.trim(),
+
+                assetMasterId:
+                    form.assetMasterId.trim(),
+
+                vehicleName:
+                    form.vehicleName.trim(),
 
                 purchaseInvoiceId:
                     form.purchaseInvoiceId.trim(),
@@ -476,7 +589,7 @@ export default function CreateFleetVehicleForm({
             }
         >
             {/* ============================================================ */}
-            {/* ASSET CLASS + PURCHASE INVOICE                              */}
+            {/* ASSET CLASS + VEHICLE NAME                                   */}
             {/* ============================================================ */}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -497,12 +610,19 @@ export default function CreateFleetVehicleForm({
                     <select
                         id="asset-class"
                         value={form.assetClassId}
-                        onChange={(event) =>
-                            updateForm(
-                                "assetClassId",
-                                event.target.value,
-                            )
-                        }
+                        onChange={(event) => {
+                            const assetClassId =
+                                event.target.value;
+
+                            setForm((previous) => ({
+                                ...previous,
+                                assetClassId,
+                                assetMasterId: "",
+                                vehicleName: "",
+                            }));
+
+                            setError("");
+                        }}
                         className={selectClassName}
                     >
                         <option value="">
@@ -522,47 +642,112 @@ export default function CreateFleetVehicleForm({
                     </select>
                 </div>
 
-                {/* Purchase Invoice */}
+                {/* Vehicle Name */}
 
                 <div>
                     <label
-                        htmlFor="purchase-invoice"
+                        htmlFor="vehicle-name"
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
-                        Purchase invoice
+                        Vehicle name
                         <span className="ml-1 text-red-500">
                             *
                         </span>
                     </label>
 
                     <select
-                        id="purchase-invoice"
-                        value={form.purchaseInvoiceId}
-                        onChange={(event) =>
-                            updateForm(
-                                "purchaseInvoiceId",
-                                event.target.value,
-                            )
-                        }
-                        className={selectClassName}
+                        id="vehicle-name"
+                        value={form.assetMasterId}
+                        disabled={!form.assetClassId}
+                        onChange={(event) => {
+                            const assetMasterId =
+                                event.target.value;
+
+                            const selectedVehicle =
+                                availableVehicles.find(
+                                    (vehicle) =>
+                                        vehicle.id ===
+                                        assetMasterId,
+                                );
+
+                            setForm((previous) => ({
+                                ...previous,
+                                assetMasterId,
+                                vehicleName:
+                                    selectedVehicle?.vehicleName ??
+                                    "",
+                            }));
+
+                            setError("");
+                        }}
+                        className={`${selectClassName} disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400`}
                     >
                         <option value="">
-                            Select purchase invoice
+                            {!form.assetClassId
+                                ? "Select asset class first"
+                                : availableVehicles.length ===
+                                    0
+                                    ? "No vehicles available"
+                                    : "Select vehicle"}
                         </option>
 
-                        {PURCHASE_INVOICES.map(
-                            (invoice) => (
+                        {availableVehicles.map(
+                            (vehicle) => (
                                 <option
-                                    key={invoice.id}
-                                    value={invoice.id}
+                                    key={vehicle.id}
+                                    value={vehicle.id}
                                 >
-                                    {invoice.invoiceNumber} —{" "}
-                                    {invoice.supplierName}
+                                    {vehicle.vehicleName} —{" "}
+                                    {vehicle.assetCode}
                                 </option>
                             ),
                         )}
                     </select>
                 </div>
+            </div>
+
+            {/* ============================================================ */}
+            {/* PURCHASE INVOICE                                             */}
+            {/* ============================================================ */}
+
+            <div className="mt-3">
+                <label
+                    htmlFor="purchase-invoice"
+                    className="mb-1 block text-xs font-semibold text-gray-700"
+                >
+                    Purchase invoice
+                    <span className="ml-1 text-red-500">
+                        *
+                    </span>
+                </label>
+
+                <select
+                    id="purchase-invoice"
+                    value={form.purchaseInvoiceId}
+                    onChange={(event) =>
+                        updateForm(
+                            "purchaseInvoiceId",
+                            event.target.value,
+                        )
+                    }
+                    className={selectClassName}
+                >
+                    <option value="">
+                        Select purchase invoice
+                    </option>
+
+                    {PURCHASE_INVOICES.map(
+                        (invoice) => (
+                            <option
+                                key={invoice.id}
+                                value={invoice.id}
+                            >
+                                {invoice.invoiceNumber} —{" "}
+                                {invoice.supplierName}
+                            </option>
+                        ),
+                    )}
+                </select>
             </div>
 
             {/* ============================================================ */}
@@ -641,15 +826,21 @@ export default function CreateFleetVehicleForm({
                 </div>
             )}
 
-            {/* Registration number + Odometer reading */}
+            {/* ============================================================ */}
+            {/* REGISTRATION NUMBER + ODOMETER                               */}
+            {/* ============================================================ */}
+
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+
                 <div>
                     <label
                         htmlFor="registration-number"
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
                         Registration number
-                        <span className="ml-1 text-red-500">*</span>
+                        <span className="ml-1 text-red-500">
+                            *
+                        </span>
                     </label>
 
                     <input
@@ -657,7 +848,10 @@ export default function CreateFleetVehicleForm({
                         type="text"
                         value={form.registrationNumber}
                         onChange={(event) =>
-                            updateForm("registrationNumber", event.target.value)
+                            updateForm(
+                                "registrationNumber",
+                                event.target.value,
+                            )
                         }
                         placeholder="e.g. MH04 AB 1011"
                         className={inputClassName}
@@ -670,7 +864,9 @@ export default function CreateFleetVehicleForm({
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
                         Odometer reading
-                        <span className="ml-1 text-red-500">*</span>
+                        <span className="ml-1 text-red-500">
+                            *
+                        </span>
                     </label>
 
                     <input
@@ -679,7 +875,10 @@ export default function CreateFleetVehicleForm({
                         min="0"
                         value={form.odometerReading}
                         onChange={(event) =>
-                            updateForm("odometerReading", event.target.value)
+                            updateForm(
+                                "odometerReading",
+                                event.target.value,
+                            )
                         }
                         placeholder="e.g. 12500"
                         className={inputClassName}
@@ -687,15 +886,21 @@ export default function CreateFleetVehicleForm({
                 </div>
             </div>
 
-            {/* Registration start + end date */}
+            {/* ============================================================ */}
+            {/* REGISTRATION START + END DATE                                */}
+            {/* ============================================================ */}
+
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+
                 <div>
                     <label
                         htmlFor="registration-start-date"
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
                         Registration start date
-                        <span className="ml-1 text-red-500">*</span>
+                        <span className="ml-1 text-red-500">
+                            *
+                        </span>
                     </label>
 
                     <input
@@ -703,7 +908,10 @@ export default function CreateFleetVehicleForm({
                         type="date"
                         value={form.registrationStartDate}
                         onChange={(event) =>
-                            updateForm("registrationStartDate", event.target.value)
+                            updateForm(
+                                "registrationStartDate",
+                                event.target.value,
+                            )
                         }
                         className={inputClassName}
                     />
@@ -715,7 +923,9 @@ export default function CreateFleetVehicleForm({
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
                         Registration end date
-                        <span className="ml-1 text-red-500">*</span>
+                        <span className="ml-1 text-red-500">
+                            *
+                        </span>
                     </label>
 
                     <input
@@ -723,11 +933,15 @@ export default function CreateFleetVehicleForm({
                         type="date"
                         value={form.registrationEndDate}
                         onChange={(event) =>
-                            updateForm("registrationEndDate", event.target.value)
+                            updateForm(
+                                "registrationEndDate",
+                                event.target.value,
+                            )
                         }
                         className={inputClassName}
                     />
                 </div>
+
             </div>
 
             {/* ============================================================ */}
@@ -735,8 +949,6 @@ export default function CreateFleetVehicleForm({
             {/* ============================================================ */}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                {/* Model Year */}
 
                 <div>
                     <label
@@ -765,8 +977,6 @@ export default function CreateFleetVehicleForm({
                         className={inputClassName}
                     />
                 </div>
-
-                {/* Chassis Number */}
 
                 <div>
                     <label
@@ -797,12 +1007,10 @@ export default function CreateFleetVehicleForm({
             </div>
 
             {/* ============================================================ */}
-            {/* INSURANCE SUPPLIER + INSURANCE PREMIUM                        */}
+            {/* INSURANCE SUPPLIER + INSURANCE PREMIUM                       */}
             {/* ============================================================ */}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                {/* Insurance Supplier */}
 
                 <div>
                     <label
@@ -843,8 +1051,6 @@ export default function CreateFleetVehicleForm({
                     </select>
                 </div>
 
-                {/* Insurance Premium */}
-
                 <div>
                     <label
                         htmlFor="insurance-premium"
@@ -884,12 +1090,10 @@ export default function CreateFleetVehicleForm({
             </div>
 
             {/* ============================================================ */}
-            {/* INSURANCE START DATE + WARRANTY START DATE                   */}
+            {/* INSURANCE START + END DATE                                   */}
             {/* ============================================================ */}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                {/* Insurance Start Date */}
 
                 <div>
                     <label
@@ -915,7 +1119,6 @@ export default function CreateFleetVehicleForm({
                         className={inputClassName}
                     />
                 </div>
-                {/* Insurance End Date */}
 
                 <div>
                     <label
@@ -942,16 +1145,13 @@ export default function CreateFleetVehicleForm({
                     />
                 </div>
 
-
-
             </div>
 
             {/* ============================================================ */}
-            {/* INSURANCE END DATE + WARRANTY END DATE                       */}
+            {/* WARRANTY START + END DATE                                   */}
             {/* ============================================================ */}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {/* Warranty Start Date */}
 
                 <div>
                     <label
@@ -977,8 +1177,6 @@ export default function CreateFleetVehicleForm({
                         className={inputClassName}
                     />
                 </div>
-
-                {/* Warranty End Date */}
 
                 <div>
                     <label
@@ -1062,8 +1260,9 @@ export default function CreateFleetVehicleForm({
                 <p className="text-xs leading-5 text-gray-500">
                     The vehicle is added to the Fleet Register
                     immediately, at Available — no QC step, no
-                    waiting. The Purchase invoice reference is for traceability back to Finance only;
-                    it does not gate this vehicle status.
+                    waiting. The Purchase invoice reference is for
+                    traceability back to Finance only; it does not
+                    gate this vehicle status.
                 </p>
 
             </div>

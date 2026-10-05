@@ -86,9 +86,14 @@ export const mainNavItems: NavItem[] = [
     requiredPermission: "asset_register.view",
     children: [
       {
-        label: "Asset Classes",
+        label: "Asset Class",
         href: "/asset-register/assestclass",
         icon: ClipboardList,
+      },
+      {
+        label: "Asset Master",
+        href: "/asset-register/asset-master",
+        icon: Shield,
       },
       {
         label: "Fleet Register",
@@ -105,6 +110,7 @@ export const mainNavItems: NavItem[] = [
         href: "/asset-register/compliance-renewals",
         icon: Shield,
       },
+
     ],
   },
 

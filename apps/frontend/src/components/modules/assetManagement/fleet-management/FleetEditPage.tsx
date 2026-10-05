@@ -25,6 +25,10 @@ const MOCK_FLEET_VEHICLES: Array<
 
             assetClassId: "asset-class-001",
 
+            assetMasterId: "asset-master-001",
+
+            vehicleName: "Honda Activa 6G",
+
             purchaseInvoiceId: "invoice-001",
 
             registrationNumber: "MH04 AB 1001",
@@ -61,6 +65,10 @@ const MOCK_FLEET_VEHICLES: Array<
             assetClassName: "Petrol Scooter — Standard",
 
             assetClassId: "asset-class-001",
+
+            assetMasterId: "asset-master-002",
+
+            vehicleName: "Honda Activa 6G",
 
             purchaseInvoiceId: "invoice-002",
 
@@ -164,7 +172,14 @@ export default function FleetEditPage() {
         <CreateFleetVehicleForm
             mode="edit"
             initialData={{
-                assetClassId: vehicle.assetClassId,
+                assetClassId:
+                    vehicle.assetClassId,
+
+                assetMasterId:
+                    vehicle.assetMasterId,
+
+                vehicleName:
+                    vehicle.vehicleName,
 
                 purchaseInvoiceId:
                     vehicle.purchaseInvoiceId,
@@ -205,7 +220,8 @@ export default function FleetEditPage() {
                 warrantyEndDate:
                     vehicle.warrantyEndDate,
 
-                notes: vehicle.notes,
+                notes:
+                    vehicle.notes,
             }}
             onCancel={handleCancel}
             onSaved={handleSaved}
