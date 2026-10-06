@@ -1,5 +1,6 @@
 /// <reference types="jest" />
 
+import { randomUUID } from 'crypto';
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
@@ -212,6 +213,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   it('LEASE-02: client search empty, create with taxId, reject unknown keys', async () => {
+    const lease02Token = `lease02-${randomUUID()}`;
+    const companyName = `Sunrise Freight Co ${lease02Token}`;
+    const taxId = `29ABCDE1234F1Z${lease02Token.slice(-2).toUpperCase()}`;
+
     const noMatch = await request(app.getHttpServer())
       .get('/api/v1/fleet-leasing/clients')
       .query({
@@ -230,8 +235,8 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        companyName: 'Sunrise Freight Co LEASE02',
-        taxId: '29ABCDE1234F1Z5',
+        companyName,
+        taxId,
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
@@ -250,8 +255,8 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        companyName: 'Sunrise Freight Co LEASE02',
-        taxId: '29ABCDE1234F1Z5',
+        companyName,
+        taxId,
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
@@ -264,13 +269,13 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .expect((res) => expect([200, 201]).toContain(res.status));
 
     const createdBody = created.body as FleetClientResponse;
-    expect(createdBody.taxId).toBe('29ABCDE1234F1Z5');
+    expect(createdBody.taxId).toBe(taxId);
     const primary = createdBody.pointsOfContact?.find((p) => p.isPrimary);
     expect(primary?.name).toBe('Arjun Mehta');
 
     const byName = await request(app.getHttpServer())
       .get('/api/v1/fleet-leasing/clients')
-      .query({ organizationId, search: 'Sunrise Freight Co LEASE02' })
+      .query({ organizationId, search: lease02Token })
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .expect(200);
@@ -311,9 +316,66 @@ describe('Fleet leasing lease contracts (integration)', () => {
     expect(body.lines[0].mvpShortByCount).toBe(2);
   });
 
+  async function seedAssetRegisterClassWithVehicle(
+    className: string,
+    unique: number,
+  ): Promise<void> {
+    const classRes = await request(app.getHttpServer())
+      .post('/api/v1/asset-register/asset-classes')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        name: className,
+        vehicleType: '4W',
+        fuelType: 'Diesel',
+        fuelTankCapacity: 60,
+        ratedLoadFrom: 500,
+        ratedLoadTo: 1500,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const classId = (classRes.body as { id: string }).id;
+
+    const masterRes = await request(app.getHttpServer())
+      .post('/api/v1/asset-register/asset-masters')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        assetClassId: classId,
+        name: `Master ${unique}`,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const masterId = (masterRes.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .post('/api/v1/asset-register/vehicles')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        assetClassId: classId,
+        assetMasterId: masterId,
+        registrationNumber: `AR-L05-${unique}`.slice(0, 32),
+        chassisNumber: `CH-L05-${unique}`,
+        modelYear: 2024,
+        odometer: 0,
+        registrationStartDate: '2024-01-01',
+        registrationEndDate: '2029-01-01',
+        insuranceStartDate: '2024-01-01',
+        insuranceEndDate: '2030-01-01',
+        insurancePremium: 10000,
+        warrantyStartDate: '2024-01-01',
+        warrantyEndDate: '2027-01-01',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+  }
+
   it('LEASE-05: stepwise draft confirm activates contract (MVP)', async () => {
     const unique = Date.now();
     const assetClass = 'Sedan';
+
+    await seedAssetRegisterClassWithVehicle(assetClass, unique);
 
     await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/vehicles')
@@ -440,7 +502,24 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .expect(403);
   });
 
-  it('lists distinct fleet asset classes for the organization', async () => {
+  it('lists distinct asset register class names for the organization', async () => {
+    const unique = Date.now();
+    const className = `Register Class ${unique}`;
+    await request(app.getHttpServer())
+      .post('/api/v1/asset-register/asset-classes')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        name: className,
+        vehicleType: '2W',
+        fuelType: 'Petrol',
+        fuelTankCapacity: 10,
+        ratedLoadFrom: 100,
+        ratedLoadTo: 200,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
     const res = await request(app.getHttpServer())
       .get('/api/v1/fleet-leasing/asset-classes')
       .query({ organizationId })
@@ -450,5 +529,6 @@ describe('Fleet leasing lease contracts (integration)', () => {
 
     const body = res.body as FleetAssetClassListResponse;
     expect(Array.isArray(body.items)).toBe(true);
+    expect(body.items).toContain(className);
   });
 });

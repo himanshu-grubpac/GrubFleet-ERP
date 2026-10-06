@@ -3,8 +3,13 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CarFront, Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
@@ -72,231 +77,8 @@ type FleetFilter =
     | "sold";
 
 /* -------------------------------------------------------------------------- */
-/* Mock Data                                                                  */
+/* Filters                                                                    */
 /* -------------------------------------------------------------------------- */
-
-const MOCK_FLEET_VEHICLES: FleetVehicle[] = [
-    {
-        id: "vehicle-001",
-        fleetCode: "VH-1001",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1001",
-        odometer: 12480,
-        status: "available",
-
-        registrationStartDate: "2024-04-01",
-        registrationEndDate: "2039-03-31",
-
-        warrantyStartDate: "2024-04-01",
-        warrantyEndDate: "2026-03-31",
-
-        insuranceSupplier: "ICICI Lombard",
-        insuranceRenewalDate: "2026-04-15",
-    },
-
-    {
-        id: "vehicle-002",
-        fleetCode: "VH-1002",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1002",
-        odometer: 8930,
-        status: "available",
-
-        registrationStartDate: "2024-04-02",
-        registrationEndDate: "2039-04-01",
-
-        warrantyStartDate: "2024-04-02",
-        warrantyEndDate: "2026-04-01",
-
-        insuranceSupplier: "HDFC ERGO",
-        insuranceRenewalDate: "2026-05-10",
-    },
-
-    {
-        id: "vehicle-003",
-        fleetCode: "VH-1003",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1003",
-        odometer: 21110,
-        status: "leased",
-
-        registrationStartDate: "2024-04-03",
-        registrationEndDate: "2039-04-02",
-
-        warrantyStartDate: "2024-04-03",
-        warrantyEndDate: "2026-04-02",
-
-        insuranceSupplier: "Bajaj Allianz",
-        insuranceRenewalDate: "2026-06-18",
-
-        leasedTo: "ABC Logistics Pvt. Ltd.",
-        leaseStartDate: "2026-01-01",
-        leaseEndDate: "2026-12-31",
-    },
-
-    {
-        id: "vehicle-004",
-        fleetCode: "VH-1004",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1004",
-        odometer: 15670,
-        status: "leased",
-
-        registrationStartDate: "2024-04-04",
-        registrationEndDate: "2039-04-03",
-
-        warrantyStartDate: "2024-04-04",
-        warrantyEndDate: "2026-04-03",
-
-        insuranceSupplier: "ICICI Lombard",
-        insuranceRenewalDate: "2026-07-12",
-
-        leasedTo: "XYZ Delivery Services",
-        leaseStartDate: "2026-02-01",
-        leaseEndDate: "2027-01-31",
-    },
-
-    {
-        id: "vehicle-005",
-        fleetCode: "VH-1005",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1005",
-        odometer: 3220,
-        status: "available",
-
-        registrationStartDate: "2024-04-05",
-        registrationEndDate: "2039-04-04",
-
-        warrantyStartDate: "2024-04-05",
-        warrantyEndDate: "2026-04-04",
-
-        insuranceSupplier: "HDFC ERGO",
-        insuranceRenewalDate: "2026-08-20",
-    },
-
-    {
-        id: "vehicle-006",
-        fleetCode: "VH-1006",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1006",
-        odometer: 18900,
-        status: "workshop",
-
-        registrationStartDate: "2024-04-06",
-        registrationEndDate: "2039-04-05",
-
-        warrantyStartDate: "2024-04-06",
-        warrantyEndDate: "2026-04-05",
-
-        insuranceSupplier: "Bajaj Allianz",
-        insuranceRenewalDate: "2026-09-14",
-
-        workshopName: "GrubPac Workshop",
-        workshopStartDate: "2026-09-28",
-    },
-
-    {
-        id: "vehicle-007",
-        fleetCode: "VH-1007",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1007",
-        odometer: 26340,
-        status: "leased",
-
-        registrationStartDate: "2024-04-07",
-        registrationEndDate: "2039-04-06",
-
-        warrantyStartDate: "2024-04-07",
-        warrantyEndDate: "2026-04-06",
-
-        insuranceSupplier: "ICICI Lombard",
-        insuranceRenewalDate: "2026-10-05",
-
-        leasedTo: "FastMove Logistics",
-        leaseStartDate: "2026-03-01",
-        leaseEndDate: "2027-02-28",
-    },
-
-    {
-        id: "vehicle-008",
-        fleetCode: "VH-1008",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1008",
-        odometer: 9540,
-        status: "leased",
-
-        registrationStartDate: "2024-04-08",
-        registrationEndDate: "2039-04-07",
-
-        warrantyStartDate: "2024-04-08",
-        warrantyEndDate: "2026-04-07",
-
-        insuranceSupplier: "HDFC ERGO",
-        insuranceRenewalDate: "2026-10-20",
-
-        leasedTo: "QuickRide Transport",
-        leaseStartDate: "2026-04-01",
-        leaseEndDate: "2027-03-31",
-    },
-
-    {
-        id: "vehicle-009",
-        fleetCode: "VH-1009",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1009",
-        odometer: 0,
-        status: "available",
-
-        registrationStartDate: "2024-04-09",
-        registrationEndDate: "2039-04-08",
-
-        warrantyStartDate: "2024-04-09",
-        warrantyEndDate: "2026-04-08",
-
-        insuranceSupplier: "ICICI Lombard",
-        insuranceRenewalDate: "2026-11-15",
-    },
-
-    {
-        id: "vehicle-010",
-        fleetCode: "VH-1010",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1010",
-        odometer: 34200,
-        status: "available",
-
-        registrationStartDate: "2024-04-10",
-        registrationEndDate: "2039-04-09",
-
-        warrantyStartDate: "2024-04-10",
-        warrantyEndDate: "2026-04-09",
-
-        insuranceSupplier: "Bajaj Allianz",
-        insuranceRenewalDate: "2026-12-01",
-    },
-
-    {
-        id: "vehicle-011",
-        fleetCode: "VH-2001",
-        assetClass: "Petrol Auto — Cargo",
-        registrationNumber: "MH04 CD 2001",
-        odometer: 34200,
-        status: "leased",
-
-        registrationStartDate: "2024-05-01",
-        registrationEndDate: "2039-04-30",
-
-        warrantyStartDate: "2024-05-01",
-        warrantyEndDate: "2026-04-30",
-
-        insuranceSupplier: "ICICI Lombard",
-        insuranceRenewalDate: "2026-12-10",
-
-        leasedTo: "CargoFleet India",
-        leaseStartDate: "2026-01-15",
-        leaseEndDate: "2027-01-14",
-    },
-];
 
 /* -------------------------------------------------------------------------- */
 /* Filters                                                                    */
@@ -380,15 +162,63 @@ const getStatusClass = (status: FleetStatus) => {
 
 export default function FleetDashboardPage() {
     const router = useRouter();
+    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
     /* ---------------------------------------------------------------------- */
     /* State                                                                  */
     /* ---------------------------------------------------------------------- */
 
     const [search, setSearch] = useState("");
+    const debouncedSearch = useDebouncedValue(search, 300);
 
     const [activeFilter, setActiveFilter] =
         useState<FleetFilter>("all");
+
+    const listQuery = useQuery({
+        queryKey: [
+            "asset-register",
+            "vehicles",
+            organizationId,
+            debouncedSearch,
+            activeFilter,
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            const operationalStatus =
+                activeFilter === "all"
+                    ? undefined
+                    : activeFilter === "sold"
+                      ? "sold"
+                      : activeFilter;
+            return fetchAssetRegisterVehiclesApi({
+                token,
+                organizationId,
+                page: 1,
+                pageSize: 50,
+                search: debouncedSearch.trim() || undefined,
+                operationalStatus,
+                status: "active",
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardListQueryOptions,
+    });
+
+    const apiVehicles = useMemo((): FleetVehicle[] => {
+        return (listQuery.data?.items ?? []).map((row) => ({
+            id: row.id,
+            fleetCode: row.fleetCode,
+            assetClass: row.assetClassName,
+            registrationNumber: row.registrationNumber,
+            odometer: row.odometer,
+            status:
+                row.operationalStatus === "retired"
+                    ? "sold"
+                    : (row.operationalStatus as FleetStatus),
+        }));
+    }, [listQuery.data?.items]);
 
     /* ---------------------------------------------------------------------- */
     /* Navigation                                                             */
@@ -409,7 +239,7 @@ export default function FleetDashboardPage() {
     const filteredVehicles = useMemo(() => {
         const searchValue = search.trim().toLowerCase();
 
-        return MOCK_FLEET_VEHICLES.filter((vehicle) => {
+        return apiVehicles.filter((vehicle) => {
             const matchesSearch =
                 !searchValue ||
                 vehicle.fleetCode
@@ -453,7 +283,16 @@ export default function FleetDashboardPage() {
 
             return matchesSearch && matchesFilter;
         });
-    }, [search, activeFilter]);
+    }, [search, activeFilter, apiVehicles]);
+
+    const isInitialLoading =
+        isAuthLoading || (listQuery.isLoading && !listQuery.data);
+    const isEmptyOrgList =
+        !isInitialLoading &&
+        !listQuery.isError &&
+        (listQuery.data?.total ?? 0) === 0 &&
+        activeFilter === "all" &&
+        !debouncedSearch.trim();
 
     /* ---------------------------------------------------------------------- */
     /* Clear Filters                                                          */
@@ -586,7 +425,22 @@ export default function FleetDashboardPage() {
             {/* Empty / Table                                                     */}
             {/* ---------------------------------------------------------------- */}
 
-            {MOCK_FLEET_VEHICLES.length === 0 ? (
+            {listQuery.isError ? (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                    Could not load fleet register.{" "}
+                    <button
+                        type="button"
+                        className="font-medium underline"
+                        onClick={() => void listQuery.refetch()}
+                    >
+                        Retry
+                    </button>
+                </div>
+            ) : isInitialLoading ? (
+                <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+                    Loading fleet register…
+                </div>
+            ) : isEmptyOrgList ? (
                 <DashboardEmptyState
                     icon={
                         <CarFront

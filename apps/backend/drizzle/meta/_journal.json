@@ -148,6 +148,34 @@
       "when": 1792200000000,
       "tag": "0020_roles_parent_role_id",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792300000000,
+      "tag": "0021_asset_register_asset_classes",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0022_asset_register_asset_masters",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792500000000,
+      "tag": "0023_asset_register_vehicles",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0024_asset_register_vehicle_assignments",
+      "breakpoints": true
     }
   ]
 }

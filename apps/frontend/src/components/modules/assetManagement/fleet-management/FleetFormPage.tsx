@@ -1,10 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { fetchAssetRegisterMastersForClassApi } from "@/lib/api/asset-register/asset-masters";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -81,112 +86,7 @@ type InsuranceSupplier = {
 /* Mock data                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const ASSET_CLASSES: AssetClass[] = [
-    {
-        id: "asset-class-001",
-        name: "Petrol Scooter — Standard",
-        classCode: "PS-STD",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileageFrom: "45",
-        mileageTo: "45",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "5.5",
-        ratedLoadCapacity: "150",
-        defaultIntakeChecklist: "Standard Intake Checklist",
-    },
-    {
-        id: "asset-class-002",
-        name: "Petrol Auto — Cargo",
-        classCode: "PA-CGO",
-        vehicleType: "3-Wheeler",
-        fuelType: "Petrol",
-        mileageFrom: "17",
-        mileageTo: "17",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "8",
-        ratedLoadCapacity: "500",
-        defaultIntakeChecklist: "Standard Intake Checklist",
-    },
-];
-
-/* -------------------------------------------------------------------------- */
-/* Asset Master vehicles                                                      */
-/* -------------------------------------------------------------------------- */
-
-const ASSET_MASTER_VEHICLES: AssetMasterVehicle[] = [
-    {
-        id: "asset-001",
-        assetCode: "AST-1001",
-        vehicleName: "Activa 6G",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        status: "Active",
-    },
-    {
-        id: "asset-002",
-        assetCode: "AST-1002",
-        vehicleName: "Activa 6G Black",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        status: "Active",
-    },
-    {
-        id: "asset-003",
-        assetCode: "AST-1003",
-        vehicleName: "Activa 6G White",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        status: "Active",
-    },
-    {
-        id: "asset-004",
-        assetCode: "AST-1004",
-        vehicleName: "Tata 407",
-        assetClass: "Petrol Auto — Cargo",
-        vehicleType: "3-Wheeler",
-        fuelType: "Petrol",
-        status: "Active",
-    },
-    {
-        id: "asset-005",
-        assetCode: "AST-1005",
-        vehicleName: "Ola S1",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Electric",
-        status: "Active",
-    },
-    {
-        id: "asset-006",
-        assetCode: "AST-1006",
-        vehicleName: "TVS iQube",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Electric",
-        status: "Inactive",
-    },
-];
-
-/* -------------------------------------------------------------------------- */
-/* Purchase invoices                                                          */
-/* -------------------------------------------------------------------------- */
-
-const PURCHASE_INVOICES: PurchaseInvoice[] = [
-    {
-        id: "invoice-001",
-        invoiceNumber: "PINV-2026-0142",
-        supplierName: "Kedar Motors",
-    },
-    {
-        id: "invoice-002",
-        invoiceNumber: "PINV-2026-0143",
-        supplierName: "ABC Automobiles",
-    },
-];
+const PURCHASE_INVOICES: PurchaseInvoice[] = [];
 
 /* -------------------------------------------------------------------------- */
 /* Insurance suppliers                                                        */
@@ -233,8 +133,43 @@ export default function CreateFleetVehicleForm({
     onSaved,
 }: CreateFleetVehicleFormProps) {
     const router = useRouter();
+    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
     const isEditMode = mode === "edit";
+
+    const classesQuery = useQuery({
+        queryKey: ["asset-register", "asset-classes", "active-list", organizationId],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterAssetClassesApi({
+                token,
+                organizationId,
+                page: 1,
+                pageSize: 50,
+                status: "active",
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardListQueryOptions,
+    });
+
+    const assetClassOptions = useMemo((): AssetClass[] => {
+        return (classesQuery.data?.items ?? []).map((row) => ({
+            id: row.id,
+            name: row.name,
+            classCode: row.code,
+            vehicleType: row.vehicleType === "2W" ? "2-Wheeler" : row.vehicleType === "3W" ? "3-Wheeler" : "4-Wheeler",
+            fuelType: row.fuelType,
+            mileageFrom: "",
+            mileageTo: "",
+            mileageUnit: "",
+            fuelTankCapacity: "",
+            ratedLoadCapacity: "",
+            defaultIntakeChecklist: "",
+        }));
+    }, [classesQuery.data?.items]);
 
     /* ---------------------------------------------------------------------- */
     /* Form                                                                   */
@@ -292,26 +227,55 @@ export default function CreateFleetVehicleForm({
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
 
+    const mastersQuery = useQuery({
+        queryKey: [
+            "asset-register",
+            "asset-masters",
+            "for-class",
+            organizationId,
+            form.assetClassId,
+        ],
+        queryFn: () => {
+            if (!token || !organizationId || !form.assetClassId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterMastersForClassApi({
+                token,
+                organizationId,
+                classId: form.assetClassId,
+                page: 1,
+                pageSize: 50,
+            });
+        },
+        enabled:
+            !!token &&
+            !!organizationId &&
+            !isAuthLoading &&
+            !!form.assetClassId,
+        ...dashboardListQueryOptions,
+    });
+
     /* ---------------------------------------------------------------------- */
     /* Selected Asset Class                                                   */
     /* ---------------------------------------------------------------------- */
 
-    const selectedAssetClass = ASSET_CLASSES.find(
+    const selectedAssetClass = assetClassOptions.find(
         (item) => item.id === form.assetClassId,
     );
 
-    /* ---------------------------------------------------------------------- */
-    /* Available Asset Master Vehicles                                        */
-    /* ---------------------------------------------------------------------- */
-
-    const availableVehicles = selectedAssetClass
-        ? ASSET_MASTER_VEHICLES.filter(
-            (vehicle) =>
-                vehicle.assetClass ===
-                selectedAssetClass.name &&
-                vehicle.status === "Active",
-        )
-        : [];
+    const availableVehicles: AssetMasterVehicle[] = useMemo(
+        () =>
+            (mastersQuery.data?.items ?? []).map((master) => ({
+                id: master.id,
+                assetCode: master.assetClassCode,
+                vehicleName: master.name,
+                assetClass: master.assetClassName,
+                vehicleType: "2-Wheeler",
+                fuelType: "—",
+                status: "Active" as const,
+            })),
+        [mastersQuery.data?.items],
+    );
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -361,7 +325,10 @@ export default function CreateFleetVehicleForm({
             return;
         }
 
-        if (!form.purchaseInvoiceId) {
+        if (
+            PURCHASE_INVOICES.length > 0 &&
+            !form.purchaseInvoiceId
+        ) {
             setError("Purchase invoice is required.");
             return;
         }
@@ -629,7 +596,7 @@ export default function CreateFleetVehicleForm({
                             Select asset class
                         </option>
 
-                        {ASSET_CLASSES.map(
+                        {assetClassOptions.map(
                             (assetClass) => (
                                 <option
                                     key={assetClass.id}

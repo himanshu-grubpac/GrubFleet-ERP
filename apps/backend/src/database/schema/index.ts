@@ -265,3 +265,4 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export * from './fleet-leasing.schema';
 export * from './organisation.schema';
+export * from './asset-register.schema';

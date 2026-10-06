@@ -1,0 +1,12 @@
+export const ASSET_REGISTER_VEHICLE_TYPES = ['2W', '3W', '4W'] as const;
+export type AssetRegisterVehicleType =
+  (typeof ASSET_REGISTER_VEHICLE_TYPES)[number];
+
+export const ASSET_CLASS_CODE_MAX_LENGTH = 8;
+export const ASSET_CLASS_NAME_MAX_LENGTH = 255;
+export const ASSET_CLASS_DESCRIPTION_MAX_LENGTH = 2000;
+export const ASSET_CLASS_FUEL_TYPE_MAX_LENGTH = 64;
+export const ASSET_CLASS_MILEAGE_UNIT_MAX_LENGTH = 32;
+export const ASSET_CLASS_DEFAULT_INTAKE_MAX_LENGTH = 2000;
+
+export const ASSET_CLASS_DEACTIVATE_REASON_MAX_LENGTH = 500;

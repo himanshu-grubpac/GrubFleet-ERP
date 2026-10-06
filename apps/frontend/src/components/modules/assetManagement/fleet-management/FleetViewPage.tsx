@@ -2,8 +2,18 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+    fetchAssetRegisterVehicleApi,
+    updateAssetRegisterVehicleStatusApi,
+} from "@/lib/api/asset-register/vehicles";
+import { formatAssetRegisterIsoDate } from "@/lib/api/asset-register/mappers";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -58,92 +68,6 @@ type FleetAsset = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Mock Fleet Assets                                                          */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_FLEET_ASSETS: FleetAsset[] = [
-    {
-        id: "vehicle-001",
-
-        fleetCode: "VH-1001",
-
-        assetClass: "Petrol Scooter — Standard",
-
-        vehicleName: "Honda Activa 6G",
-
-        registrationNumber: "MH04 AB 1001",
-
-        odometerReading: "12,480 km",
-
-        registrationStartDate: "01-Apr-2024",
-
-        registrationEndDate: "31-Mar-2039",
-
-        modelYear: "2023",
-
-        chassisNumber: "MD2A1XX1234567890",
-
-        insuranceSupplier: "ICICI Lombard",
-
-        insurancePremium: "Rs. 3,200/yr",
-
-        insuranceStartDate: "15-Mar-2026",
-
-        insuranceEndDate: "14-Mar-2027",
-
-        warrantyStartDate: "14-Mar-2023",
-
-        warrantyEndDate: "14-Mar-2026",
-
-        purchaseInvoice: "PINV-2023-0031",
-
-        notes: "Standard fleet vehicle. No additional notes.",
-
-        status: "available",
-    },
-
-    {
-        id: "vehicle-002",
-
-        fleetCode: "VH-1002",
-
-        assetClass: "Petrol Scooter — Standard",
-
-        vehicleName: "Honda Activa 6G",
-
-        registrationNumber: "MH04 AB 1002",
-
-        odometerReading: "8,930 km",
-
-        registrationStartDate: "02-Apr-2024",
-
-        registrationEndDate: "01-Apr-2039",
-
-        modelYear: "2024",
-
-        chassisNumber: "MD2A1XX1234567891",
-
-        insuranceSupplier: "HDFC ERGO",
-
-        insurancePremium: "Rs. 3,400/yr",
-
-        insuranceStartDate: "21-Aug-2026",
-
-        insuranceEndDate: "20-Aug-2027",
-
-        warrantyStartDate: "20-Aug-2024",
-
-        warrantyEndDate: "20-Aug-2026",
-
-        purchaseInvoice: "PINV-2024-0042",
-
-        notes: "Standard fleet vehicle. No additional notes.",
-
-        status: "available",
-    },
-];
-
-/* -------------------------------------------------------------------------- */
 /* Status Helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
@@ -192,84 +116,128 @@ const getStatusClass = (status: FleetStatus) => {
 export default function FleetViewPage() {
     const params = useParams();
     const router = useRouter();
+    const queryClient = useQueryClient();
+    const { token, organizationId, isLoading: isAuthLoading, permissions } =
+        useAuth();
 
     const assetId = String(params.id);
 
-    const [asset, setAsset] = useState<FleetAsset | undefined>(
-        MOCK_FLEET_ASSETS.find((item) => item.id === assetId),
-    );
+    const canUpdate =
+        permissions.has("asset_register.update") ||
+        permissions.has("asset_register.manage");
+
+    const detailQuery = useQuery({
+        queryKey: ["asset-register", "vehicles", organizationId, assetId],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterVehicleApi({
+                token,
+                organizationId,
+                id: assetId,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardListQueryOptions,
+    });
+
+    const statusMutation = useMutation({
+        mutationFn: async (input: {
+            action: "activate" | "deactivate";
+            reason?: string;
+        }) => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return updateAssetRegisterVehicleStatusApi({
+                token,
+                organizationId,
+                id: assetId,
+                action: input.action,
+                reason: input.reason,
+            });
+        },
+        onSuccess: (_data, variables) => {
+            void queryClient.invalidateQueries({
+                queryKey: ["asset-register", "vehicles"],
+            });
+            setShowDeactivateModal(false);
+            setDeactivateReason("");
+            setDeactivateReasonError("");
+            setShowActivateConfirm(false);
+            showSuccessToast(
+                variables.action === "activate"
+                    ? "Fleet vehicle activated"
+                    : "Fleet vehicle deactivated",
+            );
+        },
+        onError: (error: Error) => {
+            showErrorToast(error.message || "Could not update vehicle status");
+        },
+    });
 
     const [showDeactivateModal, setShowDeactivateModal] =
         useState(false);
-
+    const [showActivateConfirm, setShowActivateConfirm] =
+        useState(false);
     const [deactivateReason, setDeactivateReason] =
         useState("");
-
     const [deactivateReasonError, setDeactivateReasonError] =
         useState("");
 
-    /* ---------------------------------------------------------------------- */
-    /* Edit                                                                   */
-    /* ---------------------------------------------------------------------- */
+    const asset: FleetAsset | undefined = detailQuery.data
+        ? {
+              id: detailQuery.data.id,
+              fleetCode: detailQuery.data.fleetCode,
+              assetClass: detailQuery.data.assetClassName,
+              vehicleName: detailQuery.data.assetMasterName,
+              registrationNumber: detailQuery.data.registrationNumber,
+              odometerReading: `${detailQuery.data.odometer.toLocaleString("en-IN")} km`,
+              registrationStartDate: formatAssetRegisterIsoDate(
+                  detailQuery.data.registrationStartDate,
+              ),
+              registrationEndDate: formatAssetRegisterIsoDate(
+                  detailQuery.data.registrationEndDate,
+              ),
+              modelYear: String(detailQuery.data.modelYear),
+              chassisNumber: detailQuery.data.chassisNumber,
+              insuranceSupplier: "—",
+              insurancePremium: detailQuery.data.insurancePremium,
+              insuranceStartDate: formatAssetRegisterIsoDate(
+                  detailQuery.data.insuranceStartDate,
+              ),
+              insuranceEndDate: formatAssetRegisterIsoDate(
+                  detailQuery.data.insuranceEndDate,
+              ),
+              warrantyStartDate: formatAssetRegisterIsoDate(
+                  detailQuery.data.warrantyStartDate,
+              ),
+              warrantyEndDate: formatAssetRegisterIsoDate(
+                  detailQuery.data.warrantyEndDate,
+              ),
+              purchaseInvoice: detailQuery.data.purchaseInvoiceId ?? "—",
+              notes: detailQuery.data.specialNotes ?? "",
+              status: detailQuery.data.operationalStatus as FleetStatus,
+          }
+        : undefined;
 
     const handleEdit = () => {
-        if (!asset) return;
-
-        router.push(
-            `/asset-register/fleetregister/${asset.id}/edit`,
-        );
+        if (!asset || !detailQuery.data?.isActive) return;
+        router.push(`/asset-register/fleetregister/${asset.id}/edit`);
     };
-
-    /* ---------------------------------------------------------------------- */
-    /* Deactivate                                                             */
-    /* ---------------------------------------------------------------------- */
 
     const handleDeactivate = () => {
         const reason = deactivateReason.trim();
-
         if (!reason) {
             setDeactivateReasonError("Reason is required.");
             return;
         }
-
-        if (!asset) return;
-
-        setAsset((previous) =>
-            previous
-                ? {
-                    ...previous,
-                    status: "sold",
-                }
-                : previous,
-        );
-
-        console.log("Vehicle deactivated:", {
-            vehicleId: asset.id,
-            reason,
-        });
-
-        setShowDeactivateModal(false);
-        setDeactivateReason("");
-        setDeactivateReasonError("");
+        statusMutation.mutate({ action: "deactivate", reason });
     };
 
-    /* ---------------------------------------------------------------------- */
-    /* Activate                                                               */
-    /* ---------------------------------------------------------------------- */
-
     const handleActivate = () => {
-        setAsset((previous) =>
-            previous
-                ? {
-                    ...previous,
-                    status: "available",
-                }
-                : previous,
-        );
-
-        if (asset) {
-            console.log("Vehicle activated:", asset.id);
-        }
+        statusMutation.mutate({ action: "activate" });
     };
 
     /* ---------------------------------------------------------------------- */
@@ -284,29 +252,23 @@ export default function FleetViewPage() {
     /* Not Found                                                              */
     /* ---------------------------------------------------------------------- */
 
-    if (!asset) {
+    if (detailQuery.isError) {
         return (
-            <div className="min-h-full bg-gray-50">
-                <div className="px-5 py-4">
-                    <div className="rounded-lg border border-gray-200 bg-white p-6">
-                        <p className="text-sm text-gray-500">
-                            Vehicle not found.
-                        </p>
-
-                        <button
-                            type="button"
-                            onClick={handleBack}
-                            className="mt-3 text-xs font-medium text-[#FE5720] hover:underline"
-                        >
-                            Back to vehicles
-                        </button>
-                    </div>
-                </div>
+            <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
+                Fleet vehicle not found.
             </div>
         );
     }
 
-    const isInactive = asset.status === "sold";
+    if (isAuthLoading || detailQuery.isLoading || !asset) {
+        return (
+            <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
+                Loading fleet vehicle…
+            </div>
+        );
+    }
+
+    const isInactive = !detailQuery.data?.isActive;
 
     /* ---------------------------------------------------------------------- */
     /* UI                                                                     */
@@ -350,25 +312,28 @@ export default function FleetViewPage() {
                     {/* ====================================================== */}
 
                     <div className="flex items-center gap-2">
-                        <Button
-                            type="button"
-                            variant="neutral"
-                            onClick={handleEdit}
-                            className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
-                        >
-                            Edit
-                        </Button>
-
-                        {isInactive ? (
+                        {canUpdate && !isInactive ? (
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={handleActivate}
+                                onClick={handleEdit}
+                                className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
+                            >
+                                Edit
+                            </Button>
+                        ) : null}
+
+                        {canUpdate && isInactive ? (
+                            <Button
+                                type="button"
+                                variant="neutral"
+                                onClick={() => setShowActivateConfirm(true)}
+                                disabled={statusMutation.isPending}
                                 className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
                             >
                                 Activate
                             </Button>
-                        ) : (
+                        ) : canUpdate ? (
                             <Button
                                 type="button"
                                 variant="neutral"
@@ -381,7 +346,7 @@ export default function FleetViewPage() {
                             >
                                 Deactivate
                             </Button>
-                        )}
+                        ) : null}
                     </div>
                 </div>
 
@@ -766,6 +731,20 @@ export default function FleetViewPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={showActivateConfirm}
+                title="Activate fleet vehicle?"
+                message={`${asset.fleetCode} will return to the active fleet register.`}
+                confirmLabel="Activate"
+                isConfirmPending={statusMutation.isPending}
+                onClose={() => {
+                    if (!statusMutation.isPending) {
+                        setShowActivateConfirm(false);
+                    }
+                }}
+                onConfirm={handleActivate}
+            />
         </div>
     );
 }

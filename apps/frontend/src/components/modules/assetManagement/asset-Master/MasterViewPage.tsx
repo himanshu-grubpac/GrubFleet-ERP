@@ -3,8 +3,19 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  fetchAssetRegisterAssetMasterApi,
+  updateAssetRegisterAssetMasterStatusApi,
+} from "@/lib/api/asset-register/asset-masters";
+import { mapAssetRegisterVehicleTypeToUiLabel } from "@/lib/api/asset-register/mappers";
+import type { AssetRegisterVehicleTypeApi } from "@/lib/api/asset-register/asset-classes";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -40,122 +51,6 @@ type AssetMasterDetails = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Mock Data                                                                  */
-/*                                                                            */
-/* Replace this with your actual API/data source when available.              */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_ASSET_MASTERS: AssetMasterDetails[] = [
-    {
-        id: "asset-001",
-        assetCode: "AST-1001",
-        vehicleName: "Activa 6G",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileageFrom: "40",
-        mileageTo: "50",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "5.5",
-        ratedLoadCapacityFrom: "150",
-        ratedLoadCapacityTo: "250",
-        defaultIntakeChecklist: "Standard Intake Checklist",
-        notes: "Standard fleet vehicle.",
-        status: "Active",
-    },
-
-    {
-        id: "asset-002",
-        assetCode: "AST-1002",
-        vehicleName: "Activa 6G Black",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileageFrom: "40",
-        mileageTo: "50",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "5.5",
-        ratedLoadCapacityFrom: "150",
-        ratedLoadCapacityTo: "250",
-        defaultIntakeChecklist: "Standard Intake Checklist",
-        notes: "Black variant of Activa 6G.",
-        status: "Active",
-    },
-
-    {
-        id: "asset-003",
-        assetCode: "AST-1003",
-        vehicleName: "Activa 6G White",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileageFrom: "40",
-        mileageTo: "50",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "5.5",
-        ratedLoadCapacityFrom: "150",
-        ratedLoadCapacityTo: "250",
-        defaultIntakeChecklist: "Standard Intake Checklist",
-        notes: "White variant of Activa 6G.",
-        status: "Active",
-    },
-
-    {
-        id: "asset-004",
-        assetCode: "AST-1004",
-        vehicleName: "Tata 407",
-        assetClass: "Diesel Truck — Heavy",
-        vehicleType: "4-Wheeler",
-        fuelType: "Diesel",
-        mileageFrom: "6",
-        mileageTo: "10",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "60",
-        ratedLoadCapacityFrom: "1000",
-        ratedLoadCapacityTo: "5000",
-        defaultIntakeChecklist: "Heavy Vehicle Intake Checklist",
-        notes: "Heavy-duty commercial vehicle.",
-        status: "Active",
-    },
-
-    {
-        id: "asset-005",
-        assetCode: "AST-1005",
-        vehicleName: "Ola S1",
-        assetClass: "Electric Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Electric",
-        mileageFrom: "80",
-        mileageTo: "120",
-        mileageUnit: "km/kWh",
-        fuelTankCapacity: "3",
-        ratedLoadCapacityFrom: "100",
-        ratedLoadCapacityTo: "180",
-        defaultIntakeChecklist: "Standard Intake Checklist",
-        notes: "Electric scooter asset.",
-        status: "Active",
-    },
-
-    {
-        id: "asset-006",
-        assetCode: "AST-1006",
-        vehicleName: "TVS iQube",
-        assetClass: "Electric Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Electric",
-        mileageFrom: "80",
-        mileageTo: "120",
-        mileageUnit: "km/kWh",
-        fuelTankCapacity: "3",
-        ratedLoadCapacityFrom: "100",
-        ratedLoadCapacityTo: "180",
-        defaultIntakeChecklist: "Standard Intake Checklist",
-        notes: "Currently inactive asset.",
-        status: "Inactive",
-    },
-];
-
-/* -------------------------------------------------------------------------- */
 /* Info Row                                                                   */
 /* -------------------------------------------------------------------------- */
 
@@ -186,135 +81,145 @@ function InfoRow({
 export default function AssetMasterViewPage() {
     const params = useParams();
     const router = useRouter();
+    const queryClient = useQueryClient();
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+        permissions,
+    } = useAuth();
 
     const assetId = String(params.id);
 
-    /* ---------------------------------------------------------------------- */
-    /* Asset                                                                  */
-    /* ---------------------------------------------------------------------- */
+    const canUpdate =
+        permissions.has("asset_register.update") ||
+        permissions.has("asset_register.manage");
 
-    const assetFromMock = MOCK_ASSET_MASTERS.find(
-        (item) => item.id === assetId,
-    );
+    const detailQuery = useQuery({
+        queryKey: ["asset-register", "asset-masters", organizationId, assetId],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterAssetMasterApi({
+                token,
+                organizationId,
+                id: assetId,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardListQueryOptions,
+    });
 
-    const [asset, setAsset] = useState<
-        AssetMasterDetails | undefined
-    >(assetFromMock);
-
-    /* ---------------------------------------------------------------------- */
-    /* Deactivate Modal                                                       */
-    /* ---------------------------------------------------------------------- */
+    const statusMutation = useMutation({
+        mutationFn: async (input: {
+            action: "activate" | "deactivate";
+            reason?: string;
+        }) => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return updateAssetRegisterAssetMasterStatusApi({
+                token,
+                organizationId,
+                id: assetId,
+                action: input.action,
+                reason: input.reason,
+            });
+        },
+        onSuccess: (_data, variables) => {
+            void queryClient.invalidateQueries({
+                queryKey: ["asset-register", "asset-masters"],
+            });
+            setShowDeactivateModal(false);
+            setDeactivateReason("");
+            setDeactivateReasonError("");
+            setShowActivateConfirm(false);
+            showSuccessToast(
+                variables.action === "activate"
+                    ? "Asset master activated"
+                    : "Asset master deactivated",
+            );
+        },
+        onError: (error: Error) => {
+            showErrorToast(error.message || "Could not update status");
+        },
+    });
 
     const [showDeactivateModal, setShowDeactivateModal] =
         useState(false);
-
+    const [showActivateConfirm, setShowActivateConfirm] =
+        useState(false);
     const [deactivateReason, setDeactivateReason] =
         useState("");
-
     const [deactivateReasonError, setDeactivateReasonError] =
         useState("");
 
-    /* ---------------------------------------------------------------------- */
-    /* Edit                                                                   */
-    /* ---------------------------------------------------------------------- */
+    const asset: AssetMasterDetails | undefined = detailQuery.data
+        ? {
+              id: detailQuery.data.id,
+              assetCode: detailQuery.data.assetClassCode,
+              vehicleName: detailQuery.data.name,
+              assetClass: detailQuery.data.assetClassName,
+              vehicleType: mapAssetRegisterVehicleTypeToUiLabel(
+                  detailQuery.data.classSpec
+                      .vehicleType as AssetRegisterVehicleTypeApi,
+              ),
+              fuelType: detailQuery.data.classSpec.fuelType,
+              mileageFrom: detailQuery.data.classSpec.mileageFrom ?? "",
+              mileageTo: detailQuery.data.classSpec.mileageTo ?? "",
+              mileageUnit: detailQuery.data.classSpec.mileageUnit ?? "",
+              fuelTankCapacity: detailQuery.data.classSpec.fuelTankCapacity,
+              ratedLoadCapacityFrom:
+                  detailQuery.data.classSpec.ratedLoadFrom,
+              ratedLoadCapacityTo: detailQuery.data.classSpec.ratedLoadTo,
+              defaultIntakeChecklist: "",
+              notes: "",
+              status: detailQuery.data.isActive ? "Active" : "Inactive",
+          }
+        : undefined;
 
     const handleEdit = () => {
-        if (!asset) {
+        if (!asset || asset.status !== "Active") {
             return;
         }
-
-        router.push(
-            `/asset-register/asset-master/${asset.id}/edit`,
-        );
+        router.push(`/asset-register/asset-master/${asset.id}/edit`);
     };
-
-    /* ---------------------------------------------------------------------- */
-    /* Deactivate                                                            */
-    /* ---------------------------------------------------------------------- */
 
     const handleDeactivate = () => {
-        if (!asset) {
-            return;
-        }
-
         const reason = deactivateReason.trim();
-
         if (!reason) {
-            setDeactivateReasonError(
-                "Reason is required.",
-            );
-
+            setDeactivateReasonError("Reason is required.");
             return;
         }
-
-        setAsset((previous) => {
-            if (!previous) {
-                return previous;
-            }
-
-            return {
-                ...previous,
-                status: "Inactive",
-            };
-        });
-
-        console.log("Asset deactivated:", {
-            assetId: asset.id,
-            reason,
-        });
-
-        setShowDeactivateModal(false);
-        setDeactivateReason("");
-        setDeactivateReasonError("");
+        statusMutation.mutate({ action: "deactivate", reason });
     };
-
-    /* ---------------------------------------------------------------------- */
-    /* Cancel Deactivate                                                     */
-    /* ---------------------------------------------------------------------- */
 
     const handleCancelDeactivate = () => {
+        if (statusMutation.isPending) return;
         setShowDeactivateModal(false);
         setDeactivateReason("");
         setDeactivateReasonError("");
     };
 
-    /* ---------------------------------------------------------------------- */
-    /* Activate                                                               */
-    /* ---------------------------------------------------------------------- */
-
-    const handleActivate = () => {
-        if (!asset) {
-            return;
-        }
-
-        setAsset((previous) => {
-            if (!previous) {
-                return previous;
-            }
-
-            return {
-                ...previous,
-                status: "Active",
-            };
-        });
-
-        console.log("Asset activated:", asset.id);
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Not Found                                                              */
-    /* ---------------------------------------------------------------------- */
-
-    if (!asset) {
+    if (detailQuery.isError) {
         return (
             <div className="min-h-full bg-gray-50">
                 <div className="px-5 py-4">
                     <div className="rounded-lg border border-gray-200 bg-white p-6">
                         <p className="text-sm text-gray-500">
-                            Please create the Asset Class first before creating an Asset Master.
+                            Asset master not found.
                         </p>
                     </div>
                 </div>
+            </div>
+        );
+    }
+
+    if (isAuthLoading || detailQuery.isLoading || !asset) {
+        return (
+            <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
+                Loading asset master…
             </div>
         );
     }
@@ -362,18 +267,18 @@ export default function AssetMasterViewPage() {
 
                         {/* Edit */}
 
-                        <Button
-                            type="button"
-                            variant="neutral"
-                            onClick={handleEdit}
-                            className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
-                        >
-                            Edit
-                        </Button>
+                        {canUpdate && asset.status === "Active" ? (
+                            <Button
+                                type="button"
+                                variant="neutral"
+                                onClick={handleEdit}
+                                className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
+                            >
+                                Edit
+                            </Button>
+                        ) : null}
 
-                        {/* Deactivate / Activate */}
-
-                        {asset.status === "Active" ? (
+                        {canUpdate && asset.status === "Active" ? (
                             <Button
                                 type="button"
                                 variant="neutral"
@@ -382,20 +287,22 @@ export default function AssetMasterViewPage() {
                                     setDeactivateReasonError("");
                                     setShowDeactivateModal(true);
                                 }}
+                                disabled={statusMutation.isPending}
                                 className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
                             >
                                 Deactivate
                             </Button>
-                        ) : (
+                        ) : canUpdate ? (
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={handleActivate}
+                                onClick={() => setShowActivateConfirm(true)}
+                                disabled={statusMutation.isPending}
                                 className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
                             >
                                 Activate
                             </Button>
-                        )}
+                        ) : null}
                     </div>
                 </div>
 
@@ -596,6 +503,7 @@ export default function AssetMasterViewPage() {
                                 onClick={
                                     handleDeactivate
                                 }
+                                disabled={statusMutation.isPending}
                                 className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
                             >
                                 Deactivate
@@ -604,6 +512,22 @@ export default function AssetMasterViewPage() {
                     </div>
                 </div>
             )}
+
+            <ConfirmDialog
+                open={showActivateConfirm}
+                title="Activate this asset?"
+                message={`${asset.vehicleName} will be available for fleet register again.`}
+                confirmLabel="Activate"
+                isConfirmPending={statusMutation.isPending}
+                onClose={() => {
+                    if (!statusMutation.isPending) {
+                        setShowActivateConfirm(false);
+                    }
+                }}
+                onConfirm={() => {
+                    statusMutation.mutate({ action: "activate" });
+                }}
+            />
         </div>
     );
 }

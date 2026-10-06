@@ -1,18 +1,31 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch } from "lucide-react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
-
-/* -------------------------------------------------------------------------- */
-/* Types                                                                      */
-/* -------------------------------------------------------------------------- */
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  fetchAssetRegisterAssetClassesApi,
+  updateAssetRegisterAssetClassStatusApi,
+  type AssetRegisterAssetClassListItem,
+} from "@/lib/api/asset-register/asset-classes";
+import { mapAssetRegisterVehicleTypeToUiLabel } from "@/lib/api/asset-register/mappers";
 
 type AssetStatus = "active" | "inactive";
 
@@ -36,206 +49,175 @@ type AssetFilter =
   | "active"
   | "inactive";
 
-/* -------------------------------------------------------------------------- */
-/* Mock Data                                                                  */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_ASSET_CLASSES: AssetClass[] = [
-  {
-    id: "asset-class-001",
-    name: "Petrol Scooter — Standard",
-    code: "PS-GT",
-    vehicleType: "2-Wheeler",
-    fuelType: "Petrol",
-    inFleet: 31,
-    available: 8,
-    status: "active",
-  },
-  {
-    id: "asset-class-002",
-    name: "Petrol Auto — Cargo",
-    code: "PA-C80",
-    vehicleType: "3-Wheeler",
-    fuelType: "Petrol",
-    inFleet: 17,
-    available: 5,
-    status: "active",
-  },
-  {
-    id: "asset-class-003",
-    name: "Electric Scooter — Standard",
-    code: "ES-GT",
-    vehicleType: "2-Wheeler",
-    fuelType: "Electric",
-    inFleet: 24,
-    available: 6,
-    status: "active",
-  },
-  {
-    id: "asset-class-004",
-    name: "Electric Cargo Auto",
-    code: "EA-C80",
-    vehicleType: "3-Wheeler",
-    fuelType: "Electric",
-    inFleet: 12,
-    available: 3,
-    status: "inactive",
-  },
-];
-
-/* -------------------------------------------------------------------------- */
-/* Filter Options                                                             */
-/* -------------------------------------------------------------------------- */
-
 const ASSET_FILTERS: {
   label: string;
   value: AssetFilter;
 }[] = [
-    {
-      label: "All",
-      value: "all",
-    },
-    {
-      label: "2-Wheeler",
-      value: "2-wheeler",
-    },
-    {
-      label: "3-Wheeler",
-      value: "3-wheeler",
-    },
-    {
-      label: "Active",
-      value: "active",
-    },
-    {
-      label: "Inactive",
-      value: "inactive",
-    },
-  ];
+  { label: "All", value: "all" },
+  { label: "2-Wheeler", value: "2-wheeler" },
+  { label: "3-Wheeler", value: "3-wheeler" },
+  { label: "Active", value: "active" },
+  { label: "Inactive", value: "inactive" },
+];
 
-/* -------------------------------------------------------------------------- */
-/* Page                                                                       */
-/* -------------------------------------------------------------------------- */
+const PAGE_SIZE = 50;
+
+function mapListItem(row: AssetRegisterAssetClassListItem): AssetClass {
+  return {
+    id: row.id,
+    name: row.name,
+    code: row.code,
+    vehicleType: mapAssetRegisterVehicleTypeToUiLabel(row.vehicleType),
+    fuelType: row.fuelType,
+    inFleet: row.inFleetCount,
+    available: row.availableCount ?? 0,
+    status: row.status,
+  };
+}
+
+function filterToApiStatus(
+  filter: AssetFilter,
+): "active" | "inactive" | undefined {
+  if (filter === "active") return "active";
+  if (filter === "inactive") return "inactive";
+  return undefined;
+}
 
 export default function AssetClassesPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const {
+    token,
+    organizationId,
+    isLoading: isAuthLoading,
+    permissions,
+  } = useAuth();
 
-  /* ---------------------------------------------------------------------- */
-  /* State                                                                  */
-  /* ---------------------------------------------------------------------- */
+  const canCreate =
+    permissions.has("asset_register.create") ||
+    permissions.has("asset_register.manage");
+  const canUpdate =
+    permissions.has("asset_register.update") ||
+    permissions.has("asset_register.manage");
 
   const [search, setSearch] = useState("");
-  const [activeFilter, setActiveFilter] =
-    useState<AssetFilter>("all");
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const [activeFilter, setActiveFilter] = useState<AssetFilter>("all");
+  const [deactivateTarget, setDeactivateTarget] =
+    useState<AssetClass | null>(null);
+  const [activateTarget, setActivateTarget] = useState<AssetClass | null>(
+    null,
+  );
+  const [statusError, setStatusError] = useState<string | null>(null);
 
-  /* ---------------------------------------------------------------------- */
-  /* Navigation                                                             */
-  /* ---------------------------------------------------------------------- */
+  useEffect(() => {
+    setStatusError(null);
+  }, [activeFilter, debouncedSearch]);
+
+  const listQuery = useQuery({
+    queryKey: [
+      "asset-register",
+      "asset-classes",
+      organizationId,
+      debouncedSearch,
+      activeFilter,
+    ],
+    queryFn: () => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return fetchAssetRegisterAssetClassesApi({
+        token,
+        organizationId,
+        page: 1,
+        pageSize: PAGE_SIZE,
+        search: debouncedSearch.trim() || undefined,
+        status: filterToApiStatus(activeFilter),
+      });
+    },
+    enabled: !!token && !!organizationId && !isAuthLoading,
+    ...dashboardListQueryOptions,
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: async (input: {
+      assetClass: AssetClass;
+      action: "activate" | "deactivate";
+      reason?: string;
+    }) => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return updateAssetRegisterAssetClassStatusApi({
+        token,
+        organizationId,
+        id: input.assetClass.id,
+        action: input.action,
+        reason: input.reason,
+      });
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["asset-register", "asset-classes"],
+      });
+      setDeactivateTarget(null);
+      setActivateTarget(null);
+      setStatusError(null);
+      showSuccessToast(
+        variables.action === "activate"
+          ? "Asset class activated"
+          : "Asset class deactivated",
+      );
+    },
+    onError: (error: Error) => {
+      const message = error.message || "Could not update asset class status";
+      setStatusError(message);
+      showErrorToast(message);
+    },
+  });
+
+  const assetClasses = useMemo(() => {
+    const items = (listQuery.data?.items ?? []).map(mapListItem);
+    if (activeFilter === "2-wheeler") {
+      return items.filter((row) => row.vehicleType === "2-Wheeler");
+    }
+    if (activeFilter === "3-wheeler") {
+      return items.filter((row) => row.vehicleType === "3-Wheeler");
+    }
+    return items;
+  }, [listQuery.data?.items, activeFilter]);
+
+  const isInitialLoading =
+    isAuthLoading || (listQuery.isLoading && !listQuery.data);
+  const isEmptyOrgList =
+    !isInitialLoading &&
+    !listQuery.isError &&
+    (listQuery.data?.total ?? 0) === 0 &&
+    activeFilter === "all" &&
+    !debouncedSearch.trim();
 
   const handleAddAssetClass = () => {
+    if (!canCreate) return;
     router.push("/asset-register/assestclass/create");
   };
 
   const handleEdit = (assetClass: AssetClass) => {
-    router.push(
-      `/asset-register/assestclass/${assetClass.id}/edit`,
-    );
+    if (!canUpdate || assetClass.status !== "active") return;
+    router.push(`/asset-register/assestclass/${assetClass.id}/edit`);
   };
-
-  /* ---------------------------------------------------------------------- */
-  /* Filtering                                                              */
-  /* ---------------------------------------------------------------------- */
-
-  const filteredAssetClasses = useMemo(() => {
-    const searchValue = search.trim().toLowerCase();
-
-    return MOCK_ASSET_CLASSES.filter((assetClass) => {
-      const matchesSearch =
-        !searchValue ||
-        assetClass.name
-          .toLowerCase()
-          .includes(searchValue) ||
-        assetClass.code
-          .toLowerCase()
-          .includes(searchValue) ||
-        assetClass.vehicleType
-          .toLowerCase()
-          .includes(searchValue) ||
-        assetClass.fuelType
-          .toLowerCase()
-          .includes(searchValue);
-
-      let matchesFilter = true;
-
-      switch (activeFilter) { 
-        case "2-wheeler":
-          matchesFilter =
-            assetClass.vehicleType === "2-Wheeler";
-          break;
-
-        case "3-wheeler":
-          matchesFilter =
-            assetClass.vehicleType === "3-Wheeler";
-          break;
-
-        case "active":
-          matchesFilter =
-            assetClass.status === "active";
-          break;
-
-        case "inactive":
-          matchesFilter =
-            assetClass.status === "inactive";
-          break;
-
-        case "all":
-        default:
-          matchesFilter = true;
-          break;
-      }
-
-      return matchesSearch && matchesFilter;
-    });
-  }, [search, activeFilter]);
-
-  /* ---------------------------------------------------------------------- */
-  /* Clear Filters                                                          */
-  /* ---------------------------------------------------------------------- */
 
   const handleClearFilters = () => {
     setSearch("");
     setActiveFilter("all");
   };
 
-  /* ---------------------------------------------------------------------- */
-  /* Table Columns                                                           */
-  /* ---------------------------------------------------------------------- */
-
   const assetClassColumns = [
-    {
-      key: "name",
-      label: "CLASS",
-    },
-    {
-      key: "code",
-      label: "CODE",
-    },
-    {
-      key: "vehicleType",
-      label: "VEHICLE TYPE",
-    },
-    {
-      key: "fuelType",
-      label: "FUEL TYPE",
-    },
-    {
-      key: "inFleet",
-      label: "IN FLEET",
-    },
-    {
-      key: "available",
-      label: "AVAILABLE",
-    },
+    { key: "name", label: "CLASS" },
+    { key: "code", label: "CODE" },
+    { key: "vehicleType", label: "VEHICLE TYPE" },
+    { key: "fuelType", label: "FUEL TYPE" },
+    { key: "inFleet", label: "IN FLEET" },
+    { key: "available", label: "AVAILABLE" },
     {
       key: "status",
       label: "STATUS",
@@ -248,63 +230,44 @@ export default function AssetClassesPage() {
               : "bg-gray-100 text-gray-500",
           ].join(" ")}
         >
-          {assetClass.status === "active"
-            ? "Active"
-            : "Inactive"}
+          {assetClass.status === "active" ? "Active" : "Inactive"}
         </span>
       ),
     },
   ];
 
-  /* ---------------------------------------------------------------------- */
-  /* Render                                                                 */
-  /* ---------------------------------------------------------------------- */
+  const addAction = canCreate ? (
+    <Button type="button" onClick={handleAddAssetClass}>
+      + Add Class
+    </Button>
+  ) : undefined;
 
   return (
     <DashboardLayout
       title="Asset Classes"
       description="The master list of vehicle classes offered when adding a vehicle or building a lease contract line."
       activeTab="/asset-register/assestclass"
-      action={
-        <Button
-          type="button"
-          onClick={handleAddAssetClass}
-        >
-          + Add Class
-        </Button>
-      }
+      action={addAction}
     >
-      {/* ---------------------------------------------------------------- */}
-      {/* Filters                                                           */}
-      {/* ---------------------------------------------------------------- */}
-
       <div className="mb-4 flex items-center gap-3">
-        {/* Search */}
         <div className="min-w-0 flex-1">
           <input
             type="text"
             value={search}
-            onChange={(event) =>
-              setSearch(event.target.value)
-            }
+            onChange={(event) => setSearch(event.target.value)}
             placeholder="Search by class name or code"
             className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
           />
         </div>
 
-        {/* Filters */}
         <div className="flex shrink-0 items-center gap-1.5">
           {ASSET_FILTERS.map((filter) => {
-            const isActive =
-              activeFilter === filter.value;
-
+            const isActive = activeFilter === filter.value;
             return (
               <button
                 key={filter.value}
                 type="button"
-                onClick={() =>
-                  setActiveFilter(filter.value)
-                }
+                onClick={() => setActiveFilter(filter.value)}
                 className={[
                   "h-8 rounded-md border px-3 text-xs font-medium transition-colors",
                   isActive
@@ -319,38 +282,43 @@ export default function AssetClassesPage() {
         </div>
       </div>
 
-      {/* ---------------------------------------------------------------- */}
-      {/* Empty / Table                                                    */}
-      {/* ---------------------------------------------------------------- */}
-
-      {MOCK_ASSET_CLASSES.length === 0 ? (
+      {listQuery.isError ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          Could not load asset classes.{" "}
+          <button
+            type="button"
+            className="font-medium underline"
+            onClick={() => void listQuery.refetch()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : isInitialLoading ? (
+        <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+          Loading asset classes…
+        </div>
+      ) : isEmptyOrgList ? (
         <DashboardEmptyState
           icon={
-            <PackageSearch
-              className="h-7 w-7"
-              strokeWidth={1.4}
-            />
+            <PackageSearch className="h-7 w-7" strokeWidth={1.4} />
           }
           title="No asset classes added yet"
           description="Add your first asset class to use when adding vehicles or building lease contract lines."
           buttonLabel="Add Class"
-          onButtonClick={handleAddAssetClass}
+          onButtonClick={canCreate ? handleAddAssetClass : undefined}
         />
-      ) : filteredAssetClasses.length === 0 ? (
+      ) : assetClasses.length === 0 ? (
         <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white text-center">
           <PackageSearch
             className="mb-3 h-7 w-7 text-gray-400"
             strokeWidth={1.4}
           />
-
           <h3 className="text-sm font-semibold text-gray-900">
             No asset classes found
           </h3>
-
           <p className="mt-1 text-xs text-gray-500">
             Try changing your search or filters.
           </p>
-
           <button
             type="button"
             onClick={handleClearFilters}
@@ -362,26 +330,90 @@ export default function AssetClassesPage() {
       ) : (
         <DashboardTable
           columns={assetClassColumns}
-          data={filteredAssetClasses}
+          data={assetClasses}
           getRowKey={(assetClass) => assetClass.id}
           renderActions={(assetClass) => (
             <DashboardTableActions
               status={assetClass.status}
               locationId={assetClass.id}
               viewHref={`/asset-register/assestclass/${assetClass.id}`}
-              onEdit={() =>
-                handleEdit(assetClass)
+              onEdit={
+                canUpdate && assetClass.status === "active"
+                  ? () => handleEdit(assetClass)
+                  : undefined
               }
-              onToggleStatus={() => {
-                console.log(
-                  "Toggle asset class status:",
-                  assetClass.id,
-                );
-              }}
+              onToggleStatus={
+                canUpdate
+                  ? () => {
+                      setStatusError(null);
+                      if (assetClass.status === "active") {
+                        setDeactivateTarget(assetClass);
+                      } else {
+                        setActivateTarget(assetClass);
+                      }
+                    }
+                  : undefined
+              }
             />
           )}
         />
       )}
+
+      <ConfirmDialog
+        open={activateTarget !== null}
+        title="Activate asset class?"
+        message={
+          activateTarget
+            ? `${activateTarget.name} will be available for fleet register and lease lines.`
+            : "This asset class will be marked active."
+        }
+        confirmLabel="Activate"
+        isConfirmPending={statusMutation.isPending}
+        onClose={() => {
+          if (!statusMutation.isPending) {
+            setActivateTarget(null);
+            setStatusError(null);
+          }
+        }}
+        onConfirm={() => {
+          if (!activateTarget) return;
+          statusMutation.mutate({
+            assetClass: activateTarget,
+            action: "activate",
+          });
+        }}
+      />
+
+      <ReasonRequiredDialog
+        open={deactivateTarget !== null}
+        title="Deactivate asset class?"
+        description={
+          deactivateTarget ? (
+            <>
+              <span className="font-medium text-gray-900">
+                {deactivateTarget.name}
+              </span>{" "}
+              will no longer be used for new vehicles or lease lines.
+            </>
+          ) : null
+        }
+        reasonLabel="Reason for deactivation"
+        confirmLabel="Deactivate"
+        isPending={statusMutation.isPending}
+        error={statusError}
+        onClose={() => {
+          setDeactivateTarget(null);
+          setStatusError(null);
+        }}
+        onConfirm={(reason) => {
+          if (!deactivateTarget) return;
+          statusMutation.mutate({
+            assetClass: deactivateTarget,
+            action: "deactivate",
+            reason,
+          });
+        }}
+      />
     </DashboardLayout>
   );
 }

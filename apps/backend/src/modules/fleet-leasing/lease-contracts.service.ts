@@ -44,6 +44,7 @@ import type { CreateLeaseContractDto } from './dto/create-lease-contract.dto';
 import type { ListLeaseContractsQueryDto } from './dto/list-lease-contracts-query.dto';
 import type { UpdateLeaseContractDto } from './dto/update-lease-contract.dto';
 import type { RegisterReturnDto } from './dto/register-return.dto';
+import { AssetRegisterCatalogService } from '../asset-register/asset-register-catalog.service';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 import {
   buildAvailableActions,
@@ -63,6 +64,8 @@ export class LeaseContractsService {
     private readonly audit: AuditService,
     @Inject(forwardRef(() => DriversService))
     private readonly driversService: DriversService,
+    @Inject(forwardRef(() => AssetRegisterCatalogService))
+    private readonly assetRegisterCatalog: AssetRegisterCatalogService,
   ) {}
 
   async getSummary(organizationId: string) {
@@ -208,10 +211,11 @@ export class LeaseContractsService {
     assetClass: string,
     committedQuantity: number,
   ) {
-    const { availableNow, inbound } = await this.repo.getAssetClassInventory(
-      organizationId,
-      assetClass,
-    );
+    const { availableNow, inbound } =
+      await this.assetRegisterCatalog.getAssetClassInventory(
+        organizationId,
+        assetClass,
+      );
     return computeAssetLineAvailability(
       assetClass,
       committedQuantity,
@@ -1229,10 +1233,28 @@ export class LeaseContractsService {
     }[],
     options: { confirmShortfall: boolean },
   ) {
+    for (const line of lines) {
+      const className = line.assetClass.trim();
+      const exists = await this.assetRegisterCatalog.activeAssetClassNameExists(
+        organizationId,
+        className,
+      );
+      if (!exists) {
+        throw new BadRequestException({
+          code: 'UNKNOWN_ASSET_CLASS',
+          message: `Unknown asset class "${className}" — create it in Asset Register first`,
+          assetClass: className,
+        });
+      }
+    }
+
     const snapshots = await Promise.all(
       lines.map(async (l) => {
         const { availableNow, inbound } =
-          await this.repo.getAssetClassInventory(organizationId, l.assetClass);
+          await this.assetRegisterCatalog.getAssetClassInventory(
+            organizationId,
+            l.assetClass,
+          );
         return computeAssetLineAvailability(
           l.assetClass,
           l.committedQuantity,

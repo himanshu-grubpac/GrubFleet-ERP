@@ -350,6 +350,340 @@
       ]
     },
     {
+      "name": "Asset Register",
+      "description": "Asset classes (Phase 2a) and asset masters (Phase 2b). Set assetClassId from Create asset class; assetMasterId from Create asset master.",
+      "item": [
+        {
+          "name": "List asset classes",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/asset-classes?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /asset-register/asset-classes — paginated list; optional search, status."
+          },
+          "response": []
+        },
+        {
+          "name": "Create asset class",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Pickup Small Heavy Duty\",\n  \"vehicleType\": \"4W\",\n  \"fuelType\": \"Diesel\",\n  \"mileageFrom\": 8,\n  \"mileageTo\": 12,\n  \"mileageUnit\": \"km/l\",\n  \"fuelTankCapacity\": 60,\n  \"ratedLoadFrom\": 500,\n  \"ratedLoadTo\": 1500,\n  \"description\": \"Optional class description\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/asset-classes",
+            "description": "POST /asset-register/asset-classes — code generated (e.g. PSHD). Do not send code."
+          },
+          "response": []
+        },
+        {
+          "name": "Get asset class",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/asset-classes/{{assetClassId}}?organizationId={{organizationId}}",
+            "description": "GET /asset-register/asset-classes/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update asset class",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/asset-classes/{{assetClassId}}?organizationId={{organizationId}}",
+            "description": "PATCH /asset-register/asset-classes/{id} — blocked when inactive."
+          },
+          "response": []
+        },
+        {
+          "name": "Update asset class status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired class\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/asset-classes/{{assetClassId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /asset-register/asset-classes/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        },
+        {
+          "name": "List asset masters",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/asset-masters?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /asset-register/asset-masters — optional assetClassId, search, status."
+          },
+          "response": []
+        },
+        {
+          "name": "Catalog masters by class",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/asset-classes/{{assetClassId}}/masters?organizationId={{organizationId}}&page=1&pageSize=50",
+            "description": "GET /asset-register/asset-classes/{classId}/masters — active masters for active class only."
+          },
+          "response": []
+        },
+        {
+          "name": "Create asset master",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"name\": \"Splendor\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/asset-masters",
+            "description": "POST /asset-register/asset-masters — asset class must be active."
+          },
+          "response": []
+        },
+        {
+          "name": "Get asset master",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/asset-masters/{{assetMasterId}}?organizationId={{organizationId}}",
+            "description": "GET /asset-register/asset-masters/{id} — includes joined class spec."
+          },
+          "response": []
+        },
+        {
+          "name": "Update asset master",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Splendor Plus\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/asset-masters/{{assetMasterId}}?organizationId={{organizationId}}",
+            "description": "PATCH /asset-register/asset-masters/{id} — name and/or assetClassId only."
+          },
+          "response": []
+        },
+        {
+          "name": "Update asset master status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired model\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/asset-masters/{{assetMasterId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /asset-register/asset-masters/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        },
+        {
+          "name": "List fleet register vehicles",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/vehicles?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /asset-register/vehicles — filter assetClassId, operationalStatus, lifecycle status, search."
+          },
+          "response": []
+        },
+        {
+          "name": "Create fleet register vehicle",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"assetMasterId\": \"{{assetMasterId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": 15000,\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/vehicles",
+            "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; class and master must be active."
+          },
+          "response": []
+        },
+        {
+          "name": "Get fleet register vehicle",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/vehicles/{{assetRegisterVehicleId}}?organizationId={{organizationId}}",
+            "description": "GET /asset-register/vehicles/{id} — class and master names joined."
+          },
+          "response": []
+        },
+        {
+          "name": "Update fleet register vehicle",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"odometer\": 2500\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/vehicles/{{assetRegisterVehicleId}}?organizationId={{organizationId}}",
+            "description": "PATCH /asset-register/vehicles/{id} — blocked when inactive; operationalStatus not client-writable in v1."
+          },
+          "response": []
+        },
+        {
+          "name": "Update fleet register vehicle status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Sold unit\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/vehicles/{{assetRegisterVehicleId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /asset-register/vehicles/{id}/status — reason required for deactivate."
+          },
+          "response": []
+        },
+        {
+          "name": "Bulk assign vehicles to lease",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"leaseContractId\": \"{{leaseContractId}}\",\n  \"vehicleIds\": [\"{{assetRegisterVehicleId}}\"]\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/vehicle-assignments/bulk-assign",
+            "description": "POST /asset-register/vehicle-assignments/bulk-assign — active lease only; available vehicles; capacity per asset line (class name match)."
+          },
+          "response": []
+        },
+        {
+          "name": "Unassign vehicle from lease",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/vehicle-assignments/{{assetRegisterVehicleId}}/unassign?organizationId={{organizationId}}",
+            "description": "PATCH /asset-register/vehicle-assignments/{vehicleId}/unassign"
+          },
+          "response": []
+        },
+        {
+          "name": "List compliance",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/compliance?organizationId={{organizationId}}&page=1&pageSize=20&complianceStatus=all",
+            "description": "GET /asset-register/compliance — expired | expiring_soon | valid from vehicle date fields."
+          },
+          "response": []
+        },
+        {
+          "name": "Get compliance detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/compliance/{{assetRegisterVehicleId}}?organizationId={{organizationId}}",
+            "description": "GET /asset-register/compliance/{vehicleId}"
+          },
+          "response": []
+        },
+        {
+          "name": "Renew compliance (insurance)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"type\": \"insurance\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"insurancePremium\": 12000\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/compliance/{{assetRegisterVehicleId}}/renew",
+            "description": "POST /asset-register/compliance/{vehicleId}/renew — type insurance | registration | warranty"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Fleet & Leasing",
       "description": "Lease contract wizard and lifecycle. Set leaseContractId from Create draft response.",
       "item": [

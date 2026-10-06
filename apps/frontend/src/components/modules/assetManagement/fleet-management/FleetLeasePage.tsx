@@ -2,7 +2,11 @@
 
 import { ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { fetchAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
 
 /* ============================================================
    TYPES
@@ -32,58 +36,6 @@ type LeaseHistoryRecord = {
    MOCK FLEET DATA
    Replace this with API data later.
 ============================================================ */
-
-const MOCK_FLEET_ASSETS: FleetAsset[] = [
-    {
-        id: "vehicle-001",
-        fleetCode: "VH-1001",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1001",
-        status: "available",
-    },
-    {
-        id: "vehicle-002",
-        fleetCode: "VH-1002",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1002",
-        status: "available",
-    },
-];
-
-/* ============================================================
-   MOCK LEASE HISTORY
-   Keep this empty when the vehicle has no lease history.
-
-   Example records are provided so you can see how the populated
-   state will look. You can remove them when connecting the API.
-============================================================ */
-
-const MOCK_LEASE_HISTORY: Record<string, LeaseHistoryRecord[]> = {
-    "vehicle-001": [
-        /*
-        {
-            id: "lease-history-001",
-            date: "27-Aug-2026",
-            lessee: "ABC Logistics Pvt. Ltd.",
-            leaseStartDate: "01-Sep-2026",
-            leaseEndDate: "31-Aug-2027",
-            status: "Active",
-            changedBy: "Devraj Malhotra",
-        },
-        {
-            id: "lease-history-002",
-            date: "14-Mar-2025",
-            lessee: "XYZ Transport Pvt. Ltd.",
-            leaseStartDate: "14-Mar-2025",
-            leaseEndDate: "13-Mar-2026",
-            status: "Completed",
-            changedBy: "Ishita Kamble",
-        },
-        */
-    ],
-
-    "vehicle-002": [],
-};
 
 /* ============================================================
    STATUS HELPERS
@@ -152,16 +104,47 @@ function getLeaseStatusClass(
 export default function FleetLeaseHistoryPage() {
     const params = useParams();
     const router = useRouter();
+    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
     const assetId = String(params.id);
 
-    const asset = MOCK_FLEET_ASSETS.find(
-        (item) => item.id === assetId,
-    );
+    const vehicleQuery = useQuery({
+        queryKey: ["asset-register", "vehicles", organizationId, assetId],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterVehicleApi({
+                token,
+                organizationId,
+                id: assetId,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardListQueryOptions,
+    });
+
+    const asset: FleetAsset | undefined = vehicleQuery.data
+        ? {
+              id: vehicleQuery.data.id,
+              fleetCode: vehicleQuery.data.fleetCode,
+              assetClass: vehicleQuery.data.assetClassName,
+              registrationNumber: vehicleQuery.data.registrationNumber,
+              status: vehicleQuery.data.operationalStatus as FleetStatus,
+          }
+        : undefined;
 
     /* ========================================================
        NOT FOUND
     ======================================================== */
+
+    if (vehicleQuery.isLoading || isAuthLoading) {
+        return (
+            <div className="min-h-screen bg-[#f7f7f7] px-6 py-6 text-sm text-gray-500">
+                Loading lease history…
+            </div>
+        );
+    }
 
     if (!asset) {
         return (
@@ -196,7 +179,7 @@ export default function FleetLeaseHistoryPage() {
     }
 
     const leaseHistory =
-        MOCK_LEASE_HISTORY[asset.id] ?? [];
+        [] as LeaseHistoryRecord[];
 
     const hasHistory = leaseHistory.length > 0;
 

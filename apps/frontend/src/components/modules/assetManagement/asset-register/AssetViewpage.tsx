@@ -3,8 +3,19 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { AlertTriangle } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { useAuth } from "@/providers/auth-provider";
+import {
+  fetchAssetRegisterAssetClassApi,
+  updateAssetRegisterAssetClassStatusApi,
+} from "@/lib/api/asset-register/asset-classes";
+import {
+  assetClassDetailToFormData,
+  mapAssetRegisterVehicleTypeToUiLabel,
+} from "@/lib/api/asset-register/mappers";
+import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -30,64 +41,106 @@ type AssetClass = {
 };
 
 /* -------------------------------------------------------------------------- */
-/* Mock Asset Class                                                           */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_ASSET_CLASSES: AssetClass[] = [
-    {
-        id: "asset-class-001",
-        name: "Petrol Scooter — Standard",
-        classCode: "PS-STD",
-        status: "active",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileageFrom: "45",
-        mileageTo: "45",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "5.5",
-        ratedLoadCapacityFrom: "500",
-        ratedLoadCapacityTo: "500",
-        defaultIntakeChecklist:
-            "Standard Intake Checklist",
-        notes: "Standard petrol scooter class.",
-    },
-
-    {
-        id: "asset-class-002",
-        name: "Petrol Auto — Cargo",
-        classCode: "PA-CGO",
-        status: "active",
-        vehicleType: "3-Wheeler",
-        fuelType: "Petrol",
-        mileageFrom: "17",
-        mileageTo: "17",
-        mileageUnit: "km/L",
-        fuelTankCapacity: "8",
-        ratedLoadCapacityFrom: "500",
-        ratedLoadCapacityTo: "500",
-        defaultIntakeChecklist:
-            "Standard Intake Checklist",
-        notes: "Cargo-oriented three-wheeler class.",
-    },
-];
-
-/* -------------------------------------------------------------------------- */
 /* Page                                                                       */
 /* -------------------------------------------------------------------------- */
 
 export default function AssetClassViewPage() {
     const params = useParams();
     const router = useRouter();
+    const queryClient = useQueryClient();
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+        permissions,
+    } = useAuth();
+
+    const canUpdate =
+        permissions.has("asset_register.update") ||
+        permissions.has("asset_register.manage");
 
     const assetClassId = String(params.id);
 
-    const [assetClass, setAssetClass] =
-        useState<AssetClass>(
-            MOCK_ASSET_CLASSES.find(
-                (item) => item.id === assetClassId,
-            ) ??
-            MOCK_ASSET_CLASSES[0],
-        );
+    const detailQuery = useQuery({
+        queryKey: [
+            "asset-register",
+            "asset-class",
+            organizationId,
+            assetClassId,
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterAssetClassApi({
+                token,
+                organizationId,
+                id: assetClassId,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+    });
+
+    const statusMutation = useMutation({
+        mutationFn: async (input: {
+            action: "activate" | "deactivate";
+            reason?: string;
+        }) => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return updateAssetRegisterAssetClassStatusApi({
+                token,
+                organizationId,
+                id: assetClassId,
+                action: input.action,
+                reason: input.reason,
+            });
+        },
+        onSuccess: (_data, variables) => {
+            void queryClient.invalidateQueries({
+                queryKey: ["asset-register", "asset-class"],
+            });
+            void queryClient.invalidateQueries({
+                queryKey: ["asset-register", "asset-classes"],
+            });
+            setShowDeactivateModal(false);
+            setDeactivateReason("");
+            showSuccessToast(
+                variables.action === "activate"
+                    ? "Asset class activated"
+                    : "Asset class deactivated",
+            );
+        },
+        onError: (error: Error) => {
+            showErrorToast(
+                error.message || "Could not update asset class status",
+            );
+        },
+    });
+
+    const detail = detailQuery.data;
+    const formData = detail ? assetClassDetailToFormData(detail) : null;
+    const assetClass: AssetClass | null = detail
+        ? {
+              id: detail.id,
+              name: detail.name,
+              classCode: detail.code,
+              status: detail.status,
+              vehicleType: mapAssetRegisterVehicleTypeToUiLabel(
+                  detail.vehicleType,
+              ),
+              fuelType: detail.fuelType,
+              mileageFrom: formData?.mileageFrom ?? "",
+              mileageTo: formData?.mileageTo ?? "",
+              mileageUnit: formData?.mileageUnit ?? "",
+              fuelTankCapacity: detail.fuelTankCapacity,
+              ratedLoadCapacityFrom: detail.ratedLoadFrom,
+              ratedLoadCapacityTo: detail.ratedLoadTo,
+              defaultIntakeChecklist: detail.defaultIntakeChecklist,
+              notes: detail.description ?? "",
+          }
+        : null;
 
     const [showDeactivateModal, setShowDeactivateModal] =
         useState(false);
@@ -103,6 +156,7 @@ export default function AssetClassViewPage() {
     /* ---------------------------------------------------------------------- */
 
     const handleEdit = () => {
+        if (!assetClass || assetClass.status !== "active") return;
         router.push(
             `/asset-register/assestclass/${assetClass.id}/edit`,
         );
@@ -122,18 +176,10 @@ export default function AssetClassViewPage() {
             return;
         }
 
-        setAssetClass((previous) => ({
-            ...previous,
-            status: "inactive",
-        }));
-
-        console.log("Asset class deactivated:", {
-            assetClassId: assetClass.id,
+        statusMutation.mutate({
+            action: "deactivate",
             reason,
         });
-
-        setShowDeactivateModal(false);
-        setDeactivateReason("");
         setDeactivateReasonError("");
     };
 
@@ -152,16 +198,24 @@ export default function AssetClassViewPage() {
     /* ---------------------------------------------------------------------- */
 
     const handleActivate = () => {
-        setAssetClass((previous) => ({
-            ...previous,
-            status: "active",
-        }));
-
-        console.log(
-            "Asset class activated:",
-            assetClass.id,
-        );
+        statusMutation.mutate({ action: "activate" });
     };
+
+    if (isAuthLoading || detailQuery.isLoading) {
+        return (
+            <div className="p-6 text-sm text-gray-500">
+                Loading asset class…
+            </div>
+        );
+    }
+
+    if (detailQuery.isError || !assetClass) {
+        return (
+            <div className="p-6 text-sm text-gray-500">
+                Asset class not found.
+            </div>
+        );
+    }
 
     /* ---------------------------------------------------------------------- */
     /* Mileage                                                                */
@@ -215,8 +269,8 @@ export default function AssetClassViewPage() {
                     {/* ====================================================== */}
 
                     <div className="flex items-center gap-2">
-                        {/* Edit */}
-
+                        {canUpdate &&
+                        assetClass.status === "active" ? (
                         <Button
                             type="button"
                             variant="neutral"
@@ -225,10 +279,10 @@ export default function AssetClassViewPage() {
                         >
                             Edit
                         </Button>
+                        ) : null}
 
-                        {/* Deactivate / Activate */}
-
-                        {assetClass.status ===
+                        {canUpdate &&
+                        (assetClass.status ===
                             "active" ? (
                             <Button
                                 type="button"
@@ -259,7 +313,7 @@ export default function AssetClassViewPage() {
                             >
                                 Activate
                             </Button>
-                        )}
+                        ))}
                     </div>
                 </div>
 

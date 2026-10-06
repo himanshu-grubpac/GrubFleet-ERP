@@ -1,140 +1,92 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 
 import CreateAssetClassForm, {
-    type AssetClassFormData,
+  type AssetClassFormData,
 } from "@/components/modules/assetManagement/asset-register/AssetFormPage";
-
-/* -------------------------------------------------------------------------- */
-/* Mock Asset Classes                                                         */
-/* -------------------------------------------------------------------------- */
-
-const MOCK_ASSET_CLASSES: Array<
-    AssetClassFormData & {
-        id: string;
-        status: "active" | "inactive";
-    }
-> = [
-        {
-            id: "asset-class-001",
-
-            name: "Petrol Scooter — Standard",
-            classCode: "PS-STD",
-
-            status: "active",
-
-            vehicleType: "2-Wheeler",
-            fuelType: "Petrol",
-
-            mileageFrom: "45",
-            mileageTo: "45",
-            mileageUnit: "km/L",
-
-            fuelTankCapacity: "5.5",
-
-            ratedLoadCapacityFrom: "150",
-            ratedLoadCapacityTo: "150",
-
-            defaultIntakeChecklist:
-                "Standard Intake Checklist",
-
-            notes: "Standard petrol scooter class.",
-        },
-
-        {
-            id: "asset-class-002",
-
-            name: "Petrol Auto — Cargo",
-            classCode: "PA-CGO",
-
-            status: "active",
-
-            vehicleType: "3-Wheeler",
-            fuelType: "Petrol",
-
-            mileageFrom: "17",
-            mileageTo: "17",
-            mileageUnit: "km/L",
-
-            fuelTankCapacity: "8",
-
-            ratedLoadCapacityFrom: "500",
-            ratedLoadCapacityTo: "500",
-
-            defaultIntakeChecklist:
-                "Standard Intake Checklist",
-
-            notes: "Cargo-oriented three-wheeler class.",
-        },
-    ];
-
-/* -------------------------------------------------------------------------- */
-/* Edit Page                                                                  */
-/* -------------------------------------------------------------------------- */
+import { useAuth } from "@/providers/auth-provider";
+import {
+  fetchAssetRegisterAssetClassApi,
+  updateAssetRegisterAssetClassApi,
+} from "@/lib/api/asset-register/asset-classes";
+import {
+  assetClassDetailToFormData,
+  assetClassFormToUpdatePayload,
+} from "@/lib/api/asset-register/mappers";
+import { showErrorToast } from "@/lib/toast/show-toast";
 
 export default function EditAssetClassPage() {
-    const params = useParams();
-    const router = useRouter();
+  const params = useParams();
+  const router = useRouter();
+  const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
-    const assetClassId = String(params.id);
+  const assetClassId = String(params.id);
 
-    const assetClass = MOCK_ASSET_CLASSES.find(
-        (item) => item.id === assetClassId,
-    );
+  const detailQuery = useQuery({
+    queryKey: ["asset-register", "asset-class", organizationId, assetClassId],
+    queryFn: () => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return fetchAssetRegisterAssetClassApi({
+        token,
+        organizationId,
+        id: assetClassId,
+      });
+    },
+    enabled: !!token && !!organizationId && !isAuthLoading,
+  });
 
-    /* ---------------------------------------------------------------------- */
-    /* Not Found                                                              */
-    /* ---------------------------------------------------------------------- */
-
-    if (!assetClass) {
-        return (
-            <div className="p-6">
-                <p className="text-sm text-gray-500">
-                    Asset class not found.
-                </p>
-            </div>
-        );
-    }
-
-    /* ---------------------------------------------------------------------- */
-    /* Cancel                                                                 */
-    /* ---------------------------------------------------------------------- */
-
-    const handleCancel = () => {
-        router.push(
-            `/asset-register/assestclass/${assetClassId}`,
-        );
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Saved                                                                  */
-    /* ---------------------------------------------------------------------- */
-
-    const handleSaved = async (
-        data: AssetClassFormData,
-    ) => {
-        console.log("Updated asset class:", {
-            id: assetClassId,
-            ...data,
-        });
-
-        // Mock save for now
-        router.push(
-            `/asset-register/assestclass/${assetClassId}`,
-        );
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Form                                                                   */
-    /* ---------------------------------------------------------------------- */
-
+  if (isAuthLoading || detailQuery.isLoading) {
     return (
-        <CreateAssetClassForm
-            mode="edit"
-            initialData={assetClass}
-            onCancel={handleCancel}
-            onSaved={handleSaved}
-        />
+      <div className="p-6 text-sm text-gray-500">Loading asset class…</div>
     );
+  }
+
+  if (detailQuery.isError || !detailQuery.data) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-500">Asset class not found.</p>
+      </div>
+    );
+  }
+
+  if (!detailQuery.data.isActive) {
+    router.replace(`/asset-register/assestclass/${assetClassId}`);
+    return (
+      <div className="p-6 text-sm text-gray-500">Redirecting…</div>
+    );
+  }
+
+  const handleCancel = () => {
+    router.push(`/asset-register/assestclass/${assetClassId}`);
+  };
+
+  const handleSaved = async (data: AssetClassFormData) => {
+    if (!token || !organizationId) return;
+    try {
+      await updateAssetRegisterAssetClassApi({
+        token,
+        organizationId,
+        id: assetClassId,
+        body: assetClassFormToUpdatePayload(data),
+      });
+      router.push(`/asset-register/assestclass/${assetClassId}`);
+    } catch (error) {
+      showErrorToast(
+        error instanceof Error ? error.message : "Could not save asset class",
+      );
+    }
+  };
+
+  return (
+    <CreateAssetClassForm
+      mode="edit"
+      initialData={assetClassDetailToFormData(detailQuery.data)}
+      onCancel={handleCancel}
+      onSaved={handleSaved}
+    />
+  );
 }

@@ -9,6 +9,11 @@ import {
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import {
+    useMutation,
+    useQuery,
+    useQueryClient,
+} from "@tanstack/react-query";
+import {
     Copy,
     MoreVertical,
     PackageSearch,
@@ -18,9 +23,20 @@ import {
 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+    fetchAssetRegisterAssetMastersApi,
+    updateAssetRegisterAssetMasterStatusApi,
+    type AssetRegisterAssetMasterListItem,
+} from "@/lib/api/asset-register/asset-masters";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -46,89 +62,22 @@ type HoverPosition = {
     left: number;
 };
 
-/* -------------------------------------------------------------------------- */
-/* Mock Data                                                                  */
-/* -------------------------------------------------------------------------- */
+const PAGE_SIZE = 50;
 
-const MOCK_ASSET_MASTERS: AssetMaster[] = [
-    {
-        id: "asset-001",
-        assetCode: "AST-1001",
-        vehicleName: "Activa 6G",
-        assetClass: "Petrol Scooter — Standard",
+function mapMasterListItem(row: AssetRegisterAssetMasterListItem): AssetMaster {
+    return {
+        id: row.id,
+        assetCode: row.assetClassCode,
+        vehicleName: row.name,
+        assetClass: row.assetClassName,
         vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileage: "40–50 km/L",
-        fuelTankCapacity: "5.5 L",
-        ratedLoadCapacity: "150–250 kg",
-        status: "Active",
-    },
-
-    {
-        id: "asset-002",
-        assetCode: "AST-1002",
-        vehicleName: "Activa 6G Black",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileage: "40–50 km/L",
-        fuelTankCapacity: "5.5 L",
-        ratedLoadCapacity: "150–250 kg",
-        status: "Active",
-    },
-
-    {
-        id: "asset-003",
-        assetCode: "AST-1003",
-        vehicleName: "Activa 6G White",
-        assetClass: "Petrol Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Petrol",
-        mileage: "40–50 km/L",
-        fuelTankCapacity: "5.5 L",
-        ratedLoadCapacity: "150–250 kg",
-        status: "Active",
-    },
-
-    {
-        id: "asset-004",
-        assetCode: "AST-1004",
-        vehicleName: "Tata 407",
-        assetClass: "Diesel Truck — Heavy",
-        vehicleType: "4-Wheeler",
-        fuelType: "Diesel",
-        mileage: "6–10 km/L",
-        fuelTankCapacity: "60 L",
-        ratedLoadCapacity: "1000–5000 kg",
-        status: "Active",
-    },
-
-    {
-        id: "asset-005",
-        assetCode: "AST-1005",
-        vehicleName: "Ola S1",
-        assetClass: "Electric Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Electric",
-        mileage: "80–120 km/kWh",
-        fuelTankCapacity: "3 L",
-        ratedLoadCapacity: "100–180 kg",
-        status: "Active",
-    },
-
-    {
-        id: "asset-006",
-        assetCode: "AST-1006",
-        vehicleName: "TVS iQube",
-        assetClass: "Electric Scooter — Standard",
-        vehicleType: "2-Wheeler",
-        fuelType: "Electric",
-        mileage: "80–120 km/kWh",
-        fuelTankCapacity: "3 L",
-        ratedLoadCapacity: "100–180 kg",
-        status: "Inactive",
-    },
-];
+        fuelType: "—",
+        mileage: "—",
+        fuelTankCapacity: "—",
+        ratedLoadCapacity: "—",
+        status: row.status === "active" ? "Active" : "Inactive",
+    };
+}
 
 /* -------------------------------------------------------------------------- */
 /* Asset Code Hover Card                                                      */
@@ -283,12 +232,27 @@ function AssetCodeHoverCard({
 
 export default function AssetMasterDashboardPage() {
     const router = useRouter();
+    const queryClient = useQueryClient();
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+        permissions,
+    } = useAuth();
+
+    const canCreate =
+        permissions.has("asset_register.create") ||
+        permissions.has("asset_register.manage");
+    const canUpdate =
+        permissions.has("asset_register.update") ||
+        permissions.has("asset_register.manage");
 
     /* ---------------------------------------------------------------------- */
     /* Search                                                                 */
     /* ---------------------------------------------------------------------- */
 
     const [search, setSearch] = useState("");
+    const debouncedSearch = useDebouncedValue(search, 300);
 
     /* ---------------------------------------------------------------------- */
     /* Actions                                                                */
@@ -304,7 +268,77 @@ export default function AssetMasterDashboardPage() {
 
     const [currentPage, setCurrentPage] = useState(1);
 
-    const pageSize = 5;
+    const pageSize = PAGE_SIZE;
+
+    const [deactivateTarget, setDeactivateTarget] =
+        useState<AssetMaster | null>(null);
+    const [activateTarget, setActivateTarget] =
+        useState<AssetMaster | null>(null);
+    const [statusError, setStatusError] = useState<string | null>(
+        null,
+    );
+
+    const listQuery = useQuery({
+        queryKey: [
+            "asset-register",
+            "asset-masters",
+            organizationId,
+            debouncedSearch,
+            currentPage,
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterAssetMastersApi({
+                token,
+                organizationId,
+                page: currentPage,
+                pageSize: PAGE_SIZE,
+                search: debouncedSearch.trim() || undefined,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardListQueryOptions,
+    });
+
+    const statusMutation = useMutation({
+        mutationFn: async (input: {
+            asset: AssetMaster;
+            action: "activate" | "deactivate";
+            reason?: string;
+        }) => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return updateAssetRegisterAssetMasterStatusApi({
+                token,
+                organizationId,
+                id: input.asset.id,
+                action: input.action,
+                reason: input.reason,
+            });
+        },
+        onSuccess: (_data, variables) => {
+            void queryClient.invalidateQueries({
+                queryKey: ["asset-register", "asset-masters"],
+            });
+            setDeactivateTarget(null);
+            setActivateTarget(null);
+            setStatusError(null);
+            showSuccessToast(
+                variables.action === "activate"
+                    ? "Asset master activated"
+                    : "Asset master deactivated",
+            );
+        },
+        onError: (error: Error) => {
+            const message =
+                error.message || "Could not update asset master status";
+            setStatusError(message);
+            showErrorToast(message);
+        },
+    });
 
     /* ---------------------------------------------------------------------- */
     /* Hover Card                                                             */
@@ -325,6 +359,7 @@ export default function AssetMasterDashboardPage() {
     /* ---------------------------------------------------------------------- */
 
     const handleAddAsset = () => {
+        if (!canCreate) return;
         router.push("/asset-register/asset-master/create");
     };
 
@@ -333,6 +368,7 @@ export default function AssetMasterDashboardPage() {
     };
 
     const handleEditAsset = (asset: AssetMaster) => {
+        if (!canUpdate || asset.status !== "Active") return;
         router.push(
             `/asset-register/asset-master/${asset.id}/edit`,
         );
@@ -343,13 +379,13 @@ export default function AssetMasterDashboardPage() {
     /* ---------------------------------------------------------------------- */
 
     const handleToggleStatus = (asset: AssetMaster) => {
-        console.log(
-            `${asset.status === "Active"
-                ? "Deactivate"
-                : "Activate"
-            } asset:`,
-            asset.id,
-        );
+        if (!canUpdate) return;
+        setStatusError(null);
+        if (asset.status === "Active") {
+            setDeactivateTarget(asset);
+        } else {
+            setActivateTarget(asset);
+        }
     };
 
     /* ---------------------------------------------------------------------- */
@@ -418,76 +454,29 @@ export default function AssetMasterDashboardPage() {
     /* Filtering                                                              */
     /* ---------------------------------------------------------------------- */
 
-    const filteredAssets = useMemo(() => {
-        const searchValue = search
-            .trim()
-            .toLowerCase();
+    const paginatedAssets = useMemo(
+        () => (listQuery.data?.items ?? []).map(mapMasterListItem),
+        [listQuery.data?.items],
+    );
 
-        if (!searchValue) {
-            return MOCK_ASSET_MASTERS;
-        }
-
-        return MOCK_ASSET_MASTERS.filter(
-            (asset) =>
-                asset.assetCode
-                    .toLowerCase()
-                    .includes(searchValue) ||
-                asset.vehicleName
-                    .toLowerCase()
-                    .includes(searchValue) ||
-                asset.assetClass
-                    .toLowerCase()
-                    .includes(searchValue) ||
-                asset.vehicleType
-                    .toLowerCase()
-                    .includes(searchValue) ||
-                asset.fuelType
-                    .toLowerCase()
-                    .includes(searchValue) ||
-                asset.status
-                    .toLowerCase()
-                    .includes(searchValue),
-        );
-    }, [search]);
-
-    /* ---------------------------------------------------------------------- */
-    /* Pagination Calculations                                                */
-    /* ---------------------------------------------------------------------- */
-
-    const totalItems = filteredAssets.length;
-
+    const totalItems = listQuery.data?.total ?? 0;
     const totalPages = Math.max(
         1,
-        Math.ceil(totalItems / pageSize),
+        listQuery.data?.totalPages ?? 1,
     );
-
-    const safeCurrentPage = Math.min(
-        currentPage,
-        totalPages,
-    );
-
-    const paginatedAssets = useMemo(() => {
-        const startIndex =
-            (safeCurrentPage - 1) * pageSize;
-
-        const endIndex = startIndex + pageSize;
-
-        return filteredAssets.slice(
-            startIndex,
-            endIndex,
-        );
-    }, [
-        filteredAssets,
-        safeCurrentPage,
-    ]);
-
-    /* ---------------------------------------------------------------------- */
-    /* Reset Pagination When Search Changes                                   */
-    /* ---------------------------------------------------------------------- */
+    const safeCurrentPage = currentPage;
 
     useEffect(() => {
         setCurrentPage(1);
-    }, [search]);
+    }, [debouncedSearch]);
+
+    const isInitialLoading =
+        isAuthLoading || (listQuery.isLoading && !listQuery.data);
+    const isEmptyOrgList =
+        !isInitialLoading &&
+        !listQuery.isError &&
+        totalItems === 0 &&
+        !debouncedSearch.trim();
 
     /* ---------------------------------------------------------------------- */
     /* Clear Search                                                           */
@@ -617,20 +606,37 @@ export default function AssetMasterDashboardPage() {
                         />
                     </div>
 
-                    <Button
-                        type="button"
-                        onClick={handleAddAsset}
-                        className="h-9 shrink-0 px-4 text-xs"
-                    >
-                        Add Asset
-                    </Button>
+                    {canCreate ? (
+                        <Button
+                            type="button"
+                            onClick={handleAddAsset}
+                            className="h-9 shrink-0 px-4 text-xs"
+                        >
+                            Add Asset
+                        </Button>
+                    ) : null}
                 </div>
 
                 {/* ========================================================== */}
                 {/* EMPTY / SEARCH RESULT / TABLE                              */}
                 {/* ========================================================== */}
 
-                {MOCK_ASSET_MASTERS.length === 0 ? (
+                {listQuery.isError ? (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+                        Could not load asset masters.{" "}
+                        <button
+                            type="button"
+                            className="font-medium underline"
+                            onClick={() => void listQuery.refetch()}
+                        >
+                            Retry
+                        </button>
+                    </div>
+                ) : isInitialLoading ? (
+                    <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
+                        Loading asset masters…
+                    </div>
+                ) : isEmptyOrgList ? (
                     <DashboardEmptyState
                         icon={
                             <PackageSearch
@@ -642,10 +648,10 @@ export default function AssetMasterDashboardPage() {
                         description="There are currently no assets in the asset master."
                         buttonLabel="Add Asset"
                         onButtonClick={
-                            handleAddAsset
+                            canCreate ? handleAddAsset : undefined
                         }
                     />
-                ) : filteredAssets.length === 0 ? (
+                ) : paginatedAssets.length === 0 ? (
                     <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white text-center">
                         <PackageSearch
                             className="mb-3 h-7 w-7 text-gray-400"
@@ -741,31 +747,36 @@ export default function AssetMasterDashboardPage() {
                                 {openActionId ===
                                     asset.id && (
                                         <div className="absolute right-0 top-7 z-50 w-40 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setOpenActionId(
-                                                        null,
-                                                    );
+                                            {canUpdate &&
+                                            asset.status ===
+                                                "Active" ? (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setOpenActionId(
+                                                            null,
+                                                        );
 
-                                                    handleEditAsset(
-                                                        asset,
-                                                    );
-                                                }}
-                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                            >
-                                                <Pencil
-                                                    className="h-4 w-4 text-gray-500"
-                                                    strokeWidth={
-                                                        1.7
-                                                    }
-                                                />
+                                                        handleEditAsset(
+                                                            asset,
+                                                        );
+                                                    }}
+                                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    <Pencil
+                                                        className="h-4 w-4 text-gray-500"
+                                                        strokeWidth={
+                                                            1.7
+                                                        }
+                                                    />
 
-                                                <span>
-                                                    Edit
-                                                </span>
-                                            </button>
+                                                    <span>
+                                                        Edit
+                                                    </span>
+                                                </button>
+                                            ) : null}
 
+                                            {canUpdate ? (
                                             <button
                                                 type="button"
                                                 onClick={() => {
@@ -793,6 +804,7 @@ export default function AssetMasterDashboardPage() {
                                                         : "Activate"}
                                                 </span>
                                             </button>
+                                            ) : null}
                                         </div>
                                     )}
                             </div>
@@ -800,6 +812,63 @@ export default function AssetMasterDashboardPage() {
                     />
                 )}
             </DashboardLayout>
+
+            <ConfirmDialog
+                open={activateTarget !== null}
+                title="Activate this asset?"
+                message={
+                    activateTarget
+                        ? `${activateTarget.vehicleName} will be available for fleet register again.`
+                        : "This asset will be marked active."
+                }
+                confirmLabel="Activate"
+                isConfirmPending={statusMutation.isPending}
+                onClose={() => {
+                    if (!statusMutation.isPending) {
+                        setActivateTarget(null);
+                        setStatusError(null);
+                    }
+                }}
+                onConfirm={() => {
+                    if (!activateTarget) return;
+                    statusMutation.mutate({
+                        asset: activateTarget,
+                        action: "activate",
+                    });
+                }}
+            />
+
+            <ReasonRequiredDialog
+                open={deactivateTarget !== null}
+                title="Deactivate this asset?"
+                description={
+                    deactivateTarget ? (
+                        <>
+                            <span className="font-medium text-gray-900">
+                                {deactivateTarget.vehicleName}
+                            </span>{" "}
+                            will no longer be available for new fleet
+                            vehicles.
+                        </>
+                    ) : null
+                }
+                reasonLabel="Reason for deactivation"
+                confirmLabel="Deactivate"
+                isPending={statusMutation.isPending}
+                error={statusError}
+                onClose={() => {
+                    setDeactivateTarget(null);
+                    setStatusError(null);
+                }}
+                onConfirm={(reason) => {
+                    if (!deactivateTarget) return;
+                    statusMutation.mutate({
+                        asset: deactivateTarget,
+                        action: "deactivate",
+                        reason,
+                    });
+                }}
+            />
 
             {/* ============================================================== */}
             {/* HOVER PREVIEW                                                   */}

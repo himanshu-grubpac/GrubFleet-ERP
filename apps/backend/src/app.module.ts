@@ -13,6 +13,7 @@ import { RolesModule } from './modules/roles/roles.module';
 import { UsersModule } from './modules/users/users.module';
 import { FleetLeasingModule } from './modules/fleet-leasing/fleet-leasing.module';
 import { OrganisationModule } from './modules/organisation/organisation.module';
+import { AssetRegisterModule } from './modules/asset-register/asset-register.module';
 
 @Module({
   imports: [
@@ -28,6 +29,7 @@ import { OrganisationModule } from './modules/organisation/organisation.module';
     AuditModule,
     FleetLeasingModule,
     OrganisationModule,
+    AssetRegisterModule,
   ],
   providers: [StructuredLoggerService],
 })

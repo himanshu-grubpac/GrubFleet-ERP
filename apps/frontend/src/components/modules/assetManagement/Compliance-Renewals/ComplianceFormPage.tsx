@@ -2,15 +2,32 @@
 
 import { useRouter, useParams } from "next/navigation";
 import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { useAuth } from "@/providers/auth-provider";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+    fetchAssetRegisterComplianceDetailApi,
+    renewAssetRegisterComplianceApi,
+} from "@/lib/api/asset-register/compliance";
+import { formatAssetRegisterIsoDate } from "@/lib/api/asset-register/mappers";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
 
-type RenewalType = "Insurance" | "Registration";
+type RenewalType = "Insurance" | "Registration" | "Warranty";
+
+function parseRenewalEndDate(value: string): string | null {
+    const trimmed = value.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return trimmed;
+    }
+    return null;
+}
 
 type ComplianceVehicle = {
     id: string;
@@ -31,71 +48,6 @@ type ComplianceVehicle = {
 /* Mock Data                                                                  */
 /* -------------------------------------------------------------------------- */
 
-const MOCK_COMPLIANCE_VEHICLES: ComplianceVehicle[] = [
-    {
-        id: "compliance-001",
-        fleetCode: "VH-1006",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1006",
-
-        insuranceExpiry: "12-Aug-2026",
-        registrationExpiry: "01-May-2031",
-
-        insuranceSupplier:
-            "Bajaj Allianz General Insurance — Andheri Branch",
-        contactPerson: "Ritesh Kulkarni (Fleet Desk)",
-        phone: "+91 22 6890 4411",
-        email:
-            "fleet.andheri@bajajallianz-partner.example",
-    },
-    {
-        id: "compliance-002",
-        fleetCode: "VH-1007",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1007",
-
-        insuranceExpiry: "05-Jan-2027",
-        registrationExpiry: "01-Sep-2026",
-
-        insuranceSupplier:
-            "Bajaj Allianz General Insurance — Andheri Branch",
-        contactPerson: "Ritesh Kulkarni (Fleet Desk)",
-        phone: "+91 22 6890 4411",
-        email:
-            "fleet.andheri@bajajallianz-partner.example",
-    },
-    {
-        id: "compliance-003",
-        fleetCode: "VH-2004",
-        assetClass: "Petrol Auto — Cargo",
-        registrationNumber: "MH04 AB 2004",
-
-        insuranceExpiry: "08-Oct-2026",
-        registrationExpiry: "20-Jul-2034",
-
-        insuranceSupplier: "Bajaj Allianz General Insurance",
-        contactPerson: "Fleet Desk",
-        phone: "+91 22 6890 4411",
-        email:
-            "fleet.andheri@bajajallianz-partner.example",
-    },
-    {
-        id: "compliance-004",
-        fleetCode: "VH-1002",
-        assetClass: "Petrol Scooter — Standard",
-        registrationNumber: "MH04 AB 1002",
-
-        insuranceExpiry: "15-Oct-2026",
-        registrationExpiry: "02-Jun-2033",
-
-        insuranceSupplier: "Bajaj Allianz General Insurance",
-        contactPerson: "Fleet Desk",
-        phone: "+91 22 6890 4411",
-        email:
-            "fleet.andheri@bajajallianz-partner.example",
-    },
-];
-
 /* -------------------------------------------------------------------------- */
 /* Component                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -103,21 +55,90 @@ const MOCK_COMPLIANCE_VEHICLES: ComplianceVehicle[] = [
 export default function RenewCompliancePage() {
     const router = useRouter();
     const params = useParams();
+    const queryClient = useQueryClient();
+    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
     const vehicleId =
         typeof params?.id === "string"
             ? params.id
             : "";
 
-    /* ---------------------------------------------------------------------- */
-    /* Vehicle                                                                */
-    /* ---------------------------------------------------------------------- */
+    const detailQuery = useQuery({
+        queryKey: ["asset-register", "compliance", organizationId, vehicleId],
+        queryFn: () => {
+            if (!token || !organizationId || !vehicleId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterComplianceDetailApi({
+                token,
+                organizationId,
+                vehicleId,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading && !!vehicleId,
+        ...dashboardListQueryOptions,
+    });
 
-    const vehicle =
-        MOCK_COMPLIANCE_VEHICLES.find(
-            (item) => item.id === vehicleId,
-        ) ??
-        MOCK_COMPLIANCE_VEHICLES[0];
+    const vehicle: ComplianceVehicle | undefined = detailQuery.data
+        ? {
+              id: detailQuery.data.vehicleId,
+              fleetCode: detailQuery.data.fleetCode,
+              assetClass: detailQuery.data.assetClassName,
+              registrationNumber: detailQuery.data.registrationNumber,
+              insuranceExpiry: formatAssetRegisterIsoDate(
+                  detailQuery.data.insuranceEndDate,
+              ),
+              registrationExpiry: formatAssetRegisterIsoDate(
+                  detailQuery.data.registrationEndDate,
+              ),
+              insuranceSupplier: "—",
+              contactPerson: "—",
+              phone: "—",
+              email: "—",
+          }
+        : undefined;
+
+    const renewMutation = useMutation({
+        mutationFn: async (input: {
+            endDate: string;
+            premium?: number;
+        }) => {
+            if (!token || !organizationId || !vehicleId || !detailQuery.data) {
+                throw new Error("Missing auth context");
+            }
+            const type =
+                renewalType === "Insurance"
+                    ? "insurance"
+                    : renewalType === "Registration"
+                      ? "registration"
+                      : "warranty";
+            const startDate =
+                renewalType === "Insurance"
+                    ? detailQuery.data.insuranceStartDate
+                    : renewalType === "Registration"
+                      ? detailQuery.data.registrationStartDate
+                      : detailQuery.data.warrantyStartDate;
+            return renewAssetRegisterComplianceApi({
+                token,
+                organizationId,
+                vehicleId,
+                type,
+                startDate,
+                endDate: input.endDate,
+                insurancePremium: input.premium,
+            });
+        },
+        onSuccess: () => {
+            void queryClient.invalidateQueries({
+                queryKey: ["asset-register", "compliance"],
+            });
+            showSuccessToast("Compliance renewal saved");
+            router.push("/asset-register/compliance-renewals");
+        },
+        onError: (error: Error) => {
+            showErrorToast(error.message || "Could not save renewal");
+        },
+    });
 
     /* ---------------------------------------------------------------------- */
     /* Form State                                                             */
@@ -185,42 +206,25 @@ export default function RenewCompliancePage() {
             }
         }
 
+        const endDate = parseRenewalEndDate(newExpiryDate);
+        if (!endDate) {
+            setError("Enter new expiry as YYYY-MM-DD.");
+            return;
+        }
+
         try {
             setIsSaving(true);
-
-            /*
-             * Temporary mock save.
-             *
-             * Later replace this section with the API call.
-             */
-
-            const renewalPayload = {
-                vehicleId: vehicle.id,
-                fleetCode: vehicle.fleetCode,
-                renewalType,
-                newExpiryDate,
+            const premiumValue =
+                renewalType === "Insurance"
+                    ? Number(premium.replace(/[^\d.]/g, ""))
+                    : undefined;
+            await renewMutation.mutateAsync({
+                endDate,
                 premium:
-                    renewalType === "Insurance"
-                        ? premium
-                        : "",
-                policyNumber:
-                    renewalType === "Insurance"
-                        ? policyNumber
-                        : "",
-            };
-
-            console.log(
-                "Saving compliance renewal:",
-                renewalPayload,
-            );
-
-            await new Promise((resolve) =>
-                setTimeout(resolve, 500),
-            );
-
-            router.push(
-                "/asset-register/compliance-renewals",
-            );
+                    premiumValue !== undefined && !Number.isNaN(premiumValue)
+                        ? premiumValue
+                        : undefined,
+            });
         } catch {
             setError(
                 "Failed to save renewal. Please try again.",
@@ -233,6 +237,22 @@ export default function RenewCompliancePage() {
     /* ---------------------------------------------------------------------- */
     /* Render                                                                 */
     /* ---------------------------------------------------------------------- */
+
+    if (detailQuery.isError || (!detailQuery.isLoading && !vehicle)) {
+        return (
+            <div className="p-6 text-sm text-gray-500">
+                Compliance record not found.
+            </div>
+        );
+    }
+
+    if (isAuthLoading || detailQuery.isLoading || !vehicle) {
+        return (
+            <div className="p-6 text-sm text-gray-500">
+                Loading compliance record…
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#f5f5f5]">
@@ -408,7 +428,7 @@ export default function RenewCompliancePage() {
                                                 .value,
                                         )
                                     }
-                                    placeholder="DD-MMM-YYYY"
+                                    placeholder="YYYY-MM-DD"
                                     className={
                                         inputClassName
                                     }

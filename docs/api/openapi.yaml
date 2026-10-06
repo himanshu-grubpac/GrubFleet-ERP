@@ -35,6 +35,8 @@ tags:
     description: Global permission catalog
   - name: audit
     description: Organization audit log queries
+  - name: asset-register
+    description: Asset Register — asset classes, masters, fleet register (phased)
   - name: fleet-leasing
     description: Fleet & leasing — lease contracts, clients, vehicles
 paths:
@@ -792,7 +794,10 @@ paths:
   /fleet-leasing/asset-classes:
     get:
       tags: [fleet-leasing]
-      summary: Distinct asset classes from fleet vehicle master
+      summary: Distinct active asset class names from asset register
+      description: >-
+        Wizard dropdown source. Names match asset_register_asset_classes.name for active classes.
+        Lease asset lines store the same string in lease_contract_asset_lines.asset_class.
       operationId: listFleetAssetClasses
       security:
         - bearerAuth: []
@@ -2307,6 +2312,576 @@ paths:
           description: Status updated
         '400':
           description: Missing deactivate reason type or invalid transition
+  /asset-register/asset-classes:
+    get:
+      tags: [asset-register]
+      summary: List asset classes (paginated)
+      description: >-
+        Default sort: createdAt descending (newest first), then id descending.
+        Search matches class name or generated code. inFleetCount is active fleet register vehicles per class; availableCount is active vehicles with operationalStatus available (batched on list page).
+      operationId: listAssetRegisterAssetClasses
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated asset class rows
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+    post:
+      tags: [asset-register]
+      summary: Create asset class (code generated server-side)
+      operationId: createAssetRegisterAssetClass
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssetRegisterAssetClassRequest'
+      responses:
+        '201':
+          description: Asset class created with generated code
+        '400':
+          description: Validation error or client-supplied code rejected
+        '403':
+          description: Forbidden
+  /asset-register/asset-classes/{id}:
+    get:
+      tags: [asset-register]
+      summary: Asset class detail
+      operationId: getAssetRegisterAssetClass
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Asset class detail (code read-only)
+        '404':
+          description: Not found
+    patch:
+      tags: [asset-register]
+      summary: Update asset class
+      operationId: updateAssetRegisterAssetClass
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetRegisterAssetClassRequest'
+      responses:
+        '200':
+          description: Updated asset class
+        '400':
+          description: Validation error or inactive asset class cannot be edited
+  /asset-register/asset-classes/{id}/status:
+    patch:
+      tags: [asset-register]
+      summary: Activate or deactivate asset class (deactivate requires reason)
+      operationId: updateAssetRegisterAssetClassStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Required when action is deactivate
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason or invalid transition
+  /asset-register/asset-classes/{classId}/masters:
+    get:
+      tags: [asset-register]
+      summary: Catalog — active asset masters for an active asset class
+      operationId: listAssetRegisterAssetMastersByClass
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: classId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated active masters for fleet register dropdown
+        '400':
+          description: Asset class is inactive
+        '404':
+          description: Asset class not found
+  /asset-register/asset-masters:
+    get:
+      tags: [asset-register]
+      summary: List asset masters (paginated)
+      operationId: listAssetRegisterAssetMasters
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: assetClassId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated asset master rows with asset class name/code
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+    post:
+      tags: [asset-register]
+      summary: Create asset master
+      operationId: createAssetRegisterAssetMaster
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssetRegisterAssetMasterRequest'
+      responses:
+        '201':
+          description: Asset master created (class spec joined on response)
+        '400':
+          description: Validation error or inactive asset class
+        '409':
+          description: Duplicate master name for class in org
+  /asset-register/asset-masters/{id}:
+    get:
+      tags: [asset-register]
+      summary: Asset master detail with class spec snapshot
+      operationId: getAssetRegisterAssetMaster
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Detail including read-only class fields
+        '404':
+          description: Not found
+    patch:
+      tags: [asset-register]
+      summary: Update asset master (name and/or asset class)
+      operationId: updateAssetRegisterAssetMaster
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetRegisterAssetMasterRequest'
+      responses:
+        '200':
+          description: Updated asset master
+        '400':
+          description: Inactive master/class or validation error
+        '409':
+          description: Duplicate master name for class
+  /asset-register/asset-masters/{id}/status:
+    patch:
+      tags: [asset-register]
+      summary: Activate or deactivate asset master (deactivate requires reason)
+      operationId: updateAssetRegisterAssetMasterStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Required when action is deactivate
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason or invalid transition
+  /asset-register/vehicles:
+    get:
+      tags: [asset-register]
+      summary: List fleet register vehicles (paginated)
+      description: >-
+        fleetCode, registrationNumber, asset class name, odometer, operationalStatus.
+        Filter by assetClassId, operationalStatus, lifecycle status (active/inactive), or search.
+      operationId: listAssetRegisterVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: assetClassId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: operationalStatus
+          in: query
+          schema:
+            type: string
+            enum: [available, leased, workshop, sold, retired]
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated fleet register vehicles
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
+    post:
+      tags: [asset-register]
+      summary: Register a vehicle (fleetCode server-generated)
+      operationId: createAssetRegisterVehicle
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAssetRegisterVehicleRequest'
+      responses:
+        '201':
+          description: Created vehicle with VH- sequence fleetCode
+        '400':
+          description: Validation error or inactive class/master
+        '403':
+          description: Forbidden
+  /asset-register/vehicles/{id}:
+    get:
+      tags: [asset-register]
+      summary: Fleet register vehicle detail
+      operationId: getAssetRegisterVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Vehicle with class and master names
+        '404':
+          description: Not found
+    patch:
+      tags: [asset-register]
+      summary: Update fleet register vehicle
+      operationId: updateAssetRegisterVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAssetRegisterVehicleRequest'
+      responses:
+        '200':
+          description: Updated vehicle
+        '400':
+          description: Inactive vehicle or validation error
+  /asset-register/vehicles/{id}/status:
+    patch:
+      tags: [asset-register]
+      summary: Activate or deactivate fleet register vehicle
+      operationId: updateAssetRegisterVehicleStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [activate, deactivate]
+                reason:
+                  type: string
+                  maxLength: 500
+                  description: Required when action is deactivate
+      responses:
+        '200':
+          description: Status updated
+        '400':
+          description: Missing deactivate reason or invalid transition
+  /asset-register/vehicle-assignments/bulk-assign:
+    post:
+      tags: [asset-register]
+      summary: Bulk assign fleet register vehicles to an active lease contract
+      operationId: bulkAssignAssetRegisterVehicles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, leaseContractId, vehicleIds]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                leaseContractId:
+                  type: string
+                  format: uuid
+                organisationClientId:
+                  type: string
+                  format: uuid
+                  description: Optional org client id for future org↔fleet link (not validated against lease client yet)
+                vehicleIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        '200':
+          description: Assignments recorded; vehicles operationalStatus set to leased
+        '400':
+          description: NO_ACTIVE_LEASE_CONTRACT, LEASE_CAPACITY_SHORTFALL, or vehicle not assignable
+  /asset-register/vehicle-assignments/{vehicleId}/unassign:
+    patch:
+      tags: [asset-register]
+      summary: Unassign vehicle from active lease assignment
+      operationId: unassignAssetRegisterVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignment closed; operationalStatus available
+        '400':
+          description: NO_ACTIVE_ASSIGNMENT
+  /asset-register/compliance:
+    get:
+      tags: [asset-register]
+      summary: Compliance list (insurance, registration, warranty)
+      operationId: listAssetRegisterCompliance
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: complianceStatus
+          in: query
+          schema:
+            type: string
+            enum: [all, expired, expiring_soon, valid]
+        - name: assetClassId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated compliance rows derived from vehicle date fields
+  /asset-register/compliance/{vehicleId}:
+    get:
+      tags: [asset-register]
+      summary: Compliance detail for a vehicle
+      operationId: getAssetRegisterComplianceDetail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Vehicle summary with compliance buckets
+  /asset-register/compliance/{vehicleId}/renew:
+    post:
+      tags: [asset-register]
+      summary: Renew insurance, registration, or warranty on a vehicle
+      operationId: renewAssetRegisterCompliance
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: vehicleId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, type, startDate, endDate]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                type:
+                  type: string
+                  enum: [insurance, registration, warranty]
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+                insurancePremium:
+                  type: number
+                  description: Required when type is insurance
+      responses:
+        '200':
+          description: Updated compliance detail
+        '400':
+          description: Validation or inactive vehicle
 components:
   securitySchemes:
     bearerAuth:
@@ -2607,6 +3182,246 @@ components:
           type: string
           format: uuid
           nullable: true
+    CreateAssetRegisterAssetClassRequest:
+      type: object
+      required:
+        - organizationId
+        - name
+        - vehicleType
+        - fuelType
+        - fuelTankCapacity
+        - ratedLoadFrom
+        - ratedLoadTo
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        vehicleType:
+          type: string
+          enum: ['2W', '3W', '4W']
+        fuelType:
+          type: string
+          maxLength: 64
+        mileageFrom:
+          type: number
+          minimum: 0
+        mileageTo:
+          type: number
+          minimum: 0
+        mileageUnit:
+          type: string
+          maxLength: 32
+        fuelTankCapacity:
+          type: number
+          minimum: 0
+        ratedLoadFrom:
+          type: number
+          minimum: 0
+        ratedLoadTo:
+          type: number
+          minimum: 0
+        defaultIntakeChecklist:
+          type: string
+          maxLength: 2000
+      additionalProperties: false
+      description: Class code is generated server-side; do not send code on create.
+    UpdateAssetRegisterAssetClassRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        vehicleType:
+          type: string
+          enum: ['2W', '3W', '4W']
+        fuelType:
+          type: string
+          maxLength: 64
+        mileageFrom:
+          type: number
+          minimum: 0
+        mileageTo:
+          type: number
+          minimum: 0
+        mileageUnit:
+          type: string
+          maxLength: 32
+        fuelTankCapacity:
+          type: number
+          minimum: 0
+        ratedLoadFrom:
+          type: number
+          minimum: 0
+        ratedLoadTo:
+          type: number
+          minimum: 0
+        defaultIntakeChecklist:
+          type: string
+          maxLength: 2000
+      additionalProperties: false
+    CreateAssetRegisterAssetMasterRequest:
+      type: object
+      required:
+        - organizationId
+        - assetClassId
+        - name
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        assetClassId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+      additionalProperties: false
+      description: Class specification fields are read-only from joined asset class on responses.
+    UpdateAssetRegisterAssetMasterRequest:
+      type: object
+      properties:
+        assetClassId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+      additionalProperties: false
+    CreateAssetRegisterVehicleRequest:
+      type: object
+      required:
+        - organizationId
+        - assetClassId
+        - assetMasterId
+        - registrationNumber
+        - chassisNumber
+        - modelYear
+        - odometer
+        - registrationStartDate
+        - registrationEndDate
+        - insuranceStartDate
+        - insuranceEndDate
+        - insurancePremium
+        - warrantyStartDate
+        - warrantyEndDate
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        assetClassId:
+          type: string
+          format: uuid
+        assetMasterId:
+          type: string
+          format: uuid
+        registrationNumber:
+          type: string
+          maxLength: 32
+        chassisNumber:
+          type: string
+          maxLength: 64
+        modelYear:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+        odometer:
+          type: integer
+          minimum: 0
+          maximum: 9999999
+        registrationStartDate:
+          type: string
+          format: date
+        registrationEndDate:
+          type: string
+          format: date
+        insuranceStartDate:
+          type: string
+          format: date
+        insuranceEndDate:
+          type: string
+          format: date
+        insurancePremium:
+          type: number
+          minimum: 0
+        warrantyStartDate:
+          type: string
+          format: date
+        warrantyEndDate:
+          type: string
+          format: date
+        specialNotes:
+          type: string
+          maxLength: 2000
+        purchaseInvoiceId:
+          type: string
+          format: uuid
+          nullable: true
+      additionalProperties: false
+      description: >-
+        fleetCode is server-generated (VH-1001 sequence per org). operationalStatus defaults to available.
+        purchaseInvoiceId accepted without Finance FK validation in v1.
+    UpdateAssetRegisterVehicleRequest:
+      type: object
+      properties:
+        assetClassId:
+          type: string
+          format: uuid
+        assetMasterId:
+          type: string
+          format: uuid
+        registrationNumber:
+          type: string
+          maxLength: 32
+        chassisNumber:
+          type: string
+          maxLength: 64
+        modelYear:
+          type: integer
+          minimum: 1900
+          maximum: 2100
+        odometer:
+          type: integer
+          minimum: 0
+          maximum: 9999999
+        registrationStartDate:
+          type: string
+          format: date
+        registrationEndDate:
+          type: string
+          format: date
+        insuranceStartDate:
+          type: string
+          format: date
+        insuranceEndDate:
+          type: string
+          format: date
+        insurancePremium:
+          type: number
+          minimum: 0
+        warrantyStartDate:
+          type: string
+          format: date
+        warrantyEndDate:
+          type: string
+          format: date
+        specialNotes:
+          type: string
+          maxLength: 2000
+        purchaseInvoiceId:
+          type: string
+          format: uuid
+          nullable: true
+      additionalProperties: false
+      description: operationalStatus is not client-writable in v1 (system/assignment modules later).
     CreateOrganisationSupplierRequest:
       type: object
       required:
