@@ -31,7 +31,14 @@ import {
   loginAs,
   ORG_VIEW_ONLY_USER,
 } from '../../../test/helpers/integration-auth';
-import { purgeRbacIntegrationTestRoles } from '../../../test/helpers/integration-rbac-cleanup';
+import {
+  deleteIntegrationTestUsersByEmails,
+  deleteOrgRoleByNameIfExists,
+  purgeRbacIntegrationTestRoles,
+  RBAC_INTEGRATION_EPHEMERAL_USER_EMAILS,
+  RBAC_INTEGRATION_MANAGE_TIER_CREATED_USER_EMAIL,
+  RBAC_INTEGRATION_MANAGE_TIER_OPERATOR_EMAIL,
+} from '../../../test/helpers/integration-rbac-cleanup';
 import { rbacIntegrationTestRoleName } from '../../database/seed/dev-role-data-policy';
 
 describe('RBAC admin (integration)', () => {
@@ -356,6 +363,10 @@ describe('RBAC admin (integration)', () => {
   afterAll(async () => {
     if (pool && organizationId) {
       const db = drizzle(pool, { schema });
+      await deleteIntegrationTestUsersByEmails(
+        db,
+        RBAC_INTEGRATION_EPHEMERAL_USER_EMAILS,
+      );
       await purgeRbacIntegrationTestRoles(db, organizationId);
     }
     await app?.close();
@@ -654,93 +665,108 @@ describe('RBAC admin (integration)', () => {
   });
 
   it('administration MANAGE tier allows user create without administration.manage', async () => {
+    const db = drizzle(pool, { schema });
     const roleName = rbacIntegrationTestRoleName('admin-manage-only');
-    const createRoleRes = await request(app.getHttpServer())
-      .post('/api/v1/roles')
-      .query({ organizationId })
-      .set('Authorization', `Bearer ${adminAccessToken}`)
-      .send({
-        organizationId,
-        name: roleName,
-        moduleAccess: [
-          { moduleId: 'dashboard', accessLevel: 'VIEW' },
-          { moduleId: 'administration', accessLevel: 'MANAGE' },
-        ],
-      })
-      .expect(201);
+    await deleteIntegrationTestUsersByEmails(db, [
+      RBAC_INTEGRATION_MANAGE_TIER_OPERATOR_EMAIL,
+      RBAC_INTEGRATION_MANAGE_TIER_CREATED_USER_EMAIL,
+    ]);
+    await deleteOrgRoleByNameIfExists(db, organizationId, roleName);
 
-    const manageRole = createRoleRes.body as {
-      id: string;
-      permissionKeys: string[];
-    };
-    expect(manageRole.permissionKeys).toContain('administration.create');
-    expect(manageRole.permissionKeys).not.toContain('administration.manage');
+    try {
+      const createRoleRes = await request(app.getHttpServer())
+        .post('/api/v1/roles')
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .send({
+          organizationId,
+          name: roleName,
+          moduleAccess: [
+            { moduleId: 'dashboard', accessLevel: 'VIEW' },
+            { moduleId: 'administration', accessLevel: 'MANAGE' },
+          ],
+        })
+        .expect(201);
 
-    const operatorEmail = 'admin.manage.op@grubpac.local';
-    const operatorPassword = 'AdminManageOp123!';
-    const createUserRes = await request(app.getHttpServer())
-      .post('/api/v1/users')
-      .query({ organizationId })
-      .set('Authorization', `Bearer ${adminAccessToken}`)
-      .send({
-        organizationId,
-        email: operatorEmail,
-        password: operatorPassword,
-        fullName: 'Admin Manage Operator',
-      })
-      .expect(201);
+      const manageRole = createRoleRes.body as {
+        id: string;
+        permissionKeys: string[];
+      };
+      expect(manageRole.permissionKeys).toContain('administration.create');
+      expect(manageRole.permissionKeys).not.toContain('administration.manage');
 
-    const operatorId = (createUserRes.body as { id: string }).id;
+      const operatorEmail = RBAC_INTEGRATION_MANAGE_TIER_OPERATOR_EMAIL;
+      const operatorPassword = 'AdminManageOp123!';
+      const createUserRes = await request(app.getHttpServer())
+        .post('/api/v1/users')
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .send({
+          organizationId,
+          email: operatorEmail,
+          password: operatorPassword,
+          fullName: 'Admin Manage Operator',
+        })
+        .expect(201);
 
-    await request(app.getHttpServer())
-      .post(`/api/v1/roles/${manageRole.id}/assign`)
-      .query({ organizationId })
-      .set('Authorization', `Bearer ${adminAccessToken}`)
-      .send({ organizationId, userId: operatorId })
-      .expect(201);
+      const operatorId = (createUserRes.body as { id: string }).id;
 
-    const operatorLogin = await request(app.getHttpServer())
-      .post('/api/v1/auth/login')
-      .send({ email: operatorEmail, password: operatorPassword })
-      .expect(201);
-    const operatorToken = (operatorLogin.body as { accessToken: string })
-      .accessToken;
+      await request(app.getHttpServer())
+        .post(`/api/v1/roles/${manageRole.id}/assign`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .send({ organizationId, userId: operatorId })
+        .expect(201);
 
-    await request(app.getHttpServer())
-      .post('/api/v1/users')
-      .query({ organizationId })
-      .set('Authorization', `Bearer ${operatorToken}`)
-      .send({
-        organizationId,
-        email: 'created.by.manage@grubpac.local',
-        fullName: 'Created By Manage Tier',
-      })
-      .expect(201);
+      const operatorLogin = await request(app.getHttpServer())
+        .post('/api/v1/auth/login')
+        .send({ email: operatorEmail, password: operatorPassword })
+        .expect(201);
+      const operatorToken = (operatorLogin.body as { accessToken: string })
+        .accessToken;
 
-    const meRes = await request(app.getHttpServer())
-      .get('/api/v1/auth/me')
-      .set('Authorization', `Bearer ${operatorToken}`)
-      .expect(200);
-    const meBody = meRes.body as {
-      moduleAccess: Array<{ moduleId: string; accessLevel: string }>;
-    };
-    const adminMod = meBody.moduleAccess.find(
-      (m) => m.moduleId === 'administration',
-    );
-    expect(adminMod?.accessLevel).toBe('MANAGE');
+      await request(app.getHttpServer())
+        .post('/api/v1/users')
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${operatorToken}`)
+        .send({
+          organizationId,
+          email: RBAC_INTEGRATION_MANAGE_TIER_CREATED_USER_EMAIL,
+          fullName: 'Created By Manage Tier',
+        })
+        .expect(201);
 
-    await request(app.getHttpServer())
-      .delete(`/api/v1/roles/${manageRole.id}/assign`)
-      .query({ organizationId })
-      .set('Authorization', `Bearer ${adminAccessToken}`)
-      .send({ organizationId, userId: operatorId })
-      .expect(200);
+      const meRes = await request(app.getHttpServer())
+        .get('/api/v1/auth/me')
+        .set('Authorization', `Bearer ${operatorToken}`)
+        .expect(200);
+      const meBody = meRes.body as {
+        moduleAccess: Array<{ moduleId: string; accessLevel: string }>;
+      };
+      const adminMod = meBody.moduleAccess.find(
+        (m) => m.moduleId === 'administration',
+      );
+      expect(adminMod?.accessLevel).toBe('MANAGE');
 
-    await request(app.getHttpServer())
-      .delete(`/api/v1/roles/${manageRole.id}`)
-      .query({ organizationId })
-      .set('Authorization', `Bearer ${adminAccessToken}`)
-      .expect(200);
+      await request(app.getHttpServer())
+        .delete(`/api/v1/roles/${manageRole.id}/assign`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .send({ organizationId, userId: operatorId })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .delete(`/api/v1/roles/${manageRole.id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${adminAccessToken}`)
+        .expect(200);
+    } finally {
+      await deleteIntegrationTestUsersByEmails(db, [
+        RBAC_INTEGRATION_MANAGE_TIER_OPERATOR_EMAIL,
+        RBAC_INTEGRATION_MANAGE_TIER_CREATED_USER_EMAIL,
+      ]);
+      await deleteOrgRoleByNameIfExists(db, organizationId, roleName);
+    }
   });
 
   it('GET /auth/me includes moduleAccess', async () => {
