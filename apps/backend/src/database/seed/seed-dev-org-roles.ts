@@ -28,7 +28,6 @@ export async function seedDevOrgDemoRoles(
   db: AppDb,
   devOrgId: string,
 ): Promise<string[]> {
-
   const allKeys = [
     ...new Set(DEV_DEMO_ORG_ROLE_SPECS.flatMap((s) => s.permissionKeys)),
   ];
@@ -63,23 +62,16 @@ export async function seedDevOrgDemoRoles(
     const [role] = await db
       .select({ id: roles.id })
       .from(roles)
-      .where(
-        and(
-          eq(roles.organizationId, devOrgId),
-          eq(roles.name, spec.name),
-        ),
-      )
+      .where(and(eq(roles.organizationId, devOrgId), eq(roles.name, spec.name)))
       .limit(1);
     if (!role) {
       throw new Error(`Failed to resolve dev demo role ${spec.name}`);
     }
 
-    const permissionIds = spec.permissionKeys.map(
-      (key) => permIdByKey.get(key)!,
+    const permissionIds = spec.permissionKeys.map((key) =>
+      permIdByKey.get(key)!,
     );
-    await db
-      .delete(rolePermissions)
-      .where(eq(rolePermissions.roleId, role.id));
+    await db.delete(rolePermissions).where(eq(rolePermissions.roleId, role.id));
     await db.insert(rolePermissions).values(
       permissionIds.map((permissionId) => ({
         roleId: role.id,

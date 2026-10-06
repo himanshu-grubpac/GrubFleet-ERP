@@ -58,10 +58,7 @@ export function isJunkIntegrationOrgRoleName(name: string): boolean {
   if (TIMESTAMP_SUFFIX.test(name)) {
     return true;
   }
-  if (
-    name.endsWith(' Viewer Only') &&
-    name !== 'Organisation View Only'
-  ) {
+  if (name.endsWith(' Viewer Only') && name !== 'Organisation View Only') {
     return true;
   }
   return JUNK_ROLE_NAME_PREFIXES.some((prefix) => name.startsWith(prefix));
@@ -87,7 +84,11 @@ export const DEV_DEMO_ORG_ROLE_SPECS: DevDemoOrgRoleSpec[] = [
   {
     name: 'Fleet Coordinator',
     description: 'Fleet leasing read + organisation directory (dev sample)',
-    permissionKeys: ['dashboard.view', 'fleet_leasing.view', 'organisation.view'],
+    permissionKeys: [
+      'dashboard.view',
+      'fleet_leasing.view',
+      'organisation.view',
+    ],
   },
   {
     name: 'Organisation Analyst',

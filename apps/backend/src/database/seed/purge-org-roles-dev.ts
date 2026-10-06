@@ -18,7 +18,6 @@ export async function deleteOrgRolesInTreeOrder(
     return [];
   }
 
-  const idSet = new Set(roleIds);
   await db
     .update(roles)
     .set({ parentRoleId: null })
@@ -33,10 +32,7 @@ export async function deleteOrgRolesInTreeOrder(
     .select({ id: roles.id, parentRoleId: roles.parentRoleId })
     .from(roles)
     .where(
-      and(
-        eq(roles.organizationId, organizationId),
-        inArray(roles.id, roleIds),
-      ),
+      and(eq(roles.organizationId, organizationId), inArray(roles.id, roleIds)),
     );
 
   const deletedNames: string[] = [];
