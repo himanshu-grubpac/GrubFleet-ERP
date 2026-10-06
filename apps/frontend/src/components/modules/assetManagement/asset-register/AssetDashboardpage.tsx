@@ -167,7 +167,7 @@ export default function AssetClassesPage() {
 
       let matchesFilter = true;
 
-      switch (activeFilter) {
+      switch (activeFilter) { 
         case "2-wheeler":
           matchesFilter =
             assetClass.vehicleType === "2-Wheeler";

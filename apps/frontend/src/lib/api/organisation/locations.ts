@@ -14,23 +14,29 @@ export type OrganisationLocationListItem = {
   phone: string;
   status: LocationStatus;
 };
-
 export type OrganisationLocationDetail = OrganisationLocationListItem & {
   typePresetKey: string | null;
+
   addressLine1: string;
   addressLine2: string | null;
   addressCity: string | null;
   addressState: string | null;
   addressDistrict: string | null;
   addressPincode: string | null;
+  addressCountry: string | null;
+
   siteContactPhone: string | null;
   siteContactEmail: string | null;
+
   responsibleEmployeeId: string | null;
+
   deputyEmployeeId: string | null;
   deputyName: string;
   deputyEmail?: string;
   deputyPhone?: string;
+
   isActive: boolean;
+
   createdAt: string;
   updatedAt: string;
 };

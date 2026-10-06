@@ -21,25 +21,23 @@ import {
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 
 import OrganizationAddressForm from "@/components/common/OrganizationAddressForm";
+
 import LocationTypeSelector, {
     type LocationType,
 } from "@/components/modules/organization/locations/LocationTypeSelector";
+
 import {
     validateOrganizationAddress,
     hasValidationErrors,
     type OrganizationValidationErrors,
 } from "@/components/common/OrganizationValidation";
 
-import {
-    Plus,
-    X,
-    ChevronDown,
-} from "lucide-react";
+import { ChevronDown } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
 
 /* -------------------------------------------------------------------------- */
-/* Default Location Types                                                    */
+/* Default Location Types                                                     */
 /* -------------------------------------------------------------------------- */
 
 const DEFAULT_LOCATION_TYPES: LocationType[] = [
@@ -92,6 +90,7 @@ type LocationFormData = {
         state: string;
         district: string;
         pincode: string;
+        country: string;
     };
 
     contactInformation: {
@@ -272,6 +271,10 @@ export default function AddLocationForm({
             !isAuthLoading,
     });
 
+    /* ---------------------------------------------------------------------- */
+    /* Populate Location Types                                                */
+    /* ---------------------------------------------------------------------- */
+
     useEffect(() => {
         if (
             !locationTypesQuery.data?.items
@@ -291,11 +294,6 @@ export default function AddLocationForm({
                 })
             );
 
-        /*
-         * Keep the API version when the backend
-         * already contains a default type.
-         * This preserves the real backend ID.
-         */
         const missingDefaults =
             DEFAULT_LOCATION_TYPES.filter(
                 (defaultType) =>
@@ -345,6 +343,7 @@ export default function AddLocationForm({
                 state: "",
                 district: "",
                 pincode: "",
+                country: "",
             },
 
             contactInformation: {
@@ -404,27 +403,25 @@ export default function AddLocationForm({
 
             address: {
                 line1:
-                    detail.addressLine1,
+                    detail.addressLine1 ?? "",
 
                 line2:
-                    detail.addressLine2 ??
-                    "",
+                    detail.addressLine2 ?? "",
 
                 city:
-                    detail.addressCity ??
-                    "",
+                    detail.addressCity ?? "",
 
                 state:
-                    detail.addressState ??
-                    "",
+                    detail.addressState ?? "",
 
                 district:
-                    detail.addressDistrict ??
-                    "",
+                    detail.addressDistrict ?? "",
 
                 pincode:
-                    detail.addressPincode ??
-                    "",
+                    detail.addressPincode ?? "",
+
+                country:
+                    detail.addressCountry ?? "",
             },
 
             contactInformation: {
@@ -617,6 +614,7 @@ export default function AddLocationForm({
                     queryKey: [
                         "organization",
                         "location-types",
+                        organizationId,
                     ],
                 }
             );
@@ -679,6 +677,7 @@ export default function AddLocationForm({
                     queryKey: [
                         "organization",
                         "location-types",
+                        organizationId,
                     ],
                 }
             );
@@ -700,9 +699,6 @@ export default function AddLocationForm({
     const handleSave = async () => {
         setError("");
 
-        /*
-         * Clear previous frontend validation errors.
-         */
         setValidationErrors({});
 
         const errors: OrganizationValidationErrors =
@@ -835,6 +831,10 @@ export default function AddLocationForm({
                 form.address.pincode.trim() ||
                 undefined,
 
+            addressCountry:
+                form.address.country.trim() ||
+                undefined,
+
             siteContactPhone:
                 form.contactInformation.phone.trim() ||
                 undefined,
@@ -935,6 +935,11 @@ export default function AddLocationForm({
             validationErrors[
             "address.pincode"
             ],
+
+        country:
+            validationErrors[
+            "address.country"
+            ],
     };
 
     /* ---------------------------------------------------------------------- */
@@ -948,15 +953,12 @@ export default function AddLocationForm({
                     ? "Edit Location"
                     : "Add Location"
             }
-
             description={
                 isEditMode
                     ? "Update the location details, address, contacts, and responsible people."
                     : "Register an office, workshop, warehouse, retail outlet, or other organization location."
             }
-
             infoText="Locations aren't just for warehousing — Offices, Workshops, Retail Outlets and more all live in this same register, and are what Asset Management and Inventory select from when marking a vehicle's or part's location."
-
             actions={
                 <>
                     {/* Cancel */}
@@ -1019,8 +1021,7 @@ export default function AddLocationForm({
                     ) => {
                         updateForm(
                             "name",
-                            event.target
-                                .value
+                            event.target.value
                         );
 
                         setError("");
@@ -1072,11 +1073,15 @@ export default function AddLocationForm({
                 showAddType={
                     showAddType
                 }
-                newType={newType}
+                newType={
+                    newType
+                }
                 error={
                     validationErrors.type
                 }
-                onSelect={(type: string) => {
+                onSelect={(
+                    type: string
+                ) => {
                     updateForm(
                         "type",
                         type
@@ -1096,15 +1101,17 @@ export default function AddLocationForm({
                         }
                     );
                 }}
-
                 onToggleAddType={() =>
                     setShowAddType(
-                        (previous: boolean) =>
+                        (
+                            previous: boolean
+                        ) =>
                             !previous
                     )
                 }
-
-                onNewTypeChange={(value: string) => {
+                onNewTypeChange={(
+                    value: string
+                ) => {
                     setNewType(value);
                     setError("");
                 }}
@@ -1117,7 +1124,7 @@ export default function AddLocationForm({
             />
 
             {/* ============================================================ */}
-            {/* ADDRESS                                                       */}
+            {/* ADDRESS                                                      */}
             {/* ============================================================ */}
 
             <OrganizationAddressForm
@@ -1136,8 +1143,7 @@ export default function AddLocationForm({
                         (
                             previous
                         ) => {
-                            const next =
-                            {
+                            const next = {
                                 ...previous,
                             };
 
@@ -1165,16 +1171,16 @@ export default function AddLocationForm({
                                 "address.pincode"
                             ];
 
+                            delete next[
+                                "address.country"
+                            ];
+
                             return next;
                         }
                     );
                 }}
                 errors={
                     addressErrors
-                }
-                collapsible
-                defaultExpanded={
-                    false
                 }
                 required
             />
@@ -1189,7 +1195,6 @@ export default function AddLocationForm({
                 </h3>
 
                 <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
                     {/* Phone */}
 
                     <div>
@@ -1287,7 +1292,6 @@ export default function AddLocationForm({
                 </p>
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
                     {/* Name */}
 
                     <div>
@@ -1398,7 +1402,6 @@ export default function AddLocationForm({
                 </p>
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-
                     {/* Name */}
 
                     <div>

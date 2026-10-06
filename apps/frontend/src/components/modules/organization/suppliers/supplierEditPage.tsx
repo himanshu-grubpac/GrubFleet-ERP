@@ -25,6 +25,7 @@ const MOCK_SUPPLIERS = [
             state: "Maharashtra",
             district: "Thane",
             pincode: "421302",
+            country: "India",
         },
     },
 ];

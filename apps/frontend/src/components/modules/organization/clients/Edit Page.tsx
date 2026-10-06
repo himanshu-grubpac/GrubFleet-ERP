@@ -21,6 +21,7 @@ const MOCK_CLIENTS: Array<
                 state: "Maharashtra",
                 district: "Mumbai Suburban",
                 pincode: "400001",
+                country: "India",
             },
 
             pointsOfContact: [
@@ -47,6 +48,7 @@ const MOCK_CLIENTS: Array<
                 state: "Maharashtra",
                 district: "Mumbai Suburban",
                 pincode: "400069",
+                country: "India",
             },
 
             pointsOfContact: [

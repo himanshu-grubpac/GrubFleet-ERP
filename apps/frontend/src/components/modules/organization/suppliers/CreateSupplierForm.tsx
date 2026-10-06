@@ -48,8 +48,9 @@ export type CreateSupplierFormProps = {
         data: SupplierFormData
     ) => void | Promise<void>;
 };
+
 /* -------------------------------------------------------------------------- */
-/* Default Supplier Types                                                      */
+/* Default Supplier Types                                                     */
 /* -------------------------------------------------------------------------- */
 
 const DEFAULT_SUPPLIER_TYPES: SupplierType[] = [
@@ -123,6 +124,11 @@ export default function CreateSupplierForm({
     ];
 
     const handleCancel = () => {
+        if (onCancel) {
+            onCancel();
+            return;
+        }
+
         router.push("/organization/suppliers");
     };
 
@@ -133,22 +139,28 @@ export default function CreateSupplierForm({
     const [form, setForm] =
         useState<SupplierFormData>({
             name:
-                initialData?.name ?? "",
+                initialData?.name ??
+                "",
 
             type:
-                initialData?.type ?? "",
+                initialData?.type ??
+                "",
 
             contactPerson:
-                initialData?.contactPerson ?? "",
+                initialData?.contactPerson ??
+                "",
 
             phone:
-                initialData?.phone ?? "",
+                initialData?.phone ??
+                "",
 
             email:
-                initialData?.email ?? "",
+                initialData?.email ??
+                "",
 
             agreementReference:
-                initialData?.agreementReference ?? "",
+                initialData?.agreementReference ??
+                "",
 
             address: {
                 line1:
@@ -173,6 +185,10 @@ export default function CreateSupplierForm({
 
                 pincode:
                     initialData?.address?.pincode ??
+                    "",
+
+                country:
+                    initialData?.address?.country ??
                     "",
             },
         });
@@ -260,9 +276,7 @@ export default function CreateSupplierForm({
         );
 
         setNewType("");
-
         setShowAddType(false);
-
         setError("");
 
         setValidationErrors(
@@ -312,12 +326,11 @@ export default function CreateSupplierForm({
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Save Supplier                                                          */
+    /* Save Supplier                                                           */
     /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
         setError("");
-
         setValidationErrors({});
 
         const errors: OrganizationValidationErrors =
@@ -351,7 +364,7 @@ export default function CreateSupplierForm({
         }
 
         /* ------------------------------------------------------------------ */
-        /* Phone                                                               */
+        /* Phone                                                              */
         /* ------------------------------------------------------------------ */
 
         const phoneError =
@@ -366,7 +379,7 @@ export default function CreateSupplierForm({
         }
 
         /* ------------------------------------------------------------------ */
-        /* Email                                                               */
+        /* Email                                                              */
         /* ------------------------------------------------------------------ */
 
         const emailError =
@@ -381,16 +394,16 @@ export default function CreateSupplierForm({
         }
 
         /* ------------------------------------------------------------------ */
-        /* Address                                                             */
+        /* Address                                                            */
         /* ------------------------------------------------------------------ */
 
-        const addressErrors =
+        const addressValidationErrors =
             validateOrganizationAddress(
                 form.address
             );
 
         Object.entries(
-            addressErrors
+            addressValidationErrors
         ).forEach(
             ([field, message]) => {
                 errors[
@@ -426,7 +439,7 @@ export default function CreateSupplierForm({
         try {
             setIsSaving(true);
 
-            onSaved?.({
+            await onSaved?.({
                 ...form,
 
                 name:
@@ -465,6 +478,9 @@ export default function CreateSupplierForm({
 
                     pincode:
                         form.address.pincode.trim(),
+
+                    country:
+                        form.address.country.trim(),
                 },
             });
         } catch {
@@ -510,6 +526,11 @@ export default function CreateSupplierForm({
             validationErrors[
             "address.pincode"
             ],
+
+        country:
+            validationErrors[
+            "address.country"
+            ],
     };
 
     /* ---------------------------------------------------------------------- */
@@ -527,7 +548,9 @@ export default function CreateSupplierForm({
 
                     <button
                         type="button"
-                        onClick={handleCancel}
+                        onClick={
+                            handleCancel
+                        }
                         className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
                         Cancel
@@ -537,8 +560,12 @@ export default function CreateSupplierForm({
 
                     <Button
                         type="button"
-                        onClick={handleSave}
-                        disabled={isSaving}
+                        onClick={
+                            handleSave
+                        }
+                        disabled={
+                            isSaving
+                        }
                         className="h-10 px-5"
                     >
                         {isSaving
@@ -567,17 +594,24 @@ export default function CreateSupplierForm({
                 <input
                     id="supplier-name"
                     type="text"
-                    value={form.name}
-                    onChange={(event) => {
+                    value={
+                        form.name
+                    }
+                    onChange={(
+                        event
+                    ) => {
                         updateForm(
                             "name",
-                            event.target.value
+                            event.target
+                                .value
                         );
 
                         setError("");
 
                         setValidationErrors(
-                            (previous) => {
+                            (
+                                previous
+                            ) => {
                                 const next = {
                                     ...previous,
                                 };
@@ -591,6 +625,7 @@ export default function CreateSupplierForm({
                     placeholder="Enter supplier / company name"
                     className={[
                         "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
+
                         validationErrors.name
                             ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                             : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
@@ -662,12 +697,11 @@ export default function CreateSupplierForm({
                                         }}
                                         className={[
                                             "h-9 rounded-md border px-4 text-sm font-semibold transition",
+
                                             selected
                                                 ? "border-blue-600 bg-blue-50 text-blue-700"
                                                 : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-                                        ].join(
-                                            " "
-                                        )}
+                                        ].join(" ")}
                                     >
                                         {
                                             type.name
@@ -687,6 +721,7 @@ export default function CreateSupplierForm({
                                             }
                                             className={[
                                                 "absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border bg-white shadow-sm",
+
                                                 type.isUsed
                                                     ? "cursor-not-allowed border-gray-200 text-gray-300"
                                                     : "border-gray-300 text-gray-500 hover:border-red-300 hover:text-red-500",
@@ -706,7 +741,9 @@ export default function CreateSupplierForm({
                         type="button"
                         onClick={() =>
                             setShowAddType(
-                                (previous) =>
+                                (
+                                    previous
+                                ) =>
                                     !previous
                             )
                         }
@@ -729,15 +766,25 @@ export default function CreateSupplierForm({
                     <div className="mt-3 flex max-w-md items-center gap-2">
                         <input
                             type="text"
-                            value={newType}
-                            onChange={(event) => {
+                            value={
+                                newType
+                            }
+                            onChange={(
+                                event
+                            ) => {
                                 setNewType(
-                                    event.target.value
+                                    event
+                                        .target
+                                        .value
                                 );
 
-                                setError("");
+                                setError(
+                                    ""
+                                );
                             }}
-                            onKeyDown={(event) => {
+                            onKeyDown={(
+                                event
+                            ) => {
                                 if (
                                     event.key ===
                                     "Enter"
@@ -802,17 +849,23 @@ export default function CreateSupplierForm({
                         value={
                             form.contactPerson
                         }
-                        onChange={(event) => {
+                        onChange={(
+                            event
+                        ) => {
                             updateForm(
                                 "contactPerson",
-                                event.target.value
+                                event.target
+                                    .value
                             );
 
                             setError("");
 
                             setValidationErrors(
-                                (previous) => {
-                                    const next = {
+                                (
+                                    previous
+                                ) => {
+                                    const next =
+                                    {
                                         ...previous,
                                     };
 
@@ -825,6 +878,7 @@ export default function CreateSupplierForm({
                         placeholder="e.g. Imran Qureshi"
                         className={[
                             "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
+
                             validationErrors.contactPerson
                                 ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                                 : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
@@ -852,10 +906,13 @@ export default function CreateSupplierForm({
                         value={
                             form.agreementReference
                         }
-                        onChange={(event) => {
+                        onChange={(
+                            event
+                        ) => {
                             updateForm(
                                 "agreementReference",
-                                event.target.value
+                                event.target
+                                    .value
                             );
                         }}
                         placeholder="e.g. AGR-2026-0142 (optional)"
@@ -869,17 +926,27 @@ export default function CreateSupplierForm({
             {/* ============================================================ */}
 
             <OrganizationAddressForm
-                value={form.address}
-                onChange={(address) => {
-                    setForm((previous) => ({
-                        ...previous,
-                        address,
-                    }));
+                value={
+                    form.address
+                }
+                onChange={(
+                    address
+                ) => {
+                    setForm(
+                        (
+                            previous
+                        ) => ({
+                            ...previous,
+                            address,
+                        })
+                    );
 
                     setError("");
 
                     setValidationErrors(
-                        (previous) => {
+                        (
+                            previous
+                        ) => {
                             const next = {
                                 ...previous,
                             };
@@ -908,6 +975,10 @@ export default function CreateSupplierForm({
                                 "address.pincode"
                             ];
 
+                            delete next[
+                                "address.country"
+                            ];
+
                             return next;
                         }
                     );
@@ -916,13 +987,11 @@ export default function CreateSupplierForm({
                     addressErrors
                 }
                 title="ADDRESS"
-                collapsible
-                defaultExpanded={false}
                 required
             />
 
             {/* ============================================================ */}
-            {/* CONTACT INFORMATION                                          */}
+            {/* CONTACT INFORMATION                                           */}
             {/* ============================================================ */}
 
             <div className="mt-5 border-t border-gray-100 pt-4">
@@ -947,10 +1016,13 @@ export default function CreateSupplierForm({
                             value={
                                 form.phone
                             }
-                            onChange={(event) => {
+                            onChange={(
+                                event
+                            ) => {
                                 updateForm(
                                     "phone",
-                                    event.target.value
+                                    event.target
+                                        .value
                                 );
 
                                 setError("");
@@ -973,6 +1045,7 @@ export default function CreateSupplierForm({
                             placeholder="+91 98XXXXXXXX"
                             className={[
                                 "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
+
                                 validationErrors.phone
                                     ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                                     : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
@@ -1004,10 +1077,13 @@ export default function CreateSupplierForm({
                             value={
                                 form.email
                             }
-                            onChange={(event) => {
+                            onChange={(
+                                event
+                            ) => {
                                 updateForm(
                                     "email",
-                                    event.target.value
+                                    event.target
+                                        .value
                                 );
 
                                 setError("");
@@ -1030,6 +1106,7 @@ export default function CreateSupplierForm({
                             placeholder="name@supplier.com"
                             className={[
                                 "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
+
                                 validationErrors.email
                                     ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                                     : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",

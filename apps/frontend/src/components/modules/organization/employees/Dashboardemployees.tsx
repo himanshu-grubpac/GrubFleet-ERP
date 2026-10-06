@@ -21,15 +21,12 @@ type Employee = {
   id: string;
   employeeId: string;
   name: string;
-
   designation: string;
   department: string;
   location: string;
   reportsTo?: string;
-
   phone?: string;
   email?: string;
-
   status: "active" | "inactive";
 };
 
@@ -50,6 +47,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "devraj@company.com",
     status: "active",
   },
+
   {
     id: "employee-002",
     employeeId: "EMP-002",
@@ -62,6 +60,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "rohan@company.com",
     status: "active",
   },
+
   {
     id: "employee-003",
     employeeId: "EMP-003",
@@ -74,6 +73,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "arjun@company.com",
     status: "active",
   },
+
   {
     id: "employee-004",
     employeeId: "EMP-004",
@@ -86,6 +86,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "neha@company.com",
     status: "active",
   },
+
   {
     id: "employee-005",
     employeeId: "EMP-005",
@@ -98,6 +99,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "priya@company.com",
     status: "active",
   },
+
   {
     id: "employee-006",
     employeeId: "EMP-006",
@@ -110,6 +112,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "vikram@company.com",
     status: "active",
   },
+
   {
     id: "employee-007",
     employeeId: "EMP-007",
@@ -122,6 +125,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "meera@company.com",
     status: "active",
   },
+
   {
     id: "employee-008",
     employeeId: "EMP-008",
@@ -134,6 +138,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "anita@company.com",
     status: "active",
   },
+
   {
     id: "employee-009",
     employeeId: "EMP-009",
@@ -146,6 +151,7 @@ const MOCK_EMPLOYEES: Employee[] = [
     email: "kunal@company.com",
     status: "inactive",
   },
+
   {
     id: "employee-010",
     employeeId: "EMP-010",
@@ -167,85 +173,126 @@ const MOCK_EMPLOYEES: Employee[] = [
 export default function EmployeesPage() {
   const router = useRouter();
 
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
   /* State                                                                    */
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
 
   const [search, setSearch] = useState("");
 
-  const [filters, setFilters] = useState<Record<string, string>>({
+  const [filters, setFilters] = useState<
+    Record<string, string>
+  >({
     department: "",
     status: "",
   });
 
-  /* ------------------------------------------------------------------------ */
-  /* Filter Data                                                              */
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
+  /* Filter Data                                                               */
+  /* ---------------------------------------------------------------------- */
 
   const filteredEmployees = useMemo(() => {
-    const searchValue = search.trim().toLowerCase();
+    const searchValue =
+      search.trim().toLowerCase();
 
-    return MOCK_EMPLOYEES.filter((employee) => {
-      const matchesSearch =
-        !searchValue ||
-        employee.name.toLowerCase().includes(searchValue) ||
-        employee.employeeId.toLowerCase().includes(searchValue) ||
-        employee.designation.toLowerCase().includes(searchValue) ||
-        employee.department.toLowerCase().includes(searchValue) ||
-        employee.location.toLowerCase().includes(searchValue) ||
-        employee.reportsTo?.toLowerCase().includes(searchValue) ||
-        employee.email?.toLowerCase().includes(searchValue) ||
-        employee.phone?.toLowerCase().includes(searchValue);
+    return MOCK_EMPLOYEES.filter(
+      (employee) => {
+        /* ---------------------------------------------------------- */
+        /* Search                                                       */
+        /* ---------------------------------------------------------- */
 
-      const matchesDepartment =
-        !filters.department ||
-        employee.department === filters.department;
+        const matchesSearch =
+          !searchValue ||
+          employee.name
+            .toLowerCase()
+            .includes(searchValue) ||
+          employee.employeeId
+            .toLowerCase()
+            .includes(searchValue) ||
+          employee.designation
+            .toLowerCase()
+            .includes(searchValue) ||
+          employee.department
+            .toLowerCase()
+            .includes(searchValue) ||
+          employee.location
+            .toLowerCase()
+            .includes(searchValue) ||
+          employee.reportsTo
+            ?.toLowerCase()
+            .includes(searchValue) ||
+          employee.email
+            ?.toLowerCase()
+            .includes(searchValue) ||
+          employee.phone
+            ?.toLowerCase()
+            .includes(searchValue);
 
-      const matchesStatus =
-        !filters.status ||
-        employee.status === filters.status;
+        /* ---------------------------------------------------------- */
+        /* Department                                                   */
+        /* ---------------------------------------------------------- */
 
-      return (
-        matchesSearch &&
-        matchesDepartment &&
-        matchesStatus
-      );
-    });
+        const matchesDepartment =
+          !filters.department ||
+          employee.department ===
+          filters.department;
+
+        /* ---------------------------------------------------------- */
+        /* Status                                                       */
+        /* ---------------------------------------------------------- */
+
+        const matchesStatus =
+          !filters.status ||
+          employee.status ===
+          filters.status;
+
+        return (
+          matchesSearch &&
+          matchesDepartment &&
+          matchesStatus
+        );
+      }
+    );
   }, [search, filters]);
 
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
   /* Navigation                                                               */
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
 
   const handleAddEmployee = () => {
-    router.push("/organization/employees/create");
-  };
-
-  const handleEditEmployee = (employee: Employee) => {
     router.push(
-      `/organization/employees/${employee.id}/edit`,
+      "/organization/employees/create"
     );
   };
 
-  /* ------------------------------------------------------------------------ */
-  /* Status                                                                   */
-  /* ------------------------------------------------------------------------ */
+  const handleEditEmployee = (
+    employee: Employee
+  ) => {
+    router.push(
+      `/organization/employees/${employee.id}/edit`
+    );
+  };
 
-  const handleToggleStatus = (employee: Employee) => {
+  /* ---------------------------------------------------------------------- */
+  /* Status                                                                   */
+  /* ---------------------------------------------------------------------- */
+
+  const handleToggleStatus = (
+    employee: Employee
+  ) => {
     console.log(
       `${employee.status === "active"
         ? "Deactivate"
         : "Activate"
       } employee`,
-      employee,
+      employee
     );
 
     // Connect your activate/deactivate API here.
   };
 
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
   /* Clear Filters                                                            */
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
 
   const handleClearFilters = () => {
     setSearch("");
@@ -256,9 +303,9 @@ export default function EmployeesPage() {
     });
   };
 
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
   /* Table Columns                                                            */
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
 
   const employeeColumns = [
     {
@@ -321,12 +368,14 @@ export default function EmployeesPage() {
           className={[
             "inline-flex rounded-full px-2.5 py-1",
             "text-xs font-medium",
-            employee.status === "active"
+            employee.status ===
+              "active"
               ? "bg-green-50 text-green-700"
               : "bg-gray-100 text-gray-500",
           ].join(" ")}
         >
-          {employee.status === "active"
+          {employee.status ===
+            "active"
             ? "Active"
             : "Inactive"}
         </span>
@@ -334,9 +383,9 @@ export default function EmployeesPage() {
     },
   ];
 
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
   /* Render                                                                   */
-  /* ------------------------------------------------------------------------ */
+  /* ---------------------------------------------------------------------- */
 
   return (
     <DashboardLayout
@@ -346,16 +395,18 @@ export default function EmployeesPage() {
         <div className="flex items-center gap-2">
           <Button
             type="button"
-            onClick={handleAddEmployee}
+            onClick={
+              handleAddEmployee
+            }
           >
             + Add Employee
           </Button>
         </div>
       }
     >
-      {/* ------------------------------------------------------------------ */}
+      {/* ================================================================== */}
       {/* Filters                                                            */}
-      {/* ------------------------------------------------------------------ */}
+      {/* ================================================================== */}
 
       <DashboardFilters
         searchValue={search}
@@ -364,7 +415,7 @@ export default function EmployeesPage() {
         selectFilters={[
           {
             key: "department",
-            label: "All departments",
+            label: "Department",
             options: [
               {
                 label: "Leadership",
@@ -391,7 +442,7 @@ export default function EmployeesPage() {
 
           {
             key: "status",
-            label: "All statuses",
+            label: "Status",
             options: [
               {
                 label: "Active",
@@ -405,20 +456,28 @@ export default function EmployeesPage() {
           },
         ]}
         filterValues={filters}
-        onFilterChange={(key, value) => {
-          setFilters((previous) => ({
-            ...previous,
-            [key]: value,
-          }));
+        onFilterChange={(
+          key,
+          value
+        ) => {
+          setFilters(
+            (previous) => ({
+              ...previous,
+              [key]: value,
+            })
+          );
         }}
-        onClear={handleClearFilters}
+        onClear={
+          handleClearFilters
+        }
       />
 
-      {/* ------------------------------------------------------------------ */}
+      {/* ================================================================== */}
       {/* Empty State                                                        */}
-      {/* ------------------------------------------------------------------ */}
+      {/* ================================================================== */}
 
-      {filteredEmployees.length === 0 ? (
+      {filteredEmployees.length ===
+        0 ? (
         <DashboardEmptyState
           icon={
             <UserRound
@@ -427,22 +486,28 @@ export default function EmployeesPage() {
             />
           }
           title={
-            MOCK_EMPLOYEES.length === 0
+            MOCK_EMPLOYEES.length ===
+              0
               ? "No employees added yet"
               : "No employees found"
           }
           description={
-            MOCK_EMPLOYEES.length === 0
+            MOCK_EMPLOYEES.length ===
+              0
               ? "Add your first employee to this organisation."
               : "Try changing your search or filters."
           }
           buttonLabel={
-            MOCK_EMPLOYEES.length === 0
+            MOCK_EMPLOYEES.length ===
+              0
               ? "Add Employee"
               : "Clear filters"
           }
           onButtonClick={() => {
-            if (MOCK_EMPLOYEES.length === 0) {
+            if (
+              MOCK_EMPLOYEES.length ===
+              0
+            ) {
               handleAddEmployee();
               return;
             }
@@ -451,21 +516,35 @@ export default function EmployeesPage() {
           }}
         />
       ) : (
-        /* --------------------------------------------------------------- */
+        /* ============================================================== */
         /* Employee Table                                                  */
-        /* --------------------------------------------------------------- */
+        /* ============================================================== */
 
         <DashboardTable
           columns={employeeColumns}
           data={filteredEmployees}
-          getRowKey={(employee) => employee.id}
-          renderActions={(employee) => (
+          getRowKey={(employee) =>
+            employee.id
+          }
+          renderActions={(
+            employee
+          ) => (
             <EmployeeTableActions
-              status={employee.status}
-              employeeId={employee.id}
-              onEdit={() => handleEditEmployee(employee)}
+              status={
+                employee.status
+              }
+              employeeId={
+                employee.id
+              }
+              onEdit={() =>
+                handleEditEmployee(
+                  employee
+                )
+              }
               onToggleStatus={() =>
-                handleToggleStatus(employee)
+                handleToggleStatus(
+                  employee
+                )
               }
             />
           )}

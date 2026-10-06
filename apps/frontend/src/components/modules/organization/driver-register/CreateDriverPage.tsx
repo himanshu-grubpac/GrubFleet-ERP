@@ -4,7 +4,9 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import Button from "@/components/ui/GrubpacButton";
+
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+
 import OrganizationAddressForm, {
     type OrganizationAddress,
 } from "@/components/common/OrganizationAddressForm";
@@ -41,6 +43,7 @@ type CreateDriverFormProps = {
 /* -------------------------------------------------------------------------- */
 /* Mock Supplier Options                                                      */
 /* -------------------------------------------------------------------------- */
+
 /*
  * Temporary UI data.
  * Replace these with the supplier API options when the supplier API is wired.
@@ -65,7 +68,7 @@ export default function CreateDriverForm({
     const router = useRouter();
 
     /* ---------------------------------------------------------------------- */
-    /* Form                                                                    */
+    /* Form                                                                   */
     /* ---------------------------------------------------------------------- */
 
     const [form, setForm] = useState<DriverFormData>({
@@ -91,11 +94,13 @@ export default function CreateDriverForm({
                 initialData?.address?.district ?? "",
             pincode:
                 initialData?.address?.pincode ?? "",
+            country:
+                initialData?.address?.country ?? "",
         },
     });
 
     /* ---------------------------------------------------------------------- */
-    /* State                                                                   */
+    /* State                                                                  */
     /* ---------------------------------------------------------------------- */
 
     const [validationErrors, setValidationErrors] =
@@ -141,7 +146,9 @@ export default function CreateDriverForm({
 
         setValidationErrors((previous) => {
             const next = { ...previous };
+
             delete next[field];
+
             return next;
         });
     };
@@ -250,6 +257,8 @@ export default function CreateDriverForm({
                     form.address.district.trim(),
                 pincode:
                     form.address.pincode.trim(),
+                country:
+                    form.address.country.trim(),
             },
         };
 
@@ -260,6 +269,7 @@ export default function CreateDriverForm({
              * The parent owns the actual Driver API call.
              * After the API succeeds, we redirect to the Drivers dashboard.
              */
+
             await onSaved?.(driver);
 
             router.push("/organization/driver-register");
@@ -294,6 +304,8 @@ export default function CreateDriverForm({
             validationErrors["address.district"],
         pincode:
             validationErrors["address.pincode"],
+        country:
+            validationErrors["address.country"],
     };
 
     /* ---------------------------------------------------------------------- */
@@ -648,20 +660,29 @@ export default function CreateDriverForm({
                                 delete next[
                                     "address.line1"
                                 ];
+
                                 delete next[
                                     "address.line2"
                                 ];
+
                                 delete next[
                                     "address.city"
                                 ];
+
                                 delete next[
                                     "address.state"
                                 ];
+
                                 delete next[
                                     "address.district"
                                 ];
+
                                 delete next[
                                     "address.pincode"
+                                ];
+
+                                delete next[
+                                    "address.country"
                                 ];
 
                                 return next;
@@ -670,14 +691,12 @@ export default function CreateDriverForm({
                     }}
                     errors={addressErrors}
                     title="ADDRESS"
-                    collapsible
-                    defaultExpanded={false}
                     required
                 />
             </div>
 
             {/* ============================================================ */}
-            {/* GENERAL ERROR                                                  */}
+            {/* GENERAL ERROR                                                 */}
             {/* ============================================================ */}
 
             {error && (

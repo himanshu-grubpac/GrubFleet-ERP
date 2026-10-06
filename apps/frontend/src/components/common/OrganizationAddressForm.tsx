@@ -1,9 +1,10 @@
 "use client";
 
-import {
-    useEffect,
-    useState,
-} from "react";
+import { ChangeEvent } from "react";
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
 export type OrganizationAddress = {
     line1: string;
@@ -12,6 +13,7 @@ export type OrganizationAddress = {
     state: string;
     district: string;
     pincode: string;
+    country: string;
 };
 
 type OrganizationAddressFormProps = {
@@ -27,40 +29,23 @@ type OrganizationAddressFormProps = {
 
     title?: string;
 
-    collapsible?: boolean;
-
-    defaultExpanded?: boolean;
-
     required?: boolean;
 };
+
+/* -------------------------------------------------------------------------- */
+/* Component                                                                  */
+/* -------------------------------------------------------------------------- */
 
 export default function OrganizationAddressForm({
     value,
     onChange,
     errors,
     title = "ADDRESS",
-    collapsible = true,
-    defaultExpanded = false,
     required = true,
 }: OrganizationAddressFormProps) {
-    const [expanded, setExpanded] =
-        useState(defaultExpanded);
-
-    /*
-     * Automatically expand the address section
-     * whenever validation errors are received.
-     */
-    useEffect(() => {
-        const hasErrors =
-            errors &&
-            Object.values(errors).some(
-                (message) => Boolean(message)
-            );
-
-        if (hasErrors) {
-            setExpanded(true);
-        }
-    }, [errors]);
+    /* ---------------------------------------------------------------------- */
+    /* Update Field                                                            */
+    /* ---------------------------------------------------------------------- */
 
     const updateField = (
         field: keyof OrganizationAddress,
@@ -72,21 +57,10 @@ export default function OrganizationAddressForm({
         });
     };
 
-    /*
-     * Clicking/focusing Address Line 1
-     * opens the remaining address fields.
-     */
-    const handleLine1Focus = () => {
-        if (collapsible) {
-            setExpanded(true);
-        }
-    };
+    /* ---------------------------------------------------------------------- */
+    /* Pincode Handler                                                         */
+    /* ---------------------------------------------------------------------- */
 
-    /*
-     * Pincode:
-     * - Numbers only
-     * - Maximum 6 digits
-     */
     const handlePincodeChange = (
         fieldValue: string
     ) => {
@@ -98,6 +72,10 @@ export default function OrganizationAddressForm({
         );
     };
 
+    /* ---------------------------------------------------------------------- */
+    /* Input Class                                                             */
+    /* ---------------------------------------------------------------------- */
+
     const inputClass = (
         field: keyof OrganizationAddress
     ) =>
@@ -108,264 +86,263 @@ export default function OrganizationAddressForm({
                 : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
         ].join(" ");
 
+    /* ---------------------------------------------------------------------- */
+    /* Required Mark                                                           */
+    /* ---------------------------------------------------------------------- */
+
+    const RequiredMark = () =>
+        required ? (
+            <span className="ml-1 text-red-500">
+                *
+            </span>
+        ) : null;
+
+    /* ---------------------------------------------------------------------- */
+    /* Error Message                                                           */
+    /* ---------------------------------------------------------------------- */
+
+    const ErrorMessage = ({
+        field,
+    }: {
+        field: keyof OrganizationAddress;
+    }) => {
+        if (!errors?.[field]) {
+            return null;
+        }
+
+        return (
+            <p className="mt-1 text-xs text-red-500">
+                {errors[field]}
+            </p>
+        );
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* Render                                                                  */
+    /* ---------------------------------------------------------------------- */
+
     return (
         <div className="mt-5">
-
             {/* ---------------------------------------------------------------- */}
-            {/* Address heading                                                  */}
+            {/* Address Heading                                                   */}
             {/* ---------------------------------------------------------------- */}
 
             <h3 className="text-xs font-semibold text-gray-700">
                 {title}
             </h3>
 
-            <div className="mt-2 space-y-3">
+            {/* ---------------------------------------------------------------- */}
+            {/* Address Fields                                                    */}
+            {/* ---------------------------------------------------------------- */}
 
-                {/* ---------------------------------------------------------------- */}
-                {/* Address Line 1                                                   */}
-                {/* ---------------------------------------------------------------- */}
+            <div className="mt-2 space-y-3">
+                {/* ========================================================== */}
+                {/* Address Line 1                                               */}
+                {/* ========================================================== */}
 
                 <div>
                     <label className="mb-1 block text-xs font-semibold text-gray-700">
                         Address Line 1
-
-                        {required && (
-                            <span className="ml-1 text-red-500">
-                                *
-                            </span>
-                        )}
+                        <RequiredMark />
                     </label>
 
                     <input
                         type="text"
                         value={value.line1}
-                        onFocus={handleLine1Focus}
-                        onChange={(event) => {
+                        onChange={(
+                            event: ChangeEvent<HTMLInputElement>
+                        ) =>
                             updateField(
                                 "line1",
                                 event.target.value
-                            );
-
-                            if (collapsible) {
-                                setExpanded(true);
-                            }
-                        }}
+                            )
+                        }
                         placeholder="Street, building, area"
-                        className={inputClass(
-                            "line1"
-                        )}
+                        className={inputClass("line1")}
                     />
 
-                    {errors?.line1 && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {errors.line1}
-                        </p>
-                    )}
+                    <ErrorMessage field="line1" />
                 </div>
 
-                {/* ---------------------------------------------------------------- */}
-                {/* Remaining Address Fields                                         */}
-                {/* ---------------------------------------------------------------- */}
+                {/* ========================================================== */}
+                {/* Address Line 2                                               */}
+                {/* ========================================================== */}
 
-                {(!collapsible || expanded) && (
-                    <div className="space-y-3">
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                        Address Line 2
+                    </label>
 
-                        {/* -------------------------------------------------------- */}
-                        {/* Address Line 2                                             */}
-                        {/* -------------------------------------------------------- */}
+                    <input
+                        type="text"
+                        value={value.line2}
+                        onChange={(
+                            event: ChangeEvent<HTMLInputElement>
+                        ) =>
+                            updateField(
+                                "line2",
+                                event.target.value
+                            )
+                        }
+                        placeholder="Landmark, locality, apartment, etc."
+                        className={inputClass("line2")}
+                    />
 
-                        <div>
-                            <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                Address Line 2
-                            </label>
+                    <ErrorMessage field="line2" />
+                </div>
 
-                            <input
-                                type="text"
-                                value={value.line2}
-                                onChange={(event) =>
-                                    updateField(
-                                        "line2",
-                                        event.target.value
-                                    )
-                                }
-                                placeholder="Landmark, locality, apartment, etc."
-                                className={inputClass(
-                                    "line2"
-                                )}
-                            />
+                {/* ========================================================== */}
+                {/* City + State                                                 */}
+                {/* ========================================================== */}
 
-                            {errors?.line2 && (
-                                <p className="mt-1 text-xs text-red-500">
-                                    {errors.line2}
-                                </p>
-                            )}
-                        </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* ------------------------------------------------------ */}
+                    {/* City                                                     */}
+                    {/* ------------------------------------------------------ */}
 
-                        {/* -------------------------------------------------------- */}
-                        {/* City + State                                               */}
-                        {/* -------------------------------------------------------- */}
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            City
+                            <RequiredMark />
+                        </label>
 
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                        <input
+                            type="text"
+                            value={value.city}
+                            onChange={(
+                                event: ChangeEvent<HTMLInputElement>
+                            ) =>
+                                updateField(
+                                    "city",
+                                    event.target.value
+                                )
+                            }
+                            placeholder="City"
+                            className={inputClass("city")}
+                        />
 
-                            {/* City */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    City
-
-                                    {required && (
-                                        <span className="ml-1 text-red-500">
-                                            *
-                                        </span>
-                                    )}
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={value.city}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "city",
-                                            event.target.value
-                                        )
-                                    }
-                                    placeholder="City"
-                                    className={inputClass(
-                                        "city"
-                                    )}
-                                />
-
-                                {errors?.city && (
-                                    <p className="mt-1 text-xs text-red-500">
-                                        {errors.city}
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* State */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    State
-
-                                    {required && (
-                                        <span className="ml-1 text-red-500">
-                                            *
-                                        </span>
-                                    )}
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={value.state}
-                                    onChange={(event) =>
-                                        updateField(
-                                            "state",
-                                            event.target.value
-                                        )
-                                    }
-                                    placeholder="State"
-                                    className={inputClass(
-                                        "state"
-                                    )}
-                                />
-
-                                {errors?.state && (
-                                    <p className="mt-1 text-xs text-red-500">
-                                        {errors.state}
-                                    </p>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* -------------------------------------------------------- */}
-                        {/* District + Pincode                                        */}
-                        {/* -------------------------------------------------------- */}
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                            {/* District */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    District
-
-                                    {required && (
-                                        <span className="ml-1 text-red-500">
-                                            *
-                                        </span>
-                                    )}
-                                </label>
-
-                                <input
-                                    type="text"
-                                    value={
-                                        value.district
-                                    }
-                                    onChange={(event) =>
-                                        updateField(
-                                            "district",
-                                            event.target.value
-                                        )
-                                    }
-                                    placeholder="District"
-                                    className={inputClass(
-                                        "district"
-                                    )}
-                                />
-
-                                {errors?.district && (
-                                    <p className="mt-1 text-xs text-red-500">
-                                        {
-                                            errors.district
-                                        }
-                                    </p>
-                                )}
-                            </div>
-
-                            {/* Pincode */}
-
-                            <div>
-                                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                                    Pincode
-
-                                    {required && (
-                                        <span className="ml-1 text-red-500">
-                                            *
-                                        </span>
-                                    )}
-                                </label>
-
-                                <input
-                                    type="text"
-                                    inputMode="numeric"
-                                    maxLength={6}
-                                    value={
-                                        value.pincode
-                                    }
-                                    onChange={(event) =>
-                                        handlePincodeChange(
-                                            event.target
-                                                .value
-                                        )
-                                    }
-                                    placeholder="Pincode"
-                                    className={inputClass(
-                                        "pincode"
-                                    )}
-                                />
-
-                                {errors?.pincode && (
-                                    <p className="mt-1 text-xs text-red-500">
-                                        {
-                                            errors.pincode
-                                        }
-                                    </p>
-                                )}
-                            </div>
-                        </div>
+                        <ErrorMessage field="city" />
                     </div>
-                )}
+
+                    {/* ------------------------------------------------------ */}
+                    {/* State                                                    */}
+                    {/* ------------------------------------------------------ */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            State
+                            <RequiredMark />
+                        </label>
+
+                        <input
+                            type="text"
+                            value={value.state}
+                            onChange={(
+                                event: ChangeEvent<HTMLInputElement>
+                            ) =>
+                                updateField(
+                                    "state",
+                                    event.target.value
+                                )
+                            }
+                            placeholder="State"
+                            className={inputClass("state")}
+                        />
+
+                        <ErrorMessage field="state" />
+                    </div>
+                </div>
+
+                {/* ========================================================== */}
+                {/* District + Country                                          */}
+                {/* ========================================================== */}
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* ------------------------------------------------------ */}
+                    {/* District                                                 */}
+                    {/* ------------------------------------------------------ */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            District
+                            <RequiredMark />
+                        </label>
+
+                        <input
+                            type="text"
+                            value={value.district}
+                            onChange={(
+                                event: ChangeEvent<HTMLInputElement>
+                            ) =>
+                                updateField(
+                                    "district",
+                                    event.target.value
+                                )
+                            }
+                            placeholder="District"
+                            className={inputClass("district")}
+                        />
+
+                        <ErrorMessage field="district" />
+                    </div>
+
+                    {/* ------------------------------------------------------ */}
+                    {/* Country                                                  */}
+                    {/* ------------------------------------------------------ */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Country
+                            <RequiredMark />
+                        </label>
+
+                        <input
+                            type="text"
+                            value={value.country}
+                            onChange={(
+                                event: ChangeEvent<HTMLInputElement>
+                            ) =>
+                                updateField(
+                                    "country",
+                                    event.target.value
+                                )
+                            }
+                            placeholder="Country"
+                            className={inputClass("country")}
+                        />
+
+                        <ErrorMessage field="country" />
+                    </div>
+                </div>
+
+                {/* ========================================================== */}
+                {/* Pincode                                                      */}
+                {/* ========================================================== */}
+
+                <div>
+                    <label className="mb-1 block text-xs font-semibold text-gray-700">
+                        Pincode
+                        <RequiredMark />
+                    </label>
+
+                    <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={value.pincode}
+                        onChange={(
+                            event: ChangeEvent<HTMLInputElement>
+                        ) =>
+                            handlePincodeChange(
+                                event.target.value
+                            )
+                        }
+                        placeholder="Pincode"
+                        className={inputClass("pincode")}
+                    />
+
+                    <ErrorMessage field="pincode" />
+                </div>
             </div>
         </div>
     );

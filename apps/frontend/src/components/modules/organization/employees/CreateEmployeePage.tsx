@@ -6,6 +6,9 @@ import { ChevronDown } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import LocationTypeSelector, {
+    type LocationType,
+} from "@/components/modules/organization/locations/LocationTypeSelector";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -100,7 +103,7 @@ export default function CreateEmployeePage({
     const isEdit = Boolean(initialData);
 
     /* ---------------------------------------------------------------------- */
-    /* Form State                                                              */
+    /* Form State                                                             */
     /* ---------------------------------------------------------------------- */
 
     const [form, setForm] =
@@ -121,8 +124,7 @@ export default function CreateEmployeePage({
                 initialData?.reportsTo ?? "",
 
             employmentType:
-                initialData?.employmentType ??
-                "",
+                initialData?.employmentType ?? "",
 
             dateOfJoining:
                 initialData?.dateOfJoining ?? "",
@@ -135,42 +137,56 @@ export default function CreateEmployeePage({
         });
 
     /* ---------------------------------------------------------------------- */
-    /* Validation / Save State                                                */
+    /* Validation / Save State                                               */
     /* ---------------------------------------------------------------------- */
 
     const [validationErrors, setValidationErrors] =
         useState<ValidationErrors>({});
 
-    const [error, setError] =
-        useState("");
+    const [error, setError] = useState("");
 
     const [isSaving, setIsSaving] =
         useState(false);
 
     /* ---------------------------------------------------------------------- */
-    /* Department State                                                        */
+    /* Department State                                                       */
     /* ---------------------------------------------------------------------- */
 
     const [departments, setDepartments] =
-        useState<string[]>(() => {
+        useState<LocationType[]>(() => {
+            const defaultDepartments =
+                DEPARTMENTS.map(
+                    (department, index) => ({
+                        id: `employee-department-${index + 1}`,
+                        name: department,
+                        isCustom: false,
+                        isUsed: false,
+                    })
+                );
+
             const initialDepartment =
                 initialData?.department?.trim();
 
             if (
                 initialDepartment &&
-                !DEPARTMENTS.some(
+                !defaultDepartments.some(
                     (department) =>
-                        department.toLowerCase() ===
+                        department.name.toLowerCase() ===
                         initialDepartment.toLowerCase()
                 )
             ) {
                 return [
-                    ...DEPARTMENTS,
-                    initialDepartment,
+                    ...defaultDepartments,
+                    {
+                        id: "employee-department-custom-initial",
+                        name: initialDepartment,
+                        isCustom: true,
+                        isUsed: true,
+                    },
                 ];
             }
 
-            return [...DEPARTMENTS];
+            return defaultDepartments;
         });
 
     const [showAddDepartment, setShowAddDepartment] =
@@ -180,39 +196,58 @@ export default function CreateEmployeePage({
         useState("");
 
     /* ---------------------------------------------------------------------- */
-    /* Employment Type State                                                  */
+    /* Employment Type State                                                 */
     /* ---------------------------------------------------------------------- */
 
     const [employmentTypes, setEmploymentTypes] =
-        useState<string[]>(() => {
+        useState<LocationType[]>(() => {
+            const defaultEmploymentTypes =
+                EMPLOYEE_TYPES.map(
+                    (type, index) => ({
+                        id: `employee-type-${index + 1}`,
+                        name: type,
+                        isCustom: false,
+                        isUsed: false,
+                    })
+                );
+
             const initialType =
                 initialData?.employmentType?.trim();
 
             if (
                 initialType &&
-                !EMPLOYEE_TYPES.some(
+                !defaultEmploymentTypes.some(
                     (type) =>
-                        type.toLowerCase() ===
+                        type.name.toLowerCase() ===
                         initialType.toLowerCase()
                 )
             ) {
                 return [
-                    ...EMPLOYEE_TYPES,
-                    initialType,
+                    ...defaultEmploymentTypes,
+                    {
+                        id: "employee-type-custom-initial",
+                        name: initialType,
+                        isCustom: true,
+                        isUsed: true,
+                    },
                 ];
             }
 
-            return [...EMPLOYEE_TYPES];
+            return defaultEmploymentTypes;
         });
 
-    const [showAddEmploymentType, setShowAddEmploymentType] =
-        useState(false);
+    const [
+        showAddEmploymentType,
+        setShowAddEmploymentType,
+    ] = useState(false);
 
-    const [newEmploymentType, setNewEmploymentType] =
-        useState("");
+    const [
+        newEmploymentType,
+        setNewEmploymentType,
+    ] = useState("");
 
     /* ---------------------------------------------------------------------- */
-    /* Update Form                                                             */
+    /* Update Form                                                            */
     /* ---------------------------------------------------------------------- */
 
     const updateForm = <
@@ -261,14 +296,14 @@ export default function CreateEmployeePage({
         const existingDepartment =
             departments.find(
                 (department) =>
-                    department.toLowerCase() ===
+                    department.name.toLowerCase() ===
                     value.toLowerCase()
             );
 
         if (existingDepartment) {
             updateForm(
                 "department",
-                existingDepartment
+                existingDepartment.name
             );
 
             clearError("department");
@@ -279,12 +314,22 @@ export default function CreateEmployeePage({
             return;
         }
 
+        const newDepartmentType: LocationType = {
+            id: `employee-department-${Date.now()}`,
+            name: value,
+            isCustom: true,
+            isUsed: false,
+        };
+
         setDepartments((previous) => [
             ...previous,
-            value,
+            newDepartmentType,
         ]);
 
-        updateForm("department", value);
+        updateForm(
+            "department",
+            value
+        );
 
         clearError("department");
 
@@ -293,11 +338,39 @@ export default function CreateEmployeePage({
     };
 
     /* ---------------------------------------------------------------------- */
+    /* Delete Department                                                       */
+    /* ---------------------------------------------------------------------- */
+
+    const handleDeleteDepartment = (
+        type: LocationType
+    ) => {
+        if (!type.isCustom || type.isUsed) {
+            return;
+        }
+
+        if (form.department === type.name) {
+            updateForm(
+                "department",
+                ""
+            );
+
+            clearError("department");
+        }
+
+        setDepartments((previous) =>
+            previous.filter(
+                (item) => item.id !== type.id
+            )
+        );
+    };
+
+    /* ---------------------------------------------------------------------- */
     /* Add Employment Type                                                    */
     /* ---------------------------------------------------------------------- */
 
     const handleAddEmploymentType = () => {
-        const value = newEmploymentType.trim();
+        const value =
+            newEmploymentType.trim();
 
         if (!value) {
             return;
@@ -306,17 +379,19 @@ export default function CreateEmployeePage({
         const existingType =
             employmentTypes.find(
                 (type) =>
-                    type.toLowerCase() ===
+                    type.name.toLowerCase() ===
                     value.toLowerCase()
             );
 
         if (existingType) {
             updateForm(
                 "employmentType",
-                existingType
+                existingType.name
             );
 
-            clearError("employmentType");
+            clearError(
+                "employmentType"
+            );
 
             setNewEmploymentType("");
             setShowAddEmploymentType(false);
@@ -324,9 +399,16 @@ export default function CreateEmployeePage({
             return;
         }
 
+        const newEmploymentTypeValue: LocationType = {
+            id: `employee-type-${Date.now()}`,
+            name: value,
+            isCustom: true,
+            isUsed: false,
+        };
+
         setEmploymentTypes((previous) => [
             ...previous,
-            value,
+            newEmploymentTypeValue,
         ]);
 
         updateForm(
@@ -334,14 +416,48 @@ export default function CreateEmployeePage({
             value
         );
 
-        clearError("employmentType");
+        clearError(
+            "employmentType"
+        );
 
         setNewEmploymentType("");
         setShowAddEmploymentType(false);
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Cancel                                                                  */
+    /* Delete Employment Type                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    const handleDeleteEmploymentType = (
+        type: LocationType
+    ) => {
+        if (!type.isCustom || type.isUsed) {
+            return;
+        }
+
+        if (
+            form.employmentType ===
+            type.name
+        ) {
+            updateForm(
+                "employmentType",
+                ""
+            );
+
+            clearError(
+                "employmentType"
+            );
+        }
+
+        setEmploymentTypes((previous) =>
+            previous.filter(
+                (item) => item.id !== type.id
+            )
+        );
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* Cancel                                                                 */
     /* ---------------------------------------------------------------------- */
 
     const handleCancel = () => {
@@ -356,7 +472,7 @@ export default function CreateEmployeePage({
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Validation                                                              */
+    /* Validation                                                             */
     /* ---------------------------------------------------------------------- */
 
     const validateForm = () => {
@@ -413,7 +529,7 @@ export default function CreateEmployeePage({
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Save Employee                                                           */
+    /* Save Employee                                                          */
     /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
@@ -509,23 +625,6 @@ export default function CreateEmployeePage({
             validationErrors[field]
                 ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                 : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-        ].join(" ");
-
-    /* ---------------------------------------------------------------------- */
-    /* Selector Button Class                                                  */
-    /* ---------------------------------------------------------------------- */
-
-    const optionButtonClass = (
-        selected: boolean,
-        hasError: boolean
-    ) =>
-        [
-            "h-9 rounded-md border px-3 text-xs font-medium transition",
-            selected
-                ? "border-[#FE5720] bg-orange-50 text-[#FE5720]"
-                : hasError
-                    ? "border-red-300 bg-white text-gray-700"
-                    : "border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50",
         ].join(" ");
 
     /* ---------------------------------------------------------------------- */
@@ -635,7 +734,9 @@ export default function CreateEmployeePage({
                     <input
                         id="employee-designation"
                         type="text"
-                        value={form.designation}
+                        value={
+                            form.designation
+                        }
                         onChange={(event) => {
                             updateForm(
                                 "designation",
@@ -664,135 +765,69 @@ export default function CreateEmployeePage({
                 {/* Department */}
 
                 <div>
-                    <label className="mb-2 block text-xs font-semibold text-gray-700">
-                        Department
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
-                    </label>
+                    <LocationTypeSelector
+                        locationTypes={
+                            departments
+                        }
+                        selectedType={
+                            form.department
+                        }
+                        showAddType={
+                            showAddDepartment
+                        }
+                        newType={
+                            newDepartment
+                        }
+                        error={
+                            validationErrors.department
+                        }
+                        onSelect={(
+                            type: string
+                        ) => {
+                            updateForm(
+                                "department",
+                                type
+                            );
 
-                    <div className="flex flex-wrap gap-2">
-                        {departments.map(
-                            (department) => {
-                                const isSelected =
-                                    form.department ===
-                                    department;
+                            clearError(
+                                "department"
+                            );
+                        }}
+                        onToggleAddType={() => {
+                            setShowAddDepartment(
+                                (
+                                    previous: boolean
+                                ) =>
+                                    !previous
+                            );
 
-                                return (
-                                    <button
-                                        key={department}
-                                        type="button"
-                                        onClick={() => {
-                                            updateForm(
-                                                "department",
-                                                department
-                                            );
+                            setNewDepartment(
+                                ""
+                            );
+                        }}
+                        onNewTypeChange={(
+                            value: string
+                        ) => {
+                            setNewDepartment(
+                                value
+                            );
 
-                                            clearError(
-                                                "department"
-                                            );
-                                        }}
-                                        className={optionButtonClass(
-                                            isSelected,
-                                            Boolean(
-                                                validationErrors.department
-                                            )
-                                        )}
-                                    >
-                                        {department}
-                                    </button>
-                                );
-                            }
-                        )}
-
-                        {!showAddDepartment && (
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setShowAddDepartment(
-                                        true
-                                    )
-                                }
-                                className="h-9 rounded-md border border-dashed border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50"
-                            >
-                                + Add Type
-                            </button>
-                        )}
-                    </div>
-
-                    {showAddDepartment && (
-                        <div className="mt-2 flex items-center gap-2">
-                            <input
-                                type="text"
-                                value={newDepartment}
-                                onChange={(event) =>
-                                    setNewDepartment(
-                                        event.target.value
-                                    )
-                                }
-                                onKeyDown={(event) => {
-                                    if (
-                                        event.key ===
-                                        "Enter"
-                                    ) {
-                                        event.preventDefault();
-                                        handleAddDepartment();
-                                    }
-
-                                    if (
-                                        event.key ===
-                                        "Escape"
-                                    ) {
-                                        setShowAddDepartment(
-                                            false
-                                        );
-                                        setNewDepartment(
-                                            ""
-                                        );
-                                    }
-                                }}
-                                placeholder="Enter department"
-                                autoFocus
-                                className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                            />
-
-                            <button
-                                type="button"
-                                onClick={
-                                    handleAddDepartment
-                                }
-                                className="h-9 rounded-md bg-[#FE5720] px-3 text-xs font-medium text-white hover:bg-[#e94d1b]"
-                            >
-                                Add
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowAddDepartment(
-                                        false
-                                    );
-                                    setNewDepartment("");
-                                }}
-                                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    )}
-
-                    {validationErrors.department && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {
-                                validationErrors.department
-                            }
-                        </p>
-                    )}
+                            clearError(
+                                "department"
+                            );
+                        }}
+                        onAddType={
+                            handleAddDepartment
+                        }
+                        onDeleteType={
+                            handleDeleteDepartment
+                        }
+                    />
                 </div>
             </div>
 
             {/* ============================================================ */}
-            {/* LOCATION + REPORTS TO                                         */}
+            {/* LOCATION + REPORTS TO                                        */}
             {/* ============================================================ */}
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -836,7 +871,9 @@ export default function CreateEmployeePage({
                                 (location) => (
                                     <option
                                         key={location}
-                                        value={location}
+                                        value={
+                                            location
+                                        }
                                     >
                                         {location}
                                     </option>
@@ -873,7 +910,8 @@ export default function CreateEmployeePage({
                         <select
                             id="employee-reports-to"
                             value={
-                                form.reportsTo ?? ""
+                                form.reportsTo ??
+                                ""
                             }
                             onChange={(event) => {
                                 updateForm(
@@ -897,7 +935,9 @@ export default function CreateEmployeePage({
                                 (employee) => (
                                     <option
                                         key={employee}
-                                        value={employee}
+                                        value={
+                                            employee
+                                        }
                                     >
                                         {employee}
                                     </option>
@@ -922,134 +962,64 @@ export default function CreateEmployeePage({
                 {/* Employment Type */}
 
                 <div>
-                    <label className="mb-2 block text-xs font-semibold text-gray-700">
-                        Employment Type
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
-                    </label>
+                    <LocationTypeSelector
+                        locationTypes={
+                            employmentTypes
+                        }
+                        selectedType={
+                            form.employmentType
+                        }
+                        showAddType={
+                            showAddEmploymentType
+                        }
+                        newType={
+                            newEmploymentType
+                        }
+                        error={
+                            validationErrors.employmentType
+                        }
+                        onSelect={(
+                            type: string
+                        ) => {
+                            updateForm(
+                                "employmentType",
+                                type
+                            );
 
-                    <div className="flex flex-wrap gap-2">
-                        {employmentTypes.map(
-                            (type) => {
-                                const isSelected =
-                                    form.employmentType ===
-                                    type;
+                            clearError(
+                                "employmentType"
+                            );
+                        }}
+                        onToggleAddType={() => {
+                            setShowAddEmploymentType(
+                                (
+                                    previous: boolean
+                                ) =>
+                                    !previous
+                            );
 
-                                return (
-                                    <button
-                                        key={type}
-                                        type="button"
-                                        onClick={() => {
-                                            updateForm(
-                                                "employmentType",
-                                                type
-                                            );
+                            setNewEmploymentType(
+                                ""
+                            );
+                        }}
+                        onNewTypeChange={(
+                            value: string
+                        ) => {
+                            setNewEmploymentType(
+                                value
+                            );
 
-                                            clearError(
-                                                "employmentType"
-                                            );
-                                        }}
-                                        className={optionButtonClass(
-                                            isSelected,
-                                            Boolean(
-                                                validationErrors.employmentType
-                                            )
-                                        )}
-                                    >
-                                        {type}
-                                    </button>
-                                );
-                            }
-                        )}
-
-                        {!showAddEmploymentType && (
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    setShowAddEmploymentType(
-                                        true
-                                    )
-                                }
-                                className="h-9 rounded-md border border-dashed border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:border-gray-400 hover:bg-gray-50"
-                            >
-                                + Add Type
-                            </button>
-                        )}
-                    </div>
-
-                    {showAddEmploymentType && (
-                        <div className="mt-2 flex items-center gap-2">
-                            <input
-                                type="text"
-                                value={
-                                    newEmploymentType
-                                }
-                                onChange={(event) =>
-                                    setNewEmploymentType(
-                                        event.target.value
-                                    )
-                                }
-                                onKeyDown={(event) => {
-                                    if (
-                                        event.key ===
-                                        "Enter"
-                                    ) {
-                                        event.preventDefault();
-                                        handleAddEmploymentType();
-                                    }
-
-                                    if (
-                                        event.key ===
-                                        "Escape"
-                                    ) {
-                                        setShowAddEmploymentType(
-                                            false
-                                        );
-                                        setNewEmploymentType(
-                                            ""
-                                        );
-                                    }
-                                }}
-                                placeholder="Enter employment type"
-                                autoFocus
-                                className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                            />
-
-                            <button
-                                type="button"
-                                onClick={
-                                    handleAddEmploymentType
-                                }
-                                className="h-9 rounded-md bg-[#FE5720] px-3 text-xs font-medium text-white hover:bg-[#e94d1b]"
-                            >
-                                Add
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setShowAddEmploymentType(
-                                        false
-                                    );
-                                    setNewEmploymentType(
-                                        ""
-                                    );
-                                }}
-                                className="h-9 rounded-md border border-gray-300 bg-white px-3 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                            >
-                                Cancel
-                            </button>
-                        </div>
-                    )}
-
-                    {validationErrors.employmentType && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {
-                                validationErrors.employmentType
-                            }
-                        </p>
-                    )}
+                            clearError(
+                                "employmentType"
+                            );
+                        }}
+                        onAddType={
+                            handleAddEmploymentType
+                        }
+                        onDeleteType={
+                            handleDeleteEmploymentType
+                        }
+                    />
                 </div>
 
                 {/* Date of Joining */}
@@ -1098,7 +1068,7 @@ export default function CreateEmployeePage({
             </div>
 
             {/* ============================================================ */}
-            {/* PHONE + EMAIL                                                  */}
+            {/* PHONE + EMAIL                                                 */}
             {/* ============================================================ */}
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1185,7 +1155,7 @@ export default function CreateEmployeePage({
             </div>
 
             {/* ============================================================ */}
-            {/* GENERAL ERROR                                                  */}
+            {/* GENERAL ERROR                                                 */}
             {/* ============================================================ */}
 
             {error && (

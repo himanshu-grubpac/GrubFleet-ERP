@@ -66,6 +66,7 @@ export default function CreateClientPage({
             state: initialData?.address?.state ?? "",
             district: initialData?.address?.district ?? "",
             pincode: initialData?.address?.pincode ?? "",
+            country: initialData?.address?.country ?? "",
         });
 
     const [pointsOfContact, setPointsOfContact] =
@@ -95,10 +96,9 @@ export default function CreateClientPage({
             line2: initialData.address?.line2 ?? "",
             city: initialData.address?.city ?? "",
             state: initialData.address?.state ?? "",
-            district:
-                initialData.address?.district ?? "",
-            pincode:
-                initialData.address?.pincode ?? "",
+            district: initialData.address?.district ?? "",
+            pincode: initialData.address?.pincode ?? "",
+            country: initialData.address?.country ?? "",
         });
 
         setPointsOfContact(
@@ -255,7 +255,9 @@ export default function CreateClientPage({
                     state: address.state.trim(),
                     district: address.district.trim(),
                     pincode: address.pincode.trim(),
+                    country: address.country.trim(),
                 },
+
 
                 pointsOfContact:
                     pointsOfContact.map(
