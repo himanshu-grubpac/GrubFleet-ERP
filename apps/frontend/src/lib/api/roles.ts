@@ -24,6 +24,8 @@ export interface CreateRolePayload {
   organizationId: string;
   name: string;
   description?: string;
+  /** Single parent role in org hierarchy (managed-by). */
+  parentRoleId?: string | null;
   moduleAccess?: Array<{
     moduleId: string;
     accessLevel: 'VIEW' | 'MANAGE' | 'FULL';
@@ -35,6 +37,7 @@ export interface UpdateRolePayload {
   name?: string;
   description?: string;
   isActive?: boolean;
+  parentRoleId?: string | null;
   moduleAccess?: Array<{
     moduleId: string;
     accessLevel: 'VIEW' | 'MANAGE' | 'FULL';

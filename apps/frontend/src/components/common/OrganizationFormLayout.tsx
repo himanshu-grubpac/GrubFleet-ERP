@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 
 import DashboardHeader from "@/components/dashboard/DashboardHeader";
 
@@ -10,6 +12,10 @@ type OrganizationFormLayoutProps = {
     children: ReactNode;
     actions?: ReactNode;
     infoText?: string;
+    backLink?: {
+        href: string;
+        label: string;
+    };
 };
 
 export default function OrganizationFormLayout({
@@ -18,6 +24,7 @@ export default function OrganizationFormLayout({
     children,
     actions,
     infoText,
+    backLink,
 }: OrganizationFormLayoutProps) {
     return (
         <div className="w-full">
@@ -26,6 +33,16 @@ export default function OrganizationFormLayout({
             {/* Common Organization Form Content                          */}
             {/* ---------------------------------------------------------- */}
             <div className="ml-6 pt-4">
+
+                {backLink ? (
+                    <Link
+                        href={backLink.href}
+                        className="mb-3 inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 hover:text-[#FE5720]"
+                    >
+                        <ArrowLeft className="h-4 w-4" />
+                        {backLink.label}
+                    </Link>
+                ) : null}
 
                 {/* Header */}
 

@@ -395,6 +395,10 @@ paths:
     get:
       tags: [roles]
       summary: List organization roles
+      description: >-
+        Paginated org roles. Unless the actor has `administration.manage`, the list is
+        filtered to roles visible in the hierarchy: assigned roles plus their descendant
+        subtree. Actors with `administration.manage` see all org roles.
       operationId: listRoles
       security:
         - bearerAuth: []
@@ -414,6 +418,9 @@ paths:
     post:
       tags: [roles]
       summary: Create organization role
+      description: >-
+        Creates a custom org role. Optional `parentRoleId` places the role under a parent
+        in the org hierarchy; omit or null for a root role (requires `administration.manage`).
       operationId: createRole
       security:
         - bearerAuth: []
@@ -430,12 +437,49 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Role'
+        '400':
+          description: Hierarchy or permission validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                roleParentRequired:
+                  summary: ROLE_PARENT_REQUIRED
+                  value:
+                    message: >-
+                      Root roles require administration.manage; set parentRoleId to a role you manage
+                    code: ROLE_PARENT_REQUIRED
+                    statusCode: 400
+                roleParentNotFound:
+                  summary: ROLE_PARENT_NOT_FOUND
+                  value:
+                    message: Parent role not found in this organization
+                    code: ROLE_PARENT_NOT_FOUND
+                    statusCode: 400
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Parent role not visible to actor (IDOR-safe)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                roleNotFound:
+                  summary: ROLE_NOT_FOUND
+                  value:
+                    message: Role not found
+                    code: ROLE_NOT_FOUND
+                    statusCode: 404
   /roles/{id}:
     get:
       tags: [roles]
       summary: Get organization role by id
+      description: >-
+        Returns the role when it exists in the organization and is visible to the actor
+        under hierarchy rules. Roles outside visibility return **404** with `ROLE_NOT_FOUND`
+        (same as missing id — IDOR-safe).
       operationId: getRoleById
       security:
         - bearerAuth: []
@@ -457,7 +501,18 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          $ref: '#/components/responses/NotFound'
+          description: Role missing or not visible to actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                roleNotFound:
+                  summary: ROLE_NOT_FOUND
+                  value:
+                    message: Role not found
+                    code: ROLE_NOT_FOUND
+                    statusCode: 404
     delete:
       tags: [roles]
       summary: Delete organization role
@@ -488,16 +543,44 @@ paths:
         '403':
           $ref: '#/components/responses/Forbidden'
         '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          description: System role or conflict
+          description: Role missing or not visible to actor
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ErrorResponse'
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                roleNotFound:
+                  summary: ROLE_NOT_FOUND
+                  value:
+                    message: Role not found
+                    code: ROLE_NOT_FOUND
+                    statusCode: 404
+        '409':
+          description: Cannot delete role
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                roleIsSystem:
+                  summary: ROLE_IS_SYSTEM
+                  value:
+                    message: System roles cannot be deleted
+                    code: ROLE_IS_SYSTEM
+                    statusCode: 409
+                roleHasChildren:
+                  summary: ROLE_HAS_CHILDREN
+                  value:
+                    message: >-
+                      Role has child roles in the hierarchy; reassign or remove children first
+                    code: ROLE_HAS_CHILDREN
+                    statusCode: 409
     patch:
       tags: [roles]
       summary: Update organization role
+      description: >-
+        Partial update including optional `parentRoleId` to move the role in the hierarchy.
+        Setting `parentRoleId` to null makes the role a root (requires `administration.manage`).
       operationId: updateRole
       security:
         - bearerAuth: []
@@ -522,8 +605,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Role'
+        '400':
+          description: Hierarchy validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                roleParentManageRequired:
+                  summary: ROLE_PARENT_MANAGE_REQUIRED
+                  value:
+                    message: Only administration.manage can set a role as hierarchy root
+                    code: ROLE_PARENT_MANAGE_REQUIRED
+                    statusCode: 400
+                roleHierarchyCycleSelf:
+                  summary: ROLE_HIERARCHY_CYCLE (self-parent)
+                  value:
+                    message: A role cannot be its own parent
+                    code: ROLE_HIERARCHY_CYCLE
+                    statusCode: 400
+                roleHierarchyCycle:
+                  summary: ROLE_HIERARCHY_CYCLE (ancestor loop)
+                  value:
+                    message: Parent role would create a hierarchy cycle
+                    code: ROLE_HIERARCHY_CYCLE
+                    statusCode: 400
+                roleParentNotFound:
+                  summary: ROLE_PARENT_NOT_FOUND
+                  value:
+                    message: Parent role not found in this organization
+                    code: ROLE_PARENT_NOT_FOUND
+                    statusCode: 400
         '403':
           $ref: '#/components/responses/Forbidden'
+        '404':
+          description: Role or parent not visible to actor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+              examples:
+                roleNotFound:
+                  summary: ROLE_NOT_FOUND
+                  value:
+                    message: Role not found
+                    code: ROLE_NOT_FOUND
+                    statusCode: 404
   /roles/{id}/assign:
     post:
       tags: [roles]
@@ -3197,6 +3324,14 @@ components:
         isActive:
           type: boolean
           description: When false, assignments remain but permissions from this role are not granted
+        parentRoleId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            Immediate parent role in the org hierarchy (`managed-by`); null for root roles.
+            List/get responses omit roles outside the actor's hierarchy unless they have
+            administration.manage.
         permissionKeys:
           type: array
           items:
@@ -3240,6 +3375,13 @@ components:
           items:
             type: string
           description: Alternate contract; ignored when moduleAccess is set
+        parentRoleId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            Parent role UUID in the same organization (must be visible to the actor).
+            Omit or null for a hierarchy root (requires administration.manage).
     UpdateRoleRequest:
       type: object
       properties:
@@ -3257,6 +3399,13 @@ components:
             type: string
         isActive:
           type: boolean
+        parentRoleId:
+          type: string
+          format: uuid
+          nullable: true
+          description: >-
+            New parent role UUID (same org, visible to actor), or null to clear parent
+            and make this role a hierarchy root (requires administration.manage).
     RoleAssignmentRequest:
       type: object
       required: [organizationId, userId]

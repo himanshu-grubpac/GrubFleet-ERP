@@ -179,7 +179,7 @@
               { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "url": "{{baseUrl}}/roles?organizationId={{organizationId}}&page=1",
-            "description": "GET /roles — requires administration.view."
+            "description": "GET /roles — requires administration.view. List is filtered by role hierarchy unless actor has administration.manage (parent sees descendant roles)."
           },
           "response": []
         },
@@ -194,10 +194,28 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Fleet View Only\",\n  \"description\": \"Phase 1 module access example\",\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"VIEW\" },\n    { \"moduleId\": \"administration\", \"accessLevel\": \"NONE\" }\n  ]\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Fleet View Only\",\n  \"description\": \"Phase 1 module access example\",\n  \"parentRoleId\": null,\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"VIEW\" },\n    { \"moduleId\": \"administration\", \"accessLevel\": \"NONE\" }\n  ]\n}"
             },
             "url": "{{baseUrl}}/roles?organizationId={{organizationId}}",
-            "description": "POST /roles — administration.manage; moduleAccess NONE|VIEW|MANAGE|FULL expands to permission keys (MANAGE = view + CRUD; FULL adds legacy .manage)."
+            "description": "POST /roles — create org role. Optional parentRoleId (UUID, same org); omit or null for hierarchy root (requires administration.manage). Without manage, set parentRoleId to a role you manage. 400: ROLE_PARENT_REQUIRED, ROLE_PARENT_NOT_FOUND; 404 ROLE_NOT_FOUND if parent not visible. moduleAccess expands to permission keys."
+          },
+          "response": []
+        },
+        {
+          "name": "Create role (child / hierarchy)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Fleet View Child\",\n  \"description\": \"Child role under parent in hierarchy\",\n  \"parentRoleId\": \"{{parentRoleId}}\",\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"VIEW\" },\n    { \"moduleId\": \"administration\", \"accessLevel\": \"NONE\" }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/roles?organizationId={{organizationId}}",
+            "description": "POST /roles — child role with parentRoleId set (use {{parentRoleId}} or {{roleId}} from a parent create/list). Parent must exist in org and be visible to actor."
           },
           "response": []
         },
@@ -210,7 +228,7 @@
               { "key": "X-Organization-Id", "value": "{{organizationId}}" }
             ],
             "url": "{{baseUrl}}/roles/{{roleId}}?organizationId={{organizationId}}",
-            "description": "GET /roles/:id — requires administration.view; org-scoped."
+            "description": "GET /roles/:id — administration.view; org-scoped. Returns 404 ROLE_NOT_FOUND when id is missing or role is outside actor hierarchy visibility (IDOR-safe)."
           },
           "response": []
         },
@@ -225,10 +243,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Fleet View Only (renamed)\",\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"FULL\" }\n  ]\n}"
+              "raw": "{\n  \"name\": \"Fleet View Only (renamed)\",\n  \"parentRoleId\": \"{{parentRoleId}}\",\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"FULL\" }\n  ]\n}"
             },
             "url": "{{baseUrl}}/roles/{{roleId}}?organizationId={{organizationId}}",
-            "description": "PATCH /roles/:id — administration.manage."
+            "description": "PATCH /roles/:id — administration.manage. Optional parentRoleId to reparent; null clears parent (administration.manage only). 400: ROLE_PARENT_MANAGE_REQUIRED, ROLE_HIERARCHY_CYCLE, ROLE_PARENT_NOT_FOUND; 404 ROLE_NOT_FOUND when role/parent not visible."
           },
           "response": []
         },
@@ -241,7 +259,7 @@
               { "key": "X-Organization-Id", "value": "{{organizationId}}" }
             ],
             "url": "{{baseUrl}}/roles/{{roleId}}?organizationId={{organizationId}}",
-            "description": "DELETE /roles/:id — administration.delete or administration.manage. System roles return 409."
+            "description": "DELETE /roles/:id — administration.delete or administration.manage. 409 ROLE_IS_SYSTEM (system roles); 409 ROLE_HAS_CHILDREN when child roles exist in hierarchy."
           },
           "response": []
         },
@@ -1162,6 +1180,10 @@
     },
     {
       "key": "roleId",
+      "value": ""
+    },
+    {
+      "key": "parentRoleId",
       "value": ""
     },
     {

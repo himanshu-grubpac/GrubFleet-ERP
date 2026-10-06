@@ -57,8 +57,12 @@ export class RolesController {
   @RequireOrganizationContext()
   @RequirePermissions(PermissionKeys.ADMINISTRATION_VIEW)
   @ApiOperation({ summary: 'List organization roles' })
-  list(@Query() query: ListRolesQueryDto) {
+  list(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: ListRolesQueryDto,
+  ) {
     return this.rolesService.listRoles(
+      user.userId,
       query.organizationId,
       query.page,
       query.pageSize,
@@ -78,10 +82,11 @@ export class RolesController {
   @RequirePermissions(PermissionKeys.ADMINISTRATION_VIEW)
   @ApiOperation({ summary: 'Get organization role by id' })
   getOne(
+    @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
     @Query() query: GetRoleQueryDto,
   ) {
-    return this.rolesService.getRoleById(query.organizationId, id);
+    return this.rolesService.getRoleById(user.userId, query.organizationId, id);
   }
 
   @Delete(':id')

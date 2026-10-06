@@ -24,13 +24,15 @@ import {
   userRoles,
   users,
 } from '../../database/schema';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import {
   ensureUserWithPermissions,
   loginAs,
   ORG_VIEW_ONLY_USER,
 } from '../../../test/helpers/integration-auth';
+import { purgeRbacIntegrationTestRoles } from '../../../test/helpers/integration-rbac-cleanup';
+import { rbacIntegrationTestRoleName } from '../../database/seed/dev-role-data-policy';
 
 describe('RBAC admin (integration)', () => {
   if (process.env.SKIP_DB_INTEGRATION === '1') {
@@ -352,6 +354,10 @@ describe('RBAC admin (integration)', () => {
   }, 90000);
 
   afterAll(async () => {
+    if (pool && organizationId) {
+      const db = drizzle(pool, { schema });
+      await purgeRbacIntegrationTestRoles(db, organizationId);
+    }
     await app?.close();
     await pool?.end();
   });
@@ -399,7 +405,7 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         organizationId,
-        name: `Get By Id ${Date.now()}`,
+        name: rbacIntegrationTestRoleName('get-by-id'),
         moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
       })
       .expect(201);
@@ -409,12 +415,18 @@ describe('RBAC admin (integration)', () => {
     const getRes = await request(app.getHttpServer())
       .get(`/api/v1/roles/${created.id}`)
       .query({ organizationId })
-      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
 
     const fetched = getRes.body as { id: string; name: string };
     expect(fetched.id).toBe(created.id);
     expect(fetched.name).toBe(created.name);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/roles/${created.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${viewerAccessToken}`)
+      .expect(404);
 
     await request(app.getHttpServer())
       .get(`/api/v1/roles/${created.id}`)
@@ -444,7 +456,7 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         organizationId,
-        name: `Lifecycle ${Date.now()}`,
+        name: rbacIntegrationTestRoleName('lifecycle'),
         moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
       })
       .expect(201);
@@ -487,7 +499,7 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         organizationId,
-        name: `Integration Role ${Date.now()}`,
+        name: rbacIntegrationTestRoleName('module-access-crud'),
         description: 'test',
         moduleAccess: [{ moduleId: 'administration', accessLevel: 'VIEW' }],
       })
@@ -516,6 +528,12 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({ description: 'updated' })
       .expect(200);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${created.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
   });
 
   it('creates fleet_leasing VIEW role and denies admin manage actions', async () => {
@@ -525,7 +543,7 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         organizationId,
-        name: `Fleet View Role ${Date.now()}`,
+        name: rbacIntegrationTestRoleName('fleet-view'),
         moduleAccess: [{ moduleId: 'fleet_leasing', accessLevel: 'VIEW' }],
       })
       .expect(201);
@@ -540,7 +558,7 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         organizationId,
-        name: `Fleet Manage Role ${Date.now()}`,
+        name: rbacIntegrationTestRoleName('fleet-manage'),
         moduleAccess: [{ moduleId: 'fleet_leasing', accessLevel: 'MANAGE' }],
       })
       .expect(201);
@@ -566,6 +584,19 @@ describe('RBAC admin (integration)', () => {
         fullName: 'No Admin',
       })
       .expect(403);
+
+    const manageRoleId = (manageRes.body as { id: string }).id;
+    const viewRoleId = (createRes.body as { id: string }).id;
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${manageRoleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${viewRoleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
   });
 
   it('delegation failure when granting module FULL above actor', async () => {
@@ -575,7 +606,7 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${viewerAccessToken}`)
       .send({
         organizationId,
-        name: `Should Fail ${Date.now()}`,
+        name: rbacIntegrationTestRoleName('delegation-should-fail'),
         moduleAccess: [{ moduleId: 'administration', accessLevel: 'FULL' }],
       })
       .expect(403);
@@ -623,7 +654,7 @@ describe('RBAC admin (integration)', () => {
   });
 
   it('administration MANAGE tier allows user create without administration.manage', async () => {
-    const roleName = `Admin Manage Only ${Date.now()}`;
+    const roleName = rbacIntegrationTestRoleName('admin-manage-only');
     const createRoleRes = await request(app.getHttpServer())
       .post('/api/v1/roles')
       .query({ organizationId })
@@ -645,7 +676,7 @@ describe('RBAC admin (integration)', () => {
     expect(manageRole.permissionKeys).toContain('administration.create');
     expect(manageRole.permissionKeys).not.toContain('administration.manage');
 
-    const operatorEmail = `admin.manage.op.${Date.now()}@grubpac.local`;
+    const operatorEmail = 'admin.manage.op@grubpac.local';
     const operatorPassword = 'AdminManageOp123!';
     const createUserRes = await request(app.getHttpServer())
       .post('/api/v1/users')
@@ -681,7 +712,7 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${operatorToken}`)
       .send({
         organizationId,
-        email: `created.by.manage.${Date.now()}@grubpac.local`,
+        email: 'created.by.manage@grubpac.local',
         fullName: 'Created By Manage Tier',
       })
       .expect(201);
@@ -697,6 +728,19 @@ describe('RBAC admin (integration)', () => {
       (m) => m.moduleId === 'administration',
     );
     expect(adminMod?.accessLevel).toBe('MANAGE');
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${manageRole.id}/assign`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ organizationId, userId: operatorId })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${manageRole.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
   });
 
   it('GET /auth/me includes moduleAccess', async () => {
@@ -856,5 +900,193 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({ organizationId, userId: viewerUserId })
       .expect(201);
+  });
+
+  it('role hierarchy: create with parentRoleId, cycle rejected, visibility filtered', async () => {
+    const rootRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('hierarchy.root'),
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+    const rootId = (rootRes.body as { id: string; parentRoleId: null }).id;
+    expect(
+      (rootRes.body as { parentRoleId: string | null }).parentRoleId,
+    ).toBeNull();
+
+    const midRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('hierarchy.mid'),
+        parentRoleId: rootId,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+    const midId = (midRes.body as { id: string }).id;
+    expect((midRes.body as { parentRoleId: string }).parentRoleId).toBe(rootId);
+
+    const leafRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('hierarchy.leaf'),
+        parentRoleId: midId,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+    const leafId = (leafRes.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${midId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ parentRoleId: leafId })
+      .expect(400);
+
+    const hierarchyOpEmail = 'hierarchy.op@grubpac.local';
+    const hierarchyOpPassword = 'HierarchyOp123!';
+    const hierarchyOpHash = await bcrypt.hash(hierarchyOpPassword, 12);
+    const db = drizzle(pool, { schema });
+    await db
+      .insert(users)
+      .values({
+        email: hierarchyOpEmail,
+        passwordHash: hierarchyOpHash,
+        fullName: 'Hierarchy Operator',
+        isActive: true,
+      })
+      .onConflictDoNothing({ target: users.email });
+
+    const hierarchyOpUserId = (
+      await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, hierarchyOpEmail))
+        .limit(1)
+    )[0]?.id;
+    expect(hierarchyOpUserId).toBeDefined();
+
+    await db
+      .insert(memberships)
+      .values({
+        userId: hierarchyOpUserId,
+        organizationId,
+        status: 'active',
+        joinedAt: new Date(),
+      })
+      .onConflictDoNothing({
+        target: [memberships.userId, memberships.organizationId],
+      });
+
+    const permIds = await db
+      .select({ id: permissions.id, key: permissions.key })
+      .from(permissions)
+      .where(
+        inArray(permissions.key, [
+          'administration.view',
+          'administration.create',
+          'administration.update',
+        ]),
+      );
+    const permIdByKey = new Map(permIds.map((p) => [p.key, p.id]));
+
+    for (const key of [
+      'administration.view',
+      'administration.create',
+      'administration.update',
+    ]) {
+      const permId = permIdByKey.get(key);
+      if (permId) {
+        await db
+          .insert(rolePermissions)
+          .values({ roleId: midId, permissionId: permId })
+          .onConflictDoNothing({
+            target: [rolePermissions.roleId, rolePermissions.permissionId],
+          });
+      }
+    }
+
+    await db
+      .insert(userRoles)
+      .values({
+        userId: hierarchyOpUserId,
+        roleId: midId,
+        organizationId,
+      })
+      .onConflictDoNothing({
+        target: [userRoles.userId, userRoles.roleId, userRoles.organizationId],
+      });
+
+    const opLogin = await request(app.getHttpServer())
+      .post('/api/v1/auth/login')
+      .send({ email: hierarchyOpEmail, password: hierarchyOpPassword })
+      .expect(201);
+    const opToken = (opLogin.body as { accessToken: string }).accessToken;
+
+    const listRes = await request(app.getHttpServer())
+      .get('/api/v1/roles')
+      .query({ organizationId, page: 1, pageSize: 50 })
+      .set('Authorization', `Bearer ${opToken}`)
+      .expect(200);
+    const listedIds = (
+      listRes.body as { items: Array<{ id: string }> }
+    ).items.map((r) => r.id);
+    expect(listedIds).toContain(midId);
+    expect(listedIds).toContain(leafId);
+    expect(listedIds).not.toContain(rootId);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/roles/${rootId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${opToken}`)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`/api/v1/roles/${leafId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${opToken}`)
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${opToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('hierarchy.root-blocked'),
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${midId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${leafId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${midId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${rootId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
   });
 });
