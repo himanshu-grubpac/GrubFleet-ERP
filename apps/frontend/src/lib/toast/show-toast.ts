@@ -26,6 +26,16 @@ export function showEmployeeDeactivatedToast(fullName: string): void {
 export const EMPLOYEE_STATUS_UPDATE_ERROR =
   "Could not update employee status. Try again.";
 
+export const EMPLOYEE_SAVE_ERROR = "Could not save employee. Try again.";
+
+export function showEmployeeCreatedToast(fullName: string): void {
+  showSuccessToast(`${fullName} was added`);
+}
+
+export function showEmployeeUpdatedToast(fullName: string): void {
+  showSuccessToast(`${fullName} was updated`);
+}
+
 export function showLocationCreatedToast(name: string): void {
   showSuccessToast(`${name} was added`);
 }

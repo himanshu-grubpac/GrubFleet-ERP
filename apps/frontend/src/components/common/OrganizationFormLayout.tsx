@@ -2,12 +2,7 @@
 
 import type { ReactNode } from "react";
 
-import DashboardLayout from "@/components/dashboard/DashboardLayout";
-
-type OrganizationDashboardTab = {
-    label: string;
-    href: string;
-};
+import DashboardHeader from "@/components/dashboard/DashboardHeader";
 
 type OrganizationFormLayoutProps = {
     title: string;
@@ -15,10 +10,6 @@ type OrganizationFormLayoutProps = {
     children: ReactNode;
     actions?: ReactNode;
     infoText?: string;
-    backHref?: string;
-    backLabel?: string;
-    tabs?: OrganizationDashboardTab[];
-    activeTab?: string;
 };
 
 export default function OrganizationFormLayout({
@@ -27,40 +18,52 @@ export default function OrganizationFormLayout({
     children,
     actions,
     infoText,
-    backHref,
-    backLabel,
-    tabs = [],
-    activeTab,
 }: OrganizationFormLayoutProps) {
     return (
-        <DashboardLayout
-            title={title}
-            description={description}
-            tabs={tabs}
-            activeTab={activeTab}
-            backHref={backHref}
-            backLabel={backLabel}
-        >
-            <div className="w-full">
-                <div className="rounded-lg border border-gray-200 bg-white p-5">
-                    {children}
+        <div className="w-full">
 
-                    {actions ? (
-                        <div className="mt-6 flex justify-end gap-2 border-t border-gray-100 pt-4">
-                            {actions}
-                        </div>
-                    ) : null}
-                </div>
+            {/* ---------------------------------------------------------- */}
+            {/* Common Organization Form Content                          */}
+            {/* ---------------------------------------------------------- */}
+            <div className="ml-6 pt-4">
 
-                {infoText ? (
-                    <div className="mt-4 flex gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500">
-                        <span className="mt-0.5 shrink-0 font-semibold">
-                            i
-                        </span>
-                        <p>{infoText}</p>
+                {/* Header */}
+
+                <DashboardHeader
+                    title={title}
+                    description={description}
+                />
+
+                {/* Form */}
+
+                <div className="mt-5 w-[72%] max-w-[920px]">
+
+                    <div className="rounded-lg border border-gray-200 bg-white p-5">
+
+                        {children}
+
+                        {/* Actions */}
+
+                        {actions && (
+                            <div className="mt-6 flex justify-end gap-2 border-t border-gray-100 pt-4">
+                                {actions}
+                            </div>
+                        )}
                     </div>
-                ) : null}
+
+                    {/* Information */}
+
+                    {infoText && (
+                        <div className="mt-4 flex gap-3 rounded-lg border border-gray-200 bg-white px-4 py-3 text-xs text-gray-500">
+                            <span className="mt-0.5 shrink-0 font-semibold">
+                                i
+                            </span>
+
+                            <p>{infoText}</p>
+                        </div>
+                    )}
+                </div>
             </div>
-        </DashboardLayout>
+        </div>
     );
 }

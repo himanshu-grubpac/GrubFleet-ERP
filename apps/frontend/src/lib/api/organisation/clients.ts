@@ -132,6 +132,20 @@ export function mapClientDetailToRecord(
   };
 }
 
+/** Maps API detail → create/edit form shape used by `CreateClientPage`. */
+export function clientDetailToFormData(detail: OrganisationClientDetail): {
+  companyName: string;
+  address: OrganizationAddress;
+  pointsOfContact: PointOfContact[];
+} {
+  const record = mapClientDetailToRecord(detail);
+  return {
+    companyName: record.clientName,
+    address: record.address,
+    pointsOfContact: record.pointsOfContact,
+  };
+}
+
 export async function fetchOrganisationClientsApi(
   token: string,
   params: ListOrganisationClientsParams,

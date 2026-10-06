@@ -26,26 +26,22 @@ interface LeaseContractHeaderProps {
     status: LeaseContractStatus;
     description: string;
 
-    onViewHistory?: () => void;
     onActivate?: () => void;
     onDeactivate?: () => void;
     onReactivate?: () => void;
     onTerminate?: () => void;
     onEdit?: () => void;
-    isActionPending?: boolean;
 }
 
 export default function LeaseContractHeader({
     contractNumber,
     status,
     description,
-    onViewHistory,
     onActivate,
     onDeactivate,
     onReactivate,
     onTerminate,
     onEdit,
-    isActionPending = false,
 }: LeaseContractHeaderProps) {
     const [activeModal, setActiveModal] =
         useState<LeaseContractAction | null>(null);
@@ -62,10 +58,6 @@ export default function LeaseContractHeader({
     };
 
     const handleConfirm = () => {
-        if (activeModal === "activate") {
-            onActivate?.();
-        }
-
         if (activeModal === "deactivate") {
             onDeactivate?.();
         }
@@ -111,16 +103,7 @@ export default function LeaseContractHeader({
                     ACTION BUTTONS
                 ================================================= */}
 
-                <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
-                    {onViewHistory && (
-                        <button
-                            type="button"
-                            onClick={onViewHistory}
-                            className="text-sm font-semibold text-[#FE5720] hover:underline"
-                        >
-                            View history
-                        </button>
-                    )}
+                <div className="flex shrink-0 items-center gap-3">
 
                     {/* =================================================
                         DRAFT → ACTIVATE
@@ -132,8 +115,7 @@ export default function LeaseContractHeader({
                             variant="primary"
                             size="md"
                             leftIcon={<Power className="h-4 w-4" />}
-                            onClick={() => setActiveModal("activate")}
-                            disabled={isActionPending}
+                            onClick={onActivate}
                         >
                             Activate
                         </Button>
@@ -150,7 +132,6 @@ export default function LeaseContractHeader({
                             size="md"
                             leftIcon={<Power className="h-4 w-4" />}
                             onClick={() => setActiveModal("deactivate")}
-                            disabled={isActionPending}
                         >
                             Deactivate
                         </Button>
@@ -207,13 +188,12 @@ export default function LeaseContractHeader({
                     {status !== "Terminated" && onEdit && (
                         <Button
                             type="button"
-                            variant={status === "Active" ? "primary" : "outline"}
+                            variant="outline"
                             size="md"
                             leftIcon={<Pencil className="h-4 w-4" />}
                             onClick={onEdit}
-                            disabled={isActionPending}
                         >
-                            Edit
+                            Edit contract
                         </Button>
                     )}
                 </div>
@@ -227,7 +207,6 @@ export default function LeaseContractHeader({
                 isOpen={activeModal !== null}
                 action={activeModal ?? "deactivate"}
                 contractNumber={contractNumber}
-                isConfirmPending={isActionPending}
                 onClose={closeModal}
                 onConfirm={handleConfirm}
             />

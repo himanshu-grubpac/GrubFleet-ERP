@@ -1395,9 +1395,21 @@ paths:
       operationId: createOrganisationLocationType
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrganisationLocationTypeRequest'
       responses:
         '201':
           description: Custom location type created
+        '400':
+          description: Validation error
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /organisation/location-types/{id}:
     delete:
       tags: [organisation]
@@ -2162,6 +2174,7 @@ paths:
                   enum: [resignation, termination, end_of_contract, other]
                 comment:
                   type: string
+                  maxLength: 2000
       responses:
         '200':
           description: Status updated
@@ -2193,13 +2206,20 @@ components:
       name: organizationId
       in: query
       required: true
+      description: >-
+        Organization UUID for org-scoped routes. Alternatively (or additionally)
+        send `X-Organization-Id`; the header is preferred when both are present.
+        POST bodies may include `organizationId` instead of query/header where documented.
       schema:
         type: string
         format: uuid
     OrganizationIdHeader:
       name: X-Organization-Id
       in: header
-      required: true
+      required: false
+      description: >-
+        Organization UUID when not using `organizationId` query (or body on POST).
+        Required for org context if query/body org id is omitted.
       schema:
         type: string
         format: uuid
@@ -2249,6 +2269,19 @@ components:
             database: up
             redis: up
             drizzle: up
+    CreateOrganisationLocationTypeRequest:
+      type: object
+      required:
+        - organizationId
+        - name
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 120
     CreateOrganisationEmployeeRequest:
       type: object
       required:

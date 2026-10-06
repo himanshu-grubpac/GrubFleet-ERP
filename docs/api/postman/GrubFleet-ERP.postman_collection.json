@@ -624,7 +624,7 @@
     },
     {
       "name": "Organisation",
-      "description": "Organisation module — locations, location types, suppliers, and supplier types.",
+      "description": "Organisation module — location types, locations, suppliers, clients, drivers (assign/unassign), and employees. Send Bearer token plus x-organization-id and/or organizationId query on org-scoped calls.",
       "item": [
         {
           "name": "List location types",
@@ -654,6 +654,19 @@
             },
             "url": "{{baseUrl}}/organisation/location-types",
             "description": "POST /organisation/location-types"
+          },
+          "response": []
+        },
+        {
+          "name": "Delete custom location type",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/organisation/location-types/{{locationTypeId}}?organizationId={{organizationId}}",
+            "description": "DELETE /organisation/location-types/{id} — custom types only; returns 409 when type is in use."
           },
           "response": []
         },
@@ -1088,6 +1101,24 @@
             ],
             "url": "{{baseUrl}}/organisation/employees/{{employeeId}}?organizationId={{organizationId}}",
             "description": "GET /organisation/employees/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update employee",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"designation\": \"Senior Fleet Operations Manager\",\n  \"department\": \"Fleet Operations\"\n}"
+            },
+            "url": "{{baseUrl}}/organisation/employees/{{employeeId}}?organizationId={{organizationId}}",
+            "description": "PATCH /organisation/employees/{id} — inactive employees return 400."
           },
           "response": []
         },

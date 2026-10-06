@@ -5,7 +5,6 @@ import { AlertTriangle, Info } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
 
 export type LeaseContractAction =
-    | "activate"
     | "deactivate"
     | "reactivate"
     | "terminate";
@@ -14,7 +13,6 @@ interface LeaseContractActionModalProps {
     isOpen: boolean;
     action: LeaseContractAction;
     contractNumber: string;
-    isConfirmPending?: boolean;
     onClose: () => void;
     onConfirm: () => void;
 }
@@ -23,7 +21,6 @@ export default function LeaseContractActionModal({
     isOpen,
     action,
     contractNumber,
-    isConfirmPending = false,
     onClose,
     onConfirm,
 }: LeaseContractActionModalProps) {
@@ -32,14 +29,6 @@ export default function LeaseContractActionModal({
     }
 
     const config = {
-        activate: {
-            title: "Activate contract?",
-            description:
-                "This contract will become Active immediately when within standard pricing limits.",
-            confirmText: "Activate",
-            icon: Info,
-        },
-
         deactivate: {
             title: `Deactivate contract ${contractNumber}?`,
             description:
@@ -118,7 +107,6 @@ export default function LeaseContractActionModal({
                         type="button"
                         variant="outline"
                         size="md"
-                        disabled={isConfirmPending}
                         onClick={onClose}
                     >
                         Cancel
@@ -130,10 +118,9 @@ export default function LeaseContractActionModal({
                         type="button"
                         variant="primary"
                         size="md"
-                        disabled={isConfirmPending}
                         onClick={onConfirm}
                     >
-                        {isConfirmPending ? "Please wait…" : config.confirmText}
+                        {config.confirmText}
                     </Button>
                 </div>
             </div>

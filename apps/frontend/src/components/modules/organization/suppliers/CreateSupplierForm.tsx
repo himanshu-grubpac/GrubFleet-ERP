@@ -1,27 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Plus, X } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
-import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
-import { useAuth } from "@/providers/auth-provider";
-import { fetchOrganisationSupplierTypesApi } from "@/lib/api/organisation/suppliers";
-import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { ORGANISATION_SUPPLIER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
-import { DEFAULT_COUNTRY_CODE } from "@/lib/geo/countries";
-import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
-import {
-    showErrorToast,
-    SUPPLIER_SAVE_ERROR,
-} from "@/lib/toast/show-toast";
 
 import OrganizationAddressForm, {
     type OrganizationAddress,
 } from "@/components/common/OrganizationAddressForm";
-import SupplierTypeSelector from "@/components/modules/organization/suppliers/SupplierTypeSelector";
 
 import {
     validateOrganizationAddress,
@@ -34,6 +22,13 @@ import {
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
+
+type SupplierType = {
+    id: string;
+    name: string;
+    isCustom: boolean;
+    isUsed: boolean;
+};
 
 export type SupplierFormData = {
     name: string;
@@ -53,87 +48,79 @@ export type CreateSupplierFormProps = {
         data: SupplierFormData
     ) => void | Promise<void>;
 };
-function collectSupplierValidationErrors(
-    form: SupplierFormData,
-): OrganizationValidationErrors {
-    const errors: OrganizationValidationErrors = {};
 
-    if (!form.name.trim()) {
-        errors.name = "Supplier / company name is required.";
-    }
+/* -------------------------------------------------------------------------- */
+/* Default Supplier Types                                                     */
+/* -------------------------------------------------------------------------- */
 
-    if (!form.type.trim()) {
-        errors.type = "Please select a supplier type.";
-    }
-
-    if (!form.contactPerson.trim()) {
-        errors.contactPerson = "Contact person is required.";
-    }
-
-    const phoneError = validatePhone(form.phone, "Phone number");
-    if (phoneError) {
-        errors.phone = phoneError;
-    }
-
-    const emailError = validateEmail(form.email, "Email");
-    if (emailError) {
-        errors.email = emailError;
-    }
-
-    const addressErrors = validateOrganizationAddress(form.address);
-    Object.entries(addressErrors).forEach(([field, message]) => {
-        errors[`address.${field}`] = message;
-    });
-
-    return errors;
-}
-
-function isSupplierFormValid(form: SupplierFormData): boolean {
-    return !hasValidationErrors(collectSupplierValidationErrors(form));
-}
+const DEFAULT_SUPPLIER_TYPES: SupplierType[] = [
+    {
+        id: "vehicles",
+        name: "Vehicles",
+        isCustom: false,
+        isUsed: false,
+    },
+    {
+        id: "parts",
+        name: "Parts",
+        isCustom: false,
+        isUsed: false,
+    },
+    {
+        id: "drivers",
+        name: "Drivers",
+        isCustom: false,
+        isUsed: false,
+    },
+    {
+        id: "compliance",
+        name: "Compliance",
+        isCustom: false,
+        isUsed: false,
+    },
+];
 
 /* -------------------------------------------------------------------------- */
 /* Component                                                                  */
 /* -------------------------------------------------------------------------- */
 
 export default function CreateSupplierForm({
-    mode = "create",
+    onCancel,
     onSaved,
     initialData,
 }: CreateSupplierFormProps) {
     const router = useRouter();
-    const {
-        token,
-        organizationId,
-        isLoading: isAuthLoading,
-        permissions,
-    } = useAuth();
-    const isEditMode = mode === "edit";
 
-    const canSave = isEditMode
-        ? permissions.has("organisation.update") ||
-          permissions.has("organisation.manage")
-        : permissions.has("organisation.create") ||
-          permissions.has("organisation.manage");
+    /* ---------------------------------------------------------------------- */
+    /* Supplier Types                                                         */
+    /* ---------------------------------------------------------------------- */
 
-    const contactPhonePlaceholder = getInternationalPhonePlaceholder();
+    const [
+        customSupplierTypes,
+        setCustomSupplierTypes,
+    ] = useState<SupplierType[]>([]);
 
-    const supplierTypesQuery = useQuery({
-        queryKey: ["organization", "supplier-types", organizationId],
-        queryFn: () => {
-            if (!token || !organizationId) {
-                throw new Error("Missing auth context");
-            }
-            return fetchOrganisationSupplierTypesApi(token, organizationId);
-        },
-        enabled: !!token && !!organizationId && !isAuthLoading,
-        ...dashboardCatalogQueryOptions,
-    });
+    const [
+        showAddType,
+        setShowAddType,
+    ] = useState(false);
 
-    const supplierTypeOptions =
-        supplierTypesQuery.data?.items ?? [];
+    const [
+        newType,
+        setNewType,
+    ] = useState("");
+
+    const allSupplierTypes = [
+        ...DEFAULT_SUPPLIER_TYPES,
+        ...customSupplierTypes,
+    ];
 
     const handleCancel = () => {
+        if (onCancel) {
+            onCancel();
+            return;
+        }
+
         router.push("/organization/suppliers");
     };
 
@@ -144,22 +131,28 @@ export default function CreateSupplierForm({
     const [form, setForm] =
         useState<SupplierFormData>({
             name:
-                initialData?.name ?? "",
+                initialData?.name ??
+                "",
 
             type:
-                initialData?.type ?? "",
+                initialData?.type ??
+                "",
 
             contactPerson:
-                initialData?.contactPerson ?? "",
+                initialData?.contactPerson ??
+                "",
 
             phone:
-                initialData?.phone ?? "",
+                initialData?.phone ??
+                "",
 
             email:
-                initialData?.email ?? "",
+                initialData?.email ??
+                "",
 
             agreementReference:
-                initialData?.agreementReference ?? "",
+                initialData?.agreementReference ??
+                "",
 
             address: {
                 line1:
@@ -188,7 +181,7 @@ export default function CreateSupplierForm({
 
                 country:
                     initialData?.address?.country ??
-                    DEFAULT_COUNTRY_CODE,
+                    "",
             },
         });
 
@@ -212,17 +205,6 @@ export default function CreateSupplierForm({
         setIsSaving,
     ] = useState(false);
 
-    const isFormValid = useMemo(
-        () => isSupplierFormValid(form),
-        [form],
-    );
-
-    const typesReady =
-        !supplierTypesQuery.isLoading && supplierTypeOptions.length > 0;
-
-    const canSubmit =
-        canSave && isFormValid && !isSaving && typesReady;
-
     /* ---------------------------------------------------------------------- */
     /* General Form Update                                                    */
     /* ---------------------------------------------------------------------- */
@@ -240,17 +222,205 @@ export default function CreateSupplierForm({
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Save Supplier                                                          */
+    /* Add Supplier Type                                                      */
+    /* ---------------------------------------------------------------------- */
+
+    const handleAddType = () => {
+        const trimmedName =
+            newType.trim();
+
+        if (!trimmedName) {
+            return;
+        }
+
+        const alreadyExists =
+            allSupplierTypes.some(
+                (type) =>
+                    type.name.toLowerCase() ===
+                    trimmedName.toLowerCase()
+            );
+
+        if (alreadyExists) {
+            setError(
+                "This supplier type already exists."
+            );
+
+            return;
+        }
+
+        const customType: SupplierType = {
+            id: `custom-${Date.now()}`,
+            name: trimmedName,
+            isCustom: true,
+            isUsed: false,
+        };
+
+        setCustomSupplierTypes(
+            (previous) => [
+                ...previous,
+                customType,
+            ]
+        );
+
+        updateForm(
+            "type",
+            trimmedName
+        );
+
+        setNewType("");
+        setShowAddType(false);
+        setError("");
+
+        setValidationErrors(
+            (previous) => {
+                const next = {
+                    ...previous,
+                };
+
+                delete next.type;
+
+                return next;
+            }
+        );
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* Delete Supplier Type                                                   */
+    /* ---------------------------------------------------------------------- */
+
+    const handleDeleteType = (
+        type: SupplierType
+    ) => {
+        if (
+            !type.isCustom ||
+            type.isUsed
+        ) {
+            return;
+        }
+
+        if (
+            form.type === type.name
+        ) {
+            updateForm(
+                "type",
+                ""
+            );
+        }
+
+        setCustomSupplierTypes(
+            (previous) =>
+                previous.filter(
+                    (item) =>
+                        item.id !==
+                        type.id
+                )
+        );
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* Save Supplier                                                           */
     /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
         setError("");
         setValidationErrors({});
 
-        const errors = collectSupplierValidationErrors(form);
-        setValidationErrors(errors);
+        const errors: OrganizationValidationErrors =
+            {};
 
-        if (hasValidationErrors(errors) || !canSubmit) {
+        /* ------------------------------------------------------------------ */
+        /* Supplier Name                                                      */
+        /* ------------------------------------------------------------------ */
+
+        if (!form.name.trim()) {
+            errors.name =
+                "Supplier / company name is required.";
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Supplier Type                                                      */
+        /* ------------------------------------------------------------------ */
+
+        if (!form.type.trim()) {
+            errors.type =
+                "Please select a supplier type.";
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Contact Person                                                     */
+        /* ------------------------------------------------------------------ */
+
+        if (!form.contactPerson.trim()) {
+            errors.contactPerson =
+                "Contact person is required.";
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Phone                                                              */
+        /* ------------------------------------------------------------------ */
+
+        const phoneError =
+            validatePhone(
+                form.phone,
+                "Phone number"
+            );
+
+        if (phoneError) {
+            errors.phone =
+                phoneError;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Email                                                              */
+        /* ------------------------------------------------------------------ */
+
+        const emailError =
+            validateEmail(
+                form.email,
+                "Email"
+            );
+
+        if (emailError) {
+            errors.email =
+                emailError;
+        }
+
+        /* ------------------------------------------------------------------ */
+        /* Address                                                            */
+        /* ------------------------------------------------------------------ */
+
+        const addressValidationErrors =
+            validateOrganizationAddress(
+                form.address
+            );
+
+        Object.entries(
+            addressValidationErrors
+        ).forEach(
+            ([field, message]) => {
+                errors[
+                    `address.${field}`
+                ] = message;
+            }
+        );
+
+        /* ------------------------------------------------------------------ */
+        /* Set Validation Errors                                              */
+        /* ------------------------------------------------------------------ */
+
+        setValidationErrors(
+            errors
+        );
+
+        /* ------------------------------------------------------------------ */
+        /* Stop if Invalid                                                    */
+        /* ------------------------------------------------------------------ */
+
+        if (
+            hasValidationErrors(
+                errors
+            )
+        ) {
             return;
         }
 
@@ -261,7 +431,7 @@ export default function CreateSupplierForm({
         try {
             setIsSaving(true);
 
-            onSaved?.({
+            await onSaved?.({
                 ...form,
 
                 name:
@@ -302,16 +472,13 @@ export default function CreateSupplierForm({
                         form.address.pincode.trim(),
 
                     country:
-                        form.address.country.trim().toUpperCase(),
+                        form.address.country.trim(),
                 },
             });
-        } catch (saveError) {
-            const message =
-                saveError instanceof Error
-                    ? saveError.message
-                    : SUPPLIER_SAVE_ERROR;
-            setError(message);
-            showErrorToast(message);
+        } catch {
+            setError(
+                "Failed to save supplier."
+            );
         } finally {
             setIsSaving(false);
         }
@@ -351,6 +518,11 @@ export default function CreateSupplierForm({
             validationErrors[
             "address.pincode"
             ],
+
+        country:
+            validationErrors[
+            "address.country"
+            ],
     };
 
     /* ---------------------------------------------------------------------- */
@@ -359,17 +531,8 @@ export default function CreateSupplierForm({
 
     return (
         <OrganizationFormLayout
-            title={mode === "edit" ? "Edit Supplier" : "Add Supplier"}
+            title="Add Supplier"
             description="Register a vehicle, spare-parts, driver-staffing, or compliance-authority (insurance/RTO) supplier."
-            backHref="/organization/suppliers"
-            backLabel="Back to suppliers"
-            tabs={[
-                {
-                    label: "Suppliers",
-                    href: "/organization/suppliers",
-                },
-            ]}
-            activeTab="/organization/suppliers"
             infoText="This is the shared Supplier Register — one record per supplier, reused across Asset Management (vehicle procurement, and insurance/RTO contacts on Compliance & Renewals) and Inventory (parts stock receipt). Link drivers or parts to this supplier from their own registers."
             actions={
                 <>
@@ -377,7 +540,9 @@ export default function CreateSupplierForm({
 
                     <button
                         type="button"
-                        onClick={handleCancel}
+                        onClick={
+                            handleCancel
+                        }
                         className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
                     >
                         Cancel
@@ -387,71 +552,26 @@ export default function CreateSupplierForm({
 
                     <Button
                         type="button"
-                        onClick={handleSave}
-                        disabled={!canSubmit}
+                        onClick={
+                            handleSave
+                        }
+                        disabled={
+                            isSaving
+                        }
                         className="h-10 px-5"
                     >
                         {isSaving
                             ? "Saving..."
-                            : mode === "edit"
-                              ? "Save changes"
-                              : "Save supplier"}
+                            : "Save supplier"}
                     </Button>
                 </>
             }
         >
             {/* ============================================================ */}
-            {/* SUPPLIER TYPE                                                 */}
-            {/* ============================================================ */}
-
-            <div>
-                <label className="mb-2 block text-xs font-semibold text-gray-700">
-                    SUPPLIER TYPE
-
-                    <span className="ml-1 text-red-500">
-                        *
-                    </span>
-                </label>
-
-                {supplierTypesQuery.isLoading ? (
-                    <div
-                        className="h-9 w-full max-w-md animate-pulse rounded-md bg-gray-100"
-                        aria-busy="true"
-                    />
-                ) : supplierTypesQuery.isError ? (
-                    <p className="text-xs text-red-600" role="alert">
-                        Failed to load supplier types.
-                    </p>
-                ) : (
-                    <SupplierTypeSelector
-                        value={form.type}
-                        types={supplierTypeOptions}
-                        onChange={(label) => {
-                            updateForm("type", label);
-                            setError("");
-                            setValidationErrors((previous) => {
-                                const next = { ...previous };
-                                delete next.type;
-                                return next;
-                            });
-                        }}
-                    />
-                )}
-
-                {validationErrors.type && (
-                    <p className="mt-1 text-xs text-red-500">
-                        {
-                            validationErrors.type
-                        }
-                    </p>
-                )}
-            </div>
-
-            {/* ============================================================ */}
             {/* SUPPLIER / COMPANY NAME                                      */}
             {/* ============================================================ */}
 
-            <div className="mt-4">
+            <div>
                 <label
                     htmlFor="supplier-name"
                     className="mb-1 block text-xs font-semibold text-gray-700"
@@ -463,24 +583,41 @@ export default function CreateSupplierForm({
                     </span>
                 </label>
 
-                <RestrictedInput
+                <input
                     id="supplier-name"
-                    restrictedKind="name"
-                    maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.name}
-                    value={form.name}
-                    onChange={(value) => {
-                        updateForm("name", value);
+                    type="text"
+                    value={
+                        form.name
+                    }
+                    onChange={(
+                        event
+                    ) => {
+                        updateForm(
+                            "name",
+                            event.target
+                                .value
+                        );
+
                         setError("");
-                        setValidationErrors((previous) => {
-                            const next = { ...previous };
-                            delete next.name;
-                            return next;
-                        });
+
+                        setValidationErrors(
+                            (
+                                previous
+                            ) => {
+                                const next = {
+                                    ...previous,
+                                };
+
+                                delete next.name;
+
+                                return next;
+                            }
+                        );
                     }}
                     placeholder="Enter supplier / company name"
-                    aria-invalid={Boolean(validationErrors.name)}
                     className={[
                         "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
+
                         validationErrors.name
                             ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                             : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
@@ -497,173 +634,311 @@ export default function CreateSupplierForm({
             </div>
 
             {/* ============================================================ */}
-            {/* CONTACT PERSON                                               */}
+            {/* SUPPLIER TYPE                                                 */}
             {/* ============================================================ */}
 
             <div className="mt-4">
-                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                    Contact person
+                <label className="mb-2 block text-xs font-semibold text-gray-700">
+                    SUPPLIER TYPE
 
                     <span className="ml-1 text-red-500">
                         *
                     </span>
                 </label>
 
-                <RestrictedInput
-                    restrictedKind="name"
-                    maxLength={
-                        ORGANISATION_SUPPLIER_INPUT_LIMITS.contactPerson
-                    }
-                    value={form.contactPerson}
-                    onChange={(value) => {
-                        updateForm("contactPerson", value);
-                        setError("");
-                        setValidationErrors((previous) => {
-                            const next = { ...previous };
-                            delete next.contactPerson;
-                            return next;
-                        });
-                    }}
-                    placeholder="e.g. Imran Qureshi"
-                    aria-invalid={Boolean(validationErrors.contactPerson)}
-                    className={[
-                        "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
-                        validationErrors.contactPerson
-                            ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                            : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-                    ].join(" ")}
-                />
+                <div className="flex flex-wrap items-center gap-2">
+                    {allSupplierTypes.map(
+                        (type) => {
+                            const selected =
+                                form.type ===
+                                type.name;
 
-                {validationErrors.contactPerson && (
+                            return (
+                                <div
+                                    key={
+                                        type.id
+                                    }
+                                    className="relative"
+                                >
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            updateForm(
+                                                "type",
+                                                type.name
+                                            );
+
+                                            setError(
+                                                ""
+                                            );
+
+                                            setValidationErrors(
+                                                (
+                                                    previous
+                                                ) => {
+                                                    const next =
+                                                    {
+                                                        ...previous,
+                                                    };
+
+                                                    delete next.type;
+
+                                                    return next;
+                                                }
+                                            );
+                                        }}
+                                        className={[
+                                            "h-9 rounded-md border px-4 text-sm font-semibold transition",
+
+                                            selected
+                                                ? "border-blue-600 bg-blue-50 text-blue-700"
+                                                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+                                        ].join(" ")}
+                                    >
+                                        {
+                                            type.name
+                                        }
+                                    </button>
+
+                                    {type.isCustom && (
+                                        <button
+                                            type="button"
+                                            disabled={
+                                                type.isUsed
+                                            }
+                                            onClick={() =>
+                                                handleDeleteType(
+                                                    type
+                                                )
+                                            }
+                                            className={[
+                                                "absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border bg-white shadow-sm",
+
+                                                type.isUsed
+                                                    ? "cursor-not-allowed border-gray-200 text-gray-300"
+                                                    : "border-gray-300 text-gray-500 hover:border-red-300 hover:text-red-500",
+                                            ].join(
+                                                " "
+                                            )}
+                                        >
+                                            <X className="h-3 w-3" />
+                                        </button>
+                                    )}
+                                </div>
+                            );
+                        }
+                    )}
+
+                    <button
+                        type="button"
+                        onClick={() =>
+                            setShowAddType(
+                                (
+                                    previous
+                                ) =>
+                                    !previous
+                            )
+                        }
+                        className="inline-flex h-9 items-center gap-1 rounded-md border border-dashed border-gray-300 px-3 text-sm font-semibold text-gray-600 transition hover:border-gray-400 hover:bg-gray-50"
+                    >
+                        <Plus className="h-4 w-4" />
+                        Add Type
+                    </button>
+                </div>
+
+                {validationErrors.type && (
                     <p className="mt-1 text-xs text-red-500">
-                        {validationErrors.contactPerson}
+                        {
+                            validationErrors.type
+                        }
                     </p>
+                )}
+
+                {showAddType && (
+                    <div className="mt-3 flex max-w-md items-center gap-2">
+                        <input
+                            type="text"
+                            value={
+                                newType
+                            }
+                            onChange={(
+                                event
+                            ) => {
+                                setNewType(
+                                    event
+                                        .target
+                                        .value
+                                );
+
+                                setError(
+                                    ""
+                                );
+                            }}
+                            onKeyDown={(
+                                event
+                            ) => {
+                                if (
+                                    event.key ===
+                                    "Enter"
+                                ) {
+                                    event.preventDefault();
+
+                                    handleAddType();
+                                }
+                            }}
+                            autoFocus
+                            placeholder="Enter new supplier type"
+                            className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                        />
+
+                        <Button
+                            type="button"
+                            onClick={
+                                handleAddType
+                            }
+                            className="h-9 px-4"
+                        >
+                            Add
+                        </Button>
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setNewType(
+                                    ""
+                                );
+
+                                setShowAddType(
+                                    false
+                                );
+                            }}
+                            className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 text-gray-500 hover:bg-gray-50"
+                        >
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
                 )}
             </div>
 
             {/* ============================================================ */}
-            {/* CONTACT PERSON PHONE + EMAIL                                 */}
+            {/* CONTACT PERSON + AGREEMENT                                   */}
             {/* ============================================================ */}
 
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {/* Contact Person */}
+
                 <div>
                     <label className="mb-1 block text-xs font-semibold text-gray-700">
-                        Contact person phone
+                        Contact person
 
                         <span className="ml-1 text-red-500">
                             *
                         </span>
                     </label>
 
-                    <RestrictedInput
-                        restrictedKind="phone"
-                        maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.phone}
-                        value={form.phone}
-                        onChange={(value) => {
-                            updateForm("phone", value);
+                    <input
+                        type="text"
+                        value={
+                            form.contactPerson
+                        }
+                        onChange={(
+                            event
+                        ) => {
+                            updateForm(
+                                "contactPerson",
+                                event.target
+                                    .value
+                            );
+
                             setError("");
-                            setValidationErrors((previous) => {
-                                const next = { ...previous };
-                                delete next.phone;
-                                return next;
-                            });
+
+                            setValidationErrors(
+                                (
+                                    previous
+                                ) => {
+                                    const next =
+                                    {
+                                        ...previous,
+                                    };
+
+                                    delete next.contactPerson;
+
+                                    return next;
+                                }
+                            );
                         }}
-                        placeholder={contactPhonePlaceholder}
-                        aria-invalid={Boolean(validationErrors.phone)}
+                        placeholder="e.g. Imran Qureshi"
                         className={[
                             "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
-                            validationErrors.phone
+
+                            validationErrors.contactPerson
                                 ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                                 : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
                         ].join(" ")}
                     />
 
-                    {validationErrors.phone && (
+                    {validationErrors.contactPerson && (
                         <p className="mt-1 text-xs text-red-500">
-                            {validationErrors.phone}
+                            {
+                                validationErrors.contactPerson
+                            }
                         </p>
                     )}
                 </div>
+
+                {/* Agreement Reference */}
 
                 <div>
                     <label className="mb-1 block text-xs font-semibold text-gray-700">
-                        Contact person email
-
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
+                        Agreement reference
                     </label>
 
-                    <RestrictedInput
-                        restrictedKind="email"
-                        maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.email}
-                        value={form.email}
-                        onChange={(value) => {
-                            updateForm("email", value);
-                            setError("");
-                            setValidationErrors((previous) => {
-                                const next = { ...previous };
-                                delete next.email;
-                                return next;
-                            });
+                    <input
+                        type="text"
+                        value={
+                            form.agreementReference
+                        }
+                        onChange={(
+                            event
+                        ) => {
+                            updateForm(
+                                "agreementReference",
+                                event.target
+                                    .value
+                            );
                         }}
-                        placeholder="name@supplier.com"
-                        aria-invalid={Boolean(validationErrors.email)}
-                        className={[
-                            "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
-                            validationErrors.email
-                                ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                                : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-                        ].join(" ")}
+                        placeholder="e.g. AGR-2026-0142 (optional)"
+                        className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
                     />
-
-                    {validationErrors.email && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {validationErrors.email}
-                        </p>
-                    )}
                 </div>
             </div>
 
             {/* ============================================================ */}
-            {/* AGREEMENT REFERENCE                                          */}
-            {/* ============================================================ */}
-
-            <div className="mt-4">
-                <label className="mb-1 block text-xs font-semibold text-gray-700">
-                    Agreement reference
-                </label>
-
-                <RestrictedInput
-                    restrictedKind="text"
-                    maxLength={
-                        ORGANISATION_SUPPLIER_INPUT_LIMITS.agreementReference
-                    }
-                    value={form.agreementReference}
-                    onChange={(value) => {
-                        updateForm("agreementReference", value);
-                    }}
-                    placeholder="e.g. AGR-2026-0142 (optional)"
-                    className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
-                />
-            </div>
-
-            {/* ============================================================ */}
-            {/* ADDRESS                                                      */}
+            {/* SHARED ADDRESS                                                */}
             {/* ============================================================ */}
 
             <OrganizationAddressForm
-                value={form.address}
-                onChange={(address) => {
-                    setForm((previous) => ({
-                        ...previous,
-                        address,
-                    }));
+                value={
+                    form.address
+                }
+                onChange={(
+                    address
+                ) => {
+                    setForm(
+                        (
+                            previous
+                        ) => ({
+                            ...previous,
+                            address,
+                        })
+                    );
 
                     setError("");
 
                     setValidationErrors(
-                        (previous) => {
+                        (
+                            previous
+                        ) => {
                             const next = {
                                 ...previous,
                             };
@@ -692,6 +967,10 @@ export default function CreateSupplierForm({
                                 "address.pincode"
                             ];
 
+                            delete next[
+                                "address.country"
+                            ];
+
                             return next;
                         }
                     );
@@ -702,6 +981,140 @@ export default function CreateSupplierForm({
                 title="ADDRESS"
                 required
             />
+
+            {/* ============================================================ */}
+            {/* CONTACT INFORMATION                                           */}
+            {/* ============================================================ */}
+
+            <div className="mt-5 border-t border-gray-100 pt-4">
+                <h3 className="text-xs font-semibold text-gray-700">
+                    CONTACT INFORMATION
+                </h3>
+
+                <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {/* Phone */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Phone
+
+                            <span className="ml-1 text-red-500">
+                                *
+                            </span>
+                        </label>
+
+                        <input
+                            type="tel"
+                            value={
+                                form.phone
+                            }
+                            onChange={(
+                                event
+                            ) => {
+                                updateForm(
+                                    "phone",
+                                    event.target
+                                        .value
+                                );
+
+                                setError("");
+
+                                setValidationErrors(
+                                    (
+                                        previous
+                                    ) => {
+                                        const next =
+                                        {
+                                            ...previous,
+                                        };
+
+                                        delete next.phone;
+
+                                        return next;
+                                    }
+                                );
+                            }}
+                            placeholder="+91 98XXXXXXXX"
+                            className={[
+                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
+
+                                validationErrors.phone
+                                    ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
+                                    : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+                            ].join(" ")}
+                        />
+
+                        {validationErrors.phone && (
+                            <p className="mt-1 text-xs text-red-500">
+                                {
+                                    validationErrors.phone
+                                }
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Email */}
+
+                    <div>
+                        <label className="mb-1 block text-xs font-semibold text-gray-700">
+                            Email
+
+                            <span className="ml-1 text-red-500">
+                                *
+                            </span>
+                        </label>
+
+                        <input
+                            type="email"
+                            value={
+                                form.email
+                            }
+                            onChange={(
+                                event
+                            ) => {
+                                updateForm(
+                                    "email",
+                                    event.target
+                                        .value
+                                );
+
+                                setError("");
+
+                                setValidationErrors(
+                                    (
+                                        previous
+                                    ) => {
+                                        const next =
+                                        {
+                                            ...previous,
+                                        };
+
+                                        delete next.email;
+
+                                        return next;
+                                    }
+                                );
+                            }}
+                            placeholder="name@supplier.com"
+                            className={[
+                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
+
+                                validationErrors.email
+                                    ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
+                                    : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+                            ].join(" ")}
+                        />
+
+                        {validationErrors.email && (
+                            <p className="mt-1 text-xs text-red-500">
+                                {
+                                    validationErrors.email
+                                }
+                            </p>
+                        )}
+                    </div>
+                </div>
+            </div>
 
             {/* ============================================================ */}
             {/* GENERAL ERROR                                                  */}

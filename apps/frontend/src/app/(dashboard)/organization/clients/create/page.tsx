@@ -1,30 +1,86 @@
 "use client";
 
-import { useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
 
-import CreateClientPage from "@/components/modules/organization/clients/CreateClientPage";
 import { useAuth } from "@/providers/auth-provider";
+import { ApiClientError } from "@/lib/api/client";
+import {
+  buildClientPayloadFromForm,
+  createOrganisationClientApi,
+} from "@/lib/api/organisation/clients";
+import {
+  CLIENT_SAVE_ERROR,
+  showClientCreatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 
-export default function ClientsCreateRoutePage() {
+import CreateClientPage, {
+  type ClientFormData,
+} from "@/components/modules/organization/clients/CreateClientPage";
+
+export default function CreateOrganisationClientRoute() {
   const router = useRouter();
-  const { isLoading: isAuthLoading, permissions } = useAuth();
+  const queryClient = useQueryClient();
+  const {
+    token,
+    organizationId,
+    isLoading: isAuthLoading,
+    permissions,
+  } = useAuth();
 
   const canCreate =
     permissions.has("organisation.create") ||
     permissions.has("organisation.manage");
 
-  useEffect(() => {
-    if (!isAuthLoading && !canCreate) {
-      router.replace("/organization/clients");
+  const handleSaved = async (data: ClientFormData) => {
+    if (!token || !organizationId) {
+      throw new Error("Missing auth context");
     }
-  }, [isAuthLoading, canCreate, router]);
 
-  if (isAuthLoading || !canCreate) {
+    let payload;
+    try {
+      payload = buildClientPayloadFromForm({
+        organizationId,
+        clientName: data.companyName,
+        address: data.address,
+        pointsOfContact: data.pointsOfContact,
+      });
+    } catch {
+      showErrorToast(CLIENT_SAVE_ERROR);
+      throw new Error(CLIENT_SAVE_ERROR);
+    }
+
+    try {
+      const created = await createOrganisationClientApi(token, payload);
+      await queryClient.invalidateQueries({
+        queryKey: ["organization", "clients"],
+      });
+      showClientCreatedToast(created.clientName);
+      router.push(`/organization/clients/${created.id}`);
+    } catch (error) {
+      const message =
+        error instanceof ApiClientError ? error.message : CLIENT_SAVE_ERROR;
+      showErrorToast(message);
+      throw error;
+    }
+  };
+
+  if (isAuthLoading) {
     return (
-      <div className="min-h-[320px] animate-pulse bg-gray-100" aria-busy="true" />
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
+        Loading...
+      </div>
     );
   }
 
-  return <CreateClientPage mode="create" />;
+  if (!canCreate) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
+        You do not have permission to add clients.
+      </div>
+    );
+  }
+
+  return <CreateClientPage onSaved={handleSaved} />;
 }

@@ -15,7 +15,6 @@ import {
     filterNavByPermissions,
     type NavItem,
 } from "@/lib/navigation/modules";
-import { isNavHrefActive } from "@/lib/navigation/nav-path-match";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -62,63 +61,72 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
             )}
             aria-label="Sidebar"
         >
-            <div
-                className={cn(
-                    "shrink-0 border-b border-slate-200",
-                    collapsed ? "px-2 py-2" : "px-3 py-2",
-                )}
-            >
-                <button
-                    type="button"
-                    onClick={onToggleCollapsed}
-                    aria-expanded={!collapsed}
-                    aria-controls="erp-sidebar-nav"
-                    aria-label={collapsed ? "Expand menu" : "Collapse menu"}
-                    title={collapsed ? "Expand menu" : "Collapse menu"}
+
+
+            <div className="border-b border-slate-200">
+                <div
                     className={cn(
-                        "flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-600",
-                        "transition-colors hover:bg-slate-100 hover:text-slate-900",
-                        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FE5720]",
-                        collapsed && "justify-center",
+                        "flex items-center",
+                        collapsed
+                            ? "justify-center px-2 py-2.5"
+                            : "justify-between px-4 py-2.5"
                     )}
                 >
-                    {collapsed ? (
-                        <ChevronRight className="h-5 w-5 shrink-0" aria-hidden />
-                    ) : (
-                        <>
-                            <ChevronLeft className="h-5 w-5 shrink-0" aria-hidden />
-                            <span className="truncate">Collapse menu</span>
-                        </>
+                    {/* Title */}
+                    {!collapsed && (
+                        <h1 className="text-xl font-bold text-[#FE5720]">
+                            Fleet ERP
+                        </h1>
                     )}
-                </button>
-            </div>
 
-            <div
-                className={cn(
-                    "border-b border-slate-200",
-                    collapsed ? "px-2 py-4 text-center" : "px-4 py-5",
-                )}
-            >
-                {collapsed ? (
-                    <p
-                        className="text-sm font-bold text-[#FE5720]"
-                        title="GrubPac ERP Platform"
+                    {/* {collapsed && (
+                        <span
+                            className="text-xs font-bold text-[#FE5720]"
+                            title="Fleet ERP"
+                        >
+
+                        </span>
+                    )} */}
+
+                    {/* Collapse / Expand button */}
+                    <button
+                        type="button"
+                        onClick={onToggleCollapsed}
+                        aria-expanded={!collapsed}
+                        aria-controls="erp-sidebar-nav"
+                        aria-label={collapsed ? "Expand menu" : "Collapse menu"}
+                        title={collapsed ? "Expand menu" : "Collapse menu"}
+                        className={cn(
+                            "flex items-center gap-2 rounded-lg px-2 py-2",
+                            "text-sm font-medium text-slate-600",
+                            "transition-colors hover:bg-slate-100 hover:text-slate-900",
+                            "focus-visible:outline focus-visible:outline-2",
+                            "focus-visible:outline-offset-2",
+                            "focus-visible:outline-[#FE5720]",
+                            collapsed && "justify-center"
+                        )}
                     >
-                        GP
-                    </p>
-                ) : (
-                    <>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-[#FE5720]">
-                            GrubPac
-                        </p>
-                        <h1 className="text-lg font-bold text-slate-900">ERP Platform</h1>
-                    </>
-                )}
+                        {collapsed ? (
+                            <ChevronRight
+                                className="h-5 w-5 shrink-0"
+                                aria-hidden
+                            />
+                        ) : (
+                            <>
+                                <ChevronLeft
+                                    className="h-5 w-5 shrink-0"
+                                    aria-hidden
+                                />
+
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             <nav
                 id="erp-sidebar-nav"
-                className="flex-1 space-y-1 overflow-y-auto overflow-x-hidden p-3"
+                className="flex-1 space-y-1 hide-scrollbar overflow-y-auto overflow-x-hidden p-3"
                 aria-label="Main"
             >
                 {items.map((item) => (
@@ -301,7 +309,9 @@ function SidebarItem({
     const hasChildren =
         !!item.children && item.children.length > 0;
 
-    const isActive = isNavHrefActive(pathname, item.href);
+    const isActive =
+        pathname === item.href ||
+        pathname.startsWith(`${item.href}/`);
 
     const [open, setOpen] = useState(isActive);
     const [flyoutOpen, setFlyoutOpen] = useState(false);
@@ -347,10 +357,9 @@ function SidebarItem({
                                 {item.label}
                             </p>
                             {item.children!.map((child) => {
-                                const childActive = isNavHrefActive(
-                                    pathname,
-                                    child.href,
-                                );
+                                const childActive =
+                                    pathname === child.href ||
+                                    pathname.startsWith(`${child.href}/`);
 
                                 return (
                                     <Link
@@ -437,10 +446,9 @@ function SidebarItem({
                 {open && (
                     <div className="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-3">
                         {item.children!.map((child) => {
-                            const childActive = isNavHrefActive(
-                                pathname,
-                                child.href,
-                            );
+                            const childActive =
+                                pathname === child.href ||
+                                pathname.startsWith(`${child.href}/`);
 
                             return (
                                 <Link

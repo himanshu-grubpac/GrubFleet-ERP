@@ -1,5 +1,5 @@
-import ClientViewPage from "@/components/modules/organization/clients/ClientViewPage";
+import ViewClientPage from "@/components/modules/organization/clients/ViewPage";
 
-export default function OrganizationClientDetailPage() {
-  return <ClientViewPage />;
+export default function ClientViewRoute() {
+    return <ViewClientPage />;
 }

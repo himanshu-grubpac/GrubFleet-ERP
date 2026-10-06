@@ -23,9 +23,6 @@ export type EmployeeRecord = {
   status: EmployeeStatus;
   deactivateReasonType?: DeactivateReasonType;
   deactivateComment?: string;
-  lastWorkingDay?: string;
-  offboardNotes?: string;
-  offboardedAt?: string;
 };
 
 export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {

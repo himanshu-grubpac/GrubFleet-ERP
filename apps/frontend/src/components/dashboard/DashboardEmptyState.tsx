@@ -45,19 +45,7 @@ export default function DashboardEmptyState({
                     </p>
                 )}
 
-                {/* Action */}
-                {buttonLabel && onButtonClick && (
-                    <div className="mt-4">
-                        <Button
-                            type="button"
-                            onClick={onButtonClick}
-                            className="h-9 rounded-md px-4 text-xs font-medium"
-                        >
-                            <span className="mr-1">+</span>
-                            {buttonLabel}
-                        </Button>
-                    </div>
-                )}
+
             </div>
         </div>
     );

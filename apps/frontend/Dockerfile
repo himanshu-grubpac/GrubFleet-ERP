@@ -5,15 +5,13 @@ WORKDIR /app
 
 ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4000/api/v1
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
-ENV HUSKY=0
-ENV CI=true
 
 COPY package.json package-lock.json ./
 COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/api-contracts/package.json ./packages/api-contracts/
 COPY packages/validation/package.json ./packages/validation/
-RUN npm ci --workspace=frontend --include-workspace-root --ignore-scripts
+RUN npm ci --workspace=frontend --include-workspace-root
 
 COPY packages ./packages
 COPY apps/frontend ./apps/frontend

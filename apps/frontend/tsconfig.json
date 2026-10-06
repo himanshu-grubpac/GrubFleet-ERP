@@ -20,10 +20,9 @@
     ],
     "paths": {
       "@/*": ["./src/*"],
-      "@grubpac/shared-types": ["../../packages/shared-types/src/index.ts"],
-      "@grubpac/validation": ["../../packages/validation/src/index.ts"]
+      "@grubpac/shared-types": ["../../packages/shared-types/src/index.ts"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "e2e", "playwright.config.ts"]
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "src/components/modules/organization/suppliers/SupplierViewPage.tsx"],
+  "exclude": ["node_modules"]
 }

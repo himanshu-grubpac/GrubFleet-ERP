@@ -2,30 +2,31 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Mail, MapPin, Smartphone } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { MapPin } from "lucide-react";
 import {
-  dashboardCatalogQueryOptions,
-  dashboardListQueryOptions,
-} from "@/lib/query/dashboard-list-query-options";
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
-import ContactCopyIcon from "@/components/ui/ContactCopyIcon";
 import { useAuth } from "@/providers/auth-provider";
-import {
-  fetchOrganisationLocationsApi,
-  updateOrganisationLocationStatusApi,
-  type OrganisationLocationListItem,
-} from "@/lib/api/organisation/locations";
-import { fetchOrganisationLocationTypesApi } from "@/lib/api/organisation/location-types";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   LOCATION_STATUS_UPDATE_ERROR,
   showErrorToast,
   showLocationActivatedToast,
   showLocationDeactivatedToast,
 } from "@/lib/toast/show-toast";
+import {
+  fetchOrganisationLocationsApi,
+  updateOrganisationLocationStatusApi,
+  type OrganisationLocationListItem,
+} from "@/lib/api/organisation/locations";
+import { fetchOrganisationLocationTypesApi } from "@/lib/api/organisation/location-types";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
@@ -33,19 +34,16 @@ import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { formatLocationRowCopyText } from "@/components/dashboard/dashboard-row-copy-text";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
-import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
-import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
-import {
-  isDashboardCatalogEmptyState,
-  shouldShowDashboardListFilters,
-} from "@/lib/hooks/dashboard-list-search-ui";
-import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import DashboardContact from "@/components/dashboard/DashboardContact";
+import { formatPhoneDisplay } from "@/lib/format/phone-format";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
 
 type Location = OrganisationLocationListItem;
+
+const LOCATIONS_PAGE_SIZE = 10;
 
 /* -------------------------------------------------------------------------- */
 /* Page                                                                       */
@@ -78,8 +76,8 @@ export default function LocationsPage() {
   /* State                                                                    */
   /* ------------------------------------------------------------------------ */
 
-  const { searchInput, setSearchInput, debouncedSearch } =
-    useDashboardListSearch();
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
 
   const [filters, setFilters] = useState<
@@ -101,7 +99,6 @@ export default function LocationsPage() {
       return fetchOrganisationLocationTypesApi(token, organizationId);
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
-    ...dashboardCatalogQueryOptions,
   });
 
   const selectedTypeId = useMemo(() => {
@@ -135,7 +132,7 @@ export default function LocationsPage() {
       return fetchOrganisationLocationsApi(token, {
         organizationId,
         page,
-        pageSize: DASHBOARD_DEFAULT_PAGE_SIZE,
+        pageSize: LOCATIONS_PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
         locationTypeId: selectedTypeId,
         status:
@@ -151,6 +148,11 @@ export default function LocationsPage() {
   const locations = locationsQuery.data?.items ?? [];
   const locationsTotal = locationsQuery.data?.total ?? 0;
   const locationsPage = locationsQuery.data?.page ?? page;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(locationsTotal / LOCATIONS_PAGE_SIZE),
+  );
+  const filteredLocations = locations;
 
   const isInitialLoading =
     isAuthLoading ||
@@ -198,7 +200,9 @@ export default function LocationsPage() {
 
   const handleAddLocation = () => {
     if (!canCreate) return;
-    router.push("/organization/locations/create");
+    router.push(
+      "/organization/locations/create"
+    );
   };
 
   const addLocationAction = canCreate ? (
@@ -212,6 +216,10 @@ export default function LocationsPage() {
       `/organization/locations/${location.id}/edit`
     );
   };
+
+  /* ------------------------------------------------------------------------ */
+  /* Copy                                                                     */
+  /* ------------------------------------------------------------------------ */
 
   const handleActivate = (location: Location) => {
     setStatusError(null);
@@ -236,7 +244,7 @@ export default function LocationsPage() {
   /* ------------------------------------------------------------------------ */
 
   const handleClearFilters = () => {
-    setSearchInput("");
+    setSearch("");
 
     setFilters({
       type: "",
@@ -270,29 +278,17 @@ export default function LocationsPage() {
     },
 
     {
-      key: "email",
-      label: "Email",
+      key: "contact",
+      label: "Contact",
       render: (location: Location) => (
-        <ContactCopyIcon
-          value={location.email}
-          label="email"
-          icon={Mail}
+        <DashboardContact
+          phone={formatPhoneDisplay(location.phone) || undefined}
+          email={location.email}
         />
       ),
     },
 
-    {
-      key: "phone",
-      label: "Mobile",
-      render: (location: Location) => (
-        <ContactCopyIcon
-          value={location.phone}
-          label="mobile number"
-          icon={Smartphone}
-          copyKind="phone"
-        />
-      ),
-    },
+
 
     {
       key: "status",
@@ -369,48 +365,33 @@ export default function LocationsPage() {
   /* Render                                                                   */
   /* ------------------------------------------------------------------------ */
 
-  const hasActiveSelectFilters =
-    filters.type !== "" || filters.status !== "";
-
-  const showFilters = shouldShowDashboardListFilters({
-    total: locationsTotal,
-    searchInput,
-    debouncedSearch,
-    hasActiveSelectFilters,
-    isFetchingWithPlaceholder:
-      locationsQuery.isFetching && locationsQuery.isPlaceholderData,
-  });
-
-  const isEmptyOrganisation = isDashboardCatalogEmptyState({
-    total: locationsTotal,
-    searchInput,
-    debouncedSearch,
-    hasActiveFilters: hasActiveSelectFilters,
-    isFetching: locationsQuery.isFetching,
-  });
-
   return (
     <DashboardLayout
       title="Locations"
       description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
-      tabs={[
-        {
-          label: "Locations",
-          href: "/organization/locations",
-        },
-      ]}
       activeTab="/organization/locations"
       action={addLocationAction}
+      pagination={
+        locationsTotal > LOCATIONS_PAGE_SIZE
+          ? {
+              currentPage: locationsPage,
+              totalPages,
+              totalItems: locationsTotal,
+              pageSize: LOCATIONS_PAGE_SIZE,
+              onPageChange: setPage,
+            }
+          : undefined
+      }
     >
       {/* ------------------------------------------------------------------ */}
       {/* Filters                                                            */}
       {/* ------------------------------------------------------------------ */}
 
-      {showFilters && (
+      {locationsTotal > 0 && (
         <DashboardFilters
-          searchValue={searchInput}
+          searchValue={search}
           searchPlaceholder="Search locations..."
-          onSearchChange={setSearchInput}
+          onSearchChange={setSearch}
           selectFilters={[
             {
               key: "type",
@@ -453,7 +434,10 @@ export default function LocationsPage() {
       {/* Empty State                                                        */}
       {/* ------------------------------------------------------------------ */}
 
-      {isEmptyOrganisation ? (
+      {locationsTotal === 0 &&
+      !debouncedSearch &&
+      !filters.type &&
+      !filters.status ? (
         <DashboardEmptyState
           icon={
             <MapPin
@@ -466,7 +450,11 @@ export default function LocationsPage() {
           buttonLabel={canCreate ? "Add Location" : undefined}
           onButtonClick={canCreate ? handleAddLocation : undefined}
         />
-      ) : locations.length === 0 ? (
+      ) : filteredLocations.length === 0 ? (
+        /* --------------------------------------------------------------- */
+        /* No search/filter results                                       */
+        /* --------------------------------------------------------------- */
+
         <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white text-center">
           <MapPin
             className="mb-3 h-7 w-7 text-gray-400"
@@ -490,59 +478,48 @@ export default function LocationsPage() {
           </button>
         </div>
       ) : (
+        /* --------------------------------------------------------------- */
+        /* Locations Table                                                 */
+        /* --------------------------------------------------------------- */
+
         <>
-          <div
-            className={
-              locationsQuery.isFetching && !isInitialLoading
-                ? "opacity-60 transition-opacity"
-                : undefined
-            }
-            aria-busy={locationsQuery.isFetching}
-          >
-            <DashboardTable
-              columns={locationColumns}
-              data={locations}
-              getRowKey={(location) => location.id}
-              renderActions={(location) => (
-                <DashboardTableActions
-                  status={location.status}
-                  locationId={location.id}
-                  copyText={formatLocationRowCopyText(location)}
-                  onEdit={
-                    canUpdate ? () => handleEdit(location) : undefined
-                  }
-                  onDeactivate={
-                    canUpdate
-                      ? () => handleDeactivate(location)
-                      : undefined
-                  }
-                  onActivate={
-                    canUpdate ? () => handleActivate(location) : undefined
-                  }
-                />
-              )}
-            />
-          </div>
-          <DashboardTablePagination
-            page={locationsPage}
-            pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
-            total={locationsTotal}
-            onPageChange={setPage}
-            disabled={
-              locationsQuery.isFetching || statusMutation.isPending
-            }
+          <DashboardTable
+            columns={locationColumns}
+            data={filteredLocations}
+            getRowKey={(location) => location.id}
+            renderActions={(location) => (
+              <DashboardTableActions
+                status={location.status}
+                locationId={location.id}
+                copyText={formatLocationRowCopyText(location)}
+                viewHref={`/organization/locations/${location.id}`}
+                onEdit={
+                  canUpdate && location.status === "active"
+                    ? () => handleEdit(location)
+                    : undefined
+                }
+                onToggleStatus={
+                  canUpdate
+                    ? () =>
+                        location.status === "active"
+                          ? handleDeactivate(location)
+                          : handleActivate(location)
+                    : undefined
+                }
+              />
+            )}
           />
         </>
       )}
 
       <ConfirmDialog
         open={activateTarget !== null}
-        title={
+        title="Activate location?"
+        message={
           activateTarget
-            ? `Activate ${activateTarget.name}?`
-            : "Activate location?"
+            ? `${activateTarget.name} will be marked active and available for use across the organisation.`
+            : "This location will be marked active."
         }
-        message="This location will be marked active and available for use across the organisation."
         confirmLabel="Activate"
         isConfirmPending={statusMutation.isPending}
         onClose={() => {

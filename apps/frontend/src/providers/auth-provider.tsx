@@ -541,7 +541,7 @@ export function ProtectedRoute({
   }, [isAuthenticated, isLoading, isLoggingOut, router]);
 
   if (isLoggingOut) {
-    return <AuthBootstrapLoader layout="login" phase="sign-out" />;
+    return <AuthBootstrapLoader layout="minimal" phase="sign-out" />;
   }
 
   if (isLoading) {
