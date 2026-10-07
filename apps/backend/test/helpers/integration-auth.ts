@@ -125,29 +125,41 @@ export async function ensureUserWithPermissions(
       target: [memberships.userId, memberships.organizationId],
     });
 
-  await db
+  const roleDescription = spec.roleDescription ?? 'Integration test role';
+  const upsertedRole = await db
     .insert(roles)
     .values({
       organizationId,
       name: spec.roleName,
       scope: 'organization',
-      description: spec.roleDescription ?? 'Integration test role',
+      description: roleDescription,
       isSystem: false,
       isActive: true,
     })
-    .onConflictDoNothing({ target: [roles.organizationId, roles.name] });
-  const [role] = await db
-    .select({ id: roles.id })
-    .from(roles)
-    .where(
-      and(
-        eq(roles.organizationId, organizationId),
-        eq(roles.name, spec.roleName),
-      ),
-    )
-    .limit(1);
-  if (!role) throw new Error(`Test role ${spec.roleName} missing`);
-  await db.update(roles).set({ isActive: true }).where(eq(roles.id, role.id));
+    .onConflictDoUpdate({
+      target: [roles.organizationId, roles.name],
+      set: {
+        isActive: true,
+        description: roleDescription,
+      },
+    })
+    .returning({ id: roles.id });
+  let roleId = upsertedRole[0]?.id;
+  if (!roleId) {
+    const [resolvedRole] = await db
+      .select({ id: roles.id })
+      .from(roles)
+      .where(
+        and(
+          eq(roles.organizationId, organizationId),
+          eq(roles.name, spec.roleName),
+        ),
+      )
+      .limit(1);
+    roleId = resolvedRole?.id;
+  }
+  if (!roleId) throw new Error(`Test role ${spec.roleName} missing`);
+  const role = { id: roleId };
 
   const permRows = await db
     .select({ id: permissions.id, key: permissions.key })
