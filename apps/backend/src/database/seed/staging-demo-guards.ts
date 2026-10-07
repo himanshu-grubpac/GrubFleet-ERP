@@ -4,10 +4,36 @@ import * as path from 'path';
 dotenv.config({ path: path.resolve(__dirname, '../../../.env.staging') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 
-/** Stable marker stored on seeded rows (notes, descriptions, receipt numbers). */
-export const STAGING_DEMO_SEED_SOURCE = 'staging-demo-v1';
+/** Internal marker on notes/descriptions — never shown as primary UI copy. */
+export const STAGING_DEMO_SEED_SOURCE = 'staging-interconnected-seed-v2';
 
+/** Prior seed runs (purge matches these too). */
+export const STAGING_DEMO_LEGACY_SEED_MARKERS = ['staging-demo-v1'] as const;
+
+/** Legacy demo inbox domain — purge only. */
 export const STAGING_DEMO_EMAIL_DOMAIN = '@grubpac-demo.local';
+
+const STAGING_SEED_EMAIL_DOMAIN = 'grubfleet-logistics.in';
+
+/**
+ * Professional contact email for seeded org rows (idempotent per role + stable key).
+ */
+export function stagingSeedContactEmail(role: string, stableKey: string): string {
+  const local = `${role}.${stableKey}`.replace(/[^a-z0-9.]/gi, '.').toLowerCase();
+  return `${local}@${STAGING_SEED_EMAIL_DOMAIN}`;
+}
+
+/** Person-style email for employees, POCs, drivers (display-realistic). */
+export function stagingSeedPersonEmail(
+  firstName: string,
+  lastName: string,
+  companyDomain: string,
+): string {
+  const local = `${firstName}.${lastName}`
+    .toLowerCase()
+    .replace(/[^a-z]/g, '');
+  return `${local}@${companyDomain}`;
+}
 
 export function maskDatabaseUrl(connectionString: string): string {
   return connectionString.replace(/:[^:@/]+@/, ':***@');

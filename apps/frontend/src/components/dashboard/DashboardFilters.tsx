@@ -140,10 +140,11 @@ export default function DashboardFilters({
             );
         }
 
+        const lower = cleanedLabel.toLowerCase();
         if (
-            cleanedLabel
-                .toLowerCase()
-                .endsWith("s")
+            lower.endsWith("s") &&
+            !lower.endsWith("us") &&
+            !lower.endsWith("ss")
         ) {
             return cleanedLabel
                 .slice(0, -1)
