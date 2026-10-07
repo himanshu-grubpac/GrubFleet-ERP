@@ -24,7 +24,13 @@ type DashboardTableActionsProps = {
      */
     viewHref?: string;
 
-    onEdit: () => void;
+    /**
+     * Hide the Edit action from the More menu.
+     * Useful for dashboards where editing is not allowed.
+     */
+    hideEdit?: boolean;
+
+    onEdit?: () => void;
     onToggleStatus: () => void;
 };
 
@@ -32,6 +38,7 @@ export default function DashboardTableActions({
     status,
     locationId,
     viewHref,
+    hideEdit = false,
     onEdit,
     onToggleStatus,
 }: DashboardTableActionsProps) {
@@ -55,9 +62,7 @@ export default function DashboardTableActions({
         if (!locationId) return;
 
         try {
-            await navigator.clipboard.writeText(
-                locationId
-            );
+            await navigator.clipboard.writeText(locationId);
 
             console.log("Copied:", locationId);
         } catch (error) {
@@ -143,20 +148,22 @@ export default function DashboardTableActions({
                         "
                     >
                         {/* Edit */}
-                        <button
-                            type="button"
-                            disabled={!isActive}
-                            onClick={onEdit}
-                            className={[
-                                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm",
-                                isActive
-                                    ? "text-gray-700 hover:bg-gray-50"
-                                    : "cursor-not-allowed text-gray-300",
-                            ].join(" ")}
-                        >
-                            <Edit className="h-4 w-4" />
-                            Edit
-                        </button>
+                        {!hideEdit && (
+                            <button
+                                type="button"
+                                disabled={!isActive}
+                                onClick={onEdit}
+                                className={[
+                                    "flex w-full items-center gap-2 px-3 py-2 text-left text-sm",
+                                    isActive
+                                        ? "text-gray-700 hover:bg-gray-50"
+                                        : "cursor-not-allowed text-gray-300",
+                                ].join(" ")}
+                            >
+                                <Edit className="h-4 w-4" />
+                                Edit
+                            </button>
+                        )}
 
                         {/* Activate / Deactivate */}
                         <button

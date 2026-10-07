@@ -132,6 +132,31 @@ export const mainNavItems: NavItem[] = [
     href: "/inventory",
     icon: Package,
     requiredPermission: "inventory.view",
+
+    children: [
+
+      {
+        label: "Stock Register",
+        href: "/inventory/Stock-register",
+        icon: Package,
+      },
+
+      {
+        label: "Stock Balance",
+        href: "/inventory/stock-balance",
+        icon: ClipboardList,
+      },
+      {
+        label: "Stock Receipt",
+        href: "/inventory/stock-receipt",
+        icon: ClipboardCheck,
+      },
+      {
+        label: "Parts Requests",
+        href: "/inventory/parts-requests",
+        icon: Wrench,
+      },
+    ],
   },
 
   // ============================================================

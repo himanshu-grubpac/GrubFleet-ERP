@@ -341,4 +341,46 @@ export const breadcrumbConfig: Record<
             label: "Corporate Customers",
         },
     ],
+
+    // ============================================================
+    // INVENTORY
+    // ============================================================
+
+    "/inventory": [
+        {
+            label: "Inventory",
+        },
+    ],
+
+    // ----------------------------
+    // Stock Receipt
+    // ----------------------------
+
+    "/inventory/stock-receipt": [
+        {
+            label: "Inventory",
+            href: "/inventory",
+        },
+        {
+            label: "Stock Receipt",
+        },
+    ],
+
+    "/inventory/stock-receipt/create": [
+        {
+            label: "Inventory",
+            href: "/inventory",
+        },
+        {
+            label: "Stock Receipt",
+            href: "/inventory/stock-receipt",
+        },
+        {
+            label: "Create Stock Receipt",
+        },
+    ],
+
+    // ============================================================
+    // CUSTOMERS
+    // ============================================================
 };
