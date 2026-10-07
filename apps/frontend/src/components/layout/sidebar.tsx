@@ -79,14 +79,14 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
                     {/* Title */}
                     {!collapsed && (
                         <h1 className="text-xl font-bold text-[#FE5720]">
-                            Fleet ERP
+                            Fleet Pulse
                         </h1>
                     )}
 
                     {/* {collapsed && (
                         <span
                             className="text-xs font-bold text-[#FE5720]"
-                            title="Fleet ERP"
+                            title="Fleet Pulse"
                         >
 
                         </span>
