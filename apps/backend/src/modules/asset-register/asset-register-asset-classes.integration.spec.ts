@@ -212,6 +212,30 @@ describe('Asset Register — asset classes (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 for invalid vehicleType on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildAssetClassCreatePayload({ vehicleType: '5W' }))
+        .expect(400);
+    });
+
+    it('creates asset class with 4W vehicleType', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildAssetClassCreatePayload({
+            name: `Four Wheeler Class ${Date.now()}`,
+            vehicleType: '4W',
+          }),
+        )
+        .expect(201);
+      expect((res.body as { vehicleType: string }).vehicleType).toBe('4W');
+    });
+
     it('returns 400 for unknown JSON key on PATCH', async () => {
       const id = await createAssetClassAsAdmin();
       await request(app.getHttpServer())

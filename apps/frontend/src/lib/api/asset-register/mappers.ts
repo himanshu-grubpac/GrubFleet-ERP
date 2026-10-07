@@ -11,23 +11,34 @@ import type { AssetMasterFormData } from "@/components/modules/assetManagement/a
 import type { FleetVehicleFormData } from "@/components/modules/assetManagement/fleet-management/FleetFormPage";
 
 /** Maps API vehicle type to existing list UI labels (no layout change). */
+export type AssetRegisterVehicleTypeUiLabel =
+  | "2-Wheeler"
+  | "3-Wheeler"
+  | "4-Wheeler";
+
 export function mapAssetRegisterVehicleTypeToUiLabel(
   vehicleType: AssetRegisterVehicleTypeApi,
-): "2-Wheeler" | "3-Wheeler" {
+): AssetRegisterVehicleTypeUiLabel {
   if (vehicleType === "2W") return "2-Wheeler";
-  return "3-Wheeler";
+  if (vehicleType === "3W") return "3-Wheeler";
+  return "4-Wheeler";
 }
 
 export function uiVehicleTypeFilterToApi(
-  filter: "2-wheeler" | "3-wheeler",
+  filter: "2-wheeler" | "3-wheeler" | "4-wheeler",
 ): AssetRegisterVehicleTypeApi {
-  return filter === "2-wheeler" ? "2W" : "3W";
+  if (filter === "2-wheeler") return "2W";
+  if (filter === "3-wheeler") return "3W";
+  return "4W";
 }
 
 export function uiVehicleTypeLabelToApi(
   label: string,
 ): AssetRegisterVehicleTypeApi {
-  return label === "2-Wheeler" ? "2W" : "3W";
+  if (label === "2-Wheeler") return "2W";
+  if (label === "3-Wheeler") return "3W";
+  if (label === "4-Wheeler") return "4W";
+  return "3W";
 }
 
 export function assetClassDetailToFormData(
