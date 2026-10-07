@@ -14,6 +14,8 @@ import { UsersModule } from './modules/users/users.module';
 import { FleetLeasingModule } from './modules/fleet-leasing/fleet-leasing.module';
 import { OrganisationModule } from './modules/organisation/organisation.module';
 import { AssetRegisterModule } from './modules/asset-register/asset-register.module';
+import { FinanceModule } from './modules/finance/finance.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
@@ -30,6 +32,8 @@ import { AssetRegisterModule } from './modules/asset-register/asset-register.mod
     FleetLeasingModule,
     OrganisationModule,
     AssetRegisterModule,
+    FinanceModule,
+    InventoryModule,
   ],
   providers: [StructuredLoggerService],
 })

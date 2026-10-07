@@ -1479,6 +1479,7 @@ export class LeaseContractsService {
     return {
       id: contract.id,
       contractNumber: contract.contractNumber,
+      clientId: contract.clientId,
       clientName: clientCompanyName ?? 'Not yet selected',
       assetClasses: assetClasses ?? '--',
       startDate: contract.startDate?.toISOString().slice(0, 10) ?? null,

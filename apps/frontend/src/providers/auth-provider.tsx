@@ -422,7 +422,7 @@ export function GrubpacAuthProvider({
     setPermissions(new Set());
     clearAuthStorage();
 
-    router.replace("/login");
+    router.replace("/login/");
 
     if (currentToken) {
       try {
@@ -536,7 +536,7 @@ export function ProtectedRoute({
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated && !isLoggingOut) {
-      router.replace("/login");
+      router.replace("/login/");
     }
   }, [isAuthenticated, isLoading, isLoggingOut, router]);
 

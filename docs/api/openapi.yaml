@@ -39,6 +39,10 @@ tags:
     description: Asset Register — asset classes, masters, fleet register (phased)
   - name: fleet-leasing
     description: Fleet & leasing — lease contracts, clients, vehicles
+  - name: finance
+    description: Finance — invoices, interim inventory parts catalog
+  - name: inventory
+    description: Inventory — stock register, receipts, balance, parts requests (read)
 paths:
   /health:
     get:
@@ -2088,6 +2092,819 @@ paths:
           description: Status updated
         '400':
           description: Missing deactivate reason or invalid transition
+  /inventory/stock-register:
+    get:
+      tags: [inventory]
+      summary: List spare parts (stock register)
+      operationId: listInventoryStockRegister
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        '200':
+          description: Paginated spare parts
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [inventory]
+      summary: Create spare part
+      operationId: createInventorySparePart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - organizationId
+                - name
+                - compatibleAssetClasses
+                - unitOfMeasure
+                - retailMarkupPercent
+                - wholesaleMarkupPercent
+                - thresholdQuantity
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                name:
+                  type: string
+                  maxLength: 255
+                brand:
+                  type: string
+                  maxLength: 255
+                compatibleAssetClasses:
+                  type: array
+                  maxItems: 32
+                  items:
+                    type: string
+                    maxLength: 120
+                unitOfMeasure:
+                  type: string
+                  maxLength: 32
+                retailMarkupPercent:
+                  type: integer
+                  minimum: 0
+                wholesaleMarkupPercent:
+                  type: integer
+                  minimum: 0
+                thresholdQuantity:
+                  type: integer
+                  minimum: 0
+                notes:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '201':
+          description: Created spare part
+        '400':
+          description: Validation error
+  /inventory/stock-register/{id}:
+    get:
+      tags: [inventory]
+      summary: Spare part detail
+      operationId: getInventorySparePart
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Spare part detail with on-hand and location breakdown
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [inventory]
+      summary: Update spare part
+      operationId: updateInventorySparePart
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated spare part
+        '400':
+          description: Validation error or inactive part cannot be edited
+  /inventory/stock-register/{id}/status:
+    patch:
+      tags: [inventory]
+      summary: Activate or deactivate spare part
+      operationId: updateInventorySparePartStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              properties:
+                isActive:
+                  type: boolean
+                reason:
+                  type: string
+                  maxLength: 2000
+                  description: Recommended when deactivating
+      responses:
+        '200':
+          description: Status updated
+  /inventory/stock-receipts:
+    get:
+      tags: [inventory]
+      summary: List stock receipts
+      operationId: listInventoryStockReceipts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        '200':
+          description: Paginated receipts
+    post:
+      tags: [inventory]
+      summary: Create stock receipt
+      operationId: createInventoryStockReceipt
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - organizationId
+                - partId
+                - quantity
+                - receiptDate
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                partId:
+                  type: string
+                  format: uuid
+                quantity:
+                  type: integer
+                  minimum: 1
+                receiptDate:
+                  type: string
+                  format: date
+                supplierId:
+                  type: string
+                  format: uuid
+                locationId:
+                  type: string
+                  format: uuid
+                purchaseInvoiceReference:
+                  type: string
+                  maxLength: 120
+                financeInvoiceId:
+                  type: string
+                  format: uuid
+                  description: Optional link to finance purchase invoice
+                expiryDate:
+                  type: string
+                  format: date
+                notes:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '201':
+          description: Created receipt
+  /inventory/stock-receipts/{id}:
+    get:
+      tags: [inventory]
+      summary: Stock receipt detail
+      operationId: getInventoryStockReceipt
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Receipt detail
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [inventory]
+      summary: Update stock receipt
+      operationId: updateInventoryStockReceipt
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated receipt
+        '400':
+          description: Validation error or inactive receipt cannot be edited
+  /inventory/stock-receipts/{id}/status:
+    patch:
+      tags: [inventory]
+      summary: Activate or deactivate stock receipt
+      operationId: updateInventoryStockReceiptStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [isActive]
+              properties:
+                isActive:
+                  type: boolean
+                reason:
+                  type: string
+                  maxLength: 2000
+      responses:
+        '200':
+          description: Status updated
+  /inventory/stock-balance:
+    get:
+      tags: [inventory]
+      summary: List stock balance by part
+      operationId: listInventoryStockBalance
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        '200':
+          description: Paginated balance rows
+  /inventory/stock-balance/{id}:
+    get:
+      tags: [inventory]
+      summary: Stock balance detail for a part
+      operationId: getInventoryStockBalanceDetail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          description: Spare part id
+      responses:
+        '200':
+          description: Balance detail with location rows
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /inventory/parts-requests:
+    get:
+      tags: [inventory]
+      summary: List parts requests (read-only)
+      operationId: listInventoryPartsRequests
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated requests
+  /inventory/parts-requests/{id}:
+    get:
+      tags: [inventory]
+      summary: Parts request detail (read-only)
+      operationId: getInventoryPartsRequest
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Request detail
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /finance/invoices:
+    get:
+      tags: [finance]
+      summary: List finance invoices (paginated)
+      operationId: listFinanceInvoices
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [unpaid, partially_paid, paid, cancelled]
+        - name: invoiceType
+          in: query
+          schema:
+            type: string
+            enum: [purchase, sale, billing]
+      responses:
+        '200':
+          description: Paginated invoice list
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /finance/invoices/payment-methods/catalog:
+    get:
+      tags: [finance]
+      summary: Payment method options for sale/billing invoice payments
+      operationId: listFinanceInvoicePaymentMethods
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+      responses:
+        '200':
+          description: Catalog of payment method values and labels
+  /finance/invoices/{id}:
+    patch:
+      tags: [finance]
+      summary: Update unpaid invoice
+      operationId: updateFinanceInvoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Updated invoice detail
+    get:
+      tags: [finance]
+      summary: Invoice detail
+      operationId: getFinanceInvoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoice with line items
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [finance]
+      summary: Remove unpaid purchase invoice (hard delete)
+      operationId: removeFinancePurchaseInvoice
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoice removed from register
+        '400':
+          description: Not an eligible unpaid purchase invoice
+  /finance/invoices/purchase/vehicle:
+    post:
+      tags: [finance]
+      summary: Create purchase invoice — vehicle
+      operationId: createFinancePurchaseVehicleInvoice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFinancePurchaseVehicleInvoiceRequest'
+      responses:
+        '201':
+          description: Created invoice
+  /finance/invoices/purchase/spare-parts:
+    post:
+      tags: [finance]
+      summary: Create purchase invoice — spare parts
+      operationId: createFinancePurchaseSparePartsInvoice
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFinancePurchaseSparePartsInvoiceRequest'
+      responses:
+        '201':
+          description: Created invoice
+  /finance/invoices/sale:
+    post:
+      tags: [finance]
+      summary: Create sale invoice (fleet register vehicle)
+      operationId: createFinanceSaleInvoice
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Created sale invoice
+  /finance/invoices/billing/lease:
+    post:
+      tags: [finance]
+      summary: Create lease billing invoice
+      operationId: createFinanceBillingInvoice
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Created billing invoice
+  /finance/invoices/{id}/payments:
+    post:
+      tags: [finance]
+      summary: Record payment against invoice
+      operationId: recordFinanceInvoicePayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '201':
+          description: Invoice with updated payment summary
+  /finance/invoices/{id}/cancel:
+    patch:
+      tags: [finance]
+      summary: Cancel invoice with optional reason
+      operationId: cancelFinanceInvoiceWithReason
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Cancelled invoice detail
+  /finance/inventory-parts:
+    get:
+      tags: [finance]
+      summary: List inventory parts catalog (interim)
+      operationId: listFinanceInventoryParts
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        '200':
+          description: Paginated parts
+    post:
+      tags: [finance]
+      summary: Create catalog part
+      operationId: createFinanceInventoryPart
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFinanceInventoryPartRequest'
+      responses:
+        '201':
+          description: Part created
+  /finance/vendor-payments:
+    get:
+      tags: [finance]
+      summary: List vendor payments (purchase invoices)
+      operationId: listFinanceVendorPayments
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+          description: Payment ID, purchase invoice number, or vendor name
+      responses:
+        '200':
+          description: Paginated vendor payments
+    post:
+      tags: [finance]
+      summary: Record vendor payment against purchase invoice
+      operationId: createFinanceVendorPayment
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - organizationId
+                - purchaseInvoiceId
+                - amountMinor
+                - paymentDate
+                - paymentMethod
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                purchaseInvoiceId:
+                  type: string
+                  format: uuid
+                amountMinor:
+                  type: integer
+                  minimum: 1
+                paymentDate:
+                  type: string
+                  format: date
+                paymentMethod:
+                  type: string
+                  enum: [bank_transfer, upi, cheque, cash, card, other]
+                paymentReference:
+                  type: string
+                  maxLength: 120
+      responses:
+        '201':
+          description: Vendor payment recorded
+        '400':
+          description: Validation or business rule failure
+  /finance/vendor-payments/purchase-invoices/catalog:
+    get:
+      tags: [finance]
+      summary: Purchase invoices with balance due (record payment picker)
+      operationId: listFinanceVendorPaymentPurchaseInvoices
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        '200':
+          description: Paginated purchase invoices with balance due
+  /finance/vendor-payments/{id}:
+    get:
+      tags: [finance]
+      summary: Vendor payment detail
+      operationId: getFinanceVendorPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Vendor payment detail
+        '404':
+          description: Not found
+    delete:
+      tags: [finance]
+      summary: Remove latest vendor payment on invoice (LIFO)
+      operationId: deleteFinanceVendorPayment
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment removed and invoice totals unwound
+        '400':
+          description: Not the latest payment on the invoice
+        '404':
+          description: Not found
+  /finance/client-statements:
+    get:
+      tags: [finance]
+      summary: List client statement aggregates by period
+      description: >-
+        One row per organisation client. Totals exclude cancelled billing invoices.
+        Sale and purchase invoices are excluded.
+      operationId: listFinanceClientStatements
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: periodStart
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: periodEnd
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+      responses:
+        '200':
+          description: Paginated client rows with period aggregates
+  /finance/client-statements/{clientId}:
+    get:
+      tags: [finance]
+      summary: Client statement detail for a period
+      operationId: getFinanceClientStatementDetail
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: clientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: periodStart
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: periodEnd
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Summary and billing invoice rows (cancelled listed, excluded from totals)
+        '404':
+          description: Client not found
+  /finance/client-statements/{clientId}/send:
+    post:
+      tags: [finance]
+      summary: Record client statement send (email deferred)
+      description: Audit log only until outbound email is wired.
+      operationId: sendFinanceClientStatement
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: clientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, periodStart, periodEnd]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                periodStart:
+                  type: string
+                  format: date
+                periodEnd:
+                  type: string
+                  format: date
+      responses:
+        '200':
+          description: Send recorded; emailDispatch deferred
+        '400':
+          description: No billable billing invoices in period
+        '404':
+          description: Client not found
   /organisation/drivers:
     get:
       tags: [organisation]
@@ -4702,6 +5519,81 @@ components:
         hasFieldChangeHistory:
           type: boolean
           description: True when at least one lease_contract_edit_logs row exists for this contract (field-level PATCH diffs). Use GET change-history for rows.
+    CreateFinancePurchaseVehicleInvoiceRequest:
+      type: object
+      required:
+        - organizationId
+        - supplierId
+        - assetClassName
+        - totalAmountMinor
+        - invoiceDate
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        supplierId:
+          type: string
+          format: uuid
+        assetClassName:
+          type: string
+          maxLength: 120
+        totalAmountMinor:
+          type: integer
+          minimum: 1
+          description: Amount in minor currency units (paise for INR)
+        invoiceDate:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 2000
+    CreateFinancePurchaseSparePartsInvoiceRequest:
+      type: object
+      required:
+        - organizationId
+        - supplierId
+        - inventoryPartId
+        - quantity
+        - unitCostMinor
+        - invoiceDate
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        supplierId:
+          type: string
+          format: uuid
+        inventoryPartId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+        unitCostMinor:
+          type: integer
+          minimum: 1
+        invoiceDate:
+          type: string
+          format: date
+        batchLot:
+          type: string
+          maxLength: 120
+        notes:
+          type: string
+          maxLength: 2000
+    CreateFinanceInventoryPartRequest:
+      type: object
+      required: [organizationId, name]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        partCode:
+          type: string
+          maxLength: 64
     ApiError:
       type: object
       required: [message, code, statusCode]

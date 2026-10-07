@@ -28,6 +28,7 @@ export type LeaseContractStatusFilter =
 export interface LeaseContractListItem {
     id: string;
     contractNumber: string;
+    clientId: string | null;
     clientName: string;
     assetClasses: string;
     startDate: string | null;

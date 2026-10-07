@@ -883,6 +883,7 @@ export class OrganisationRepository {
     options: {
       search?: string;
       isActive?: boolean;
+      orderBy?: 'created' | 'name';
     } = {},
   ): Promise<{ rows: OrganisationClientRow[]; total: number }> {
     const offset = (page - 1) * pageSize;
@@ -913,14 +914,19 @@ export class OrganisationRepository {
       );
     }
     const where = and(...conditions);
+    const orderByName = options.orderBy === 'name';
     const [rows, countRows] = await Promise.all([
       this.db
         .select()
         .from(organisationClients)
         .where(where)
         .orderBy(
-          desc(organisationClients.createdAt),
-          desc(organisationClients.id),
+          ...(orderByName
+            ? [asc(organisationClients.name), asc(organisationClients.id)]
+            : [
+                desc(organisationClients.createdAt),
+                desc(organisationClients.id),
+              ]),
         )
         .limit(pageSize)
         .offset(offset),

@@ -183,6 +183,41 @@
       "when": 1792700000000,
       "tag": "0025_fleet_clients_organisation_client_id",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792800000000,
+      "tag": "0026_finance_invoices",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0027_finance_invoices_batch2",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0028_finance_payment_reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793100000000,
+      "tag": "0029_inventory_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793200000000,
+      "tag": "0030_finance_vendor_payment_numbers",
+      "breakpoints": true
     }
   ]
 }

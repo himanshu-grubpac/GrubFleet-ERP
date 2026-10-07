@@ -1516,6 +1516,517 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Finance",
+      "description": "Finance invoices, vendor payments, client statements, and interim inventory parts catalog.",
+      "item": [
+        {
+          "name": "List invoices",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/invoices?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /finance/invoices — paginated list with optional search, status, invoiceType."
+          },
+          "response": []
+        },
+        {
+          "name": "Payment methods catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/invoices/payment-methods/catalog?organizationId={{organizationId}}",
+            "description": "GET /finance/invoices/payment-methods/catalog — sale/billing record payment picker."
+          },
+          "response": []
+        },
+        {
+          "name": "Create purchase vehicle invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"assetClassName\": \"Sedan\",\n  \"totalAmountMinor\": 2500000,\n  \"invoiceDate\": \"2026-04-01\",\n  \"notes\": \"Optional notes\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/purchase/vehicle",
+            "description": "POST /finance/invoices/purchase/vehicle — PINV-{year}-{seq} assigned server-side."
+          },
+          "response": []
+        },
+        {
+          "name": "Create purchase spare parts invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"inventoryPartId\": \"{{financeInventoryPartId}}\",\n  \"quantity\": 2,\n  \"unitCostMinor\": 50000,\n  \"invoiceDate\": \"2026-04-01\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/purchase/spare-parts",
+            "description": "POST /finance/invoices/purchase/spare-parts — spare parts purchase invoice."
+          },
+          "response": []
+        },
+        {
+          "name": "Create sale invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"vehicleId\": \"{{assetRegisterVehicleId}}\",\n  \"buyerName\": \"Acme Buyer\",\n  \"buyerEmail\": \"buyer@example.com\",\n  \"totalAmountMinor\": 15000000,\n  \"invoiceDate\": \"2026-04-01\",\n  \"requestAutoEmail\": true\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/sale",
+            "description": "POST /finance/invoices/sale — SINV-{year}-{seq}; vehicle must be available in fleet register."
+          },
+          "response": []
+        },
+        {
+          "name": "Create billing invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"clientId\": \"{{organisationClientId}}\",\n  \"leaseContractId\": \"{{leaseContractId}}\",\n  \"billingPeriod\": \"April 2026\",\n  \"totalAmountMinor\": 5000000,\n  \"invoiceDate\": \"2026-04-01\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/billing/lease",
+            "description": "POST /finance/invoices/billing/lease — BINV-{year}-{seq}; client must link to fleet client; contract billable."
+          },
+          "response": []
+        },
+        {
+          "name": "Update invoice",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"notes\": \"Updated notes\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}",
+            "description": "PATCH /finance/invoices/{id} — unpaid sale/billing only; purchase uses remove."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove unpaid purchase invoice",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}?organizationId={{organizationId}}",
+            "description": "DELETE /finance/invoices/{id} — hard delete unpaid purchase invoice only."
+          },
+          "response": []
+        },
+        {
+          "name": "Get invoice detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}?organizationId={{organizationId}}",
+            "description": "GET /finance/invoices/{id} — payment summary and availableActions."
+          },
+          "response": []
+        },
+        {
+          "name": "Record invoice payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"amountMinor\": 100000,\n  \"paymentDate\": \"2026-04-02\",\n  \"paymentMethod\": \"NEFT\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}/payments",
+            "description": "POST /finance/invoices/{id}/payments — updates amountPaidMinor and status."
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel invoice (with reason)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"reason\": \"Duplicate entry\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}/cancel",
+            "description": "PATCH /finance/invoices/{id}/cancel — unpaid or partially_paid only."
+          },
+          "response": []
+        },
+        {
+          "name": "List inventory parts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/inventory-parts?organizationId={{organizationId}}&page=1&pageSize=50",
+            "description": "GET /finance/inventory-parts — interim catalog for spare-parts purchase invoices."
+          },
+          "response": []
+        },
+        {
+          "name": "Create inventory catalog part",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Brake pad set\",\n  \"unitOfMeasure\": \"set\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/inventory-parts",
+            "description": "POST /finance/inventory-parts — inline catalog create for purchase spare-parts lines."
+          },
+          "response": []
+        },
+        {
+          "name": "List vendor payments",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/vendor-payments?organizationId={{organizationId}}&page=1&pageSize=10",
+            "description": "GET /finance/vendor-payments — payments against purchase invoices."
+          },
+          "response": []
+        },
+        {
+          "name": "Vendor payment purchase invoice catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/vendor-payments/purchase-invoices/catalog?organizationId={{organizationId}}&page=1&pageSize=50",
+            "description": "GET /finance/vendor-payments/purchase-invoices/catalog — unpaid/partial purchase invoices with balance."
+          },
+          "response": []
+        },
+        {
+          "name": "Record vendor payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"purchaseInvoiceId\": \"{{financeInvoiceId}}\",\n  \"amountMinor\": 100000,\n  \"paymentDate\": \"2026-06-01\",\n  \"paymentMethod\": \"bank_transfer\",\n  \"paymentReference\": \"UTR-EXAMPLE\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/vendor-payments",
+            "description": "POST /finance/vendor-payments — canonical path for purchase invoice payments."
+          },
+          "response": []
+        },
+        {
+          "name": "Get vendor payment",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/vendor-payments/{{financeVendorPaymentId}}?organizationId={{organizationId}}",
+            "description": "GET /finance/vendor-payments/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Remove vendor payment",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/vendor-payments/{{financeVendorPaymentId}}?organizationId={{organizationId}}",
+            "description": "DELETE /finance/vendor-payments/{id} — latest payment on invoice only (LIFO)."
+          },
+          "response": []
+        },
+        {
+          "name": "List client statements",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/client-statements?organizationId={{organizationId}}&periodStart=2026-07-01&periodEnd=2026-09-30&page=1&pageSize=10",
+            "description": "GET /finance/client-statements — billing-only aggregates per org client for a period."
+          },
+          "response": []
+        },
+        {
+          "name": "Get client statement detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/client-statements/{{organisationClientId}}?organizationId={{organisationId}}&periodStart=2026-07-01&periodEnd=2026-09-30",
+            "description": "GET /finance/client-statements/{clientId} — summary + billing invoice rows."
+          },
+          "response": []
+        },
+        {
+          "name": "Send client statement (audit only)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"periodStart\": \"2026-07-01\",\n  \"periodEnd\": \"2026-09-30\"\n}"
+            },
+            "url": "{{baseUrl}}/finance/client-statements/{{organisationClientId}}/send",
+            "description": "POST /finance/client-statements/{clientId}/send — audit log only; email deferred."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "description": "Stock register, receipts, balance, and read-only parts requests.",
+      "item": [
+        {
+          "name": "List stock register",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/stock-register?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /inventory/stock-register — spare parts catalog."
+          },
+          "response": []
+        },
+        {
+          "name": "Create spare part",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Oil filter\",\n  \"compatibleAssetClasses\": [\"Sedan\"],\n  \"unitOfMeasure\": \"pcs\",\n  \"retailMarkupPercent\": 15,\n  \"wholesaleMarkupPercent\": 10,\n  \"thresholdQuantity\": 5\n}"
+            },
+            "url": "{{baseUrl}}/inventory/stock-register",
+            "description": "POST /inventory/stock-register — creates spare part row."
+          },
+          "response": []
+        },
+        {
+          "name": "Get spare part detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/stock-register/{{inventorySparePartId}}?organizationId={{organizationId}}",
+            "description": "GET /inventory/stock-register/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update spare part",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Oil filter (updated)\",\n  \"thresholdQuantity\": 8\n}"
+            },
+            "url": "{{baseUrl}}/inventory/stock-register/{{inventorySparePartId}}?organizationId={{organizationId}}",
+            "description": "PATCH /inventory/stock-register/{id} — active parts only."
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate spare part",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false,\n  \"reason\": \"Discontinued SKU\"\n}"
+            },
+            "url": "{{baseUrl}}/inventory/stock-register/{{inventorySparePartId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /inventory/stock-register/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "List stock receipts",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/stock-receipts?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /inventory/stock-receipts"
+          },
+          "response": []
+        },
+        {
+          "name": "Create stock receipt",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"partId\": \"{{inventorySparePartId}}\",\n  \"quantity\": 10,\n  \"receiptDate\": \"2026-04-01\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"locationId\": \"{{locationId}}\",\n  \"financeInvoiceId\": \"{{financeInvoiceId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/inventory/stock-receipts",
+            "description": "POST /inventory/stock-receipts — optional financeInvoiceId link."
+          },
+          "response": []
+        },
+        {
+          "name": "Get stock receipt detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/stock-receipts/{{inventoryStockReceiptId}}?organizationId={{organizationId}}",
+            "description": "GET /inventory/stock-receipts/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "List stock balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/stock-balance?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /inventory/stock-balance"
+          },
+          "response": []
+        },
+        {
+          "name": "Get stock balance detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/stock-balance/{{inventorySparePartId}}?organizationId={{organizationId}}",
+            "description": "GET /inventory/stock-balance/{id} — part id."
+          },
+          "response": []
+        },
+        {
+          "name": "List parts requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/parts-requests?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /inventory/parts-requests — read-only."
+          },
+          "response": []
+        },
+        {
+          "name": "Get parts request detail",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/inventory/parts-requests/{{inventoryPartsRequestId}}?organizationId={{organizationId}}",
+            "description": "GET /inventory/parts-requests/{id}"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -1565,6 +2076,38 @@
     },
     {
       "key": "employeeId",
+      "value": ""
+    },
+    {
+      "key": "supplierId",
+      "value": ""
+    },
+    {
+      "key": "organisationClientId",
+      "value": ""
+    },
+    {
+      "key": "financeInvoiceId",
+      "value": ""
+    },
+    {
+      "key": "financeVendorPaymentId",
+      "value": ""
+    },
+    {
+      "key": "financeInventoryPartId",
+      "value": ""
+    },
+    {
+      "key": "inventorySparePartId",
+      "value": ""
+    },
+    {
+      "key": "inventoryStockReceiptId",
+      "value": ""
+    },
+    {
+      "key": "inventoryPartsRequestId",
       "value": ""
     }
   ]

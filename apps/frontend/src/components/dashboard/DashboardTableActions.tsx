@@ -58,6 +58,12 @@ type DashboardTableActionsProps = {
      */
     allowEditWhenInactive?: boolean;
 
+    /**
+     * Hide the Edit action from the overflow menu.
+     * Used by inventory dashboards where editing is not allowed.
+     */
+    hideEdit?: boolean;
+
     onEdit?: () => void;
     onToggleStatus?: () => void;
 
@@ -71,12 +77,14 @@ export default function DashboardTableActions({
     copyText,
     viewHref,
     allowEditWhenInactive = false,
+    hideEdit = false,
     onEdit,
     onToggleStatus,
     renderAdditionalMenuItems,
 }: DashboardTableActionsProps) {
     const isActive = status === "active";
-    const showEdit = onEdit && (isActive || allowEditWhenInactive);
+    const showEdit =
+        !hideEdit && onEdit && (isActive || allowEditWhenInactive);
     const additionalMenuItems = renderAdditionalMenuItems?.();
     const hasAdditionalMenuItems =
         reactNodeHasRenderableContent(additionalMenuItems);

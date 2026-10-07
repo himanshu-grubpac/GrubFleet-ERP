@@ -379,4 +379,108 @@ export const breadcrumbConfig: Record<
             label: "Returns & Inspections",
         },
     ],
+
+    // ============================================================
+    // INVENTORY
+    // ============================================================
+
+    "/inventory": [
+        {
+            label: "Inventory",
+        },
+    ],
+
+    // ----------------------------
+    // Stock Receipt
+    // ----------------------------
+
+    "/inventory/stock-receipt": [
+        {
+            label: "Inventory",
+            href: "/inventory",
+        },
+        {
+            label: "Stock Receipt",
+        },
+    ],
+
+    "/inventory/stock-receipt/create": [
+        {
+            label: "Inventory",
+            href: "/inventory",
+        },
+        {
+            label: "Stock Receipt",
+            href: "/inventory/stock-receipt",
+        },
+        {
+            label: "Create Stock Receipt",
+        },
+    ],
+
+    // ============================================================
+    // FINANCE
+    // ============================================================
+
+    "/finance/vendor-payments": [
+        {
+            label: "Finance",
+            href: "/finance/invoices",
+        },
+        {
+            label: "Vendor Payments",
+        },
+    ],
+
+    "/finance/vendor-payments/record": [
+        {
+            label: "Finance",
+            href: "/finance/invoices",
+        },
+        {
+            label: "Vendor Payments",
+            href: "/finance/vendor-payments",
+        },
+        {
+            label: "Record Payment",
+        },
+    ],
+
+    "/finance/vendor-payments/detail": [
+        {
+            label: "Finance",
+            href: "/finance/invoices",
+        },
+        {
+            label: "Vendor Payments",
+            href: "/finance/vendor-payments",
+        },
+        {
+            label: "Payment detail",
+        },
+    ],
+
+    "/finance/client-statements": [
+        {
+            label: "Finance",
+            href: "/finance/invoices",
+        },
+        {
+            label: "Client Statements",
+        },
+    ],
+
+    "/finance/client-statements/detail": [
+        {
+            label: "Finance",
+            href: "/finance/invoices",
+        },
+        {
+            label: "Client Statements",
+            href: "/finance/client-statements",
+        },
+        {
+            label: "Client detail",
+        },
+    ],
 };
