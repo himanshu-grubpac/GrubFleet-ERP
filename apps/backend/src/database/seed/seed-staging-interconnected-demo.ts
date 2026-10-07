@@ -47,12 +47,14 @@ import {
 } from '../schema/organisation.schema';
 import { organizations } from '../schema';
 import { DEV_ORG_SLUG } from './dev-admin-bootstrap';
+import { purgeStagingInterconnectedDemo } from './purge-staging-interconnected-demo';
 import {
   assertStagingDemoSeedAllowed,
   maskDatabaseUrl,
   resolveStagingDatabaseUrl,
-  STAGING_DEMO_EMAIL_DOMAIN,
   STAGING_DEMO_SEED_SOURCE,
+  stagingSeedContactEmail,
+  stagingSeedPersonEmail,
 } from './staging-demo-guards';
 
 type AppDb = NodePgDatabase<typeof schema>;
@@ -60,12 +62,112 @@ type AppDb = NodePgDatabase<typeof schema>;
 export type StagingDemoSeedSummary = {
   seedSource: string;
   organizationId: string;
+  purged: Record<string, number>;
   inserted: Record<string, number>;
   skipped: Record<string, number>;
 };
 
-function demoEmail(localPart: string): string {
-  return `${localPart}${STAGING_DEMO_EMAIL_DOMAIN}`;
+const SEED_COMPANY_DOMAIN = 'grubfleet-logistics.in';
+
+/** Document numbers and finance dates align to this year (matches portal “current quarter” filters). */
+const SEED_DOC_YEAR = 2026;
+
+function pad2(n: number): string {
+  return n < 10 ? `0${n}` : String(n);
+}
+
+/**
+ * Finance + client-statement list filters use the calendar quarter containing `referenceDate`.
+ * Seed invoice dates inside that quarter so billed/paid/balance columns are non-zero in the UI.
+ */
+function getSeedFinanceCalendar(referenceDate = new Date()): {
+  year: number;
+  invoiceDateForIndex: (index: number) => string;
+  billingPeriodForIndex: (index: number) => string;
+  purchaseDateForIndex: (index: number) => string;
+  paymentDateForIndex: (index: number) => string;
+} {
+  const year = referenceDate.getFullYear();
+  const quarter = Math.floor(referenceDate.getMonth() / 3);
+  const startMonth = quarter * 3;
+  const monthSpan = 3;
+  return {
+    year,
+    invoiceDateForIndex: (index: number) => {
+      const monthIndex = startMonth + (index % monthSpan);
+      const day = 1 + (index % 27);
+      return `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`;
+    },
+    billingPeriodForIndex: (index: number) => {
+      const monthIndex = startMonth + (index % monthSpan);
+      return `${year}-${pad2(monthIndex + 1)}`;
+    },
+    purchaseDateForIndex: (index: number) => {
+      const monthIndex = startMonth + (index % monthSpan);
+      const day = 5 + (index % 20);
+      return `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`;
+    },
+    paymentDateForIndex: (index: number) => {
+      const monthIndex = startMonth + (index % monthSpan);
+      const day = 10 + (index % 18);
+      return `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`;
+    },
+  };
+}
+
+function formatLeaseContractNumber(seq: number): string {
+  return `LC-${SEED_DOC_YEAR}-${String(seq).padStart(4, '0')}`;
+}
+
+function formatFleetClientCode(seq: number): string {
+  return `FL-C-${SEED_DOC_YEAR}-${String(seq).padStart(3, '0')}`;
+}
+
+function formatIndianRegistration(seq: number): string {
+  const district = String(((seq - 1) % 9) + 1).padStart(2, '0');
+  const series = String.fromCharCode(65 + (seq % 26)) + String.fromCharCode(66 + ((seq + 3) % 26));
+  const number = String(1000 + seq);
+  return `KA${district}${series}${number}`;
+}
+
+function formatFleetCode(seq: number): string {
+  return `GF-FLT-${1000 + seq}`;
+}
+
+function formatPartCode(seq: number): string {
+  return `SP-${SEED_DOC_YEAR}-${String(seq).padStart(3, '0')}`;
+}
+
+function formatReceiptNumber(seq: number): string {
+  return `GR-${SEED_DOC_YEAR}-${String(seq).padStart(4, '0')}`;
+}
+
+function formatPartsRequestNumber(seq: number): string {
+  return `PR-${SEED_DOC_YEAR}-${String(seq).padStart(4, '0')}`;
+}
+
+function formatPurchaseInvoiceNumber(seq: number): string {
+  return `PI-${SEED_DOC_YEAR}-${String(seq).padStart(4, '0')}`;
+}
+
+function formatBillingInvoiceNumber(seq: number): string {
+  return `BI-${SEED_DOC_YEAR}-${String(seq).padStart(4, '0')}`;
+}
+
+function formatSaleInvoiceNumber(seq: number): string {
+  return `SI-${SEED_DOC_YEAR}-${String(seq).padStart(4, '0')}`;
+}
+
+function formatVendorPaymentNumber(seq: number): string {
+  return `VP-${SEED_DOC_YEAR}-${String(seq).padStart(4, '0')}`;
+}
+
+function formatDriverCpr(seq: number): string {
+  return `CPR-IN-2024-${String(seq).padStart(4, '0')}`;
+}
+
+function formatDriverLicense(seq: number): string {
+  return `KA04/2024${String(100000 + seq)}`;
 }
 
 function demoIndex(n: number, width = 2): string {
@@ -126,7 +228,7 @@ const LOCATION_TYPE_PRESET_KEYS = [
 const INDIAN_DEMO_SITES = [
   {
     key: 'blr-hq',
-    name: 'GrubFleet Bengaluru HQ',
+    name: 'BlueDart Logistics Hub — Whitefield',
     preset: 'office' as const,
     city: 'Bengaluru',
     state: 'Karnataka',
@@ -136,7 +238,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'mum-hub',
-    name: 'Mumbai Western Logistics Hub',
+    name: 'Mahindra Logistics — Navi Mumbai DC',
     preset: 'warehouse' as const,
     city: 'Navi Mumbai',
     state: 'Maharashtra',
@@ -146,7 +248,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'del-sales',
-    name: 'Delhi NCR Sales Office',
+    name: 'Delhivery NCR Corporate Office',
     preset: 'office' as const,
     city: 'Gurugram',
     state: 'Haryana',
@@ -156,7 +258,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'hyd-workshop',
-    name: 'Hyderabad Fleet Workshop',
+    name: 'Gati-KWE Hyderabad Workshop',
     preset: 'workshop' as const,
     city: 'Hyderabad',
     state: 'Telangana',
@@ -166,7 +268,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'chn-retail',
-    name: 'Chennai Anna Nagar Retail Hub',
+    name: 'DTDC Chennai Anna Nagar Hub',
     preset: 'retail_outlet' as const,
     city: 'Chennai',
     state: 'Tamil Nadu',
@@ -176,7 +278,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'pun-depot',
-    name: 'Pune Hinjawadi Spare Depot',
+    name: 'Safexpress Pune Spares Depot',
     preset: 'warehouse' as const,
     city: 'Pune',
     state: 'Maharashtra',
@@ -186,7 +288,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'ahm-yard',
-    name: 'Ahmedabad Sanand Yard',
+    name: 'VRL Logistics Sanand Yard',
     preset: 'other' as const,
     city: 'Ahmedabad',
     state: 'Gujarat',
@@ -196,7 +298,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'kochi-office',
-    name: 'Kochi Infopark Liaison Office',
+    name: 'Allcargo Kochi Liaison Office',
     preset: 'office' as const,
     city: 'Kochi',
     state: 'Kerala',
@@ -206,7 +308,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'jaipur-retail',
-    name: 'Jaipur Sitapura Retail Counter',
+    name: 'Om Logistics Jaipur Sitapura Counter',
     preset: 'retail_outlet' as const,
     city: 'Jaipur',
     state: 'Rajasthan',
@@ -216,7 +318,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'lko-warehouse',
-    name: 'Lucknow Transport Nagar Warehouse',
+    name: 'TCI Freight Lucknow Warehouse',
     preset: 'warehouse' as const,
     city: 'Lucknow',
     state: 'Uttar Pradesh',
@@ -226,7 +328,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'bbsr-workshop',
-    name: 'Bhubaneswar Patia Workshop',
+    name: 'Gati Patia Bhubaneswar Workshop',
     preset: 'workshop' as const,
     city: 'Bhubaneswar',
     state: 'Odisha',
@@ -236,7 +338,7 @@ const INDIAN_DEMO_SITES = [
   },
   {
     key: 'indore-other',
-    name: 'Indore Pithampur Holding Yard',
+    name: 'Spoton Indore Pithampur Holding Yard',
     preset: 'other' as const,
     city: 'Indore',
     state: 'Madhya Pradesh',
@@ -304,6 +406,7 @@ async function ensureSystemLocationTypes(
 export async function seedStagingInterconnectedDemo(
   db: AppDb,
 ): Promise<StagingDemoSeedSummary> {
+  const purged = await purgeStagingInterconnectedDemo(db);
   const organizationId = await resolveOrganizationId(db);
   const inserted: Record<string, number> = {};
   const skipped: Record<string, number> = {};
@@ -311,6 +414,8 @@ export async function seedStagingInterconnectedDemo(
     if (didInsert) inserted[key] = (inserted[key] ?? 0) + 1;
     else skipped[key] = (skipped[key] ?? 0) + 1;
   };
+
+  const financeCal = getSeedFinanceCalendar();
 
   const typeIds = await ensureSystemLocationTypes(db, organizationId);
   for (const presetKey of LOCATION_TYPE_PRESET_KEYS) {
@@ -334,7 +439,7 @@ export async function seedStagingInterconnectedDemo(
       addressState: site.state,
       addressDistrict: site.district,
       addressPincode: site.pincode,
-      siteContactEmail: demoEmail(`staging.demo.location.${site.key}`),
+      siteContactEmail: stagingSeedContactEmail('location', site.key),
       siteContactPhone: `+9198${demoIndex(index + 1, 2)}01234${demoIndex(index + 1, 2)}`,
     };
     const [existing] = await db
@@ -395,22 +500,64 @@ export async function seedStagingInterconnectedDemo(
     },
   ] as const;
 
+  const SUPPLIER_BRAND_NAMES: Record<(typeof ORG_SUPPLIER_TYPES)[number], string[]> = {
+    bike: [
+      'Hero MotoCorp Fleet Services',
+      'TVS Mobility Partners',
+      'Bajaj Auto Commercial',
+    ],
+    driver: [
+      'DriverOnDemand Staffing',
+      'FleetForce Manpower Solutions',
+      'RoadReady Driver Services',
+    ],
+    spare_parts: [
+      'Precision Spares India',
+      'AutoParts Bharat Wholesale',
+      'Mumbai OEM Components',
+    ],
+    compliance: [
+      'ReguFleet Compliance Advisors',
+      'MotorVehicle Audit Services',
+      'TransSafe Regulatory Consultants',
+    ],
+  };
+
+  const SUPPLIER_CONTACTS = [
+    { first: 'Anita', last: 'Desai' },
+    { first: 'Vikram', last: 'Mehta' },
+    { first: 'Sunita', last: 'Rao' },
+    { first: 'Rahul', last: 'Iyer' },
+    { first: 'Kavita', last: 'Nair' },
+    { first: 'Arjun', last: 'Singh' },
+    { first: 'Meera', last: 'Patel' },
+    { first: 'Sanjay', last: 'Gupta' },
+    { first: 'Deepa', last: 'Reddy' },
+    { first: 'Manish', last: 'Kulkarni' },
+    { first: 'Pooja', last: 'Sharma' },
+    { first: 'Harish', last: 'Verma' },
+  ] as const;
+
   const supplierSeeds = ORG_SUPPLIER_TYPES.flatMap((supplierType, typeIdx) =>
     seq(3).map((i) => {
       const n = typeIdx * 3 + i + 1;
       const geo = supplierCityPool[i] ?? supplierCityPool[0];
-      const typeLabel =
-        supplierType === 'spare_parts' ? 'Spare Parts' : supplierType;
+      const contact = SUPPLIER_CONTACTS[n - 1] ?? SUPPLIER_CONTACTS[0];
+      const brand =
+        SUPPLIER_BRAND_NAMES[supplierType][i] ??
+        SUPPLIER_BRAND_NAMES[supplierType][0];
       return {
         key: `${supplierType}-${i + 1}`,
-        name: `Staging Demo ${typeLabel} Supplier ${n}`,
+        name: brand,
         supplierType,
-        contactPerson: `Demo Contact ${n}`,
+        contactPerson: `${contact.first} ${contact.last}`,
         contactPhone: `+9199${demoIndex(n, 4)}`,
-        contactEmail: demoEmail(
-          `staging.demo.supplier.${supplierType}.${i + 1}`,
+        contactEmail: stagingSeedPersonEmail(
+          contact.first,
+          contact.last,
+          'suppliers.in',
         ),
-        agreementReference: `GSTIN: 27AABCD${demoIndex(n, 4)}E${i + 1}Z5`,
+        agreementReference: `27AABCU${demoIndex(n, 4)}E${i + 1}Z5`,
         addressLine1: `Industrial Estate Unit ${n}`,
         addressCity: geo.city,
         addressState: geo.state,
@@ -470,16 +617,40 @@ export async function seedStagingInterconnectedDemo(
     'HR',
   ] as const;
   const locationKeys = INDIAN_DEMO_SITES.map((s) => s.key);
-  const employeeSeeds = seq(14).map((i) => ({
-    key: `emp-${i + 1}`,
-    fullName: `Staging Demo Employee ${i + 1}`,
-    designation: `Demo ${employeeDepartments[i % employeeDepartments.length]} Lead`,
-    department: employeeDepartments[i % employeeDepartments.length],
-    locationKey: locationKeys[i % locationKeys.length] ?? 'blr-hq',
-    companyEmail: demoEmail(`staging.demo.employee.${i + 1}`),
-    mobile: `+9197${demoIndex(i + 1, 4)}`,
-    isActive: i < 12,
-  }));
+  const EMPLOYEE_ROSTER = [
+    { first: 'Rajesh', last: 'Kumar', designation: 'Regional Operations Manager' },
+    { first: 'Priya', last: 'Sharma', designation: 'Fleet Planning Lead' },
+    { first: 'Amit', last: 'Patel', designation: 'Chief Workshop Engineer' },
+    { first: 'Sneha', last: 'Iyer', designation: 'Finance Controller' },
+    { first: 'Karthik', last: 'Reddy', designation: 'Procurement Manager' },
+    { first: 'Anjali', last: 'Menon', designation: 'HR Business Partner' },
+    { first: 'Rohit', last: 'Das', designation: 'Fleet Supervisor' },
+    { first: 'Neha', last: 'Chopra', designation: 'Operations Analyst' },
+    { first: 'Suresh', last: 'Nair', designation: 'Workshop Foreman' },
+    { first: 'Divya', last: 'Kulkarni', designation: 'Accounts Payable Lead' },
+    { first: 'Vivek', last: 'Malhotra', designation: 'Compliance Officer' },
+    { first: 'Lakshmi', last: 'Venkatesh', designation: 'Inventory Coordinator' },
+    { first: 'Arun', last: 'Bose', designation: 'Deputy Fleet Manager' },
+    { first: 'Pallavi', last: 'Joshi', designation: 'Customer Success Lead' },
+  ] as const;
+
+  const employeeSeeds = seq(14).map((i) => {
+    const person = EMPLOYEE_ROSTER[i] ?? EMPLOYEE_ROSTER[0];
+    return {
+      key: `emp-${i + 1}`,
+      fullName: `${person.first} ${person.last}`,
+      designation: person.designation,
+      department: employeeDepartments[i % employeeDepartments.length],
+      locationKey: locationKeys[i % locationKeys.length] ?? 'blr-hq',
+      companyEmail: stagingSeedPersonEmail(
+        person.first,
+        person.last,
+        SEED_COMPANY_DOMAIN,
+      ),
+      mobile: `+9197${demoIndex(i + 1, 4)}`,
+      isActive: i < 12,
+    };
+  });
 
   const employeeIds = new Map<string, string>();
   for (const seed of employeeSeeds) {
@@ -502,6 +673,7 @@ export async function seedStagingInterconnectedDemo(
       .insert(organisationEmployees)
       .values({
         organizationId,
+        employeeCode: `GF-EMP-2025-${String(parseInt(seed.key.replace('emp-', ''), 10)).padStart(3, '0')}`,
         fullName: seed.fullName,
         designation: seed.designation,
         department: seed.department,
@@ -549,41 +721,77 @@ export async function seedStagingInterconnectedDemo(
     },
   ] as const;
 
+  const CLIENT_COMPANIES = [
+    'Swiggy Instamart Logistics Pvt Ltd',
+    'Zomato Hyperpure Distribution',
+    'BigBasket Daily Fleet Services',
+    'Flipkart Ekart Last Mile',
+    'Amazon Transportation Services India',
+    'Dunzo Digital Pvt Ltd',
+    'Blinkit Commerce Pvt Ltd',
+    'Zepto Consumer Products Pvt Ltd',
+    'Meesho Logistics Partners',
+    'PharmEasy Fleet Operations',
+    'Licious Fresh Fleet Pvt Ltd',
+    'Urban Company Mobility Services',
+    'Reliance Retail Quick Commerce',
+    'Tata 1mg Delivery Network',
+  ] as const;
+
+  const CLIENT_POCS = [
+    { first: 'Aditya', last: 'Shah' },
+    { first: 'Bhavna', last: 'Krishnan' },
+    { first: 'Chetan', last: 'Agarwal' },
+    { first: 'Disha', last: 'Banerjee' },
+    { first: 'Eshan', last: 'Kapoor' },
+    { first: 'Farah', last: 'Qureshi' },
+    { first: 'Gaurav', last: 'Saxena' },
+    { first: 'Hema', last: 'Pillai' },
+    { first: 'Imran', last: 'Sheikh' },
+    { first: 'Jyoti', last: 'Mishra' },
+    { first: 'Kunal', last: 'Bhatia' },
+    { first: 'Leela', last: 'Raman' },
+    { first: 'Mohit', last: 'Chawla' },
+    { first: 'Nandini', last: 'Subramanian' },
+  ] as const;
+
   const clientSeeds = seq(14).map((i) => {
     const geo = clientGeoPool[i % clientGeoPool.length] ?? clientGeoPool[0];
+    const poc = CLIENT_POCS[i] ?? CLIENT_POCS[0];
+    const company = CLIENT_COMPANIES[i] ?? CLIENT_COMPANIES[0];
+    const domain = company
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '')
+      .slice(0, 18);
     return {
       key: `client-${i + 1}`,
-      name: `Staging Demo Client ${i + 1} Pvt Ltd`,
-      addressLine1: `Plot ${i + 1}, Demo Industrial Area`,
+      name: company,
+      addressLine1: `Plot ${i + 1}, Industrial Area Phase ${(i % 3) + 1}`,
       addressCity: geo.city,
       addressState: geo.state,
       addressDistrict: geo.district,
       addressPincode: geo.pin,
-      pocName: `Client POC ${i + 1}`,
+      pocName: `${poc.first} ${poc.last}`,
       pocPhone: `+9196${demoIndex(i + 1, 4)}`,
-      pocEmail: demoEmail(`staging.demo.client.${i + 1}`),
+      pocEmail: stagingSeedPersonEmail(poc.first, poc.last, `${domain}.in`),
       isActive: i < 12,
     };
   });
 
   const orgClientIds = new Map<string, string>();
   for (const seed of clientSeeds) {
-    const [existingPoc] = await db
-      .select({ clientId: organisationClientPocs.clientId })
-      .from(organisationClientPocs)
-      .innerJoin(
-        organisationClients,
-        eq(organisationClientPocs.clientId, organisationClients.id),
-      )
+    const [existingClient] = await db
+      .select({ id: organisationClients.id })
+      .from(organisationClients)
       .where(
         and(
           eq(organisationClients.organizationId, organizationId),
-          eq(organisationClientPocs.email, seed.pocEmail),
+          eq(organisationClients.name, seed.name),
         ),
       )
       .limit(1);
-    if (existingPoc) {
-      orgClientIds.set(seed.key, existingPoc.clientId);
+    if (existingClient) {
+      orgClientIds.set(seed.key, existingClient.id);
       bump('clients', false);
       continue;
     }
@@ -614,19 +822,39 @@ export async function seedStagingInterconnectedDemo(
   }
 
   const driverSupplierKeys = ['driver-1', 'driver-2', 'driver-3'] as const;
+  const DRIVER_NAMES = [
+    { first: 'Ramesh', last: 'Yadav' },
+    { first: 'Sunil', last: 'Pandey' },
+    { first: 'Mahesh', last: 'Thakur' },
+    { first: 'Dinesh', last: 'Rawat' },
+    { first: 'Prakash', last: 'Shetty' },
+    { first: 'Govind', last: 'Mishra' },
+    { first: 'Ashok', last: 'Lal' },
+    { first: 'Vinod', last: 'Tiwari' },
+    { first: 'Santosh', last: 'Gowda' },
+    { first: 'Ravi', last: 'Hegde' },
+    { first: 'Manoj', last: 'Sinha' },
+    { first: 'Pankaj', last: 'Dubey' },
+    { first: 'Naveen', last: 'Chaudhary' },
+    { first: 'Harpreet', last: 'Singh' },
+    { first: 'Imtiaz', last: 'Khan' },
+  ] as const;
+
   const driverSeeds = seq(15).map((i) => {
     const supplierKey =
       driverSupplierKeys[i % driverSupplierKeys.length] ?? 'driver-1';
     const licenseExpired = i >= 10;
     const isActive = i >= 5 && i < 10 ? false : true;
     const licenseExpiry = licenseExpired ? '2024-06-30' : '2027-12-31';
+    const person = DRIVER_NAMES[i] ?? DRIVER_NAMES[0];
+    const seqNo = i + 1;
     return {
-      key: `driver-${i + 1}`,
-      name: `Staging Demo Driver ${i + 1}`,
-      cprNo: `STDEMO-CPR-${demoIndex(i + 1, 3)}`,
-      phone: `+9195${demoIndex(i + 1, 4)}`,
-      email: demoEmail(`staging.demo.driver.${i + 1}`),
-      licenseNumber: `DL-STDEMO-${demoIndex(i + 1, 4)}`,
+      key: `driver-${seqNo}`,
+      name: `${person.first} ${person.last}`,
+      cprNo: formatDriverCpr(seqNo),
+      phone: `+9195${demoIndex(seqNo, 4)}`,
+      email: stagingSeedPersonEmail(person.first, person.last, 'drivers.in'),
+      licenseNumber: formatDriverLicense(seqNo),
       licenseExpiry,
       supplierKey,
       addressLine1: `Driver Colony Block ${i + 1}`,
@@ -679,7 +907,7 @@ export async function seedStagingInterconnectedDemo(
   const assetClassSeeds = [
     {
       key: 'scooter-2w-a',
-      code: 'SD2A',
+      code: 'GF2WA',
       name: 'Petrol Scooter — Standard',
       vehicleType: '2W' as const,
       fuelType: 'Petrol',
@@ -690,7 +918,7 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'scooter-2w-b',
-      code: 'SD2B',
+      code: 'GF2WE',
       name: 'Electric Scooter — City',
       vehicleType: '2W' as const,
       fuelType: 'Electric',
@@ -701,7 +929,7 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'auto-3w-a',
-      code: 'SD3A',
+      code: 'GF3WC',
       name: 'CNG Passenger Auto',
       vehicleType: '3W' as const,
       fuelType: 'CNG',
@@ -712,7 +940,7 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'cargo-3w',
-      code: 'SDC3',
+      code: 'GF3WE',
       name: 'Electric Cargo Loader',
       vehicleType: '3W' as const,
       fuelType: 'Electric',
@@ -723,7 +951,7 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'auto-3w-b',
-      code: 'SD3B',
+      code: 'GF3WD',
       name: 'Diesel Cargo Auto',
       vehicleType: '3W' as const,
       fuelType: 'Diesel',
@@ -734,7 +962,7 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'lcv-4w-a',
-      code: 'SD4A',
+      code: 'GF4WD',
       name: 'Diesel Light Commercial Van',
       vehicleType: '4W' as const,
       fuelType: 'Diesel',
@@ -745,7 +973,7 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'lcv-4w-b',
-      code: 'SD4B',
+      code: 'GF4WC',
       name: 'CNG Mini Truck',
       vehicleType: '4W' as const,
       fuelType: 'CNG',
@@ -873,9 +1101,9 @@ export async function seedStagingInterconnectedDemo(
       key: `v${n}`,
       classKey,
       masterKey: `${classKey}-m1`,
-      fleetCode: `STDEMO-${1000 + n}`,
-      registrationNumber: `KA${demoIndex(n, 2)}ST${1000 + n}`,
-      chassisNumber: `STGDM${1000 + n}CHASSIS0001`,
+      fleetCode: formatFleetCode(n),
+      registrationNumber: formatIndianRegistration(n),
+      chassisNumber: `MAT${String(12345678901234 + n).padStart(17, '0')}`,
       operationalStatus:
         VEHICLE_OPERATIONAL_STATUSES[i % VEHICLE_OPERATIONAL_STATUSES.length],
       isActive: i !== 14,
@@ -940,7 +1168,7 @@ export async function seedStagingInterconnectedDemo(
   for (const [index, clientKey] of clientKeys.entries()) {
     const orgClientId = orgClientIds.get(clientKey);
     if (!orgClientId) continue;
-    const clientCode = `STDEMO-C${index + 1}`;
+    const clientCode = formatFleetClientCode(index + 1);
     const [existing] = await db
       .select({ id: fleetClients.id })
       .from(fleetClients)
@@ -963,7 +1191,7 @@ export async function seedStagingInterconnectedDemo(
         organizationId,
         clientCode,
         companyName: orgClient?.name ?? clientKey,
-        taxId: `27AABCD${1000 + index}E${index + 1}Z5`,
+        taxId: `29AABCT${1000 + index}E${index + 1}Z5`,
         address: orgClient?.addressLine1 ?? 'India',
         organisationClientId: orgClientId,
         isActive: true,
@@ -992,7 +1220,7 @@ export async function seedStagingInterconnectedDemo(
     billingFrequency: 'monthly' | 'quarterly' | 'annual';
     assignVehicle: boolean;
   }> = LEASE_DEMO_STATUSES.map((status, index) => ({
-    contractNumber: `STDEMO-LC-${demoIndex(index + 1, 3)}`,
+    contractNumber: formatLeaseContractNumber(index + 1),
     status,
     clientKey: clientKeys[index % clientKeys.length] ?? 'client-1',
     classKey:
@@ -1006,7 +1234,7 @@ export async function seedStagingInterconnectedDemo(
   }));
 
   leaseStatusSeeds.push({
-    contractNumber: 'STDEMO-LC-011',
+    contractNumber: formatLeaseContractNumber(11),
     status: 'active',
     clientKey: clientKeys[11] ?? 'client-12',
     classKey: 'lcv-4w-a',
@@ -1015,7 +1243,7 @@ export async function seedStagingInterconnectedDemo(
     assignVehicle: true,
   });
   leaseStatusSeeds.push({
-    contractNumber: 'STDEMO-LC-012',
+    contractNumber: formatLeaseContractNumber(12),
     status: 'active',
     clientKey: clientKeys[10] ?? 'client-11',
     classKey: 'cargo-3w',
@@ -1137,7 +1365,7 @@ export async function seedStagingInterconnectedDemo(
     const vehicle = vehicleSeeds[seed.assignVehicleIndex];
     if (!vehicle) continue;
     const classRef = assetClassIds.get(vehicle.classKey);
-    const activeLeaseNumber = 'STDEMO-LC-004';
+    const activeLeaseNumber = formatLeaseContractNumber(4);
     await db
       .update(organisationDrivers)
       .set({
@@ -1154,10 +1382,25 @@ export async function seedStagingInterconnectedDemo(
       );
   }
 
+  const PART_NAMES = [
+    'Front Brake Pad Set — Activa',
+    'Rear Shock Absorber — Jupiter',
+    'CNG Reducer Kit — Bajaj RE',
+    'EV Battery Management Module',
+    'Cargo Box Hinge Assembly',
+    'Clutch Plate — Maxima Cargo',
+    'Tata Ace Oil Filter Cartridge',
+    'Dost Lite Air Filter Element',
+    'Supro CNG Spark Plug Set',
+    'Tyre 90/90-12 Tubeless',
+    'Headlamp Assembly LED',
+    'Side Mirror Pair — LCV',
+  ] as const;
+
   const partSeeds = seq(12).map((i) => ({
     key: `part-${i + 1}`,
-    name: `Staging Demo Spare Part ${i + 1}`,
-    partCode: `STDEMO-P${demoIndex(i + 1, 3)}`,
+    name: PART_NAMES[i] ?? `Fleet Spare Part ${i + 1}`,
+    partCode: formatPartCode(i + 1),
     isActive: i < 10,
   }));
 
@@ -1215,7 +1458,7 @@ export async function seedStagingInterconnectedDemo(
       spareSupplierKeys[index % spareSupplierKeys.length] ?? 'spare_parts-1';
     const supplierId = supplierIds.get(supplierKey);
     if (!partId || !locationId) continue;
-    const receiptNumber = `STDEMO-SR-${demoIndex(index + 1, 3)}`;
+    const receiptNumber = formatReceiptNumber(index + 1);
     const [existing] = await db
       .select({ id: inventoryStockReceipts.id })
       .from(inventoryStockReceipts)
@@ -1236,10 +1479,10 @@ export async function seedStagingInterconnectedDemo(
       partId,
       supplierId: supplierId ?? null,
       locationId,
-      purchaseDate: '2025-06-15',
+      purchaseDate: financeCal.purchaseDateForIndex(index),
       quantityReceived: 20 + index * 5,
-      unitCostMinor: 85000 + index * 15000,
-      batchLotReference: `LOT-STDEMO-${index + 1}`,
+      unitCostMinor: 185000 + index * 25000,
+      batchLotReference: `LOT-GR-${SEED_DOC_YEAR}-${String(index + 1).padStart(3, '0')}`,
       notes: STAGING_DEMO_SEED_SOURCE,
       isActive: true,
     });
@@ -1253,7 +1496,7 @@ export async function seedStagingInterconnectedDemo(
     const partId = partIds.get(partKey);
     const locationId = locationIds.get('blr-hq');
     if (!partId || !locationId) continue;
-    const requestNumber = `STDEMO-PR-${demoIndex(index + 1, 3)}`;
+    const requestNumber = formatPartsRequestNumber(index + 1);
     const [existing] = await db
       .select({ id: inventoryPartsRequests.id })
       .from(inventoryPartsRequests)
@@ -1272,12 +1515,12 @@ export async function seedStagingInterconnectedDemo(
     await db.insert(inventoryPartsRequests).values({
       organizationId,
       requestNumber,
-      workOrderRef: `WO-STDEMO-${2025}${demoIndex(index + 1, 2)}`,
+      workOrderRef: `WO-2025-${String(index + 1).padStart(4, '0')}`,
       partId,
       locationId,
       quantityRequested: 2 + (index % 4),
       requestType: index % 2 === 0 ? 'internal' : 'external',
-      vehicleRef: vehicle?.fleetCode ?? 'STDEMO-1001',
+      vehicleRef: vehicle?.fleetCode ?? formatFleetCode(1),
       status,
       compatibilityOk: status !== 'blocked',
     });
@@ -1289,11 +1532,11 @@ export async function seedStagingInterconnectedDemo(
       supplierSeeds[index % supplierSeeds.length]?.key ?? 'spare_parts-1';
     const status =
       FINANCE_INVOICE_STATUSES[index % FINANCE_INVOICE_STATUSES.length];
-    const amountMinor = 4500000 + index * 250000;
+    const amountMinor = 12500000 + index * 750000;
     const paidRatio =
       status === 'paid' ? 1 : status === 'partially_paid' ? 0.4 : 0;
     return {
-      number: `STDEMO-PI-${demoIndex(index + 1, 3)}`,
+      number: formatPurchaseInvoiceNumber(index + 1),
       supplierKey,
       amountMinor,
       status,
@@ -1331,15 +1574,15 @@ export async function seedStagingInterconnectedDemo(
         partyName:
           supplierSeeds.find((s) => s.key === inv.supplierKey)?.name ??
           'Supplier',
-        description: `Staging demo purchase — ${STAGING_DEMO_SEED_SOURCE}`,
+        description: 'Vendor purchase — spare parts and vehicle procurement',
         totalAmountMinor: inv.amountMinor,
         amountPaidMinor: inv.amountPaidMinor,
-        invoiceDate: '2025-07-01',
+        invoiceDate: financeCal.invoiceDateForIndex(index),
         notes: STAGING_DEMO_SEED_SOURCE,
         purchaseLineKind: inv.lineKind,
         cancelReason:
           inv.status === 'cancelled'
-            ? 'Demo cancellation for filter coverage'
+            ? 'Vendor credit note — invoice voided per agreement'
             : null,
       })
       .returning({ id: financeInvoices.id });
@@ -1353,7 +1596,7 @@ export async function seedStagingInterconnectedDemo(
         quantity: 10,
         unitCostMinor: Math.floor(inv.amountMinor / 10),
         lineAmountMinor: inv.amountMinor,
-        batchLot: `LOT-STDEMO-${index + 1}`,
+        batchLot: `LOT-GR-${SEED_DOC_YEAR}-${String(index + 1).padStart(3, '0')}`,
       });
     } else if (inv.lineKind === 'vehicle' && vehicleId) {
       await db.insert(financeInvoiceLines).values({
@@ -1365,7 +1608,7 @@ export async function seedStagingInterconnectedDemo(
       });
     }
     if (inv.amountPaidMinor > 0) {
-      const paymentNumber = `STDEMO-VP-${demoIndex(index + 1, 3)}`;
+      const paymentNumber = formatVendorPaymentNumber(index + 1);
       const [vpExisting] = await db
         .select({ id: financeInvoicePayments.id })
         .from(financeInvoicePayments)
@@ -1381,9 +1624,9 @@ export async function seedStagingInterconnectedDemo(
           invoiceId: row.id,
           organizationId,
           amountMinor: inv.amountPaidMinor,
-          paymentDate: '2025-07-10',
+          paymentDate: financeCal.paymentDateForIndex(index),
           paymentMethod: index % 2 === 0 ? 'NEFT' : 'UPI',
-          paymentReference: `UTR-STDEMO-${demoIndex(index + 1, 3)}`,
+          paymentReference: `HDFC${financeCal.year}${pad2((index % 3) + 10)}${String(index + 1).padStart(6, '0')}`,
           paymentNumber,
         });
         bump('vendorPayments', true);
@@ -1398,19 +1641,19 @@ export async function seedStagingInterconnectedDemo(
     const clientKey = clientKeys[index];
     if (!clientKey) continue;
     const orgClientId = orgClientIds.get(clientKey);
-    const contractNumber = `STDEMO-LC-${demoIndex(index + 1, 3)}`;
+    const contractNumber = formatLeaseContractNumber(index + 1);
     const leaseId = leaseContractIds.get(contractNumber);
     if (!orgClientId) continue;
     const billingStatus =
       FINANCE_INVOICE_STATUSES[(index + 1) % FINANCE_INVOICE_STATUSES.length];
-    const amountMinor = 1250000 + index * 50000;
+    const amountMinor = 28500000 + index * 1500000;
     const paidRatio =
       billingStatus === 'paid'
         ? 1
         : billingStatus === 'partially_paid'
           ? 0.5
           : 0;
-    const number = `STDEMO-BI-${demoIndex(index + 1, 3)}`;
+    const number = formatBillingInvoiceNumber(index + 1);
     const [existing] = await db
       .select({ id: financeInvoices.id })
       .from(financeInvoices)
@@ -1437,16 +1680,16 @@ export async function seedStagingInterconnectedDemo(
         clientId: orgClientId,
         leaseContractId: leaseId ?? null,
         partyName: clientName,
-        description: `Lease billing Jul 2025 — ${STAGING_DEMO_SEED_SOURCE}`,
+        description: `Monthly lease billing — ${financeCal.billingPeriodForIndex(index)}`,
         totalAmountMinor: amountMinor,
         amountPaidMinor: Math.floor(amountMinor * paidRatio),
-        invoiceDate: '2025-07-31',
-        billingPeriod: '2025-07',
+        invoiceDate: financeCal.invoiceDateForIndex(index),
+        billingPeriod: financeCal.billingPeriodForIndex(index),
         notes: STAGING_DEMO_SEED_SOURCE,
         purchaseLineKind: 'billing_lease',
         cancelReason:
           billingStatus === 'cancelled'
-            ? 'Demo billing void for filter coverage'
+            ? 'Billing reversal — contract amendment'
             : null,
       })
       .returning({ id: financeInvoices.id });
@@ -1468,10 +1711,10 @@ export async function seedStagingInterconnectedDemo(
     if (!vehicleId) continue;
     const saleStatus =
       FINANCE_INVOICE_STATUSES[(index + 2) % FINANCE_INVOICE_STATUSES.length];
-    const amountMinor = 18500000 + index * 500000;
+    const amountMinor = 245000000 + index * 5000000;
     const paidRatio =
       saleStatus === 'paid' ? 1 : saleStatus === 'partially_paid' ? 0.35 : 0;
-    const number = `STDEMO-SI-${demoIndex(index + 1, 3)}`;
+    const number = formatSaleInvoiceNumber(index + 1);
     const [existing] = await db
       .select({ id: financeInvoices.id })
       .from(financeInvoices)
@@ -1494,15 +1737,15 @@ export async function seedStagingInterconnectedDemo(
         invoiceType: 'sale',
         status: saleStatus,
         partyName: clientSeeds[index]?.name ?? 'Buyer',
-        description: `Vehicle sale invoice — ${STAGING_DEMO_SEED_SOURCE}`,
+        description: 'Vehicle sale — registered disposal invoice',
         totalAmountMinor: amountMinor,
         amountPaidMinor: Math.floor(amountMinor * paidRatio),
-        invoiceDate: '2025-08-01',
+        invoiceDate: financeCal.invoiceDateForIndex(index + 4),
         notes: STAGING_DEMO_SEED_SOURCE,
         purchaseLineKind: 'sale_vehicle',
         cancelReason:
           saleStatus === 'cancelled'
-            ? 'Demo sale void for filter coverage'
+            ? 'Sale cancelled — buyer financing fell through'
             : null,
       })
       .returning({ id: financeInvoices.id });
@@ -1519,6 +1762,7 @@ export async function seedStagingInterconnectedDemo(
   return {
     seedSource: STAGING_DEMO_SEED_SOURCE,
     organizationId,
+    purged,
     inserted,
     skipped,
   };
