@@ -202,6 +202,37 @@ export async function createOrganisationClientApi(
   });
 }
 
+/** Organisation create + fleet link (lease wizard and org create share this path). */
+export async function createOrganisationClientFromForm(
+  token: string,
+  organizationId: string,
+  input: {
+    clientName: string;
+    address: OrganizationAddress;
+    pointsOfContact: PointOfContact[];
+  },
+): Promise<OrganisationClientDetail> {
+  const payload = buildClientPayloadFromForm({
+    organizationId,
+    clientName: input.clientName,
+    address: input.address,
+    pointsOfContact: input.pointsOfContact,
+  });
+  return createOrganisationClientApi(token, payload);
+}
+
+export function requireLinkedFleetClientId(
+  detail: OrganisationClientDetail,
+): string {
+  const fleetId = detail.linkedFleetClientId?.trim();
+  if (!fleetId) {
+    throw new Error(
+      "Client was saved but fleet link is missing. Refresh and try again.",
+    );
+  }
+  return fleetId;
+}
+
 export async function updateOrganisationClientApi(
   token: string,
   organizationId: string,

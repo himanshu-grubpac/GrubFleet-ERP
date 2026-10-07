@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
+import { internalHref } from "@/lib/navigation/nav-path-match";
 import { cn } from "@/lib/utils";
 
 type SubPageBackLinkProps = {
@@ -19,7 +20,7 @@ export function SubPageBackLink({
 }: SubPageBackLinkProps) {
   return (
     <Link
-      href={href}
+      href={internalHref(href)}
       className={cn(
         "inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition hover:text-[#FE5720]",
         className,

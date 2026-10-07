@@ -14,7 +14,15 @@ import TermsStep, {
     type LeaseTerms,
 } from "@/components/modules/fleet-leasing/NewContract/TermsStep";
 import ReviewStep from "@/components/modules/fleet-leasing/NewContract/ReviewStep";
-import CustomerRegistrationForm from "@/components/modules/fleet-leasing/NewContract/CustomerRegistrationForm";
+import CreateClientPage, {
+    type ClientFormData,
+} from "@/components/modules/organization/clients/CreateClientPage";
+import {
+    createOrganisationClientFromForm,
+    organisationClientsQueryKey,
+    requireLinkedFleetClientId,
+} from "@/lib/api/organisation/clients";
+import { ApiClientError } from "@/lib/api/client";
 import LeaseContractStepper from "@/components/modules/fleet-leasing/NewContract/LeaseContractStepper";
 import Button from "@/components/ui/GrubpacButton";
 import { Plus } from "lucide-react";
@@ -274,6 +282,51 @@ export default function EditLeaseContractPage({
         }
     };
 
+    const handleRegisterClientSaved = async (data: ClientFormData) => {
+        if (!token || !organizationId) {
+            throw new Error(
+                "Authentication or organization information is missing.",
+            );
+        }
+
+        try {
+            const created = await createOrganisationClientFromForm(
+                token,
+                organizationId,
+                {
+                    clientName: data.companyName,
+                    address: data.address,
+                    pointsOfContact: data.pointsOfContact,
+                },
+            );
+            const fleetClientId = requireLinkedFleetClientId(created);
+            await Promise.all([
+                queryClient.invalidateQueries({
+                    queryKey: organisationClientsQueryKey(organizationId),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: ["organization", "clients"],
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: ["fleet-leasing-clients", organizationId],
+                }),
+            ]);
+            await handleClientCreated({
+                id: fleetClientId,
+                companyName: created.clientName,
+            } as FleetClientDetail);
+        } catch (error) {
+            const message =
+                error instanceof ApiClientError
+                    ? error.message
+                    : error instanceof Error
+                      ? error.message
+                      : "Could not save client.";
+            showErrorToast(message);
+            throw error;
+        }
+    };
+
     const listBackLink = useMemo(
         () => ({
             label: "Back to contract",
@@ -349,9 +402,12 @@ export default function EditLeaseContractPage({
                         {wizardError}
                     </div>
                 )}
-                <CustomerRegistrationForm
-                    initialCompanyName={registerClientDraftName}
-                    onSuccess={handleClientCreated}
+                <CreateClientPage
+                    variant="embedded"
+                    initialData={{
+                        companyName: registerClientDraftName,
+                    }}
+                    onSaved={handleRegisterClientSaved}
                     onCancel={() => {
                         setRegisterClientDraftName("");
                         setScreen("select-client");

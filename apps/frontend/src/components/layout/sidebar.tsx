@@ -15,6 +15,10 @@ import {
     filterNavByPermissions,
     type NavItem,
 } from "@/lib/navigation/modules";
+import {
+    internalHref,
+    isNavHrefActive,
+} from "@/lib/navigation/nav-path-match";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -309,9 +313,7 @@ function SidebarItem({
     const hasChildren =
         !!item.children && item.children.length > 0;
 
-    const isActive =
-        pathname === item.href ||
-        pathname.startsWith(`${item.href}/`);
+    const isActive = isNavHrefActive(pathname, item.href);
 
     const [open, setOpen] = useState(isActive);
     const [flyoutOpen, setFlyoutOpen] = useState(false);
@@ -357,14 +359,15 @@ function SidebarItem({
                                 {item.label}
                             </p>
                             {item.children!.map((child) => {
-                                const childActive =
-                                    pathname === child.href ||
-                                    pathname.startsWith(`${child.href}/`);
+                                const childActive = isNavHrefActive(
+                                    pathname,
+                                    child.href,
+                                );
 
                                 return (
                                     <Link
                                         key={child.href}
-                                        href={child.href}
+                                        href={internalHref(child.href)}
                                         role="menuitem"
                                         onClick={() => setFlyoutOpen(false)}
                                         className={cn(
@@ -406,7 +409,7 @@ function SidebarItem({
             setOpen(true);
             const firstChild = item.children?.[0];
             if (!isActive && firstChild) {
-                router.push(firstChild.href);
+                router.push(internalHref(firstChild.href));
             } else {
                 setOpen((prev) => !prev);
             }
@@ -446,14 +449,15 @@ function SidebarItem({
                 {open && (
                     <div className="ml-5 mt-1 space-y-1 border-l border-slate-200 pl-3">
                         {item.children!.map((child) => {
-                            const childActive =
-                                pathname === child.href ||
-                                pathname.startsWith(`${child.href}/`);
+                            const childActive = isNavHrefActive(
+                                pathname,
+                                child.href,
+                            );
 
                             return (
                                 <Link
                                     key={child.href}
-                                    href={child.href}
+                                    href={internalHref(child.href)}
                                     className={cn(
                                         "block rounded-md px-3 py-2 text-sm transition-colors",
                                         childActive
@@ -473,7 +477,7 @@ function SidebarItem({
 
     return (
         <Link
-            href={item.href}
+            href={internalHref(item.href)}
             title={collapsed ? item.label : undefined}
             className={cn(
                 "flex items-center rounded-lg text-sm font-medium transition-colors",

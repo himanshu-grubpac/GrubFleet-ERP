@@ -219,7 +219,7 @@ export default function CreateClientPage({
         });
 
         if (
-            pointsOfContact.length > 0 &&
+            pointsOfContact.length > 1 &&
             !pointsOfContact.some(
                 (contact) => contact.isPrimary
             )
@@ -270,7 +270,7 @@ export default function CreateClientPage({
         });
 
         if (
-            pointsOfContact.length > 0 &&
+            pointsOfContact.length > 1 &&
             !pointsOfContact.some((contact) => contact.isPrimary)
         ) {
             draftErrors.primaryContact = "Select a primary contact.";
@@ -305,6 +305,10 @@ export default function CreateClientPage({
                     name: contact.name.trim(),
                     contactNumber: contact.contactNumber.trim(),
                     email: contact.email.trim(),
+                    isPrimary:
+                        pointsOfContact.length === 1
+                            ? true
+                            : contact.isPrimary,
                 })),
             };
 
@@ -324,7 +328,7 @@ export default function CreateClientPage({
         <div className="flex items-center gap-3">
             <Button
                 type="button"
-                variant="neutral"
+                variant="outline"
                 onClick={
                     onCancel ??
                     (() => router.push("/organization/clients"))
@@ -417,7 +421,7 @@ export default function CreateClientPage({
 
                         <Button
                             type="button"
-                            variant="neutral"
+                            variant="secondary"
                             onClick={addContact}
                         >
                             Add contact
@@ -594,26 +598,26 @@ export default function CreateClientPage({
                                                 )}
                                         </div>
 
-                                        {/* Primary */}
-                                        <div className="flex items-center pt-7">
-                                            <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
-                                                <input
-                                                    type="radio"
-                                                    name="primary-contact"
-                                                    checked={
-                                                        contact.isPrimary
-                                                    }
-                                                    onChange={() =>
-                                                        makePrimary(
-                                                            contact.id
-                                                        )
-                                                    }
-                                                    className="h-4 w-4 accent-[#FE5720]"
-                                                />
-
-                                                Primary
-                                            </label>
-                                        </div>
+                                        {pointsOfContact.length > 1 ? (
+                                            <div className="flex items-center pt-7">
+                                                <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-700">
+                                                    <input
+                                                        type="radio"
+                                                        name="primary-contact"
+                                                        checked={
+                                                            contact.isPrimary
+                                                        }
+                                                        onChange={() =>
+                                                            makePrimary(
+                                                                contact.id,
+                                                            )
+                                                        }
+                                                        className="h-4 w-4 accent-[#FE5720]"
+                                                    />
+                                                    Primary
+                                                </label>
+                                            </div>
+                                        ) : null}
                                     </div>
                                 </div>
                             )

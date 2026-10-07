@@ -20,11 +20,11 @@ import CreateClientPage, {
     type ClientFormData,
 } from "@/components/modules/organization/clients/CreateClientPage";
 import {
-    buildFleetClientPayloadFromForm,
+    createOrganisationClientFromForm,
     organisationClientsQueryKey,
+    requireLinkedFleetClientId,
 } from "@/lib/api/organisation/clients";
 import { ApiClientError } from "@/lib/api/client";
-import { createFleetClient } from "@/lib/api/lease-contracts";
 import { useQueryClient } from "@tanstack/react-query";
 
 import type {
@@ -222,35 +222,33 @@ export default function NewLeaseContractPage() {
             );
         }
 
-        let payload;
         try {
-            payload = buildFleetClientPayloadFromForm({
-                organizationId,
-                clientName: data.companyName,
-                address: data.address,
-                pointsOfContact: data.pointsOfContact,
-            });
-        } catch {
-            showErrorToast("Could not prepare client data.");
-            throw new Error("Could not prepare client data.");
-        }
-
-        try {
-            const created = await createFleetClient(
+            const created = await createOrganisationClientFromForm(
                 token,
                 organizationId,
-                payload,
+                {
+                    clientName: data.companyName,
+                    address: data.address,
+                    pointsOfContact: data.pointsOfContact,
+                },
             );
+            const fleetClientId = requireLinkedFleetClientId(created);
             await Promise.all([
                 queryClient.invalidateQueries({
                     queryKey: organisationClientsQueryKey(organizationId),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: ["organization", "clients"],
                 }),
                 queryClient.invalidateQueries({
                     queryKey: ["fleet-leasing-clients", organizationId],
                 }),
             ]);
 
-            await handleClientCreated(created);
+            await handleClientCreated({
+                id: fleetClientId,
+                companyName: created.clientName,
+            } as FleetClientDetail);
         } catch (error) {
             const message =
                 error instanceof ApiClientError

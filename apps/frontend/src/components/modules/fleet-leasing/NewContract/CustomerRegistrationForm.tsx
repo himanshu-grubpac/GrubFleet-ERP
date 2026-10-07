@@ -442,10 +442,10 @@ export default function CustomerRegistrationForm({
                 <div className="flex flex-col-reverse items-stretch justify-end gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
                     <Button
                         type="button"
-                        variant="secondary"
+                        variant="outline"
                         onClick={onCancel}
                         disabled={isSubmitting}
-                        className="h-9 px-5 text-sm"
+                        className="h-9 px-5 text-sm font-semibold text-gray-700"
                     >
                         Cancel
                     </Button>

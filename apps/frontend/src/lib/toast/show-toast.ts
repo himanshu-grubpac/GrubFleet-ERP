@@ -72,6 +72,30 @@ export function showSupplierDeactivatedToast(name: string): void {
   showSuccessToast(`${name} was deactivated`);
 }
 
+export function showSparePartCreatedToast(name: string): void {
+  showSuccessToast(`${name} was added to stock register`);
+}
+
+export function showSparePartUpdatedToast(name: string): void {
+  showSuccessToast(`${name} was updated`);
+}
+
+export function showSparePartActivatedToast(name: string): void {
+  showSuccessToast(`${name} was activated`);
+}
+
+export function showSparePartDeactivatedToast(name: string): void {
+  showSuccessToast(`${name} was deactivated`);
+}
+
+export function showStockReceiptCreatedToast(label: string): void {
+  showSuccessToast(`Stock receipt ${label} was saved`);
+}
+
+export function showStockReceiptUpdatedToast(label: string): void {
+  showSuccessToast(`Stock receipt ${label} was updated`);
+}
+
 export const SUPPLIER_SAVE_ERROR = "Could not save supplier. Try again.";
 export const SUPPLIER_STATUS_UPDATE_ERROR =
   "Could not update supplier status. Try again.";
@@ -278,3 +302,60 @@ export function showMutationResultToast(input: MutationResultToastInput): void {
   }
   showErrorToast(input.errorMessage);
 }
+
+export function showFinanceInvoiceCreatedToast(invoiceNumber: string): void {
+  showSuccessToast(`Invoice ${invoiceNumber} was created`);
+}
+
+export function showFinanceInvoiceCancelledToast(invoiceNumber: string): void {
+  showSuccessToast(`Invoice ${invoiceNumber} was cancelled`);
+}
+
+export function showFinanceInvoiceRemovedToast(invoiceNumber: string): void {
+  showSuccessToast(`Invoice ${invoiceNumber} was removed from the register`);
+}
+
+export function showFinanceInvoiceUpdatedToast(invoiceNumber: string): void {
+  showSuccessToast(`Invoice ${invoiceNumber} was updated`);
+}
+
+export function showFinanceInvoicePaymentRecordedToast(
+  invoiceNumber: string,
+): void {
+  showSuccessToast(`Payment recorded for ${invoiceNumber}`);
+}
+
+export function showFinanceClientStatementSendRecordedToast(
+  clientName: string,
+): void {
+  showSuccessToast(
+    `Statement for ${clientName} was recorded. Email delivery is not enabled yet.`,
+  );
+}
+
+export const FINANCE_CLIENT_STATEMENT_SEND_ERROR =
+  "Could not record statement send. Try again.";
+
+export const FINANCE_INVOICE_SAVE_ERROR =
+  "Could not save invoice. Try again.";
+export const FINANCE_INVOICE_CANCEL_ERROR =
+  "Could not cancel invoice. Try again.";
+export const FINANCE_INVOICE_REMOVE_ERROR =
+  "Could not remove invoice. Try again.";
+
+export function showFinanceVendorPaymentRecordedToast(
+  paymentNumber: string,
+): void {
+  showSuccessToast(`Vendor payment ${paymentNumber} was recorded`);
+}
+
+export function showFinanceVendorPaymentRemovedToast(
+  paymentNumber: string,
+): void {
+  showSuccessToast(`Vendor payment ${paymentNumber} was removed`);
+}
+
+export const FINANCE_VENDOR_PAYMENT_SAVE_ERROR =
+  "Could not record vendor payment. Try again.";
+export const FINANCE_VENDOR_PAYMENT_REMOVE_ERROR =
+  "Could not remove vendor payment. Try again.";
