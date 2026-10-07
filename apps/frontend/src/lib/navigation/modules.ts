@@ -127,23 +127,23 @@ export const mainNavItems: NavItem[] = [
 
       {
         label: "Stock Register",
-        href: "/inventory/Stock-register",
+        href: "/inventory/Stock-register/",
         icon: Package,
       },
 
       {
         label: "Stock Balance",
-        href: "/inventory/stock-balance",
+        href: "/inventory/stock-balance/",
         icon: ClipboardList,
       },
       {
         label: "Stock Receipt",
-        href: "/inventory/stock-receipt",
+        href: "/inventory/stock-receipt/",
         icon: ClipboardCheck,
       },
       {
         label: "Parts Requests",
-        href: "/inventory/parts-requests",
+        href: "/inventory/parts-requests/",
         icon: Wrench,
       },
     ],
@@ -192,7 +192,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Finance",
-    href: "/finance/invoices/",
+    href: "/finance/",
     icon: Wallet,
     requiredPermission: "finance.view",
     children: [
