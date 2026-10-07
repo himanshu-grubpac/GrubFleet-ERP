@@ -118,48 +118,14 @@ export default function DashboardFilters({
     /* Filter Title                                                            */
     /* ---------------------------------------------------------------------- */
 
-    const getFilterTitle = (
-        label: string
-    ) => {
-        const cleanedLabel = label
+    /** Dropdown prefix only — do not de-pluralize (e.g. Status → Statu). */
+    const getFilterTitle = (label: string) => {
+        const trimmed = label.trim();
+        const withoutAllPrefix = trimmed
             .replace(/^all\s+/i, "")
             .trim();
-
-        if (
-            cleanedLabel
-                .toLowerCase()
-                .endsWith("ies")
-        ) {
-            return (
-                cleanedLabel.slice(0, -3) +
-                "y"
-            ).replace(
-                /^./,
-                (char) =>
-                    char.toUpperCase()
-            );
-        }
-
-        const lower = cleanedLabel.toLowerCase();
-        if (
-            lower.endsWith("s") &&
-            !lower.endsWith("us") &&
-            !lower.endsWith("ss")
-        ) {
-            return cleanedLabel
-                .slice(0, -1)
-                .replace(
-                    /^./,
-                    (char) =>
-                        char.toUpperCase()
-                );
-        }
-
-        return cleanedLabel.replace(
-            /^./,
-            (char) =>
-                char.toUpperCase()
-        );
+        const display = withoutAllPrefix || trimmed;
+        return display.charAt(0).toUpperCase() + display.slice(1);
     };
 
     /* ---------------------------------------------------------------------- */

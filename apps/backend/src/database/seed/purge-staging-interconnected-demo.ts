@@ -466,10 +466,14 @@ export async function purgeStagingInterconnectedDemo(
     if (supplierLinkedInvoiceIds.length > 0) {
       await db
         .delete(financeInvoicePayments)
-        .where(inArray(financeInvoicePayments.invoiceId, supplierLinkedInvoiceIds));
+        .where(
+          inArray(financeInvoicePayments.invoiceId, supplierLinkedInvoiceIds),
+        );
       await db
         .delete(financeInvoiceLines)
-        .where(inArray(financeInvoiceLines.invoiceId, supplierLinkedInvoiceIds));
+        .where(
+          inArray(financeInvoiceLines.invoiceId, supplierLinkedInvoiceIds),
+        );
       const extraInvDel = await db
         .delete(financeInvoices)
         .where(inArray(financeInvoices.id, supplierLinkedInvoiceIds))
@@ -492,10 +496,7 @@ export async function purgeStagingInterconnectedDemo(
         or(
           demoEmailSql(organisationLocations.siteContactEmail),
           seededSiteEmails.length > 0
-            ? inArray(
-                organisationLocations.siteContactEmail,
-                seededSiteEmails,
-              )
+            ? inArray(organisationLocations.siteContactEmail, seededSiteEmails)
             : sql`false`,
           sql`${organisationLocations.name} LIKE 'Staging Demo%'`,
           sql`${organisationLocations.name} LIKE 'GrubFleet%'`,
