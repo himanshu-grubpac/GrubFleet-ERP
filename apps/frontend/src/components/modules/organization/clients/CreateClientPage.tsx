@@ -43,6 +43,9 @@ type CreateClientFormProps = {
     ) => void | Promise<void>;
 
     initialData?: Partial<ClientFormData>;
+
+    /** When embedded in another flow (e.g. lease wizard), skip page shell layout. */
+    variant?: "standalone" | "embedded";
 };
 
 const createEmptyContact = (
@@ -59,6 +62,7 @@ export default function CreateClientPage({
     onCancel,
     onSaved,
     initialData,
+    variant = "standalone",
 }: CreateClientFormProps) {
     const router = useRouter();
 
@@ -316,42 +320,36 @@ export default function CreateClientPage({
         }
     };
 
-    return (
-        <OrganizationFormLayout
-            title={isEditMode ? "Edit Client" : "Add Client"}
-            description="Shared customer register — selected from here at New Lease Contract (Flow 01) instead of typed in per contract"
-            actions={
-                <div className="flex items-center gap-3">
-                    <Button
-                        type="button"
-                        variant="neutral"
-                        onClick={
-                            onCancel ??
-                            (() =>
-                                router.push(
-                                    "/organization/clients"
-                                ))
-                        }
-                        disabled={saving}
-                    >
-                        Cancel
-                    </Button>
+    const actionButtons = (
+        <div className="flex items-center gap-3">
+            <Button
+                type="button"
+                variant="neutral"
+                onClick={
+                    onCancel ??
+                    (() => router.push("/organization/clients"))
+                }
+                disabled={saving}
+            >
+                Cancel
+            </Button>
 
-                    <Button
-                        type="button"
-                        variant="primary"
-                        onClick={handleSubmit}
-                        disabled={!canSubmit}
-                    >
-                        {saving
-                            ? "Saving..."
-                            : isEditMode
-                                ? "Save Changes"
-                                : "Save Client"}
-                    </Button>
-                </div>
-            }
-        >
+            <Button
+                type="button"
+                variant="primary"
+                onClick={handleSubmit}
+                disabled={!canSubmit}
+            >
+                {saving
+                    ? "Saving..."
+                    : isEditMode
+                      ? "Save Changes"
+                      : "Save Client"}
+            </Button>
+        </div>
+    );
+
+    const formBody = (
             <div className="space-y-6">
                 {/* Company Information */}
                 <section className="rounded-lg border border-gray-200 bg-white p-5">
@@ -623,6 +621,26 @@ export default function CreateClientPage({
                     </div>
                 </section>
             </div>
+    );
+
+    if (variant === "embedded") {
+        return (
+            <div className="space-y-4">
+                {formBody}
+                <div className="flex justify-end border-t border-slate-200 pt-4">
+                    {actionButtons}
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <OrganizationFormLayout
+            title={isEditMode ? "Edit Client" : "Add Client"}
+            description="Shared customer register — selected from here at New Lease Contract (Flow 01) instead of typed in per contract"
+            actions={actionButtons}
+        >
+            {formBody}
         </OrganizationFormLayout>
     );
 }

@@ -316,6 +316,19 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .expect(200);
     const byNameBody = byName.body as PaginatedClientsResponse;
     expect(byNameBody.items.some((c) => c.id === createdBody.id)).toBe(true);
+
+    const orgList = await request(app.getHttpServer())
+      .get('/api/v1/organisation/clients')
+      .query({ organizationId, search: lease02Token, page: 1, pageSize: 50 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const orgListBody = orgList.body as {
+      items: Array<{ clientName: string }>;
+    };
+    expect(
+      orgListBody.items.some((row) => row.clientName.includes(lease02Token)),
+    ).toBe(true);
   });
 
   it('LEASE-02: client list includes contractCount', async () => {

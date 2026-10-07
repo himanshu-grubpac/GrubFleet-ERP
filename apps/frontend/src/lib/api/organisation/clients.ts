@@ -2,6 +2,7 @@ import type { PaginatedResponse } from "@grubpac/shared-types";
 import type { OrganizationAddress } from "@/components/common/OrganizationAddressForm";
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
+import type { CreateFleetClientPayload } from "@/lib/api/lease-contracts";
 import { apiFetch } from "../client";
 
 export type ClientStatus = "active" | "inactive";
@@ -40,6 +41,8 @@ export type OrganisationClientListItem = {
 export type OrganisationClientDetail = {
   id: string;
   clientName: string;
+  /** Fleet leasing picker id (linked fleet_clients row). */
+  linkedFleetClientId?: string | null;
   status: ClientStatus;
   isActive: boolean;
   address: string;
@@ -236,6 +239,27 @@ export async function updateOrganisationClientStatusApi(
       body: JSON.stringify(body),
     },
   );
+}
+
+/** Maps shared client form → fleet create (creates organisation client + link server-side). */
+export function buildFleetClientPayloadFromForm(input: {
+  organizationId: string;
+  clientName: string;
+  address: OrganizationAddress;
+  pointsOfContact: PointOfContact[];
+}): Omit<CreateFleetClientPayload, "organizationId"> {
+  const org = buildClientPayloadFromForm(input);
+  return {
+    companyName: org.clientName,
+    addressLine1: org.addressLine1,
+    addressLine2: org.addressLine2,
+    addressCity: org.addressCity,
+    addressCountry: org.addressCountry,
+    addressState: org.addressState,
+    addressDistrict: org.addressDistrict,
+    addressPincode: org.addressPincode,
+    pointsOfContact: org.pointsOfContact,
+  };
 }
 
 export function buildClientPayloadFromForm(input: {

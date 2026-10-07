@@ -267,6 +267,13 @@ export type CreateFleetClientPayload = {
     companyName: string;
     taxId?: string;
     address?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    addressCity?: string;
+    addressCountry?: string;
+    addressState?: string;
+    addressDistrict?: string;
+    addressPincode?: string;
     pointsOfContact: Array<{
         name: string;
         contactNumber: string;

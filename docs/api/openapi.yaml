@@ -1480,7 +1480,7 @@ paths:
   /fleet-leasing/clients:
     get:
       tags: [fleet-leasing]
-      summary: List/search fleet clients (wizard step 1 — company or POC)
+      summary: List/search clients for lease wizard (organisation register; ensures fleet link)
       operationId: listFleetClients
       security:
         - bearerAuth: []
@@ -1498,7 +1498,7 @@ paths:
           description: Paginated clients with primary POC and contractCount
     post:
       tags: [fleet-leasing]
-      summary: Create client with one or more POCs (exactly one primary)
+      summary: Create organisation client + linked fleet client (lease picker id)
       operationId: createFleetClient
       security:
         - bearerAuth: []
@@ -1522,6 +1522,29 @@ paths:
                   description: GSTIN / Tax ID (optional)
                 address:
                   type: string
+                  description: Legacy line when structured address fields omitted
+                addressLine1:
+                  type: string
+                  maxLength: 255
+                addressLine2:
+                  type: string
+                  maxLength: 255
+                addressCity:
+                  type: string
+                  maxLength: 120
+                addressCountry:
+                  type: string
+                  minLength: 2
+                  maxLength: 2
+                addressState:
+                  type: string
+                  maxLength: 120
+                addressDistrict:
+                  type: string
+                  maxLength: 120
+                addressPincode:
+                  type: string
+                  maxLength: 20
                 pointsOfContact:
                   type: array
                   minItems: 1

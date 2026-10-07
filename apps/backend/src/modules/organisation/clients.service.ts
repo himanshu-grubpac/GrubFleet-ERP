@@ -5,6 +5,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
+import { FleetClientsService } from '../fleet-leasing/fleet-clients.service';
 import { LeaseContractsService } from '../fleet-leasing/lease-contracts.service';
 import {
   DEFAULT_PAGE,
@@ -42,6 +43,8 @@ export class ClientsService {
     private readonly audit: AuditService,
     @Inject(forwardRef(() => LeaseContractsService))
     private readonly leaseContracts: LeaseContractsService,
+    @Inject(forwardRef(() => FleetClientsService))
+    private readonly fleetClients: FleetClientsService,
   ) {}
 
   async list(query: ListOrganisationClientsQueryDto) {
@@ -91,7 +94,14 @@ export class ClientsService {
         organizationId,
         clientId,
       );
-    return this.toDetail(bundle.client, bundle.pocs, contractHistory);
+    const linkedFleetClientId = await this.fleetClients.getLinkedFleetClientId(
+      organizationId,
+      clientId,
+    );
+    return {
+      ...this.toDetail(bundle.client, bundle.pocs, contractHistory),
+      linkedFleetClientId,
+    };
   }
 
   async create(dto: CreateOrganisationClientDto) {
@@ -114,7 +124,12 @@ export class ClientsService {
       inserted.id,
       dto.pointsOfContact.map((p, i) => this.toPocInsert(p, i)),
     );
-    return this.getById(dto.organizationId, inserted.id);
+    const fleet = await this.fleetClients.syncFromOrganisationClient(
+      dto.organizationId,
+      inserted.id,
+    );
+    const detail = await this.getById(dto.organizationId, inserted.id);
+    return { ...detail, linkedFleetClientId: fleet.id };
   }
 
   async update(
