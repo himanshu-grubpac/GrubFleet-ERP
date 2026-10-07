@@ -79,16 +79,50 @@ Resources:
               }
             }
           }
-          var leasePrefix = '/fleet-leasing/lease-contracts/';
-          if (uri.indexOf(leasePrefix) === 0) {
-            var tail = uri.slice(leasePrefix.length);
-            tail = tail.replace(/index\.html$/, '').replace(/\/$/, '');
-            if (tail && tail !== 'detail' && tail.indexOf('/') === -1) {
-              request.uri = leasePrefix + 'detail/index.html';
-              request.querystring = request.querystring || {};
-              request.querystring.leaseId = { value: tail };
-              return request;
+          var entityRoutes = [
+            { prefix: '/fleet-leasing/lease-contracts/', q: 'leaseId' },
+            { prefix: '/organization/locations/', q: 'locationId' },
+            { prefix: '/organization/suppliers/', q: 'supplierId' },
+            { prefix: '/organization/employees/', q: 'employeeId' },
+            { prefix: '/organization/clients/', q: 'clientId' },
+            { prefix: '/organization/driver-register/', q: 'driverId' },
+            { prefix: '/asset-register/assestclass/', q: 'assetClassId' },
+            { prefix: '/asset-register/asset-master/', q: 'assetMasterId' },
+            { prefix: '/asset-register/fleetregister/', q: 'vehicleId' },
+            { prefix: '/asset-register/asset-assign/', q: 'vehicleId' },
+            { prefix: '/asset-register/compliance-renewals/', q: 'vehicleId' }
+          ];
+          for (var i = 0; i < entityRoutes.length; i++) {
+            var route = entityRoutes[i];
+            if (uri.indexOf(route.prefix) !== 0) {
+              continue;
             }
+            var orgTail = uri.slice(route.prefix.length);
+            orgTail = orgTail.replace(/index\.html$/, '').replace(/\/$/, '');
+            if (!orgTail || orgTail === 'detail' || orgTail === 'edit' || orgTail === 'new') {
+              continue;
+            }
+            var slashIdx = orgTail.indexOf('/');
+            var entityId = slashIdx === -1 ? orgTail : orgTail.slice(0, slashIdx);
+            var subPath = slashIdx === -1 ? '' : orgTail.slice(slashIdx + 1);
+            if (!entityId) {
+              continue;
+            }
+            if (subPath === 'edit') {
+              request.uri = route.prefix + 'edit/index.html';
+            } else if (
+              subPath === 'lease-history' &&
+              route.prefix.indexOf('/asset-register/fleetregister/') === 0
+            ) {
+              request.uri = route.prefix + 'detail/lease-history/index.html';
+            } else if (!subPath) {
+              request.uri = route.prefix + 'detail/index.html';
+            } else {
+              continue;
+            }
+            request.querystring = request.querystring || {};
+            request.querystring[route.q] = { value: entityId };
+            return request;
           }
           if (uri.endsWith('/')) {
             request.uri = uri + 'index.html';

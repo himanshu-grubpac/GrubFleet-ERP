@@ -22,6 +22,10 @@ import {
   shouldShowDashboardListFilters,
 } from "@/lib/hooks/dashboard-list-search-ui";
 import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  fleetLeaseContractDetailHref,
+  fleetRenewLeaseContractHref,
+} from "@/lib/navigation/fleet-static-routes";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 
 function formatTermMonths(termMonths: number | null): string {
@@ -105,9 +109,7 @@ export default function RenewalsExtensionsTable() {
   ];
 
   const handleRenew = (row: LeaseContractListItem) => {
-    router.push(
-      `/fleet-leasing/renewals-extensions/renew?leaseId=${encodeURIComponent(row.id)}`,
-    );
+    router.push(fleetRenewLeaseContractHref(row.id));
   };
 
   const handleClearSearch = () => {
@@ -185,7 +187,7 @@ export default function RenewalsExtensionsTable() {
                   renderActions={(row) => (
                     <DashboardTableActions
                       status="active"
-                      viewHref={`/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(row.id)}`}
+                      viewHref={fleetLeaseContractDetailHref(row.id)}
                       copyText={formatLeaseContractRowCopyText(row)}
                       renderAdditionalMenuItems={() =>
                         canRenew ? (

@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import {
+    organisationSupplierDetailHref,
+} from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
@@ -23,7 +27,6 @@ import CreateSupplierForm, {
 } from "@/components/modules/organization/suppliers/CreateSupplierForm";
 
 export default function EditSupplierPage() {
-    const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
     const {
@@ -33,7 +36,7 @@ export default function EditSupplierPage() {
         permissions,
     } = useAuth();
 
-    const supplierId = String(params.id);
+    const supplierId = useOrganisationEntityId("supplierId");
 
     const canUpdate =
         permissions.has("organisation.update") ||
@@ -60,7 +63,7 @@ export default function EditSupplierPage() {
             return;
         }
         if (!detail.isActive || detail.status === "inactive") {
-            router.replace(`/organization/suppliers/${supplierId}`);
+            router.replace(organisationSupplierDetailHref(supplierId));
         }
     }, [supplierQuery.data, supplierId, router]);
 
@@ -114,7 +117,7 @@ export default function EditSupplierPage() {
                 queryKey: ["organization", "supplier", organizationId, supplierId],
             });
             showSupplierUpdatedToast(updated.name);
-            router.push(`/organization/suppliers/${supplierId}`);
+            router.push(organisationSupplierDetailHref(supplierId));
         } catch (error) {
             const message =
                 error instanceof ApiClientError

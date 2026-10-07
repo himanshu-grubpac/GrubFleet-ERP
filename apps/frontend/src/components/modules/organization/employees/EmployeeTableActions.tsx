@@ -1,6 +1,7 @@
 "use client";
 
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import { organisationEmployeeDetailHref } from "@/lib/navigation/organisation-static-routes";
 import { formatPhoneForCopy } from "@/lib/format/phone-format";
 
 export type EmployeeListRowForActions = {
@@ -48,7 +49,7 @@ export default function EmployeeTableActions({
     return (
         <DashboardTableActions
             status={status}
-            viewHref={`/organization/employees/${employee.id}`}
+            viewHref={organisationEmployeeDetailHref(employee.id)}
             copyText={formatEmployeeListRowCopyText(employee)}
             onEdit={onEdit}
             onToggleStatus={onToggleStatus}

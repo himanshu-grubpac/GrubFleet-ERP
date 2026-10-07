@@ -15,6 +15,7 @@ import { ApiClientError } from "@/lib/api/client";
 import { formatIndianRupee } from "@/lib/format/currency-format";
 import { formatCalendarDateEnIn } from "@/lib/format/date-format";
 import { useGrubpacAuth } from "@/lib/auth-context";
+import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
 import {
     showErrorToast,
     showLeaseContractSubmittedToast,
@@ -146,9 +147,7 @@ export default function ReviewStep({
             const contractId = result.contract?.id ?? draftContractId;
 
             showLeaseContractSubmittedToast();
-            router.push(
-                `/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(contractId)}`,
-            );
+            router.push(fleetLeaseContractDetailHref(contractId));
         } catch (err) {
             const message =
                 err instanceof ApiClientError

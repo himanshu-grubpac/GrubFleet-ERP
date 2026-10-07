@@ -24,6 +24,10 @@ import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
+  fleetLeaseContractDetailHref,
+  fleetLeaseContractEditHref,
+} from "@/lib/navigation/fleet-static-routes";
+import {
   LEASE_CONTRACT_STATUS_UPDATE_ERROR,
   showErrorToast,
   showLeaseContractActivatedToast,
@@ -201,9 +205,7 @@ export default function LeaseContractsTable() {
   });
 
   const handleEdit = (contract: LeaseContractListItem) => {
-    router.push(
-      `/fleet-leasing/lease-contracts/${encodeURIComponent(contract.id)}/edit`,
-    );
+    router.push(fleetLeaseContractEditHref(contract.id));
   };
 
   const handleConfirmActivate = () => {
@@ -260,7 +262,7 @@ export default function LeaseContractsTable() {
     return (
       <DashboardTableActions
         status={listRowStatus}
-        viewHref={`/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(row.id)}`}
+        viewHref={fleetLeaseContractDetailHref(row.id)}
         copyText={formatLeaseContractRowCopyText(row)}
         onEdit={showEdit ? () => handleEdit(row) : undefined}
         renderAdditionalMenuItems={() => (

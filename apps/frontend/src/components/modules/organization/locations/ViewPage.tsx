@@ -1,6 +1,8 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import { organisationLocationEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -28,7 +30,6 @@ import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 const EMPTY = "—";
 
 export default function LocationDetailsPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const {
@@ -42,7 +43,7 @@ export default function LocationDetailsPage() {
     permissions.has("organisation.update") ||
     permissions.has("organisation.manage");
 
-  const locationId = params.id as string;
+  const locationId = useOrganisationEntityId("locationId");
 
   const [deactivateOpen, setDeactivateOpen] = useState(false);
   const [activateOpen, setActivateOpen] = useState(false);
@@ -102,7 +103,7 @@ export default function LocationDetailsPage() {
   });
 
   const handleEdit = () => {
-    router.push(`/organization/locations/${locationId}/edit`);
+    router.push(organisationLocationEditHref(locationId));
   };
 
   const handleToggleStatus = () => {

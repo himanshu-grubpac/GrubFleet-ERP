@@ -10,6 +10,10 @@ import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
+import {
+  assetRegisterFleetDetailHref,
+  assetRegisterFleetEditHref,
+} from "@/lib/navigation/asset-register-static-routes";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
@@ -229,7 +233,7 @@ export default function FleetDashboardPage() {
     };
 
     const handleEdit = (vehicle: FleetVehicle) => {
-        router.push(`/asset-register/fleetregister/${vehicle.id}/edit`);
+        router.push(assetRegisterFleetEditHref(vehicle.id));
     };
 
     /* ---------------------------------------------------------------------- */
@@ -489,7 +493,7 @@ export default function FleetDashboardPage() {
                                     : "active"
                             }
                             locationId={vehicle.id}
-                            viewHref={`/asset-register/fleetregister/${vehicle.id}`}
+                            viewHref={assetRegisterFleetDetailHref(vehicle.id)}
                             onEdit={() =>
                                 handleEdit(vehicle)
                             }

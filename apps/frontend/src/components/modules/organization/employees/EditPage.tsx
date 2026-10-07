@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import {
+  organisationEmployeeDetailHref,
+} from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CreateEmployeePage, {
@@ -21,7 +25,6 @@ import {
 } from "@/lib/toast/show-toast";
 
 export default function EditEmployeePage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const {
@@ -31,7 +34,7 @@ export default function EditEmployeePage() {
     permissions,
   } = useAuth();
 
-  const employeeId = String(params.id);
+  const employeeId = useOrganisationEntityId("employeeId");
 
   const canUpdate =
     permissions.has("organisation.update") ||
@@ -56,7 +59,7 @@ export default function EditEmployeePage() {
     const detail = employeeQuery.data;
     if (!detail) return;
     if (detail.status === "inactive") {
-      router.replace(`/organization/employees/${employeeId}`);
+      router.replace(organisationEmployeeDetailHref(employeeId));
     }
   }, [employeeQuery.data, employeeId, router]);
 
@@ -77,7 +80,7 @@ export default function EditEmployeePage() {
   }, [employeeQuery.data]);
 
   const handleCancel = () => {
-    router.push(`/organization/employees/${employeeId}`);
+    router.push(organisationEmployeeDetailHref(employeeId));
   };
 
   const handleSaved = async (data: EmployeeFormData) => {
@@ -115,7 +118,7 @@ export default function EditEmployeePage() {
         queryKey: ["organization", "employee", organizationId, employeeId],
       });
       showEmployeeUpdatedToast(updated.fullName);
-      router.push(`/organization/employees/${employeeId}`);
+      router.push(organisationEmployeeDetailHref(employeeId));
     } catch (error) {
       const message =
         error instanceof ApiClientError

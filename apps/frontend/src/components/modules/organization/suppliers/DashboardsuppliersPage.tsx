@@ -31,6 +31,10 @@ import {
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import {
+    organisationSupplierDetailHref,
+    organisationSupplierEditHref,
+} from "@/lib/navigation/organisation-static-routes";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardContact from "@/components/dashboard/DashboardContact";
 
@@ -201,7 +205,7 @@ export default function SuppliersPage() {
     ) : undefined;
 
     const handleEdit = (supplier: Supplier) => {
-        router.push(`/organization/suppliers/${supplier.id}/edit`);
+        router.push(organisationSupplierEditHref(supplier.id));
     };
 
     const handleClearFilters = () => {
@@ -396,7 +400,7 @@ export default function SuppliersPage() {
                         <DashboardTableActions
                             status={supplier.status}
                             locationId={supplier.id}
-                            viewHref={`/organization/suppliers/${supplier.id}`}
+                            viewHref={organisationSupplierDetailHref(supplier.id)}
                             onEdit={
                                 canUpdate && supplier.status === "active"
                                     ? () => handleEdit(supplier)

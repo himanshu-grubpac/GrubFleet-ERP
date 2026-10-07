@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { assetRegisterAssetMasterDetailHref } from "@/lib/navigation/asset-register-static-routes";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CreateAssetMasterForm, {
@@ -28,13 +30,12 @@ import {
 } from "@/lib/api/asset-register/mappers";
 
 export default function EditAssetMasterPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { token, organizationId, isLoading: isAuthLoading, permissions } =
     useAuth();
 
-  const assetId = String(params.id);
+  const assetId = useAssetRegisterEntityId("assetMasterId");
 
   const canUpdate =
     permissions.has("asset_register.update") ||
@@ -101,7 +102,7 @@ export default function EditAssetMasterPage() {
         queryKey: ["asset-register", "asset-masters"],
       });
       showAssetMasterUpdatedToast();
-      router.push(`/asset-register/asset-master/${assetId}`);
+      router.push(assetRegisterAssetMasterDetailHref(assetId));
     },
     onError: (error: Error) => {
       showErrorToast(error.message || ASSET_MASTER_SAVE_ERROR);
@@ -110,7 +111,7 @@ export default function EditAssetMasterPage() {
 
   useEffect(() => {
     if (detailQuery.data && !detailQuery.data.isActive) {
-      router.replace(`/asset-register/asset-master/${assetId}`);
+      router.replace(assetRegisterAssetMasterDetailHref(assetId));
     }
   }, [detailQuery.data, assetId, router]);
 
@@ -151,7 +152,7 @@ export default function EditAssetMasterPage() {
       initialData={assetMasterDetailToFormData(detailQuery.data)}
       assetClasses={classesQuery.data ?? []}
       onCancel={() => {
-        router.push(`/asset-register/asset-master/${assetId}`);
+        router.push(assetRegisterAssetMasterDetailHref(assetId));
       }}
       onSaved={async (data) => {
         await updateMutation.mutateAsync(data);

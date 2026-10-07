@@ -10,6 +10,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
 import { createOrganisationEmployeeApi } from "@/lib/api/organisation/employees";
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
+import { organisationEmployeeDetailHref } from "@/lib/navigation/organisation-static-routes";
 import {
   EMPLOYEE_SAVE_ERROR,
   showEmployeeCreatedToast,
@@ -58,7 +59,7 @@ export default function CreatePage() {
         queryKey: ["organization", "employees"],
       });
       showEmployeeCreatedToast(created.fullName);
-      router.push(`/organization/employees/${created.id}`);
+      router.push(organisationEmployeeDetailHref(created.id));
     } catch (error) {
       const message =
         error instanceof ApiClientError

@@ -1,6 +1,10 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import {
+  assetRegisterAssetClassDetailHref,
+} from "@/lib/navigation/asset-register-static-routes";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useQuery } from "@tanstack/react-query";
 
 import CreateAssetClassForm, {
@@ -22,11 +26,10 @@ import {
 } from "@/lib/toast/show-toast";
 
 export default function EditAssetClassPage() {
-  const params = useParams();
   const router = useRouter();
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
-  const assetClassId = String(params.id);
+  const assetClassId = useAssetRegisterEntityId("assetClassId");
 
   const detailQuery = useQuery({
     queryKey: ["asset-register", "asset-class", organizationId, assetClassId],
@@ -58,14 +61,14 @@ export default function EditAssetClassPage() {
   }
 
   if (!detailQuery.data.isActive) {
-    router.replace(`/asset-register/assestclass/${assetClassId}`);
+    router.replace(assetRegisterAssetClassDetailHref(assetClassId));
     return (
       <div className="p-6 text-sm text-gray-500">Redirecting…</div>
     );
   }
 
   const handleCancel = () => {
-    router.push(`/asset-register/assestclass/${assetClassId}`);
+    router.push(assetRegisterAssetClassDetailHref(assetClassId));
   };
 
   const handleSaved = async (data: AssetClassFormData) => {
@@ -78,7 +81,7 @@ export default function EditAssetClassPage() {
         body: assetClassFormToUpdatePayload(data),
       });
       showAssetClassUpdatedToast(updated.name);
-      router.push(`/asset-register/assestclass/${assetClassId}`);
+      router.push(assetRegisterAssetClassDetailHref(assetClassId));
     } catch (error) {
       showErrorToast(
         error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,

@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { assetRegisterFleetDetailHref } from "@/lib/navigation/asset-register-static-routes";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CreateFleetVehicleForm, {
@@ -24,13 +26,12 @@ import {
 } from "@/lib/api/asset-register/mappers";
 
 export default function FleetEditPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const { token, organizationId, isLoading: isAuthLoading, permissions } =
     useAuth();
 
-  const vehicleId = String(params.id);
+  const vehicleId = useAssetRegisterEntityId("vehicleId");
 
   const canUpdate =
     permissions.has("asset_register.update") ||
@@ -69,7 +70,7 @@ export default function FleetEditPage() {
         queryKey: ["asset-register", "vehicles"],
       });
       showFleetVehicleUpdatedToast();
-      router.push(`/asset-register/fleetregister/${vehicleId}`);
+      router.push(assetRegisterFleetDetailHref(vehicleId));
     },
     onError: (error: Error) => {
       showErrorToast(error.message || FLEET_VEHICLE_SAVE_ERROR);
@@ -78,7 +79,7 @@ export default function FleetEditPage() {
 
   useEffect(() => {
     if (detailQuery.data && !detailQuery.data.isActive) {
-      router.replace(`/asset-register/fleetregister/${vehicleId}`);
+      router.replace(assetRegisterFleetDetailHref(vehicleId));
     }
   }, [detailQuery.data, vehicleId, router]);
 
@@ -111,7 +112,7 @@ export default function FleetEditPage() {
       mode="edit"
       initialData={vehicleDetailToFleetFormData(detailQuery.data)}
       onCancel={() => {
-        router.push(`/asset-register/fleetregister/${vehicleId}`);
+        router.push(assetRegisterFleetDetailHref(vehicleId));
       }}
       onSaved={async (data) => {
         await updateMutation.mutateAsync(data);

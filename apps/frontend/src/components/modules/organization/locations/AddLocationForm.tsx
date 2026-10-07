@@ -43,6 +43,7 @@ import {
     getCountryDefinition,
 } from "@/lib/geo/countries";
 import { getPhonePlaceholder } from "@/lib/geo/placeholders";
+import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 
@@ -263,7 +264,9 @@ export default function AddLocationForm({
             return;
         }
         if (!detail.isActive || detail.status === "inactive") {
-            router.replace(`/organization/locations/${locationId}`);
+            router.replace(
+              organisationLocationDetailHref(locationId),
+            );
         }
     }, [
         isEditMode,

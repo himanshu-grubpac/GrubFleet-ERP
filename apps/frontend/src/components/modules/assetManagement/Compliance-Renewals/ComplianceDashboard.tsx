@@ -10,6 +10,7 @@ import DashboardTable from "@/components/dashboard/DashboardTable";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { fetchAssetRegisterComplianceListApi } from "@/lib/api/asset-register/compliance";
+import { assetRegisterComplianceRenewalDetailHref } from "@/lib/navigation/asset-register-static-routes";
 import {
     formatAssetRegisterIsoDate,
     mapComplianceFilterToApi,
@@ -111,7 +112,7 @@ export default function ComplianceDashboardPage() {
     };
 
     const handleRenew = (item: ComplianceItem) => {
-        router.push(`/asset-register/compliance-renewals/${item.id}`);
+        router.push(assetRegisterComplianceRenewalDetailHref(item.id));
     };
 
     const complianceColumns = [

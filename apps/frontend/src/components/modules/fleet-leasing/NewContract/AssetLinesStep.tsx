@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import InlineAddField from "@/components/ui/inline-add-field";
 import {
     Plus,
     Trash2,
@@ -14,11 +15,27 @@ import {
 } from "lucide-react";
 
 import { useGrubpacAuth } from "@/lib/auth-context";
+import { createAssetRegisterAssetClassApi } from "@/lib/api/asset-register/asset-classes";
 import {
     fetchFleetAssetClasses,
     previewAssetAvailabilityBatch,
     type AssetClassAvailabilitySnapshot,
 } from "@/lib/api/lease-contracts";
+import { DRIVER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import {
+    ASSET_CLASS_SAVE_ERROR,
+    showAssetClassCreatedToast,
+    showErrorToast,
+} from "@/lib/toast/show-toast";
+
+/** Wizard inline create — full class details can be edited later in Asset Register. */
+const WIZARD_QUICK_ASSET_CLASS_DEFAULTS = {
+    vehicleType: "4W" as const,
+    fuelType: "Unspecified",
+    fuelTankCapacity: 1,
+    ratedLoadFrom: 0,
+    ratedLoadTo: 1,
+};
 
 export interface AssetLine {
     id: string;
@@ -46,7 +63,12 @@ export default function AssetLinesStep({
     onContinue,
 }: AssetLinesStepProps) {
     void _clientName;
-    const { token, organizationId } = useGrubpacAuth();
+    const { token, organizationId, permissions } = useGrubpacAuth();
+    const queryClient = useQueryClient();
+
+    const canCreateAssetClass =
+        permissions.has("asset_register.create") ||
+        permissions.has("asset_register.manage");
 
     const [assetLines, setAssetLines] = useState<AssetLine[]>(
         initialAssetLines?.length ? initialAssetLines : [],
@@ -72,6 +94,56 @@ export default function AssetLinesStep({
     });
 
     const assetClassOptions = assetClassesQuery.data?.items ?? [];
+
+    const createAssetClassMutation = useMutation({
+        mutationFn: async (name: string) => {
+            if (!token || !organizationId) {
+                throw new Error(
+                    "Authentication or organization information is missing.",
+                );
+            }
+            return createAssetRegisterAssetClassApi({
+                token,
+                body: {
+                    organizationId,
+                    name,
+                    ...WIZARD_QUICK_ASSET_CLASS_DEFAULTS,
+                },
+            });
+        },
+        onSuccess: (detail) => {
+            showAssetClassCreatedToast(detail.name);
+            void queryClient.invalidateQueries({
+                queryKey: ["fleet-leasing-asset-classes", organizationId],
+            });
+            setFormError(null);
+            setAssetLines((previous) => {
+                if (previous.length > 0) {
+                    return previous;
+                }
+                return [
+                    {
+                        id: "line-1",
+                        assetClass: detail.name,
+                        committedQuantity: 1,
+                        ratePerVehicleMonth: "",
+                    },
+                ];
+            });
+        },
+        onError: (error) => {
+            const message =
+                error instanceof Error
+                    ? error.message
+                    : ASSET_CLASS_SAVE_ERROR;
+            showErrorToast(message);
+            setFormError(message);
+        },
+    });
+
+    const handleInlineCreateAssetClass = async (name: string) => {
+        await createAssetClassMutation.mutateAsync(name);
+    };
 
     useEffect(() => {
         if (initialAssetLines?.length) {
@@ -157,7 +229,9 @@ export default function AssetLinesStep({
         setFormError(null);
         if (!assetClassOptions.length) {
             setFormError(
-                "No asset classes are available from the fleet register yet.",
+                canCreateAssetClass
+                    ? "Add an asset class below before adding lines."
+                    : "No asset classes in the register yet. Create one under Asset Register, or ask an administrator.",
             );
             return;
         }
@@ -248,15 +322,22 @@ export default function AssetLinesStep({
 
     const handleContinue = () => validateAndContinue(false);
 
-    const subtitle = mvpAllLinesCovered
-        ? "Every requested line covered by available fleet."
-        : firstShortfallLine
-          ? "One line requests more than the fleet currently has available."
-          : "Set asset-class lines and requested quantities for this contract.";
+    const showAvailabilitySubtitle =
+        mvpAllLinesCovered ||
+        Boolean(firstShortfallLine && !mvpAllLinesCovered);
+
+    const catalogReady =
+        !assetClassesQuery.isLoading && !assetClassesQuery.isError;
 
     return (
         <>
-            <p className="mb-4 text-sm text-gray-500">{subtitle}</p>
+            {showAvailabilitySubtitle && (
+                <p className="mb-4 text-sm text-gray-500">
+                    {mvpAllLinesCovered
+                        ? "Every requested line covered by available fleet."
+                        : "One line requests more than the fleet currently has available."}
+                </p>
+            )}
 
             {formError && (
                 <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
@@ -305,6 +386,14 @@ export default function AssetLinesStep({
                     <span />
                 </div>
 
+                {assetLines.length === 0 && catalogReady && (
+                    <div className="border-b border-slate-100 px-4 py-8 text-center text-sm text-slate-600 sm:px-5">
+                        {assetClassOptions.length === 0
+                            ? "No asset classes in the register yet."
+                            : "No asset-class lines yet."}
+                    </div>
+                )}
+
                 {assetLines.map((line, index) => {
                     const snapshot = availabilityByIndex.get(index);
                     const availabilityLoading =
@@ -326,6 +415,11 @@ export default function AssetLinesStep({
                                     }
                                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
                                 >
+                                    {assetClassOptions.length === 0 ? (
+                                        <option value="">
+                                            Select asset class
+                                        </option>
+                                    ) : null}
                                     {assetClassOptions.map((assetClass) => (
                                         <option key={assetClass} value={assetClass}>
                                             {assetClass}
@@ -396,6 +490,35 @@ export default function AssetLinesStep({
                 </div>
             )}
 
+            {catalogReady &&
+                assetClassOptions.length === 0 &&
+                canCreateAssetClass && (
+                    <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-4 sm:px-5">
+                        <p className="mb-3 text-xs text-slate-600">
+                            Add an asset class to the register to start this
+                            contract. Defaults can be updated later in Asset
+                            Register.
+                        </p>
+                        <InlineAddField
+                            placeholder="Asset class name"
+                            maxLength={DRIVER_INPUT_LIMITS.assetClass}
+                            buttonLabel="Add class"
+                            isPending={createAssetClassMutation.isPending}
+                            onAdd={handleInlineCreateAssetClass}
+                        />
+                    </div>
+                )}
+
+            {catalogReady &&
+                assetClassOptions.length === 0 &&
+                !canCreateAssetClass && (
+                    <p className="mt-4 text-xs text-slate-600">
+                        No asset classes are available. Create asset classes
+                        under Asset Register, or ask an administrator for
+                        access.
+                    </p>
+                )}
+
             <button
                 type="button"
                 onClick={addAssetLine}
@@ -424,8 +547,10 @@ export default function AssetLinesStep({
                     disabled={
                         isContinuing ||
                         assetClassesQuery.isLoading ||
-                        !assetClassOptions.length ||
                         !assetLines.length ||
+                        assetLines.some(
+                            (line) => !line.assetClass.trim().length,
+                        ) ||
                         availabilityPreviewQuery.isLoading
                     }
                 >

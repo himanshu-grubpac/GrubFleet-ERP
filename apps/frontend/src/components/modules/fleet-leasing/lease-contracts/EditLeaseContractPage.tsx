@@ -33,6 +33,7 @@ import {
     showLeaseContractUpdatedToast,
 } from "@/lib/toast/show-toast";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
 
 type Screen =
     | "select-client"
@@ -149,7 +150,7 @@ export default function EditLeaseContractPage({
         permissions.has("fleet_leasing.update") ||
         permissions.has("fleet_leasing.manage");
 
-    const detailHref = `/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(leaseId)}`;
+    const detailHref = fleetLeaseContractDetailHref(leaseId);
 
     useEffect(() => {
         if (isAuthLoading) return;

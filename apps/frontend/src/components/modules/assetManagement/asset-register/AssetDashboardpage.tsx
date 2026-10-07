@@ -31,6 +31,10 @@ import {
   type AssetRegisterAssetClassListItem,
 } from "@/lib/api/asset-register/asset-classes";
 import { mapAssetRegisterVehicleTypeToUiLabel } from "@/lib/api/asset-register/mappers";
+import {
+  assetRegisterAssetClassDetailHref,
+  assetRegisterAssetClassEditHref,
+} from "@/lib/navigation/asset-register-static-routes";
 
 type AssetStatus = "active" | "inactive";
 
@@ -208,7 +212,7 @@ export default function AssetClassesPage() {
 
   const handleEdit = (assetClass: AssetClass) => {
     if (!canUpdate || assetClass.status !== "active") return;
-    router.push(`/asset-register/assestclass/${assetClass.id}/edit`);
+    router.push(assetRegisterAssetClassEditHref(assetClass.id));
   };
 
   const handleClearFilters = () => {
@@ -341,7 +345,7 @@ export default function AssetClassesPage() {
             <DashboardTableActions
               status={assetClass.status}
               locationId={assetClass.id}
-              viewHref={`/asset-register/assestclass/${assetClass.id}`}
+              viewHref={assetRegisterAssetClassDetailHref(assetClass.id)}
               onEdit={
                 canUpdate && assetClass.status === "active"
                   ? () => handleEdit(assetClass)

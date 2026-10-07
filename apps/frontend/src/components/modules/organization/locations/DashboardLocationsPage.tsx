@@ -32,6 +32,10 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import {
+  organisationLocationDetailHref,
+  organisationLocationEditHref,
+} from "@/lib/navigation/organisation-static-routes";
 import { formatLocationRowCopyText } from "@/components/dashboard/dashboard-row-copy-text";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardContact from "@/components/dashboard/DashboardContact";
@@ -212,9 +216,7 @@ export default function LocationsPage() {
   ) : undefined;
 
   const handleEdit = (location: Location) => {
-    router.push(
-      `/organization/locations/${location.id}/edit`
-    );
+    router.push(organisationLocationEditHref(location.id));
   };
 
   /* ------------------------------------------------------------------------ */
@@ -492,7 +494,7 @@ export default function LocationsPage() {
                 status={location.status}
                 locationId={location.id}
                 copyText={formatLocationRowCopyText(location)}
-                viewHref={`/organization/locations/${location.id}`}
+                viewHref={organisationLocationDetailHref(location.id)}
                 onEdit={
                   canUpdate && location.status === "active"
                     ? () => handleEdit(location)

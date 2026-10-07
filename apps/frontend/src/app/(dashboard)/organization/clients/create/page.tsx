@@ -14,6 +14,7 @@ import {
   showClientCreatedToast,
   showErrorToast,
 } from "@/lib/toast/show-toast";
+import { organisationClientDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 import CreateClientPage, {
   type ClientFormData,
@@ -57,7 +58,7 @@ export default function CreateOrganisationClientRoute() {
         queryKey: ["organization", "clients"],
       });
       showClientCreatedToast(created.clientName);
-      router.push(`/organization/clients/${created.id}`);
+      router.push(organisationClientDetailHref(created.id));
     } catch (error) {
       const message =
         error instanceof ApiClientError ? error.message : CLIENT_SAVE_ERROR;

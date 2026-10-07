@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import { organisationSupplierEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -26,7 +28,6 @@ import {
 /* -------------------------------------------------------------------------- */
 
 export default function SupplierViewPage() {
-    const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
     const {
@@ -36,7 +37,7 @@ export default function SupplierViewPage() {
         permissions,
     } = useAuth();
 
-    const supplierId = String(params.id);
+    const supplierId = useOrganisationEntityId("supplierId");
 
     const canUpdate =
         permissions.has("organisation.update") ||
@@ -100,7 +101,7 @@ export default function SupplierViewPage() {
     });
 
     const handleEdit = () => {
-        router.push(`/organization/suppliers/${supplierId}/edit`);
+        router.push(organisationSupplierEditHref(supplierId));
     };
 
     const handleToggleStatus = () => {

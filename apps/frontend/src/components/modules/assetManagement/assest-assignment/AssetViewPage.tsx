@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -38,13 +39,12 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 }
 
 export default function AssetAssignmentViewPage() {
-    const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
     const { token, organizationId, isLoading: isAuthLoading, permissions } =
         useAuth();
 
-    const vehicleId = String(params.id);
+    const vehicleId = useAssetRegisterEntityId("vehicleId");
 
     const canAssign =
         permissions.has("asset_register.update") ||

@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import { organisationClientEditHref } from "@/lib/navigation/organisation-static-routes";
 import Link from "next/link";
 import { Truck } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -48,7 +50,6 @@ function formatContractStatusLabel(
  */
 
 export default function ViewPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const {
@@ -58,7 +59,7 @@ export default function ViewPage() {
     permissions,
   } = useAuth();
 
-  const clientId = String(params.id);
+  const clientId = useOrganisationEntityId("clientId");
 
   const canUpdate =
     permissions.has("organisation.update") ||
@@ -118,7 +119,7 @@ export default function ViewPage() {
   });
 
   const handleEdit = () => {
-    router.push(`/organization/clients/${clientId}/edit`);
+    router.push(organisationClientEditHref(clientId));
   };
 
   const handleToggleStatus = () => {

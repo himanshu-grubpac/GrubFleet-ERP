@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import {
+  organisationClientDetailHref,
+} from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
@@ -23,7 +27,6 @@ import CreateClientPage, {
 } from "@/components/modules/organization/clients/CreateClientPage";
 
 export default function EditClientPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const {
@@ -33,7 +36,7 @@ export default function EditClientPage() {
     permissions,
   } = useAuth();
 
-  const clientId = String(params.id);
+  const clientId = useOrganisationEntityId("clientId");
 
   const canUpdate =
     permissions.has("organisation.update") ||
@@ -56,7 +59,7 @@ export default function EditClientPage() {
       return;
     }
     if (!detail.isActive || detail.status === "inactive") {
-      router.replace(`/organization/clients/${clientId}`);
+      router.replace(organisationClientDetailHref(clientId));
     }
   }, [clientQuery.data, clientId, router]);
 
@@ -68,7 +71,7 @@ export default function EditClientPage() {
   }, [clientQuery.data]);
 
   const handleCancel = () => {
-    router.push(`/organization/clients/${clientId}`);
+    router.push(organisationClientDetailHref(clientId));
   };
 
   const handleSaved = async (data: ClientFormData) => {
@@ -106,7 +109,7 @@ export default function EditClientPage() {
         queryKey: ["organization", "client", organizationId, clientId],
       });
       showClientUpdatedToast(updated.clientName);
-      router.push(`/organization/clients/${clientId}`);
+      router.push(organisationClientDetailHref(clientId));
     } catch (error) {
       const message =
         error instanceof ApiClientError ? error.message : CLIENT_SAVE_ERROR;
