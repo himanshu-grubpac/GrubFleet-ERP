@@ -10,6 +10,11 @@ import {
   type DashboardBreadcrumbItem,
 } from "@/lib/navigation/dashboard-breadcrumbs";
 
+/**
+ * In-content breadcrumbs for wizard/detail flows (e.g. lease contract view/edit).
+ * Standard dashboard **list** pages should use `LayoutHeader` breadcrumbs only plus
+ * `DashboardLayout` for title/padding — do not render this on those lists (duplicates the shell).
+ */
 type DashboardBreadcrumbsFromPathProps = {
   pathname?: string;
   currentLabel?: string;

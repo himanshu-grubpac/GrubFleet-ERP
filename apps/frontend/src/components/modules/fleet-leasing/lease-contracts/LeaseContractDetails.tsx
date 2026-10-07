@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import Link from "next/link";
 import {
@@ -17,56 +17,47 @@ import {
 import { CheckCircle2 } from "lucide-react";
 
 import { useLeaseApi } from "@/lib/api/lease-contracts-context";
+import { ApiClientError } from "@/lib/api/client";
+import {
+    LEASE_CONTRACT_STATUS_UPDATE_ERROR,
+    showErrorToast,
+    showLeaseContractActivatedToast,
+    showLeaseContractBillingPausedToast,
+    showLeaseContractDeactivatedToast,
+    showLeaseContractReactivatedToast,
+    showLeaseContractTerminatedToast,
+} from "@/lib/toast/show-toast";
+import { canActivateLeaseContractByRawStatus } from "./lease-contract-list-row-actions";
 
 import type {
     LeaseContractAvailableActions,
     LeaseContractDetail,
 } from "@/lib/api/lease-contracts";
 
-import LeaseContractHeader, {
-    type LeaseContractStatus,
-} from "./LeaseContractHeader";
+import LeaseContractHeader from "./LeaseContractHeader";
 
 import LeaseAssetClassTable, {
     type LeaseAssetClass,
 } from "./LeaseAssetClassTable";
 
 import LeaseDeactivationNotice from "./LeaseDeactivationNotice";
-import LeaseContractHistoryDialog, {
-    type LeaseContractLogEntry,
-} from "./LeaseContractHistoryDialog";
-import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
+import DetailField from "@/components/common/DetailField";
+import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
+import OrganizationDetailCard, {
+    OrganizationDetailFieldGrid,
+} from "@/components/common/OrganizationDetailCard";
 import { fetchOrganisationDriversApi } from "@/lib/api/organisation/drivers";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import type { ContractVehicle } from "@/lib/api/lease-contracts";
-
-function toHeaderStatus(
-    apiStatus: string,
-): LeaseContractStatus {
-    const map: Record<
-        string,
-        LeaseContractStatus
-    > = {
-        Active: "Active",
-        Draft: "Draft",
-        Deactivated: "Deactivated",
-        Terminated: "Terminated",
-        Closed: "Terminated",
-    };
-
-    return map[apiStatus] ?? "Draft";
-}
-
-function formatCurrency(
-    value: number | null,
-): string {
-    if (value == null) return "—";
-
-    return `Rs. ${value.toLocaleString(
-        "en-IN",
-    )}`;
-}
+import type {
+    ContractVehicle,
+    LeaseContractConfirmationSummary,
+} from "@/lib/api/lease-contracts";
+import { formatIndianRupee } from "@/lib/format/currency-format";
+import { formatCalendarDateEnIn } from "@/lib/format/date-format";
+import {
+    leaseContractHeaderStatusLabel,
+} from "@/lib/lease-contract/lease-contract-status-display";
 
 function formatBillingFrequency(
     value: string,
@@ -78,17 +69,6 @@ function formatBillingFrequency(
     };
 
     return map[value] ?? value;
-}
-
-function formatDisplayDate(iso: string | null): string {
-    if (!iso) return "—";
-    const parsed = new Date(`${iso}T00:00:00`);
-    if (Number.isNaN(parsed.getTime())) return iso;
-    return parsed.toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-    });
 }
 
 function isLeaseActionAllowed(
@@ -105,9 +85,7 @@ function isLeaseActionAllowed(
             deactivate: "deactivate",
             reactivate: "reactivate",
             pauseBilling: "pause_billing",
-            requestTermination: "request_termination",
-            approveTermination: "approve_termination",
-            renew: "renew",
+            terminate: "terminate",
         };
         return actions.includes(legacyMap[key] ?? key);
     }
@@ -117,49 +95,13 @@ function isLeaseActionAllowed(
 
 function LoadingSkeleton() {
     return (
-        <div className="animate-pulse space-y-6">
-            <div className="h-6 w-48 rounded bg-slate-200" />
-            <div className="h-24 w-full rounded-xl bg-slate-100" />
-            <div className="h-40 w-full rounded-xl bg-slate-100" />
-            <div className="h-28 w-full rounded-xl bg-slate-100" />
-        </div>
-    );
-}
-
-function ContractSummaryCard({
-    clientName,
-    billingFrequency,
-    startDate,
-    termMonths,
-    securityDeposit,
-}: {
-    clientName: string;
-    billingFrequency: string;
-    startDate: string;
-    termMonths: string;
-    securityDeposit: string;
-}) {
-    return (
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="px-5 py-4">
-                <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    Contract
-                </h2>
-                <div className="mt-2 divide-y divide-slate-100">
-                    <SummaryRow label="Client" value={clientName} />
-                    <SummaryRow
-                        label="Billing frequency"
-                        value={billingFrequency}
-                    />
-                    <SummaryRow label="Start date" value={startDate} />
-                    <SummaryRow label="Term" value={termMonths} />
-                    <SummaryRow
-                        label="Security deposit"
-                        value={securityDeposit}
-                    />
-                </div>
+        <OrganizationViewLayout>
+            <div className="animate-pulse space-y-6">
+                <div className="h-6 w-48 rounded bg-slate-200" />
+                <div className="h-24 w-full rounded-lg bg-slate-100" />
+                <div className="h-40 w-full rounded-lg bg-slate-100" />
             </div>
-        </section>
+        </OrganizationViewLayout>
     );
 }
 
@@ -205,12 +147,11 @@ function ContractVehicleDriverLinks({
     }
 
     return (
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="px-5 py-4">
-                <h2 className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                    Vehicles &amp; drivers
-                </h2>
-                <ul className="mt-3 divide-y divide-slate-100">
+        <OrganizationDetailCard>
+            <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Vehicles &amp; drivers
+            </h2>
+            <ul className="divide-y divide-slate-100">
                     {vehicles.map((vehicle) => {
                         const linked = driverByVehicleCode.get(
                             vehicle.registrationNo.trim(),
@@ -238,26 +179,8 @@ function ContractVehicleDriverLinks({
                             </li>
                         );
                     })}
-                </ul>
-            </div>
-        </section>
-    );
-}
-
-function SummaryRow({
-    label,
-    value,
-}: {
-    label: string;
-    value: string;
-}) {
-    return (
-        <div className="flex items-center justify-between gap-4 py-2">
-            <span className="text-sm text-slate-500">{label}</span>
-            <span className="text-sm font-semibold text-slate-900">
-                {value}
-            </span>
-        </div>
+            </ul>
+        </OrganizationDetailCard>
     );
 }
 
@@ -275,11 +198,10 @@ export default function LeaseContractDetails() {
 
     const { token } = useAuth();
 
-    const [historyOpen, setHistoryOpen] =
-        useState(false);
-
     const leaseId =
         searchParams.get("leaseId") ?? "";
+    const showConfirmationSummary =
+        searchParams.get("confirmed") === "1";
 
     const {
         data: contract,
@@ -300,68 +222,101 @@ export default function LeaseContractDetails() {
             Boolean(leaseId),
     });
 
-    const invalidate = () => {
+    const confirmationQuery = useQuery({
+        queryKey: [
+            "lease-contract-confirmation",
+            leaseId,
+            organizationId,
+        ],
+        queryFn: () => api.getConfirmation(leaseId),
+        enabled:
+            Boolean(organizationId) &&
+            Boolean(leaseId) &&
+            showConfirmationSummary,
+        ...dashboardListQueryOptions,
+        retry: false,
+    });
+
+    const invalidateLeaseContractCaches = () => {
         void queryClient.invalidateQueries({
-            queryKey: [
-                "lease-contract",
-                leaseId,
-                organizationId,
-            ],
+            queryKey: ["lease-contract", leaseId, organizationId],
         });
+        void queryClient.invalidateQueries({
+            queryKey: ["lease-contract-detail", organizationId, leaseId],
+        });
+        void queryClient.invalidateQueries({
+            queryKey: ["lease-contracts-list", organizationId],
+        });
+        void queryClient.invalidateQueries({
+            queryKey: ["renewals-extensions-list", organizationId],
+        });
+    };
+
+    const statusMutationError = (error: unknown) => {
+        const message =
+            error instanceof ApiClientError
+                ? error.message || LEASE_CONTRACT_STATUS_UPDATE_ERROR
+                : LEASE_CONTRACT_STATUS_UPDATE_ERROR;
+        showErrorToast(message);
     };
 
     const activate = useMutation({
         mutationFn: () =>
             api.activate(leaseId),
 
-        onSuccess: invalidate,
+        onSuccess: () => {
+            invalidateLeaseContractCaches();
+            showLeaseContractActivatedToast();
+        },
+        onError: statusMutationError,
     });
 
     const deactivate = useMutation({
-        mutationFn: () =>
-            api.deactivate(leaseId),
+        mutationFn: (reason: string) =>
+            api.deactivate(leaseId, reason),
 
-        onSuccess: invalidate,
+        onSuccess: () => {
+            invalidateLeaseContractCaches();
+            showLeaseContractDeactivatedToast();
+        },
+        onError: statusMutationError,
     });
 
     const reactivate = useMutation({
         mutationFn: () =>
             api.reactivate(leaseId),
 
-        onSuccess: invalidate,
+        onSuccess: () => {
+            invalidateLeaseContractCaches();
+            showLeaseContractReactivatedToast();
+        },
+        onError: statusMutationError,
     });
 
     const terminate = useMutation({
-        mutationFn: () =>
-            api.requestTermination(
-                leaseId,
-            ),
+        mutationFn: () => api.terminate(leaseId),
+        onSuccess: () => {
+            invalidateLeaseContractCaches();
+            showLeaseContractTerminatedToast();
+        },
+        onError: statusMutationError,
+    });
 
-        onSuccess: invalidate,
+    const pauseBilling = useMutation({
+        mutationFn: () => api.pauseBilling(leaseId),
+        onSuccess: () => {
+            invalidateLeaseContractCaches();
+            showLeaseContractBillingPausedToast();
+        },
+        onError: statusMutationError,
     });
 
     const isActionPending =
         activate.isPending ||
         deactivate.isPending ||
         reactivate.isPending ||
-        terminate.isPending;
-
-    const historyLogs: LeaseContractLogEntry[] =
-        useMemo(() => {
-            if (!contract?.logs) return [];
-            return (
-                contract.logs as Array<
-                    LeaseContractLogEntry & {
-                        createdAt?: string;
-                    }
-                >
-            ).map((log) => ({
-                id: log.id,
-                message: log.message,
-                occurredAt: log.occurredAt ?? log.createdAt ?? "",
-                actorLabel: log.actorLabel,
-            }));
-        }, [contract?.logs]);
+        terminate.isPending ||
+        pauseBilling.isPending;
 
     if (isLoading) {
         return <LoadingSkeleton />;
@@ -369,25 +324,32 @@ export default function LeaseContractDetails() {
 
     if (isError || !contract) {
         return (
-            <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-sm text-red-600">
-                Failed to load lease contract.
-                Please go back and try again.
-            </div>
+            <OrganizationViewLayout>
+                <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
+                    <p className="text-sm font-medium text-red-600">
+                        Failed to load lease contract.
+                    </p>
+                    <button
+                        type="button"
+                        onClick={() => router.back()}
+                        className="text-sm text-gray-600 underline"
+                    >
+                        Go back
+                    </button>
+                </div>
+            </OrganizationViewLayout>
         );
     }
 
-    const status =
-        toHeaderStatus(
-            contract.status,
-        );
+    const statusLabel = leaseContractHeaderStatusLabel(
+        contract.status,
+        contract.rawStatus,
+    );
 
-    const description =
-        contract.subtitle ??
-        contract.description ??
-        "";
+    const description = contract.subtitle ?? "";
 
     const useAllocationTable =
-        status === "Active" &&
+        contract.rawStatus === "active" &&
         (contract.contractFullyAllocated ?? false);
 
     const assetClasses: LeaseAssetClass[] =
@@ -402,7 +364,7 @@ export default function LeaseContractDetails() {
                     line.committedQuantity,
 
                 ratePerVehicle:
-                    formatCurrency(
+                    formatIndianRupee(
                         line.ratePerVehicleMonth,
                     ),
 
@@ -418,9 +380,13 @@ export default function LeaseContractDetails() {
 
                 lineStatusLabel:
                     line.lineStatusLabel ??
-                    (line.availabilityCovered
+                    (line.lineAllocationStatus === "allocated"
                         ? "Allocated"
-                        : "Awaiting Assets"),
+                        : line.lineAllocationStatus === "partially_allocated"
+                          ? "Partially allocated"
+                          : line.awaitingAssetsLine
+                            ? "Awaiting assets"
+                            : "—"),
             }),
         );
 
@@ -431,27 +397,39 @@ export default function LeaseContractDetails() {
         ? `${contract.termMonths} months`
         : "—";
 
-    const banner = contract.statusBanner;
+    const isTerminalClosed =
+        contract.rawStatus === "closed" ||
+        contract.rawStatus === "concluded";
+    const banner =
+        contract.statusBanner?.text &&
+        !isTerminalClosed &&
+        !(
+            contract.rawStatus === "active" &&
+            contract.statusBanner.level === "success"
+        )
+            ? contract.statusBanner
+            : null;
+    const confirmation: LeaseContractConfirmationSummary | undefined =
+        confirmationQuery.data;
+
+    const changeHistoryHref = contract.hasFieldChangeHistory
+        ? `/fleet-leasing/lease-contracts/detail/change-history/?leaseId=${encodeURIComponent(leaseId)}`
+        : undefined;
 
     return (
-        <div className="space-y-6">
-            <DashboardBreadcrumbsFromPath
-                currentLabel={contract.contractNumber}
-            />
-
+        <OrganizationViewLayout>
             <LeaseContractHeader
                 contractNumber={
                     contract.contractNumber
                 }
-                status={status}
+                statusLabel={statusLabel}
                 description={
                     description
                 }
-                onViewHistory={() =>
-                    setHistoryOpen(true)
-                }
                 onActivate={
-                    status === "Draft"
+                    canActivateLeaseContractByRawStatus(
+                        contract.rawStatus,
+                    )
                         ? () =>
                             activate.mutate()
                         : undefined
@@ -461,8 +439,8 @@ export default function LeaseContractDetails() {
                         contract.availableActions,
                         "deactivate",
                     )
-                        ? () =>
-                            deactivate.mutate()
+                        ? (reason) =>
+                            deactivate.mutate(reason)
                         : undefined
                 }
                 onReactivate={
@@ -477,10 +455,17 @@ export default function LeaseContractDetails() {
                 onTerminate={
                     isLeaseActionAllowed(
                         contract.availableActions,
-                        "requestTermination",
+                        "terminate",
                     )
-                        ? () =>
-                            terminate.mutate()
+                        ? () => terminate.mutate()
+                        : undefined
+                }
+                onPauseBilling={
+                    isLeaseActionAllowed(
+                        contract.availableActions,
+                        "pauseBilling",
+                    )
+                        ? () => pauseBilling.mutate()
                         : undefined
                 }
                 onEdit={
@@ -494,12 +479,48 @@ export default function LeaseContractDetails() {
                             )
                         : undefined
                 }
+                historyHref={changeHistoryHref}
                 isActionPending={isActionPending}
             />
 
-            {banner?.text && (
+            {showConfirmationSummary && confirmation ? (
+                <OrganizationDetailCard className="mt-4">
+                    <h2 className="mb-2 text-sm font-semibold text-slate-900">
+                        {confirmation.headline}
+                    </h2>
+                    {confirmation.infoMessages.map((msg) => (
+                        <p
+                            key={msg}
+                            className="mb-2 text-sm text-slate-600"
+                        >
+                            {msg}
+                        </p>
+                    ))}
+                    <LeaseAssetClassTable
+                        assetClasses={confirmation.allocationByLine.map(
+                            (line) => ({
+                                id: line.assetClass,
+                                assetClass: line.assetClass,
+                                committed: line.committedQuantity,
+                                ratePerVehicle: "—",
+                                availability:
+                                    line.lineStatus === "allocated"
+                                        ? "Covered"
+                                        : line.lineStatus ===
+                                            "partially_allocated"
+                                          ? "Partial"
+                                          : "Not Covered",
+                                lineStatusLabel: line.lineStatusLabel,
+                            }),
+                        )}
+                        variant="allocation"
+                    />
+                </OrganizationDetailCard>
+            ) : null}
+
+            {banner?.text ? (
                 <div
-                    className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+                    className={`mt-4 flex items-start gap-3 rounded-lg border px-4 py-3 text-sm ${
                         banner.level === "success"
                             ? "border-green-200 bg-green-50 text-green-800"
                             : banner.level === "warning"
@@ -513,43 +534,55 @@ export default function LeaseContractDetails() {
                     )}
                     <span>{banner.text}</span>
                 </div>
-            )}
-
-            <ContractSummaryCard
-                clientName={clientName}
-                billingFrequency={formatBillingFrequency(
-                    contract.billingFrequency,
-                )}
-                startDate={formatDisplayDate(
-                    contract.startDate,
-                )}
-                termMonths={termLabel}
-                securityDeposit={formatCurrency(
-                    contract.securityDeposit,
-                )}
-            />
-
-            <LeaseAssetClassTable
-                assetClasses={
-                    assetClasses
-                }
-                variant={
-                    useAllocationTable
-                        ? "allocation"
-                        : "default"
-                }
-            />
-
-            {organizationId && contract.vehicles?.length ? (
-                <ContractVehicleDriverLinks
-                    vehicles={contract.vehicles}
-                    organizationId={organizationId}
-                    token={token}
-                />
             ) : null}
 
-            {status ===
-                "Deactivated" && (
+            <OrganizationDetailCard className="mt-4">
+                <OrganizationDetailFieldGrid>
+                    <DetailField label="Client" value={clientName} />
+                    <DetailField
+                        label="Billing frequency"
+                        value={formatBillingFrequency(
+                            contract.billingFrequency,
+                        )}
+                    />
+                    <DetailField
+                        label="Start date"
+                        value={formatCalendarDateEnIn(contract.startDate)}
+                    />
+                    <DetailField label="Term" value={termLabel} />
+                    <DetailField
+                        label="Security deposit"
+                        value={formatIndianRupee(contract.securityDeposit)}
+                    />
+                </OrganizationDetailFieldGrid>
+            </OrganizationDetailCard>
+
+            <div className="mt-4">
+                <OrganizationDetailCard>
+                    <h2 className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                        Asset lines
+                    </h2>
+                    <LeaseAssetClassTable
+                        assetClasses={assetClasses}
+                        variant={
+                            useAllocationTable ? "allocation" : "default"
+                        }
+                    />
+                </OrganizationDetailCard>
+            </div>
+
+            {organizationId && contract.vehicles?.length ? (
+                <div className="mt-4">
+                    <ContractVehicleDriverLinks
+                        vehicles={contract.vehicles}
+                        organizationId={organizationId}
+                        token={token}
+                    />
+                </div>
+            ) : null}
+
+            {contract.rawStatus === "deactivated" ? (
+                <div className="mt-4">
                     <LeaseDeactivationNotice
                         returnedVehicles={
                             contract
@@ -562,18 +595,8 @@ export default function LeaseContractDetails() {
                                 .committedVehicleCount
                         }
                     />
-                )}
-
-            <LeaseContractHistoryDialog
-                isOpen={historyOpen}
-                contractNumber={
-                    contract.contractNumber
-                }
-                logs={historyLogs}
-                onClose={() =>
-                    setHistoryOpen(false)
-                }
-            />
-        </div>
+                </div>
+            ) : null}
+        </OrganizationViewLayout>
     );
 }

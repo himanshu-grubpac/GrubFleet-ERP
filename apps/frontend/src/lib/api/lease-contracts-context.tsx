@@ -3,7 +3,6 @@
 import { createContext, useContext, useMemo } from "react";
 import { useAuth } from "@/lib/auth-context";
 import {
-    fetchLeaseContractsSummary,
     fetchLeaseContractsList,
     fetchLeaseContractById,
     fetchLeaseContractReview,
@@ -16,8 +15,8 @@ import {
     confirmLeaseContract,
     approveLeaseContract,
     pauseBillingLeaseContract,
-    requestTerminationLeaseContract,
-    approveTerminationLeaseContract,
+    terminateLeaseContract,
+    fetchRenewalsExtensionsList,
     renewLeaseContract,
     createLeaseContract,
     updateLeaseContract,
@@ -35,13 +34,17 @@ interface LeaseContractsContextValue {
 
     /** Pre-bound API functions — token + orgId already injected */
     api: {
-        getSummary: () => ReturnType<typeof fetchLeaseContractsSummary>;
         getList: (options?: {
             page?: number;
             pageSize?: number;
             statusFilter?: LeaseContractStatusFilter;
             search?: string;
         }) => ReturnType<typeof fetchLeaseContractsList>;
+        getRenewalEligibleList: (options?: {
+            page?: number;
+            pageSize?: number;
+            search?: string;
+        }) => ReturnType<typeof fetchRenewalsExtensionsList>;
         getById: (contractId: string) => ReturnType<typeof fetchLeaseContractById>;
         getReview: (contractId: string) => ReturnType<typeof fetchLeaseContractReview>;
         getConfirmation: (contractId: string) => ReturnType<typeof fetchLeaseContractConfirmation>;
@@ -55,14 +58,19 @@ interface LeaseContractsContextValue {
         // ── Actions ────────────────────────────────────────────────────────────
         activate: (contractId: string) => ReturnType<typeof activateLeaseContract>;
         reactivate: (contractId: string) => ReturnType<typeof reactivateLeaseContract>;
-        deactivate: (contractId: string) => ReturnType<typeof deactivateLeaseContract>;
+        deactivate: (
+            contractId: string,
+            reason: string,
+        ) => ReturnType<typeof deactivateLeaseContract>;
         submit: (contractId: string) => ReturnType<typeof submitLeaseContract>;
         confirm: (contractId: string) => ReturnType<typeof confirmLeaseContract>;
         approve: (contractId: string) => ReturnType<typeof approveLeaseContract>;
         pauseBilling: (contractId: string) => ReturnType<typeof pauseBillingLeaseContract>;
-        requestTermination: (contractId: string) => ReturnType<typeof requestTerminationLeaseContract>;
-        approveTermination: (contractId: string) => ReturnType<typeof approveTerminationLeaseContract>;
-        renew: (contractId: string) => ReturnType<typeof renewLeaseContract>;
+        terminate: (contractId: string) => ReturnType<typeof terminateLeaseContract>;
+        renew: (
+            contractId: string,
+            payload: Parameters<typeof renewLeaseContract>[3],
+        ) => ReturnType<typeof renewLeaseContract>;
     };
 }
 
@@ -87,8 +95,9 @@ export function LeaseContractsProvider({ children }: { children: React.ReactNode
         return {
             organizationId,
             api: {
-                getSummary: () => fetchLeaseContractsSummary(t, o),
                 getList: (opts) => fetchLeaseContractsList(t, o, opts),
+                getRenewalEligibleList: (opts) =>
+                    fetchRenewalsExtensionsList(t, o, opts),
                 getById: (id) => fetchLeaseContractById(t, o, id),
                 getReview: (id) => fetchLeaseContractReview(t, o, id),
                 getConfirmation: (id) => fetchLeaseContractConfirmation(t, o, id),
@@ -100,14 +109,14 @@ export function LeaseContractsProvider({ children }: { children: React.ReactNode
 
                 activate: (id) => activateLeaseContract(t, o, id),
                 reactivate: (id) => reactivateLeaseContract(t, o, id),
-                deactivate: (id) => deactivateLeaseContract(t, o, id),
+                deactivate: (id, reason) =>
+                    deactivateLeaseContract(t, o, id, reason),
                 submit: (id) => submitLeaseContract(t, o, id),
                 confirm: (id) => confirmLeaseContract(t, o, id),
                 approve: (id) => approveLeaseContract(t, o, id),
                 pauseBilling: (id) => pauseBillingLeaseContract(t, o, id),
-                requestTermination: (id) => requestTerminationLeaseContract(t, o, id),
-                approveTermination: (id) => approveTerminationLeaseContract(t, o, id),
-                renew: (id) => renewLeaseContract(t, o, id),
+                terminate: (id) => terminateLeaseContract(t, o, id),
+                renew: (id, payload) => renewLeaseContract(t, o, id, payload),
             },
         };
     }, [token, organizationId]);

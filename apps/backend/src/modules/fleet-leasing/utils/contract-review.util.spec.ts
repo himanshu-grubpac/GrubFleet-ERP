@@ -28,9 +28,9 @@ describe('contract-review.util', () => {
     ],
   });
 
-  it('resolves review action from pricing', () => {
-    expect(resolveReviewAction(approvalPricing)).toBe('submit_for_approval');
-    expect(resolveReviewAction(standardPricing)).toBe('confirm_contract');
+  it('resolves review action to confirm (MVP submit activates)', () => {
+    expect(resolveReviewAction()).toBe('confirm_contract');
+    expect(resolveReviewAction()).toBe('confirm_contract');
   });
 
   it('computes canSubmit for draft with client and complete pricing', () => {
@@ -80,7 +80,7 @@ describe('contract-review.util', () => {
     });
     expect(
       messages.some(
-        (m) => m.level === 'warning' && m.code === 'PRICING_REQUIRES_APPROVAL',
+        (m) => m.level === 'info' && m.code === 'PRICING_NON_STANDARD',
       ),
     ).toBe(true);
     expect(

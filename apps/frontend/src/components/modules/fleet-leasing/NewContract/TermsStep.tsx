@@ -1,8 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { AlertTriangle } from "lucide-react";
+import { FLEET_LEASE_TERMS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 
 import type { AssetLine } from "./AssetLinesStep";
 
@@ -12,6 +14,24 @@ const BILLING_FREQUENCIES = [
     "annual",
 ] as const;
 
+const BILLING_FREQUENCY_LABELS: Record<
+    (typeof BILLING_FREQUENCIES)[number],
+    string
+> = {
+    monthly: "Monthly",
+    quarterly: "Quarterly",
+    annual: "Annually",
+};
+
+const FIELD_INPUT_CLASS =
+    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+const MONEY_INPUT_CLASS =
+    "h-10 w-full rounded-md border border-gray-300 bg-white pl-12 pr-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+const FIELD_LABEL_CLASS =
+    "mb-1.5 block text-sm font-medium text-gray-700";
+
 export interface LeaseTerms {
     startDate: string;
     termMonths: number | "";
@@ -20,7 +40,6 @@ export interface LeaseTerms {
 }
 
 interface TermsStepProps {
-    clientName: string;
     assetLines: AssetLine[];
     initialTerms?: Partial<LeaseTerms>;
     onBack: () => void;
@@ -30,8 +49,47 @@ interface TermsStepProps {
     ) => void | Promise<void>;
 }
 
+function rateFieldLabel(assetClass: string): string {
+    return `Rate per ${assetClass} — Standard / month`;
+}
+
+function MoneyField({
+    id,
+    label,
+    value,
+    onChange,
+    placeholder,
+}: {
+    id: string;
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+}) {
+    return (
+        <div>
+            <label htmlFor={id} className={FIELD_LABEL_CLASS}>
+                {label}
+            </label>
+            <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                    Rs.
+                </span>
+                <RestrictedInput
+                    id={id}
+                    restrictedKind="digits"
+                    maxLength={FLEET_LEASE_TERMS_INPUT_LIMITS.moneyMaxDigits}
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    className={MONEY_INPUT_CLASS}
+                />
+            </div>
+        </div>
+    );
+}
+
 export default function TermsStep({
-    clientName,
     assetLines,
     initialTerms,
     onBack,
@@ -64,8 +122,53 @@ export default function TermsStep({
     const [formError, setFormError] = useState<string | null>(null);
     const [isContinuing, setIsContinuing] = useState(false);
 
+    const primaryLine = assetLines[0];
+    const additionalLines = assetLines.slice(1);
+    const fallbackAssetClass = "Petrol Scooter";
+
+    const canSubmit = useMemo(() => {
+        if (!startDate.trim()) {
+            return false;
+        }
+        if (termMonths === "" || Number(termMonths) < 1) {
+            return false;
+        }
+        if (
+            securityDeposit === "" ||
+            Number.isNaN(Number(securityDeposit)) ||
+            Number(securityDeposit) < 0
+        ) {
+            return false;
+        }
+        if (!assetLines.length) {
+            return false;
+        }
+        for (const line of assetLines) {
+            const rate = lineRates[line.id] ?? "";
+            if (
+                rate === "" ||
+                Number.isNaN(Number(rate)) ||
+                Number(rate) < 0
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }, [
+        assetLines,
+        lineRates,
+        securityDeposit,
+        startDate,
+        termMonths,
+    ]);
+
     const handleContinue = () => {
         setFormError(null);
+
+        if (!canSubmit) {
+            setFormError("Complete all required contract terms to continue.");
+            return;
+        }
 
         if (!startDate) {
             setFormError("Please select a start date.");
@@ -127,27 +230,24 @@ export default function TermsStep({
         });
     };
 
+    const renderRateField = (line: AssetLine) => (
+        <MoneyField
+            key={line.id}
+            id={`lease-rate-${line.id}`}
+            label={rateFieldLabel(line.assetClass || fallbackAssetClass)}
+            value={lineRates[line.id] ?? ""}
+            onChange={(value) =>
+                setLineRates((previous) => ({
+                    ...previous,
+                    [line.id]: value,
+                }))
+            }
+            placeholder="e.g. 3200"
+        />
+    );
+
     return (
         <>
-            <div className="mb-5">
-                <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                    Contract terms
-                </h1>
-                <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                    Standard rate card only for this MVP — no exception pricing
-                    path.
-                </p>
-            </div>
-
-            <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                    Client
-                </p>
-                <p className="mt-1 text-sm font-semibold text-slate-800">
-                    {clientName || "Selected client"}
-                </p>
-            </div>
-
             {formError && (
                 <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
                     <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
@@ -155,13 +255,17 @@ export default function TermsStep({
                 </div>
             )}
 
-            <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-                <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5">
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 sm:py-5 md:grid-cols-2">
                     <div>
-                        <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
+                        <label
+                            htmlFor="lease-billing-frequency"
+                            className={FIELD_LABEL_CLASS}
+                        >
                             Billing frequency
                         </label>
                         <select
+                            id="lease-billing-frequency"
                             value={billingFrequency}
                             onChange={(event) =>
                                 setBillingFrequency(
@@ -169,94 +273,96 @@ export default function TermsStep({
                                         .value as typeof billingFrequency,
                                 )
                             }
-                            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm capitalize text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                            className={FIELD_INPUT_CLASS}
                         >
                             {BILLING_FREQUENCIES.map((frequency) => (
                                 <option key={frequency} value={frequency}>
-                                    {frequency}
+                                    {BILLING_FREQUENCY_LABELS[frequency]}
                                 </option>
                             ))}
                         </select>
                     </div>
 
-                    <div>
-                        <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
-                            Security deposit
-                        </label>
-                        <div className="relative">
-                            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                                ₹
-                            </span>
-                            <input
-                                type="number"
-                                min="0"
-                                value={securityDeposit}
-                                onChange={(event) =>
-                                    setSecurityDeposit(event.target.value)
-                                }
-                                placeholder="e.g. 45000"
-                                className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                            />
+                    {primaryLine ? (
+                        renderRateField(primaryLine)
+                    ) : (
+                        <div>
+                            <p className={FIELD_LABEL_CLASS}>
+                                {rateFieldLabel(fallbackAssetClass)}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                Add asset-class lines on the previous step to
+                                set rates.
+                            </p>
                         </div>
-                    </div>
+                    )}
+
+                    <MoneyField
+                        id="lease-security-deposit"
+                        label="Security deposit"
+                        value={securityDeposit}
+                        onChange={setSecurityDeposit}
+                        placeholder="e.g. 45000"
+                    />
 
                     <div>
-                        <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
+                        <label
+                            htmlFor="lease-term-months"
+                            className={FIELD_LABEL_CLASS}
+                        >
                             Term (months)
                         </label>
-                        <input
-                            type="number"
-                            min="1"
-                            value={termMonths}
-                            onChange={(event) =>
+                        <RestrictedInput
+                            id="lease-term-months"
+                            restrictedKind="digits"
+                            maxLength={
+                                FLEET_LEASE_TERMS_INPUT_LIMITS.termMonthsMaxDigits
+                            }
+                            value={
+                                termMonths === ""
+                                    ? ""
+                                    : String(termMonths)
+                            }
+                            onChange={(value) =>
                                 setTermMonths(
-                                    event.target.value === ""
-                                        ? ""
-                                        : Number(event.target.value),
+                                    value === "" ? "" : Number(value),
                                 )
                             }
                             placeholder="24"
-                            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                            className={FIELD_INPUT_CLASS}
                         />
                     </div>
 
                     <div>
-                        <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
+                        <label
+                            htmlFor="lease-start-date"
+                            className={FIELD_LABEL_CLASS}
+                        >
                             Start date
                         </label>
                         <input
+                            id="lease-start-date"
                             type="date"
                             value={startDate}
                             onChange={(event) =>
                                 setStartDate(event.target.value)
                             }
-                            className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                            className={FIELD_INPUT_CLASS}
+                            aria-describedby="lease-start-date-hint"
                         />
+                        <p
+                            id="lease-start-date-hint"
+                            className="mt-1 text-xs text-gray-400"
+                        >
+                            DD-MM-YYYY
+                        </p>
                     </div>
 
-                    {assetLines.map((line) => (
-                        <div key={line.id} className="sm:col-span-2">
-                            <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
-                                Rate per {line.assetClass} / month
-                            </label>
-                            <div className="relative max-w-md">
-                                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-500">
-                                    ₹
-                                </span>
-                                <input
-                                    type="number"
-                                    min="0"
-                                    step="100"
-                                    value={lineRates[line.id] ?? ""}
-                                    onChange={(event) =>
-                                        setLineRates((previous) => ({
-                                            ...previous,
-                                            [line.id]: event.target.value,
-                                        }))
-                                    }
-                                    placeholder="e.g. 3200"
-                                    className="h-10 w-full rounded-md border border-slate-300 bg-white pl-8 pr-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                />
+                    {additionalLines.map((line) => (
+                        <div key={line.id} className="md:col-span-2">
+                            <div className="md:grid md:grid-cols-2 md:gap-4">
+                                <div className="hidden md:block" aria-hidden />
+                                {renderRateField(line)}
                             </div>
                         </div>
                     ))}
@@ -267,7 +373,7 @@ export default function TermsStep({
                 <button
                     type="button"
                     onClick={onBack}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                    className="inline-flex h-10 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
                 >
                     Back
                 </button>
@@ -276,7 +382,7 @@ export default function TermsStep({
                     type="button"
                     variant="primary"
                     onClick={handleContinue}
-                    disabled={isContinuing}
+                    disabled={!canSubmit || isContinuing}
                 >
                     {isContinuing ? "Saving…" : "Continue"}
                 </Button>

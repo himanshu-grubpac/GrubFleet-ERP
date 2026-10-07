@@ -30,8 +30,8 @@ export default function LeaseContractStepper({
 }: LeaseContractStepperProps) {
     return (
         <div className="shrink-0 border-b border-slate-200 bg-white px-6 py-3.5">
-            <div className="flex w-full items-start">
-
+            <div className="flex w-full justify-center">
+                <div className="flex items-start">
                     {steps.map((step) => {
                         const isActive =
                             step.number === currentStep;
@@ -42,7 +42,7 @@ export default function LeaseContractStepper({
                         return (
                             <div
                                 key={step.number}
-                                className="flex min-w-0 flex-1 items-start"
+                                className="flex items-start"
                             >
                                 {/* STEP */}
                                 <div className="flex min-w-[58px] flex-col items-center px-1 sm:min-w-[76px]">
@@ -83,7 +83,7 @@ export default function LeaseContractStepper({
                                 {step.number <
                                     steps.length && (
                                         <div
-                                            className={`mt-[13px] h-px flex-1 ${step.number <
+                                            className={`mt-[13px] h-px w-10 sm:w-16 ${step.number <
                                                     currentStep
                                                     ? "bg-green-600"
                                                     : "bg-slate-200"
@@ -93,7 +93,7 @@ export default function LeaseContractStepper({
                             </div>
                         );
                     })}
-
+                </div>
             </div>
         </div>
     );

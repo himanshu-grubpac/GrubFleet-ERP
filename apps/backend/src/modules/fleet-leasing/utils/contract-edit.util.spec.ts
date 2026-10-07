@@ -6,10 +6,16 @@ import {
 describe('contract-edit.util', () => {
   it('allows edit on active and other non-terminal editable statuses', () => {
     expect(isContractEditable('active')).toBe(true);
-    expect(isContractEditable('deactivated')).toBe(true);
-    expect(isContractEditable('billing_paused')).toBe(true);
     expect(isContractEditable('awaiting_assets')).toBe(true);
     expect(getContractEditBlockReason('active')).toBeNull();
+  });
+
+  it('blocks edit on deactivated and billing paused (rule 31)', () => {
+    expect(isContractEditable('deactivated')).toBe(false);
+    expect(isContractEditable('billing_paused')).toBe(false);
+    expect(getContractEditBlockReason('deactivated')).toMatch(
+      /cannot be edited until reactivated/i,
+    );
   });
 
   it('blocks edit on closed and concluded', () => {

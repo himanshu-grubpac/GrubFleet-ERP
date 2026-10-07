@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  GoneException,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -26,6 +27,8 @@ import { LeaseContractsService } from './lease-contracts.service';
 import { RegisterReturnDto } from './dto/register-return.dto';
 import { UpdateContractAssetLinesDto } from './dto/update-contract-asset-lines.dto';
 import { UpdateContractTermsDto } from './dto/update-contract-terms.dto';
+import { DeactivateLeaseContractDto } from './dto/deactivate-lease-contract.dto';
+import { RenewLeaseContractDto } from './dto/renew-lease-contract.dto';
 
 @ApiTags('fleet-leasing')
 @ApiBearerAuth()
@@ -139,6 +142,41 @@ export class LeaseContractsController {
     return this.leaseContracts.getConfirmation(organizationId, id);
   }
 
+  @Get(':id/change-history')
+  @RequireOrganizationContext()
+  @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
+  @ApiOperation({
+    summary:
+      'Field-level change history (FROM/TO rows from lease_contract_edit_logs)',
+  })
+  getChangeHistory(
+    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.leaseContracts.getChangeHistory(organizationId, id);
+  }
+
+  @Post(':id/renew')
+  @RequireOrganizationContext()
+  @RequireAnyPermissions(...FleetLeasingWriteAny.UPDATE)
+  @ApiOperation({
+    summary:
+      'Renew or extend an active contract — updates term and dates on the same contract (LEASE-17/18)',
+  })
+  renew(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: RenewLeaseContractDto,
+  ) {
+    return this.leaseContracts.renewContract(
+      user.userId,
+      organizationId,
+      id,
+      dto,
+    );
+  }
+
   @Get(':id')
   @RequireOrganizationContext()
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
@@ -146,6 +184,7 @@ export class LeaseContractsController {
     summary: 'Lease contract detail with lines, logs, return progress',
   })
   getOne(
+    @CurrentUser() user: AuthenticatedUser,
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
@@ -238,12 +277,22 @@ export class LeaseContractsController {
   @Post(':id/deactivate')
   @RequireOrganizationContext()
   @RequireAnyPermissions(...FleetLeasingWriteAny.UPDATE)
+  @ApiOperation({
+    summary: 'Deactivate active contract (on hold; billing continues)',
+    description: 'Reason is required and stored in audit metadata.',
+  })
   deactivate(
     @CurrentUser() user: AuthenticatedUser,
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: DeactivateLeaseContractDto,
   ) {
-    return this.leaseContracts.deactivate(user.userId, organizationId, id);
+    return this.leaseContracts.deactivate(
+      user.userId,
+      organizationId,
+      id,
+      dto.reason,
+    );
   }
 
   @Post(':id/pause-billing')
@@ -257,49 +306,37 @@ export class LeaseContractsController {
     return this.leaseContracts.pauseBilling(user.userId, organizationId, id);
   }
 
-  @Post(':id/request-termination')
+  @Post(':id/terminate')
   @RequireOrganizationContext()
   @RequireAnyPermissions(...FleetLeasingWriteAny.UPDATE)
-  requestTermination(
+  @ApiOperation({
+    summary:
+      'Terminate contract — closes contract and settles security deposit (single step)',
+  })
+  terminate(
     @CurrentUser() user: AuthenticatedUser,
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.leaseContracts.requestTermination(
-      user.userId,
-      organizationId,
-      id,
+    return this.leaseContracts.terminate(user.userId, organizationId, id);
+  }
+
+  @Post(':id/request-termination')
+  @RequireOrganizationContext()
+  @RequireAnyPermissions(...FleetLeasingWriteAny.UPDATE)
+  requestTerminationDeprecated() {
+    throw new GoneException(
+      'Two-step termination was removed. Use POST .../terminate instead.',
     );
   }
 
   @Post(':id/approve-termination')
   @RequireOrganizationContext()
   @RequireAnyPermissions(...FleetLeasingWriteAny.APPROVE)
-  approveTermination(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.leaseContracts.approveTermination(
-      user.userId,
-      organizationId,
-      id,
+  approveTerminationDeprecated() {
+    throw new GoneException(
+      'Two-step termination was removed. Use POST .../terminate instead.',
     );
-  }
-
-  @Post(':id/renew')
-  @RequireOrganizationContext()
-  @RequireAnyPermissions(...FleetLeasingWriteAny.CREATE)
-  @ApiOperation({
-    summary:
-      'Flow 04 — create renewal draft (blank end date until terms are set)',
-  })
-  renew(
-    @CurrentUser() user: AuthenticatedUser,
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
-    @Param('id', ParseUUIDPipe) id: string,
-  ) {
-    return this.leaseContracts.renewContract(user.userId, organizationId, id);
   }
 
   @Post(':id/register-return')

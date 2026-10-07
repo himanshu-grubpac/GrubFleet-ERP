@@ -13,8 +13,8 @@ import {
   FileText,
   Users,
   ArrowLeftRight,
-  ClipboardCheck,
   RefreshCw,
+  ClipboardCheck,
   MapPin,
   Truck,
   UserRound,
@@ -24,18 +24,17 @@ import {
 export type NavItem = {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   requiredPermission?: string;
   children?: NavItem[];
 };
-
 export const mainNavItems: NavItem[] = [
   // ============================================================
   // DASHBOARD
   // ============================================================
   {
     label: "Dashboard",
-    href: "/dashboard/",
+    href: "/dashboard",
     icon: LayoutDashboard,
     requiredPermission: "dashboard.view",
   },
@@ -56,36 +55,53 @@ export const mainNavItems: NavItem[] = [
         icon: FileText,
       },
       {
-        label: "Corporate Customers",
-        href: "/fleet-leasing/corporate-customers",
-        icon: Users,
-      },
-      {
-        label: "Vehicle Allocation & Reallocation",
-        href: "/fleet-leasing/vehicle-allocation",
-        icon: ArrowLeftRight,
+        label: "Renewals & Extensions",
+        href: "/fleet-leasing/renewals-extensions",
+        icon: RefreshCw,
       },
       {
         label: "Returns & Inspections",
         href: "/fleet-leasing/returns-inspections",
         icon: ClipboardCheck,
       },
-      {
-        label: "Renewals & Extensions",
-        href: "/fleet-leasing/renewals-extensions",
-        icon: RefreshCw,
-      },
     ],
   },
-
   // ============================================================
-  // ASSET REGISTER
+  // ASSET MANAGEMENT
   // ============================================================
   {
-    label: "Asset Register",
-    href: "/asset-register",
+    label: "Asset Management",
+    href: "/asset-management",
     icon: ClipboardList,
     requiredPermission: "asset_register.view",
+    children: [
+      {
+        label: "Asset Class",
+        href: "/asset-register/assestclass",
+        icon: ClipboardList,
+      },
+      {
+        label: "Asset Master",
+        href: "/asset-register/asset-master",
+        icon: Shield,
+      },
+      {
+        label: "Fleet Register",
+        href: "/asset-register/fleetregister",
+        icon: Car,
+      },
+      {
+        label: "Asset Assignment",
+        href: "/asset-register/asset-assign",
+        icon: ArrowLeftRight,
+      },
+      {
+        label: "Compliance & Renewals",
+        href: "/asset-register/compliance-renewals",
+        icon: Shield,
+      },
+
+    ],
   },
 
   // ============================================================

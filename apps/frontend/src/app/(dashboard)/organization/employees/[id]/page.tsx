@@ -1,5 +1,5 @@
-import ViewEmployeePage from "@/components/modules/organization/employees/ViewEmployeePage";
+import ViewPage from "@/components/modules/organization/employees/ViewPage";
 
-export default function EmployeeViewPage() {
-  return <ViewEmployeePage />;
+export default function EmployeeViewRoute() {
+    return <ViewPage />;
 }

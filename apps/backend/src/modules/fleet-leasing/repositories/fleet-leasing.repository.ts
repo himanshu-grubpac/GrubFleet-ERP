@@ -22,6 +22,7 @@ import {
   fleetReturnInspections,
   fleetVehicleAllocations,
   fleetVehicles,
+  organisationClients,
   leaseContractAssetLines,
   leaseContractEditLogs,
   leaseContractEvents,
@@ -37,10 +38,18 @@ export class FleetLeasingRepository {
 
   async nextContractNumber(organizationId: string): Promise<string> {
     const [row] = await this.db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({
+        maxSeq: sql<number>`coalesce(max(
+          case
+            when ${leaseContracts.contractNumber} ~ '^LC-[0-9]+$'
+            then substring(${leaseContracts.contractNumber} from 4)::int
+            else null
+          end
+        ), 1999)`,
+      })
       .from(leaseContracts)
       .where(eq(leaseContracts.organizationId, organizationId));
-    const seq = (row?.count ?? 0) + 2000;
+    const seq = (row?.maxSeq ?? 1999) + 1;
     return `LC-${seq}`;
   }
 
@@ -79,6 +88,7 @@ export class FleetLeasingRepository {
         or(
           ilike(leaseContracts.contractNumber, q),
           ilike(fleetClients.companyName, q),
+          ilike(organisationClients.name, q),
         )!,
       );
     }
@@ -87,10 +97,16 @@ export class FleetLeasingRepository {
       this.db
         .select({
           contract: leaseContracts,
-          clientCompanyName: fleetClients.companyName,
+          clientCompanyName: sql<
+            string | null
+          >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
         })
         .from(leaseContracts)
         .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+        .leftJoin(
+          organisationClients,
+          eq(fleetClients.organisationClientId, organisationClients.id),
+        )
         .where(where)
         .orderBy(desc(leaseContracts.createdAt))
         .limit(pageSize)
@@ -99,6 +115,10 @@ export class FleetLeasingRepository {
         .select({ count: sql<number>`count(*)::int` })
         .from(leaseContracts)
         .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+        .leftJoin(
+          organisationClients,
+          eq(fleetClients.organisationClientId, organisationClients.id),
+        )
         .where(where),
     ]);
     return { rows, total: countRows[0]?.count ?? 0 };
@@ -138,6 +158,21 @@ export class FleetLeasingRepository {
       .from(leaseContractAssetLines)
       .where(eq(leaseContractAssetLines.contractId, contractId))
       .orderBy(leaseContractAssetLines.sortOrder);
+  }
+
+  /** Batched asset lines for list pages (rule 26 list query budget). */
+  async listAssetLinesForContractIds(contractIds: string[]) {
+    if (contractIds.length === 0) {
+      return [];
+    }
+    return this.db
+      .select()
+      .from(leaseContractAssetLines)
+      .where(inArray(leaseContractAssetLines.contractId, contractIds))
+      .orderBy(
+        asc(leaseContractAssetLines.contractId),
+        asc(leaseContractAssetLines.sortOrder),
+      );
   }
 
   async listContractVehicleIds(contractId: string): Promise<string[]> {
@@ -207,6 +242,40 @@ export class FleetLeasingRepository {
       .where(inArray(users.id, unique));
     for (const row of rows) {
       const label = row.fullName?.trim() || row.email?.trim() || 'Unknown user';
+      out.set(row.id, label);
+    }
+    return out;
+  }
+
+  async findClientDisplayLabels(
+    organizationId: string,
+    clientIds: string[],
+  ): Promise<Map<string, string>> {
+    const unique = [...new Set(clientIds.filter(Boolean))];
+    const out = new Map<string, string>();
+    if (unique.length === 0) return out;
+    const rows = await this.db
+      .select({
+        id: fleetClients.id,
+        companyName: fleetClients.companyName,
+        organisationClientName: organisationClients.name,
+      })
+      .from(fleetClients)
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(
+        and(
+          eq(fleetClients.organizationId, organizationId),
+          inArray(fleetClients.id, unique),
+        ),
+      );
+    for (const row of rows) {
+      const label =
+        row.organisationClientName?.trim() ||
+        row.companyName?.trim() ||
+        'Unknown client';
       out.set(row.id, label);
     }
     return out;
@@ -292,9 +361,16 @@ export class FleetLeasingRepository {
   async insertContract(
     values: typeof leaseContracts.$inferInsert,
   ): Promise<typeof leaseContracts.$inferSelect> {
+    const { clientId, ...rest } = values;
+    const insertValues =
+      clientId === null ||
+      clientId === undefined ||
+      (typeof clientId === 'string' && clientId.trim() === '')
+        ? rest
+        : { ...rest, clientId };
     const [row] = await this.db
       .insert(leaseContracts)
-      .values(values)
+      .values(insertValues)
       .returning();
     return row;
   }
@@ -304,9 +380,17 @@ export class FleetLeasingRepository {
     organizationId: string,
     patch: Partial<typeof leaseContracts.$inferInsert>,
   ) {
+    const { clientId, ...rest } = patch;
+    const normalizedPatch =
+      clientId === undefined
+        ? rest
+        : clientId === null ||
+            (typeof clientId === 'string' && clientId.trim() === '')
+          ? { ...rest, clientId: null }
+          : { ...rest, clientId };
     const [row] = await this.db
       .update(leaseContracts)
-      .set({ ...patch, updatedAt: new Date() })
+      .set({ ...normalizedPatch, updatedAt: new Date() })
       .where(
         and(
           eq(leaseContracts.id, contractId),
@@ -502,14 +586,61 @@ export class FleetLeasingRepository {
   }
 
   async getClientWithPocs(organizationId: string, clientId: string) {
-    const client = await this.getClientInOrg(organizationId, clientId);
-    if (!client) return null;
+    const [joined] = await this.db
+      .select({
+        client: fleetClients,
+        organisationClientName: organisationClients.name,
+      })
+      .from(fleetClients)
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(
+        and(
+          eq(fleetClients.id, clientId),
+          eq(fleetClients.organizationId, organizationId),
+        ),
+      )
+      .limit(1);
+    if (!joined) return null;
     const pocs = await this.db
       .select()
       .from(fleetClientPocs)
       .where(eq(fleetClientPocs.clientId, clientId))
       .orderBy(fleetClientPocs.sortOrder);
-    return { client, pocs };
+    return {
+      client: joined.client,
+      organisationClientName: joined.organisationClientName,
+      pocs,
+    };
+  }
+
+  async getClientInOrgWithDisplayName(
+    organizationId: string,
+    clientId: string,
+  ): Promise<{
+    client: typeof fleetClients.$inferSelect;
+    organisationClientName: string | null;
+  } | null> {
+    const [joined] = await this.db
+      .select({
+        client: fleetClients,
+        organisationClientName: organisationClients.name,
+      })
+      .from(fleetClients)
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(
+        and(
+          eq(fleetClients.id, clientId),
+          eq(fleetClients.organizationId, organizationId),
+        ),
+      )
+      .limit(1);
+    return joined ?? null;
   }
 
   async insertClient(values: typeof fleetClients.$inferInsert) {
@@ -928,6 +1059,14 @@ export class FleetLeasingRepository {
     return row;
   }
 
+  async countEditLogs(contractId: string): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leaseContractEditLogs)
+      .where(eq(leaseContractEditLogs.contractId, contractId));
+    return row?.count ?? 0;
+  }
+
   async listEditLogs(contractId: string, limit = 50) {
     return this.db
       .select()
@@ -1016,5 +1155,110 @@ export class FleetLeasingRepository {
       .update(fleetVehicles)
       .set({ status: 'leased', updatedAt: new Date() })
       .where(inArray(fleetVehicles.id, vehicleIds));
+  }
+
+  async countContractsGroupedByOrganisationClientIds(
+    organizationId: string,
+    organisationClientIds: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (organisationClientIds.length === 0) {
+      return out;
+    }
+    const rows = await this.db
+      .select({
+        organisationClientId: fleetClients.organisationClientId,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(leaseContracts)
+      .innerJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .where(
+        and(
+          eq(leaseContracts.organizationId, organizationId),
+          inArray(fleetClients.organisationClientId, organisationClientIds),
+        ),
+      )
+      .groupBy(fleetClients.organisationClientId);
+    for (const row of rows) {
+      if (row.organisationClientId) {
+        out.set(row.organisationClientId, row.count);
+      }
+    }
+    return out;
+  }
+
+  async listContractsForOrganisationClient(
+    organizationId: string,
+    organisationClientId: string,
+  ) {
+    return this.db
+      .select({
+        id: leaseContracts.id,
+        contractNumber: leaseContracts.contractNumber,
+        status: leaseContracts.status,
+        startDate: leaseContracts.startDate,
+      })
+      .from(leaseContracts)
+      .innerJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .where(
+        and(
+          eq(leaseContracts.organizationId, organizationId),
+          eq(fleetClients.organisationClientId, organisationClientId),
+        ),
+      )
+      .orderBy(desc(leaseContracts.createdAt));
+  }
+
+  async getContractSummariesByIds(
+    organizationId: string,
+    contractIds: string[],
+  ) {
+    if (contractIds.length === 0) {
+      return [];
+    }
+    return this.db
+      .select({
+        id: leaseContracts.id,
+        contractNumber: leaseContracts.contractNumber,
+        status: leaseContracts.status,
+        startDate: leaseContracts.startDate,
+        endDate: leaseContracts.endDate,
+        lesseeName: fleetClients.companyName,
+      })
+      .from(leaseContracts)
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .where(
+        and(
+          eq(leaseContracts.organizationId, organizationId),
+          inArray(leaseContracts.id, contractIds),
+        ),
+      );
+  }
+
+  async listAssetClassesByContractIds(
+    contractIds: string[],
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (contractIds.length === 0) {
+      return out;
+    }
+    const rows = await this.db
+      .select({
+        contractId: leaseContractAssetLines.contractId,
+        assetClass: leaseContractAssetLines.assetClass,
+      })
+      .from(leaseContractAssetLines)
+      .where(inArray(leaseContractAssetLines.contractId, contractIds))
+      .orderBy(asc(leaseContractAssetLines.sortOrder));
+    for (const row of rows) {
+      const existing = out.get(row.contractId);
+      const label = row.assetClass.trim();
+      if (!existing) {
+        out.set(row.contractId, label);
+      } else if (!existing.split(', ').includes(label)) {
+        out.set(row.contractId, `${existing}, ${label}`);
+      }
+    }
+    return out;
   }
 }

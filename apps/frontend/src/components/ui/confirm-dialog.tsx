@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, type ReactNode } from "react";
+import { useEffect, useId } from "react";
 import { createPortal } from "react-dom";
 import { Loader2 } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
@@ -13,10 +13,8 @@ export type ConfirmDialogProps = {
   cancelLabel?: string;
   variant?: "default" | "destructive";
   isConfirmPending?: boolean;
-  /** When true, confirm stays disabled (e.g. required reason not filled). Uses GrubpacButton disabled styling on primary. */
+  /** When true, primary confirm is disabled (e.g. preconditions not met). */
   confirmDisabled?: boolean;
-  /** Optional block below message (e.g. grey warning callout). */
-  children?: ReactNode;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -30,10 +28,10 @@ export function ConfirmDialog({
   variant = "default",
   isConfirmPending = false,
   confirmDisabled = false,
-  children,
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
+  const primaryConfirmDisabled = isConfirmPending || confirmDisabled;
   const titleId = useId();
 
   useEffect(() => {
@@ -59,8 +57,6 @@ export function ConfirmDialog({
     }
   };
 
-  const confirmBlocked = isConfirmPending || confirmDisabled;
-
   return createPortal(
     <div
       className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 px-4"
@@ -82,7 +78,6 @@ export function ConfirmDialog({
             {title}
           </h2>
           <p className="mt-2 text-sm leading-5 text-slate-600">{message}</p>
-          {children ? <div className="mt-4">{children}</div> : null}
         </div>
         <div className="flex justify-end gap-2 px-6 py-5">
           <Button
@@ -97,9 +92,9 @@ export function ConfirmDialog({
           {variant === "destructive" ? (
             <button
               type="button"
-              disabled={confirmBlocked}
+              disabled={isConfirmPending}
               onClick={onConfirm}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-500 disabled:hover:bg-slate-300"
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-medium text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isConfirmPending ? (
                 <>
@@ -116,7 +111,7 @@ export function ConfirmDialog({
               variant="primary"
               size="md"
               loading={isConfirmPending}
-              disabled={confirmBlocked}
+              disabled={primaryConfirmDisabled}
               onClick={onConfirm}
             >
               {confirmLabel}

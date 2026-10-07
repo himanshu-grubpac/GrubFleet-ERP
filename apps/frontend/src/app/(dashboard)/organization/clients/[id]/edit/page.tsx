@@ -1,5 +1,5 @@
-import ClientEditPage from "@/components/modules/organization/clients/ClientEditPage";
+import EditClientPage from "@/components/modules/organization/clients/Edit Page";
 
-export default function OrganizationClientEditPage() {
-  return <ClientEditPage />;
+export default function ClientEditRoute() {
+    return <EditClientPage />;
 }

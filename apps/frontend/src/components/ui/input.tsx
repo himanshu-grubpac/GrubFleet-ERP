@@ -14,14 +14,3 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   ),
 );
 Input.displayName = 'Input';
-
-export {
-  RestrictedInput,
-  type RestrictedInputProps,
-} from './RestrictedInput';
-export {
-  ORG_INPUT_LIMITS,
-  restrictNumericInput,
-  sanitizeRestrictedInputValue,
-  type RestrictedInputKind,
-} from '@/lib/forms/restricted-input';

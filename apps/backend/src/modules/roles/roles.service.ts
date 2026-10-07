@@ -30,6 +30,11 @@ import type { CreateRoleDto } from './dto/create-role.dto';
 import type { ModuleAccessEntryDto } from './dto/module-access-entry.dto';
 import type { RoleAssignmentDto } from './dto/role-assignment.dto';
 import type { UpdateRoleDto } from './dto/update-role.dto';
+import { PermissionKeys } from '../auth/authorization/constants/permission-keys';
+import {
+  collectRoleSubtree,
+  wouldCreateRoleHierarchyCycle,
+} from './role-hierarchy.util';
 import { RolesRepository } from './roles.repository';
 
 export type RoleDto = {
@@ -40,6 +45,7 @@ export type RoleDto = {
   description: string | null;
   isSystem: boolean;
   isActive: boolean;
+  parentRoleId: string | null;
   permissionKeys: string[];
   moduleAccess: ModuleAccessEntry[];
   createdAt: string;
@@ -70,7 +76,11 @@ export class RolesService {
     private readonly auditService: AuditService,
   ) {}
 
-  async getRoleById(organizationId: string, roleId: string): Promise<RoleDto> {
+  async getRoleById(
+    actorUserId: string,
+    organizationId: string,
+    roleId: string,
+  ): Promise<RoleDto> {
     const role = await this.rolesRepository.findOrgRoleById(
       roleId,
       organizationId,
@@ -81,20 +91,27 @@ export class RolesService {
         code: 'ROLE_NOT_FOUND',
       });
     }
+    await this.assertActorCanViewRole(actorUserId, organizationId, roleId);
     const permissionKeys =
       await this.rolesRepository.getPermissionKeysForRole(roleId);
     return this.toDto(role, permissionKeys);
   }
 
   async listRoles(
+    actorUserId: string,
     organizationId: string,
     page = DEFAULT_PAGE,
     pageSize = DEFAULT_PAGE_SIZE,
   ): Promise<PaginatedResult<RoleDto>> {
+    const visibleRoleIds = await this.resolveVisibleRoleIds(
+      actorUserId,
+      organizationId,
+    );
     const { rows, total } = await this.rolesRepository.listOrgRoles(
       organizationId,
       page,
       pageSize,
+      visibleRoleIds,
     );
     const items = await Promise.all(
       rows.map(async (role) => {
@@ -119,16 +136,7 @@ export class RolesService {
 
     let roleKeys: string[] = [];
     if (roleId) {
-      const role = await this.rolesRepository.findOrgRoleById(
-        roleId,
-        organizationId,
-      );
-      if (!role) {
-        throw new NotFoundException({
-          message: 'Role not found',
-          code: 'ROLE_NOT_FOUND',
-        });
-      }
+      await this.assertActorCanViewRole(actorUserId, organizationId, roleId);
       roleKeys = await this.rolesRepository.getPermissionKeysForRole(roleId);
     }
 
@@ -199,12 +207,19 @@ export class RolesService {
     );
     await this.validatePermissionKeysExist(permissionKeys);
 
+    const parentRoleId = await this.resolveParentRoleIdForCreate(
+      actorUserId,
+      dto.organizationId,
+      dto.parentRoleId,
+    );
+
     let role;
     try {
       role = await this.rolesRepository.insertRole({
         organizationId: dto.organizationId,
         name: dto.name.trim(),
         description: dto.description ?? null,
+        parentRoleId,
       });
     } catch {
       throw new ConflictException({
@@ -237,6 +252,7 @@ export class RolesService {
         name: dto.name,
         permissionKeys,
         moduleAccess: dto.moduleAccess,
+        parentRoleId,
       },
     });
 
@@ -262,10 +278,23 @@ export class RolesService {
         code: 'ROLE_NOT_FOUND',
       });
     }
+    await this.assertActorCanViewRole(actorUserId, organizationId, roleId);
     if (role.isSystem) {
       throw new ConflictException({
         message: 'System roles cannot be modified',
         code: 'ROLE_IS_SYSTEM',
+      });
+    }
+
+    if (dto.parentRoleId !== undefined) {
+      const nextParent = await this.resolveParentRoleIdForUpdate(
+        actorUserId,
+        organizationId,
+        roleId,
+        dto.parentRoleId,
+      );
+      await this.rolesRepository.updateRoleFields(roleId, {
+        parentRoleId: nextParent,
       });
     }
 
@@ -363,10 +392,20 @@ export class RolesService {
         code: 'ROLE_NOT_FOUND',
       });
     }
+    await this.assertActorCanViewRole(actorUserId, organizationId, roleId);
     if (role.isSystem) {
       throw new ConflictException({
         message: 'System roles cannot be deleted',
         code: 'ROLE_IS_SYSTEM',
+      });
+    }
+
+    const childCount = await this.rolesRepository.countDirectChildRoles(roleId);
+    if (childCount > 0) {
+      throw new ConflictException({
+        message:
+          'Role has child roles in the hierarchy; reassign or remove children first',
+        code: 'ROLE_HAS_CHILDREN',
       });
     }
 
@@ -429,6 +468,7 @@ export class RolesService {
         code: 'ROLE_NOT_FOUND',
       });
     }
+    await this.assertActorCanViewRole(actorUserId, dto.organizationId, roleId);
 
     const rolePermissionKeys =
       await this.rolesRepository.getPermissionKeysForRole(roleId);
@@ -486,6 +526,7 @@ export class RolesService {
         code: 'ROLE_NOT_FOUND',
       });
     }
+    await this.assertActorCanViewRole(actorUserId, dto.organizationId, roleId);
 
     const rolePermissionKeys =
       await this.rolesRepository.getPermissionKeysForRole(roleId);
@@ -608,6 +649,147 @@ export class RolesService {
     }
   }
 
+  private async actorHasAdministrationManage(
+    actorUserId: string,
+    organizationId: string,
+  ): Promise<boolean> {
+    const keys = await this.authorizationService.getEffectivePermissionKeys(
+      actorUserId,
+      organizationId,
+    );
+    return keys.includes(PermissionKeys.ADMINISTRATION_MANAGE);
+  }
+
+  /** null = no filter (all org roles); Set as array for repository. */
+  private async resolveVisibleRoleIds(
+    actorUserId: string,
+    organizationId: string,
+  ): Promise<string[] | null> {
+    if (await this.actorHasAdministrationManage(actorUserId, organizationId)) {
+      return null;
+    }
+    const assigned = await this.rolesRepository.listRoleIdsAssignedToUserInOrg(
+      actorUserId,
+      organizationId,
+    );
+    if (assigned.length === 0) {
+      return [];
+    }
+    const links =
+      await this.rolesRepository.listOrgRoleParentLinks(organizationId);
+    return [...collectRoleSubtree(assigned, links)];
+  }
+
+  private async assertActorCanViewRole(
+    actorUserId: string,
+    organizationId: string,
+    roleId: string,
+  ): Promise<void> {
+    const visible = await this.resolveVisibleRoleIds(
+      actorUserId,
+      organizationId,
+    );
+    if (visible === null) {
+      return;
+    }
+    if (!visible.includes(roleId)) {
+      throw new NotFoundException({
+        message: 'Role not found',
+        code: 'ROLE_NOT_FOUND',
+      });
+    }
+  }
+
+  private async resolveParentRoleIdForCreate(
+    actorUserId: string,
+    organizationId: string,
+    parentRoleId: string | null | undefined,
+  ): Promise<string | null> {
+    const normalized =
+      parentRoleId === undefined || parentRoleId === null ? null : parentRoleId;
+
+    if (normalized === null) {
+      if (
+        !(await this.actorHasAdministrationManage(actorUserId, organizationId))
+      ) {
+        throw new BadRequestException({
+          message:
+            'Root roles require administration.manage; set parentRoleId to a role you manage',
+          code: 'ROLE_PARENT_REQUIRED',
+        });
+      }
+      return null;
+    }
+
+    const parent = await this.rolesRepository.findOrgRoleById(
+      normalized,
+      organizationId,
+    );
+    if (!parent) {
+      throw new BadRequestException({
+        message: 'Parent role not found in this organization',
+        code: 'ROLE_PARENT_NOT_FOUND',
+      });
+    }
+
+    await this.assertActorCanViewRole(actorUserId, organizationId, normalized);
+    return normalized;
+  }
+
+  private async resolveParentRoleIdForUpdate(
+    actorUserId: string,
+    organizationId: string,
+    roleId: string,
+    parentRoleId: string | null,
+  ): Promise<string | null> {
+    if (parentRoleId === null) {
+      if (
+        !(await this.actorHasAdministrationManage(actorUserId, organizationId))
+      ) {
+        throw new BadRequestException({
+          message:
+            'Only administration.manage can set a role as hierarchy root',
+          code: 'ROLE_PARENT_MANAGE_REQUIRED',
+        });
+      }
+      return null;
+    }
+
+    if (parentRoleId === roleId) {
+      throw new BadRequestException({
+        message: 'A role cannot be its own parent',
+        code: 'ROLE_HIERARCHY_CYCLE',
+      });
+    }
+
+    const parent = await this.rolesRepository.findOrgRoleById(
+      parentRoleId,
+      organizationId,
+    );
+    if (!parent) {
+      throw new BadRequestException({
+        message: 'Parent role not found in this organization',
+        code: 'ROLE_PARENT_NOT_FOUND',
+      });
+    }
+
+    const links =
+      await this.rolesRepository.listOrgRoleParentLinks(organizationId);
+    if (wouldCreateRoleHierarchyCycle(roleId, parentRoleId, links)) {
+      throw new BadRequestException({
+        message: 'Parent role would create a hierarchy cycle',
+        code: 'ROLE_HIERARCHY_CYCLE',
+      });
+    }
+
+    await this.assertActorCanViewRole(
+      actorUserId,
+      organizationId,
+      parentRoleId,
+    );
+    return parentRoleId;
+  }
+
   private toDto(
     role: {
       id: string;
@@ -617,6 +799,7 @@ export class RolesService {
       description: string | null;
       isSystem: boolean;
       isActive: boolean;
+      parentRoleId?: string | null;
       createdAt: Date;
       updatedAt: Date;
     },
@@ -630,6 +813,7 @@ export class RolesService {
       description: role.description,
       isSystem: role.isSystem,
       isActive: role.isActive,
+      parentRoleId: role.parentRoleId ?? null,
       permissionKeys: [...permissionKeys].sort(),
       moduleAccess: deriveModuleAccessFromKeys(permissionKeys),
       createdAt: role.createdAt.toISOString(),

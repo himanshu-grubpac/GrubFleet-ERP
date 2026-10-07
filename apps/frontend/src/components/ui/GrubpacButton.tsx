@@ -6,33 +6,39 @@ import {
   type ButtonProps,
 } from "@grubpac/ui-kit";
 
+import { cn } from "@/lib/utils";
+
 type GrubPacButtonProps = ButtonProps &
   React.ButtonHTMLAttributes<HTMLButtonElement> & {
     children?: React.ReactNode;
   };
 
-/** Primary CTA disabled state — ui-kit primary variant has no disabled background override. */
+/** Brand primary must read as disabled (slate), not orange, when non-actionable. */
 const PRIMARY_DISABLED_CLASSES =
-  "disabled:cursor-not-allowed disabled:!bg-slate-300 disabled:!border-slate-300 disabled:!text-slate-500 disabled:hover:!bg-slate-300 disabled:hover:!border-slate-300";
+  "disabled:!cursor-not-allowed disabled:!pointer-events-none disabled:!bg-slate-200 disabled:!text-slate-500 disabled:!border-slate-200 disabled:!opacity-100 disabled:hover:!bg-slate-200 disabled:hover:!text-slate-500 disabled:shadow-none";
 
 const UiKitButton =
   GrubPacButton as React.ComponentType<GrubPacButtonProps>;
 
-function GrubpacButton({
-  variant = "primary",
-  className = "",
+function isPrimaryVariant(variant: ButtonProps["variant"]): boolean {
+  return variant === undefined || variant === "primary";
+}
+
+export default function GrubpacButton({
+  className,
+  variant,
+  disabled,
   ...props
 }: GrubPacButtonProps) {
-  const disabledVisual =
-    variant === "primary" ? PRIMARY_DISABLED_CLASSES : "";
-
   return (
     <UiKitButton
       variant={variant}
-      className={[disabledVisual, className].filter(Boolean).join(" ")}
+      disabled={disabled}
+      className={cn(
+        isPrimaryVariant(variant) && disabled && PRIMARY_DISABLED_CLASSES,
+        className,
+      )}
       {...props}
     />
   );
 }
-
-export default GrubpacButton;

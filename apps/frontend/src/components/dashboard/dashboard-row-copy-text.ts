@@ -1,15 +1,29 @@
-import type {
-  OrganisationLocationDetail,
-  OrganisationLocationListItem,
-} from "@/lib/api/organisation/locations";
+import type { OrganisationLocationListItem } from "@/lib/api/organisation/locations";
+import type { OrganisationEmployeeListItem } from "@/lib/api/organisation/employees";
 import type { LeaseContractListItem } from "@/lib/api/lease-contracts";
-import type { EmployeeRecord } from "@/components/modules/organization/employees/types";
-import { EMPLOYMENT_TYPE_LABELS } from "@/components/modules/organization/employees/types";
-import { formatStructuredAddressMultiline } from "@/lib/format/address-format";
 import { formatPhoneForCopy } from "@/lib/format/phone-format";
 
 function nonEmptyLines(lines: Array<string | null | undefined>): string {
-  return lines.filter((line): line is string => Boolean(line?.trim())).join("\n");
+  return lines
+    .filter((line): line is string => Boolean(line?.trim()))
+    .join("\n");
+}
+
+export function formatEmployeeRowCopyText(
+  employee: OrganisationEmployeeListItem,
+): string {
+  return nonEmptyLines([
+    `Employee: ${employee.fullName}`,
+    `Designation: ${employee.designation}`,
+    `Department: ${employee.department}`,
+    `Location: ${employee.location}`,
+    employee.reportsToName
+      ? `Reports to: ${employee.reportsToName}`
+      : null,
+    employee.email ? `Email: ${employee.email}` : null,
+    employee.phone ? `Phone: ${formatPhoneForCopy(employee.phone)}` : null,
+    `Status: ${employee.status === "active" ? "Active" : "Inactive"}`,
+  ]);
 }
 
 export function formatLocationRowCopyText(
@@ -28,70 +42,37 @@ export function formatLocationRowCopyText(
   ]);
 }
 
-export function formatLocationDetailCopyText(
-  location: OrganisationLocationDetail,
-): string {
-  const addressBlock = formatStructuredAddressMultiline(location);
-
-  return nonEmptyLines([
-    `Location: ${location.name}`,
-    `Type: ${location.type}`,
-    addressBlock && addressBlock !== "—"
-      ? `Address:\n${addressBlock}`
-      : `Address: ${location.address}`,
-    location.siteContactPhone
-      ? `Office contact phone: ${formatPhoneForCopy(location.siteContactPhone)}`
-      : null,
-    location.siteContactEmail
-      ? `Office contact email: ${location.siteContactEmail}`
-      : null,
-    location.responsiblePerson
-      ? `Responsible person: ${location.responsiblePerson}`
-      : null,
-    location.responsiblePersonPhone
-      ? `Responsible phone: ${formatPhoneForCopy(location.responsiblePersonPhone)}`
-      : null,
-    location.responsiblePersonEmail
-      ? `Responsible email: ${location.responsiblePersonEmail}`
-      : null,
-    location.deputyName ? `Deputy: ${location.deputyName}` : null,
-    location.deputyPhone
-      ? `Deputy phone: ${formatPhoneForCopy(location.deputyPhone)}`
-      : null,
-    location.deputyEmail ? `Deputy email: ${location.deputyEmail}` : null,
-    `Status: ${location.status === "active" ? "Active" : "Inactive"}`,
-  ]);
+/** Maps lease list status to org table action lifecycle (rule 31 — deactivated/closed = inactive). */
+export function leaseContractRowActionStatus(
+  status: string,
+): "active" | "inactive" {
+  const normalized = status.trim().toLowerCase();
+  if (
+    normalized === "deactivated" ||
+    normalized === "closed" ||
+    normalized === "concluded" ||
+    normalized === "terminated"
+  ) {
+    return "inactive";
+  }
+  return "active";
 }
 
 export function formatLeaseContractRowCopyText(
-  contract: LeaseContractListItem,
+  row: LeaseContractListItem,
 ): string {
+  const start =
+    row.startDate?.trim() ||
+    null;
   return nonEmptyLines([
-    `Contract no.: ${contract.contractNumber}`,
-    `Company: ${contract.clientName}`,
-    contract.assetClasses ? `Asset class: ${contract.assetClasses}` : null,
-    contract.startDate ? `Start date: ${contract.startDate}` : null,
-    contract.endDate ? `End date: ${contract.endDate}` : null,
-    contract.termMonths != null
-      ? `Term: ${contract.termMonths} months`
+    `Contract: ${row.contractNumber}`,
+    `Client: ${row.clientName}`,
+    row.assetClasses?.trim()
+      ? `Asset classes: ${row.assetClasses}`
       : null,
-    `Status: ${contract.status}`,
-  ]);
-}
-
-export function formatEmployeeRowCopyText(employee: EmployeeRecord): string {
-  return nonEmptyLines([
-    `Name: ${employee.fullName}`,
-    employee.designation ? `Designation: ${employee.designation}` : null,
-    employee.department ? `Department: ${employee.department}` : null,
-    employee.location ? `Location: ${employee.location}` : null,
-    employee.phone ? `Phone: ${formatPhoneForCopy(employee.phone)}` : null,
-    employee.email ? `Email: ${employee.email}` : null,
-    employee.reportsToName ? `Reports to: ${employee.reportsToName}` : null,
-    `Employment type: ${EMPLOYMENT_TYPE_LABELS[employee.employmentType]}`,
-    employee.dateOfJoining
-      ? `Date of joining: ${employee.dateOfJoining}`
-      : null,
-    `Status: ${employee.status === "active" ? "Active" : "Inactive"}`,
+    start ? `Start date: ${start}` : null,
+    row.endDate?.trim() ? `End date: ${row.endDate}` : null,
+    row.termMonths != null ? `Term: ${row.termMonths} months` : null,
+    `Status: ${row.status}`,
   ]);
 }

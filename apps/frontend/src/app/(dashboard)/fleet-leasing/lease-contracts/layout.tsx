@@ -1,10 +1,14 @@
-import type { ReactNode } from "react";
+import { LeaseContractsProvider } from "@/lib/api/lease-contracts-context";
 
-/** Lease-contract segment shell; API context lives in parent fleet-leasing layout. */
+/**
+ * Layout for all lease-contract routes.
+ * Mounts the LeaseContractsProvider so every page/component
+ * in this subtree can call useLeaseApi() without touching useAuth() directly.
+ */
 export default function LeaseContractsLayout({
-  children,
+    children,
 }: {
-  children: ReactNode;
+    children: React.ReactNode;
 }) {
-  return children;
+    return <LeaseContractsProvider>{children}</LeaseContractsProvider>;
 }

@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import { LeaseContractsService } from '../fleet-leasing/lease-contracts.service';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -37,6 +40,8 @@ export class ClientsService {
   constructor(
     private readonly repo: OrganisationRepository,
     private readonly audit: AuditService,
+    @Inject(forwardRef(() => LeaseContractsService))
+    private readonly leaseContracts: LeaseContractsService,
   ) {}
 
   async list(query: ListOrganisationClientsQueryDto) {
@@ -57,12 +62,20 @@ export class ClientsService {
         isActive,
       },
     );
-    const primaryByClient =
-      await this.repo.getPrimaryPocsForOrganisationClients(
-        rows.map((row) => row.id),
-      );
+    const clientIds = rows.map((row) => row.id);
+    const [primaryByClient, contractCounts] = await Promise.all([
+      this.repo.getPrimaryPocsForOrganisationClients(clientIds),
+      this.leaseContracts.getOrganisationClientContractCounts(
+        query.organizationId,
+        clientIds,
+      ),
+    ]);
     const items = rows.map((row) =>
-      this.toListItem(row, primaryByClient.get(row.id)),
+      this.toListItem(
+        row,
+        primaryByClient.get(row.id),
+        contractCounts.get(row.id) ?? 0,
+      ),
     );
     return toPaginatedResult(items, page, pageSize, total);
   }
@@ -73,7 +86,12 @@ export class ClientsService {
       clientId,
     );
     if (!bundle) throw new NotFoundException('Client not found');
-    return this.toDetail(bundle.client, bundle.pocs);
+    const contractHistory =
+      await this.leaseContracts.getOrganisationClientContractHistory(
+        organizationId,
+        clientId,
+      );
+    return this.toDetail(bundle.client, bundle.pocs, contractHistory);
   }
 
   async create(dto: CreateOrganisationClientDto) {
@@ -216,7 +234,8 @@ export class ClientsService {
 
   private toListItem(
     row: OrganisationClientRow,
-    primary?: OrganisationClientPocRow,
+    primary: OrganisationClientPocRow | undefined,
+    contractCount: number,
   ) {
     return {
       id: row.id,
@@ -224,7 +243,7 @@ export class ClientsService {
       primaryPoc: primary?.name ?? '—',
       phone: primary?.contactNumber ?? '',
       email: primary?.email ?? '',
-      contracts: 0,
+      contracts: contractCount,
       status: row.isActive ? ('active' as const) : ('inactive' as const),
     };
   }
@@ -232,8 +251,8 @@ export class ClientsService {
   private toDetail(
     row: OrganisationClientRow,
     pocs: OrganisationClientPocRow[],
+    contractHistory: OrganisationClientContractHistoryItem[],
   ) {
-    const contractHistory: OrganisationClientContractHistoryItem[] = [];
     return {
       id: row.id,
       clientName: row.name,

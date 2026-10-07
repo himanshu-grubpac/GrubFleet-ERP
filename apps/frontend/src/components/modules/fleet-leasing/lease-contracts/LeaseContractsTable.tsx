@@ -1,14 +1,20 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Power } from "lucide-react";
+import { DashboardRowActionsMenuItem } from "@/components/dashboard/DashboardRowActionsMenu";
+import { formatCalendarDateEnIn } from "@/lib/format/date-format";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { formatLeaseContractRowCopyText } from "@/components/dashboard/dashboard-row-copy-text";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
+import DashboardTable, {
+  type DashboardColumn,
+} from "@/components/dashboard/DashboardTable";
 import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
 import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
-import { DataTable, type Column } from "@grubpac/ui-kit";
 import { useLeaseApi } from "@/lib/api/lease-contracts-context";
 import type {
   LeaseContractListItem,
@@ -17,73 +23,34 @@ import type {
 import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { showErrorToast } from "@/lib/toast/show-toast";
+import {
+  LEASE_CONTRACT_STATUS_UPDATE_ERROR,
+  showErrorToast,
+  showLeaseContractActivatedToast,
+  showLeaseContractDeactivatedToast,
+  showLeaseContractReactivatedToast,
+} from "@/lib/toast/show-toast";
 import {
   isDashboardCatalogEmptyState,
   shouldShowDashboardListFilters,
 } from "@/lib/hooks/dashboard-list-search-ui";
 import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
-import LeaseContractActionModal, {
-  type LeaseContractAction,
-} from "./LeaseContractActionModal";
-import LeaseContractTableActions from "./LeaseContractTableActions";
+type LeaseListRowAction = "deactivate" | "reactivate";
+import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
-  canActivateDraftLeaseContractListRow,
+  canActivateLeaseContractListRow,
   canDeactivateLeaseContractListRow,
   canEditLeaseContractListRow,
   canReactivateLeaseContractListRow,
 } from "./lease-contract-list-row-actions";
-
-// ─── KPI Summary Bar ──────────────────────────────────────────────────────────
-
-function SummaryBar({
-  activeContracts,
-  awaitingAssets,
-  pendingApproval,
-  draft,
-}: {
-  activeContracts: number;
-  awaitingAssets: number;
-  pendingApproval: number;
-  draft: number;
-}) {
-  const stats = [
-    { label: "Active", value: activeContracts, color: "text-green-600" },
-    { label: "Awaiting Assets", value: awaitingAssets, color: "text-amber-600" },
-    { label: "Pending Approval", value: pendingApproval, color: "text-blue-600" },
-    { label: "Draft", value: draft, color: "text-slate-500" },
-  ];
-
-  return (
-    <div className="flex gap-6 border-b border-slate-100 px-5 py-3">
-      {stats.map((s) => (
-        <div key={s.label} className="flex items-center gap-2">
-          <span className={`text-lg font-bold ${s.color}`}>{s.value}</span>
-          <span className="text-xs text-slate-500">{s.label}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
+import { leaseStatusPillClass } from "@/lib/lease-contract/lease-contract-status-display";
 
 // ─── Status Badge ─────────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    Active: "bg-green-100 text-green-700",
-    Draft: "bg-amber-100 text-amber-700",
-    "Pending Approval": "bg-blue-100 text-blue-700",
-    "Awaiting Assets": "bg-orange-100 text-orange-700",
-    Deactivated: "bg-slate-100 text-slate-600",
-    "Billing Paused": "bg-purple-100 text-purple-700",
-    "Pending Termination": "bg-red-100 text-red-600",
-    Closed: "bg-slate-100 text-slate-500",
-  };
   return (
     <span
-      className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
-        map[status] ?? "bg-slate-100 text-slate-600"
-      }`}
+      className={`rounded-md px-2.5 py-1 text-xs font-semibold ${leaseStatusPillClass(status)}`}
     >
       {status}
     </span>
@@ -106,9 +73,9 @@ const LEASE_STATUS_FILTER_OPTIONS: {
 
 // ─── Table ────────────────────────────────────────────────────────────────────
 
-type LeaseActionModalTarget = {
+type LeaseListActionTarget = {
   contract: LeaseContractListItem;
-  action: LeaseContractAction;
+  action: LeaseListRowAction;
 };
 
 export default function LeaseContractsTable() {
@@ -125,23 +92,16 @@ export default function LeaseContractsTable() {
     useDashboardListSearch();
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
-  const [activateDraftTarget, setActivateDraftTarget] =
+  const [activateTarget, setActivateTarget] =
     useState<LeaseContractListItem | null>(null);
-  const [actionModalTarget, setActionModalTarget] =
-    useState<LeaseActionModalTarget | null>(null);
+  const [listActionTarget, setListActionTarget] =
+    useState<LeaseListActionTarget | null>(null);
 
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, statusFilter]);
 
   const listEnabled = !!organizationId && !isAuthLoading;
-
-  const { data: summary } = useQuery({
-    queryKey: ["lease-contracts-summary", organizationId],
-    queryFn: () => api.getSummary(),
-    enabled: listEnabled,
-    ...dashboardListQueryOptions,
-  });
 
   const listQuery = useQuery({
     queryKey: [
@@ -198,7 +158,7 @@ export default function LeaseContractsTable() {
       queryKey: ["lease-contracts-list", organizationId],
     });
     void queryClient.invalidateQueries({
-      queryKey: ["lease-contracts-summary", organizationId],
+      queryKey: ["renewals-extensions-list", organizationId],
     });
   };
 
@@ -206,25 +166,36 @@ export default function LeaseContractsTable() {
     mutationFn: async (input: {
       contractId: string;
       kind: "activate" | "deactivate" | "reactivate";
+      reason?: string;
     }) => {
       if (input.kind === "activate") {
         return api.activate(input.contractId);
       }
       if (input.kind === "deactivate") {
-        return api.deactivate(input.contractId);
+        return api.deactivate(
+          input.contractId,
+          input.reason ?? "",
+        );
       }
       return api.reactivate(input.contractId);
     },
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       invalidateLeaseListQueries();
-      setActivateDraftTarget(null);
-      setActionModalTarget(null);
+      if (variables.kind === "activate") {
+        showLeaseContractActivatedToast();
+      } else if (variables.kind === "deactivate") {
+        showLeaseContractDeactivatedToast();
+      } else {
+        showLeaseContractReactivatedToast();
+      }
+      setActivateTarget(null);
+      setListActionTarget(null);
     },
     onError: (error) => {
       const message =
         error instanceof ApiClientError
-          ? error.message
-          : "Could not update contract status. Please try again.";
+          ? error.message || LEASE_CONTRACT_STATUS_UPDATE_ERROR
+          : LEASE_CONTRACT_STATUS_UPDATE_ERROR;
       showErrorToast(message);
     },
   });
@@ -235,131 +206,126 @@ export default function LeaseContractsTable() {
     );
   };
 
-  const handleConfirmDraftActivate = () => {
-    if (!activateDraftTarget || statusMutation.isPending) {
+  const handleConfirmActivate = () => {
+    if (!activateTarget || statusMutation.isPending) {
       return;
     }
     void statusMutation.mutateAsync({
-      contractId: activateDraftTarget.id,
+      contractId: activateTarget.id,
       kind: "activate",
     });
   };
 
-  const handleConfirmActionModal = () => {
-    if (!actionModalTarget || statusMutation.isPending) {
+  const handleConfirmListAction = (reason?: string) => {
+    if (!listActionTarget || statusMutation.isPending) {
       return;
     }
     const kind =
-      actionModalTarget.action === "deactivate"
+      listActionTarget.action === "deactivate"
         ? "deactivate"
         : "reactivate";
     void statusMutation.mutateAsync({
-      contractId: actionModalTarget.contract.id,
+      contractId: listActionTarget.contract.id,
       kind,
+      reason,
     });
   };
 
-  const columns: Column<LeaseContractListItem>[] = [
+  const columns: DashboardColumn<LeaseContractListItem>[] = [
+    { key: "contractNumber", label: "Contract No." },
+    { key: "clientName", label: "Company Name" },
+    { key: "assetClasses", label: "Asset Class" },
     {
-      header: "Contract No.",
-      accessorKey: "contractNumber",
-      sortable: true,
+      key: "startDate",
+      label: "Start Date",
+      render: (row) => formatCalendarDateEnIn(row.startDate),
     },
     {
-      header: "Company Name",
-      accessorKey: "clientName",
-      sortable: true,
-    },
-    {
-      header: "Asset Class",
-      accessorKey: "assetClasses",
-      sortable: true,
-    },
-    {
-      header: "Start Date",
-      accessorKey: "startDate",
-      sortable: true,
-      cell: ({ row }) => <span>{row.startDate ?? "—"}</span>,
-    },
-    {
-      header: "Status",
-      accessorKey: "status",
-      sortable: true,
-      cell: ({ row }) => <StatusBadge status={row.status} />,
-    },
-    {
-      header: "Action",
-      accessorKey: "id",
-      headerClassName: "text-right w-[168px]",
-      className: "text-right",
-      cell: ({ row }) => {
-        const showEdit = canUpdate && canEditLeaseContractListRow(row);
-        const showDeactivate =
-          canUpdate && canDeactivateLeaseContractListRow(row);
-        const showReactivate =
-          canUpdate && canReactivateLeaseContractListRow(row);
-        const showActivateDraft =
-          canUpdate && canActivateDraftLeaseContractListRow(row);
-
-        return (
-          <LeaseContractTableActions
-            leaseId={row.id}
-            copyText={formatLeaseContractRowCopyText(row)}
-            showEdit={showEdit}
-            showDeactivate={showDeactivate}
-            showReactivate={showReactivate}
-            showActivateDraft={showActivateDraft}
-            onEdit={showEdit ? () => handleEdit(row) : undefined}
-            onDeactivate={
-              showDeactivate
-                ? () =>
-                    setActionModalTarget({
-                      contract: row,
-                      action: "deactivate",
-                    })
-                : undefined
-            }
-            onReactivate={
-              showReactivate
-                ? () =>
-                    setActionModalTarget({
-                      contract: row,
-                      action: "reactivate",
-                    })
-                : undefined
-            }
-            onActivateDraft={
-              showActivateDraft
-                ? () => setActivateDraftTarget(row)
-                : undefined
-            }
-          />
-        );
-      },
+      key: "status",
+      label: "Status",
+      render: (row) => <StatusBadge status={row.status} />,
     },
   ];
 
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
-      {summary && <SummaryBar {...summary} />}
+  const renderRowActions = (row: LeaseContractListItem) => {
+    const showEdit = canUpdate && canEditLeaseContractListRow(row);
+    const showDeactivate = canUpdate && canDeactivateLeaseContractListRow(row);
+    const showReactivate = canUpdate && canReactivateLeaseContractListRow(row);
+    const showActivate =
+      canUpdate && canActivateLeaseContractListRow(row);
 
+    const listRowStatus: "active" | "inactive" =
+      row.rawStatus === "active" ? "active" : "inactive";
+
+    return (
+      <DashboardTableActions
+        status={listRowStatus}
+        viewHref={`/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(row.id)}`}
+        copyText={formatLeaseContractRowCopyText(row)}
+        onEdit={showEdit ? () => handleEdit(row) : undefined}
+        renderAdditionalMenuItems={() => (
+          <>
+            {showActivate ? (
+              <DashboardRowActionsMenuItem
+                icon={<Power className="h-4 w-4 text-green-700" />}
+                label="Activate"
+                className="text-green-700"
+                onSelect={() => setActivateTarget(row)}
+              />
+            ) : null}
+            {showDeactivate ? (
+              <DashboardRowActionsMenuItem
+                icon={<Power className="h-4 w-4" />}
+                label="Deactivate"
+                onSelect={() =>
+                  setListActionTarget({
+                    contract: row,
+                    action: "deactivate",
+                  })
+                }
+              />
+            ) : null}
+            {showReactivate ? (
+              <DashboardRowActionsMenuItem
+                icon={<Power className="h-4 w-4" />}
+                label="Reactivate"
+                onSelect={() =>
+                  setListActionTarget({
+                    contract: row,
+                    action: "reactivate",
+                  })
+                }
+              />
+            ) : null}
+          </>
+        )}
+      />
+    );
+  };
+
+  return (
+    <>
       {isInitialLoading && (
         <div
-          className="min-h-[240px] animate-pulse rounded-lg bg-gray-100 mx-5 my-4"
+          className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white"
           aria-busy="true"
           aria-label="Loading lease contracts"
-        />
+        >
+          <p className="text-sm text-gray-500">Loading lease contracts…</p>
+        </div>
       )}
 
       {listQuery.isError && !isInitialLoading && (
-        <div className="flex flex-col items-center justify-center gap-2 py-16 text-sm text-red-500">
-          Failed to load lease contracts. Please try again.
+        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
+          <p className="text-sm font-medium text-red-600">
+            Failed to load lease contracts.
+          </p>
           <button
             type="button"
             onClick={() => void listQuery.refetch()}
-            className="text-xs font-medium text-[#FE5720] hover:underline"
+            className="mt-2 text-sm text-gray-600 underline"
           >
-            Retry
+            Try again
           </button>
         </div>
       )}
@@ -367,33 +333,33 @@ export default function LeaseContractsTable() {
       {!isInitialLoading && !listQuery.isError && (
         <>
           {showFilters && (
-            <div className="border-b border-slate-100 px-5 pt-4">
-              <DashboardFilters
-                searchValue={searchInput}
-                searchPlaceholder="Search by contract no. or client…"
-                onSearchChange={setSearchInput}
-                selectFilters={[
-                  {
-                    key: "status",
-                    label: "All statuses",
-                    options: LEASE_STATUS_FILTER_OPTIONS,
-                  },
-                ]}
-                filterValues={{ status: statusFilter }}
-                onFilterChange={(_key, value) => setStatusFilter(value)}
-                onClear={handleClearFilters}
-              />
-            </div>
+            <DashboardFilters
+              searchValue={searchInput}
+              searchPlaceholder="Search by contract no. or client…"
+              onSearchChange={setSearchInput}
+              selectFilters={[
+                {
+                  key: "status",
+                  label: "All statuses",
+                  options: LEASE_STATUS_FILTER_OPTIONS,
+                },
+              ]}
+              filterValues={{ status: statusFilter }}
+              onFilterChange={(_key, value) => setStatusFilter(value)}
+              onClear={handleClearFilters}
+            />
           )}
 
           {isEmptyCatalog ? (
-            <div className="flex items-center justify-center py-16 text-sm text-slate-500">
+            <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white text-sm text-gray-500">
               No lease contracts yet.
             </div>
           ) : contracts.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-center text-sm text-slate-500">
-              <p className="font-medium text-slate-700">No contracts found</p>
-              <p className="mt-1 text-xs">
+            <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white text-center">
+              <h3 className="text-sm font-semibold text-gray-900">
+                No contracts found
+              </h3>
+              <p className="mt-1 text-xs text-gray-500">
                 Try changing your search or status filter.
               </p>
               <button
@@ -406,61 +372,99 @@ export default function LeaseContractsTable() {
             </div>
           ) : (
             <>
-              <div aria-busy={listQuery.isFetching && listQuery.isPlaceholderData}>
-                <DataTable
-                  data={contracts}
+              <div
+                className={showFilters ? "mt-4" : undefined}
+                aria-busy={listQuery.isFetching && listQuery.isPlaceholderData}
+              >
+                <DashboardTable
                   columns={columns}
-                  getRowId={(row) => row.id}
+                  data={contracts}
+                  getRowKey={(row) => row.id}
+                  renderActions={renderRowActions}
                 />
               </div>
-              <div className="px-5 pb-4">
-                <DashboardTablePagination
-                  page={listPage}
-                  pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
-                  total={listTotal}
-                  onPageChange={setPage}
-                  disabled={
-                    listQuery.isFetching || statusMutation.isPending
-                  }
-                />
-              </div>
+              <DashboardTablePagination
+                page={listPage}
+                pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
+                total={listTotal}
+                onPageChange={setPage}
+                disabled={listQuery.isFetching || statusMutation.isPending}
+              />
             </>
           )}
         </>
       )}
 
       <ConfirmDialog
-        open={activateDraftTarget !== null}
+        open={activateTarget !== null}
         title="Activate contract?"
         message={
-          activateDraftTarget
-            ? `${activateDraftTarget.contractNumber} will be activated and move forward in the contract lifecycle.`
+          activateTarget
+            ? `${activateTarget.contractNumber} will move to Active or Awaiting Assets per allocation.`
             : "This contract will be activated."
         }
         confirmLabel="Activate"
         isConfirmPending={statusMutation.isPending}
         onClose={() => {
           if (!statusMutation.isPending) {
-            setActivateDraftTarget(null);
+            setActivateTarget(null);
           }
         }}
-        onConfirm={handleConfirmDraftActivate}
+        onConfirm={handleConfirmActivate}
       />
 
-      <LeaseContractActionModal
-        isOpen={actionModalTarget !== null}
-        action={actionModalTarget?.action ?? "deactivate"}
-        contractNumber={
-          actionModalTarget?.contract.contractNumber ?? ""
+      <ReasonRequiredDialog
+        open={
+          listActionTarget?.action === "deactivate" &&
+          listActionTarget !== null
         }
+        title="Deactivate contract?"
+        description={
+          listActionTarget?.contract.contractNumber ? (
+            <>
+              <span className="font-medium text-gray-900">
+                {listActionTarget.contract.contractNumber}
+              </span>{" "}
+              will be put on hold. Billing continues until all vehicles are
+              returned and registered.
+            </>
+          ) : (
+            "This contract will be deactivated."
+          )
+        }
+        reasonLabel="Reason for deactivation"
+        confirmLabel="Deactivate"
+        isPending={statusMutation.isPending}
+        onClose={() => {
+          if (!statusMutation.isPending) {
+            setListActionTarget(null);
+          }
+        }}
+        onConfirm={(reason) => {
+          handleConfirmListAction(reason);
+        }}
+      />
+
+      <ConfirmDialog
+        open={
+          listActionTarget?.action === "reactivate" &&
+          listActionTarget !== null
+        }
+        title="Reactivate contract?"
+        message={
+          listActionTarget?.contract.contractNumber
+            ? `${listActionTarget.contract.contractNumber} will return to Active or Awaiting Assets per allocation.`
+            : "This contract will be reactivated."
+        }
+        confirmLabel="Reactivate"
         isConfirmPending={statusMutation.isPending}
         onClose={() => {
           if (!statusMutation.isPending) {
-            setActionModalTarget(null);
+            setListActionTarget(null);
           }
         }}
-        onConfirm={handleConfirmActionModal}
+        onConfirm={handleConfirmListAction}
       />
-    </div>
+    </>
   );
 }

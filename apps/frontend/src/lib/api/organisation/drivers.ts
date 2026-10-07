@@ -1,5 +1,5 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
-import type { DriverFormData } from "@/components/modules/organization/driver-register/DriverForm";
+import type { DriverFormData } from "@/components/modules/organization/driver-register/CreateDriverPage";
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
 import { apiFetch } from "../client";
@@ -277,4 +277,27 @@ export function buildDriverUpdatePayloadFromForm(
   form: DriverFormData,
 ): UpdateOrganisationDriverPayload {
   return buildDriverBodyFieldsFromForm(form);
+}
+
+export function driverDetailToFormData(
+  driver: OrganisationDriverDetail,
+): Partial<DriverFormData> {
+  return {
+    name: driver.name,
+    cprNo: driver.cprNo,
+    mobileNo: driver.phone,
+    email: driver.email,
+    drivingLicenseNo: driver.licenseNumber,
+    licenseExpiryDate: driver.licenseExpiry,
+    supplier: driver.supplierId,
+    address: {
+      line1: driver.addressLine1,
+      line2: driver.addressLine2 ?? "",
+      city: driver.addressCity ?? "",
+      state: driver.addressState ?? "",
+      district: driver.addressDistrict ?? "",
+      pincode: driver.addressPincode ?? "",
+      country: driver.addressCountry,
+    },
+  };
 }

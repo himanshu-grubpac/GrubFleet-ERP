@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
     Plus,
     Trash2,
@@ -31,16 +32,20 @@ interface AssetLinesStepProps {
     clientName: string;
     initialAssetLines?: AssetLine[];
     onBack: () => void;
-    onContinue: (assetLines: AssetLine[]) => void | Promise<void>;
+    onContinue: (
+        assetLines: AssetLine[],
+        options?: { confirmShortfall?: boolean },
+    ) => void | Promise<void>;
 }
 
 export default function AssetLinesStep({
     clientId,
-    clientName,
+    clientName: _clientName,
     initialAssetLines,
     onBack,
     onContinue,
 }: AssetLinesStepProps) {
+    void _clientName;
     const { token, organizationId } = useGrubpacAuth();
 
     const [assetLines, setAssetLines] = useState<AssetLine[]>(
@@ -49,6 +54,7 @@ export default function AssetLinesStep({
 
     const [formError, setFormError] = useState<string | null>(null);
     const [isContinuing, setIsContinuing] = useState(false);
+    const [shortfallConfirmOpen, setShortfallConfirmOpen] = useState(false);
 
     const assetClassesQuery = useQuery({
         queryKey: ["fleet-leasing-asset-classes", organizationId],
@@ -195,7 +201,7 @@ export default function AssetLinesStep({
         );
     };
 
-    const handleContinue = () => {
+    const validateAndContinue = (confirmShortfall: boolean) => {
         setFormError(null);
 
         if (!clientId) {
@@ -224,18 +230,23 @@ export default function AssetLinesStep({
             return;
         }
 
-        if (!mvpAllLinesCovered) {
-            setFormError(
-                "Reduce requested quantities or remove lines that exceed available fleet before continuing.",
-            );
+        if (!mvpAllLinesCovered && !confirmShortfall) {
+            setShortfallConfirmOpen(true);
             return;
         }
 
         setIsContinuing(true);
-        void Promise.resolve(onContinue(assetLines)).finally(() => {
+        void Promise.resolve(
+            onContinue(assetLines, {
+                confirmShortfall: confirmShortfall || !mvpAllLinesCovered,
+            }),
+        ).finally(() => {
             setIsContinuing(false);
+            setShortfallConfirmOpen(false);
         });
     };
+
+    const handleContinue = () => validateAndContinue(false);
 
     const subtitle = mvpAllLinesCovered
         ? "Every requested line covered by available fleet."
@@ -245,14 +256,7 @@ export default function AssetLinesStep({
 
     return (
         <>
-            <div className="mb-5">
-                <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                    {clientName || "Selected client"}
-                </h1>
-                <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                    {subtitle}
-                </p>
-            </div>
+            <p className="mb-4 text-sm text-gray-500">{subtitle}</p>
 
             {formError && (
                 <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
@@ -384,14 +388,10 @@ export default function AssetLinesStep({
                         <span className="font-semibold">
                             {firstShortfallLine.line.assetClass}
                         </span>{" "}
-                        can&apos;t be added to this contract — only{" "}
-                        {firstShortfallLine.snapshot.availableNow} of the{" "}
-                        {firstShortfallLine.line.committedQuantity} requested
-                        units are currently available. Reduce the requested
-                        quantity, remove the line, or wait until more fleet
-                        becomes available. A lease can only be created against
-                        currently available fleet — there&apos;s no
-                        partial/Awaiting-Assets path in this MVP.
+                        requests more than currently available fleet (
+                        {firstShortfallLine.snapshot.availableNow} available).
+                        Reduce quantities, or continue to mark lines as awaiting
+                        assets after you confirm.
                     </p>
                 </div>
             )}
@@ -426,13 +426,26 @@ export default function AssetLinesStep({
                         assetClassesQuery.isLoading ||
                         !assetClassOptions.length ||
                         !assetLines.length ||
-                        availabilityPreviewQuery.isLoading ||
-                        !mvpAllLinesCovered
+                        availabilityPreviewQuery.isLoading
                     }
                 >
                     {isContinuing ? "Saving…" : "Continue"}
                 </Button>
             </div>
+
+            <ConfirmDialog
+                open={shortfallConfirmOpen}
+                title="Proceed with asset shortfall?"
+                message="One or more lines exceed available fleet. Continuing marks those lines as awaiting assets on this contract."
+                confirmLabel="Proceed anyway"
+                isConfirmPending={isContinuing}
+                onClose={() => {
+                    if (!isContinuing) {
+                        setShortfallConfirmOpen(false);
+                    }
+                }}
+                onConfirm={() => validateAndContinue(true)}
+            />
         </>
     );
 }
