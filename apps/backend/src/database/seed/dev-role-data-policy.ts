@@ -14,6 +14,13 @@ export const INTEGRATION_FIXTURE_ORG_ROLE_NAMES = [
   'RBAC Viewer Only',
   'Fleet View Only',
   'Organisation View Only',
+  'Org Locations Viewer Only',
+  'Org Suppliers Viewer Only',
+  'Org Clients Viewer Only',
+  'Org Drivers Viewer Only',
+  'Asset Register Viewer Only',
+  'Asset Master Viewer Only',
+  'Asset Vehicle Viewer Only',
 ] as const;
 
 export const RBAC_INTEGRATION_TEST_ROLE_PREFIX = 'integration.test.rbac.';
