@@ -12,7 +12,7 @@ COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/api-contracts/package.json ./packages/api-contracts/
 COPY packages/validation/package.json ./packages/validation/
 ENV CI=true HUSKY=0
-RUN npm ci --workspace=frontend --include-workspace-root --ignore-scripts
+RUN npm ci --workspace=frontend --workspace=@grubpac/validation --workspace=@grubpac/shared-types --include-workspace-root --ignore-scripts
 
 COPY packages ./packages
 COPY apps/frontend ./apps/frontend
