@@ -125,7 +125,9 @@ function formatFleetClientCode(seq: number): string {
 
 function formatIndianRegistration(seq: number): string {
   const district = String(((seq - 1) % 9) + 1).padStart(2, '0');
-  const series = String.fromCharCode(65 + (seq % 26)) + String.fromCharCode(66 + ((seq + 3) % 26));
+  const series =
+    String.fromCharCode(65 + (seq % 26)) +
+    String.fromCharCode(66 + ((seq + 3) % 26));
   const number = String(1000 + seq);
   return `KA${district}${series}${number}`;
 }
@@ -500,7 +502,10 @@ export async function seedStagingInterconnectedDemo(
     },
   ] as const;
 
-  const SUPPLIER_BRAND_NAMES: Record<(typeof ORG_SUPPLIER_TYPES)[number], string[]> = {
+  const SUPPLIER_BRAND_NAMES: Record<
+    (typeof ORG_SUPPLIER_TYPES)[number],
+    string[]
+  > = {
     bike: [
       'Hero MotoCorp Fleet Services',
       'TVS Mobility Partners',
@@ -618,7 +623,11 @@ export async function seedStagingInterconnectedDemo(
   ] as const;
   const locationKeys = INDIAN_DEMO_SITES.map((s) => s.key);
   const EMPLOYEE_ROSTER = [
-    { first: 'Rajesh', last: 'Kumar', designation: 'Regional Operations Manager' },
+    {
+      first: 'Rajesh',
+      last: 'Kumar',
+      designation: 'Regional Operations Manager',
+    },
     { first: 'Priya', last: 'Sharma', designation: 'Fleet Planning Lead' },
     { first: 'Amit', last: 'Patel', designation: 'Chief Workshop Engineer' },
     { first: 'Sneha', last: 'Iyer', designation: 'Finance Controller' },
@@ -629,7 +638,11 @@ export async function seedStagingInterconnectedDemo(
     { first: 'Suresh', last: 'Nair', designation: 'Workshop Foreman' },
     { first: 'Divya', last: 'Kulkarni', designation: 'Accounts Payable Lead' },
     { first: 'Vivek', last: 'Malhotra', designation: 'Compliance Officer' },
-    { first: 'Lakshmi', last: 'Venkatesh', designation: 'Inventory Coordinator' },
+    {
+      first: 'Lakshmi',
+      last: 'Venkatesh',
+      designation: 'Inventory Coordinator',
+    },
     { first: 'Arun', last: 'Bose', designation: 'Deputy Fleet Manager' },
     { first: 'Pallavi', last: 'Joshi', designation: 'Customer Success Lead' },
   ] as const;

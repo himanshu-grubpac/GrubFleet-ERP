@@ -18,8 +18,13 @@ const STAGING_SEED_EMAIL_DOMAIN = 'grubfleet-logistics.in';
 /**
  * Professional contact email for seeded org rows (idempotent per role + stable key).
  */
-export function stagingSeedContactEmail(role: string, stableKey: string): string {
-  const local = `${role}.${stableKey}`.replace(/[^a-z0-9.]/gi, '.').toLowerCase();
+export function stagingSeedContactEmail(
+  role: string,
+  stableKey: string,
+): string {
+  const local = `${role}.${stableKey}`
+    .replace(/[^a-z0-9.]/gi, '.')
+    .toLowerCase();
   return `${local}@${STAGING_SEED_EMAIL_DOMAIN}`;
 }
 
@@ -29,9 +34,7 @@ export function stagingSeedPersonEmail(
   lastName: string,
   companyDomain: string,
 ): string {
-  const local = `${firstName}.${lastName}`
-    .toLowerCase()
-    .replace(/[^a-z]/g, '');
+  const local = `${firstName}.${lastName}`.toLowerCase().replace(/[^a-z]/g, '');
   return `${local}@${companyDomain}`;
 }
 
