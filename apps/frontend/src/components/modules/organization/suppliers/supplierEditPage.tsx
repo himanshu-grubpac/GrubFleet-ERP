@@ -92,7 +92,8 @@ export default function EditSupplierPage() {
                 agreementReference: data.agreementReference,
                 address: data.address,
             });
-            const { organizationId: _orgId, ...updatePayload } = full;
+            const { organizationId: payloadOrgId, ...updatePayload } = full;
+            void payloadOrgId;
             payload = updatePayload;
         } catch {
             showErrorToast(SUPPLIER_SAVE_ERROR);

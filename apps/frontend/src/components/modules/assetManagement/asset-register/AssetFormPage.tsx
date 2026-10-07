@@ -324,9 +324,6 @@ export default function CreateAssetClassForm({
     const selectClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
-    const readOnlyInputClassName =
-        "h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-500 outline-none";
-
     const canSubmit = useMemo(() => {
         if (isSaving) {
             return false;

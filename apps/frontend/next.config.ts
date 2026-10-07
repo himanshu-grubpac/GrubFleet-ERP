@@ -5,7 +5,7 @@ import path from 'path';
 const staticExport = process.env.NEXT_STATIC_EXPORT === 'true';
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@grubpac/shared-types'],
+  transpilePackages: ['@grubpac/shared-types', '@grubpac/validation'],
   outputFileTracingRoot: path.join(__dirname, '../..'),
   ...(staticExport
     ? {

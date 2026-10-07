@@ -300,14 +300,11 @@ export class LeaseContractsService {
 
   async create(userId: string, dto: CreateLeaseContractDto) {
     this.validateAmcTierOptional(dto.amcTier);
-    const contractNumber = await this.repo.nextContractNumber(
-      dto.organizationId,
-    );
-    const row = await this.repo.insertContract({
+    const clientId = this.normalizeOptionalClientId(dto.clientId);
+    const insertPayload = {
       organizationId: dto.organizationId,
-      contractNumber,
-      clientId: dto.clientId ?? null,
-      status: 'draft',
+      clientId,
+      status: 'draft' as const,
       startDate: dto.startDate ? new Date(dto.startDate) : null,
       endDate: dto.endDate ? new Date(dto.endDate) : null,
       termMonths: dto.termMonths ?? null,
@@ -318,7 +315,33 @@ export class LeaseContractsService {
       description: dto.description ?? null,
       createdByUserId: userId,
       updatedByUserId: userId,
-    });
+    };
+
+    let row: Awaited<
+      ReturnType<FleetLeasingRepository['insertContract']>
+    > | null = null;
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const contractNumber = await this.repo.nextContractNumber(
+        dto.organizationId,
+      );
+      try {
+        row = await this.repo.insertContract({
+          ...insertPayload,
+          contractNumber,
+        });
+        break;
+      } catch (err) {
+        if (this.isLeaseContractNumberUniqueViolation(err)) {
+          continue;
+        }
+        throw err;
+      }
+    }
+    if (!row) {
+      throw new ConflictException(
+        'Could not allocate a unique lease contract number',
+      );
+    }
     if (dto.assetLines?.length) {
       await this.applyAssetLines(dto.organizationId, row.id, dto.assetLines, {
         confirmShortfall: false,
@@ -660,10 +683,14 @@ export class LeaseContractsService {
       })),
       vehicleIds: beforeVehicleIds,
     });
-    if (dto.clientId) {
+    const patchClientId =
+      dto.clientId !== undefined
+        ? this.normalizeOptionalClientId(dto.clientId)
+        : undefined;
+    if (patchClientId) {
       const client = await this.repo.getClientInOrg(
         organizationId,
-        dto.clientId,
+        patchClientId,
       );
       if (!client)
         throw new BadRequestException('Invalid client for organization');
@@ -686,7 +713,7 @@ export class LeaseContractsService {
     >[2] = {
       updatedByUserId: userId,
     };
-    if (dto.clientId !== undefined) contractPatch.clientId = dto.clientId;
+    if (patchClientId !== undefined) contractPatch.clientId = patchClientId;
     if (dto.startDate !== undefined) contractPatch.startDate = nextStartDate;
     if (dto.termMonths !== undefined) contractPatch.termMonths = dto.termMonths;
     if (recomputeEndDate) {
@@ -1777,6 +1804,48 @@ export class LeaseContractsService {
     );
     const byId = new Map(rows.map((row) => [row.id, row]));
     return byId;
+  }
+
+  private isLeaseContractNumberUniqueViolation(err: unknown): boolean {
+    const codes = this.collectPostgresErrorCodes(err);
+    if (codes.includes('23505')) {
+      return true;
+    }
+    const message = err instanceof Error ? err.message : String(err);
+    return (
+      message.includes('lease_contracts_org_number_uidx') ||
+      (message.includes('duplicate key') && message.includes('contract_number'))
+    );
+  }
+
+  private collectPostgresErrorCodes(err: unknown, depth = 0): string[] {
+    if (depth > 4 || err === null || err === undefined) {
+      return [];
+    }
+    const codes: string[] = [];
+    if (typeof err === 'object' && 'code' in err) {
+      const code = err.code;
+      if (typeof code === 'string') {
+        codes.push(code);
+      }
+    }
+    if (typeof err === 'object' && 'cause' in err) {
+      codes.push(...this.collectPostgresErrorCodes(err.cause, depth + 1));
+    }
+    return codes;
+  }
+
+  private normalizeOptionalClientId(
+    value: string | null | undefined,
+  ): string | null {
+    if (value === null || value === undefined) {
+      return null;
+    }
+    if (typeof value !== 'string') {
+      return null;
+    }
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : null;
   }
 
   private toPublicStatus(status: LeaseContractStatus): string {

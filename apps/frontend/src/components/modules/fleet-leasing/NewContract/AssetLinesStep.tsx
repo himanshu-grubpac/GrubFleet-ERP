@@ -40,11 +40,12 @@ interface AssetLinesStepProps {
 
 export default function AssetLinesStep({
     clientId,
-    clientName,
+    clientName: _clientName,
     initialAssetLines,
     onBack,
     onContinue,
 }: AssetLinesStepProps) {
+    void _clientName;
     const { token, organizationId } = useGrubpacAuth();
 
     const [assetLines, setAssetLines] = useState<AssetLine[]>(

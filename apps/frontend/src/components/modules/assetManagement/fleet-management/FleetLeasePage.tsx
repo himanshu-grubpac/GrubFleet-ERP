@@ -3,7 +3,6 @@
 import { ArrowLeft } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
@@ -216,22 +215,6 @@ export default function FleetLeaseHistoryPage() {
     }));
 
     const hasHistory = leaseHistory.length > 0;
-
-    /* ========================================================
-       HANDLERS
-    ======================================================== */
-
-    const handleBack = () => {
-        router.push(
-            `/asset-register/fleetregister/${asset.id}`,
-        );
-    };
-
-    const handleEdit = () => {
-        router.push(
-            `/asset-register/fleetregister/${asset.id}/edit`,
-        );
-    };
 
     /* ========================================================
        RENDER

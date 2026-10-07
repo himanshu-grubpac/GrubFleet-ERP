@@ -8,7 +8,8 @@ import {
   IsUUID,
   ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { emptyStringToUndefined } from '../../../common/transformers/empty-string-to-undefined.transform';
 import { LeaseContractAssetLineDto } from './lease-contract-asset-line.dto';
 
 export class CreateLeaseContractDto {
@@ -17,6 +18,7 @@ export class CreateLeaseContractDto {
   organizationId!: string;
 
   @ApiPropertyOptional()
+  @Transform(emptyStringToUndefined)
   @IsOptional()
   @IsUUID()
   clientId?: string;

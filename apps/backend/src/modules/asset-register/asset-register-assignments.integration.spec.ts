@@ -11,6 +11,7 @@ import {
   type IntegrationAuthContext,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import { createDraftLeaseContract } from '../../../test/helpers/fleet-leasing-test.util';
 
 const ASSET_VIEW_ONLY_USER = {
   email: 'asset.assign.viewonly@grubpac.local',
@@ -167,13 +168,11 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       .expect((res) => expect([200, 201]).toContain(res.status));
     const clientId = (clientRes.body as { id: string }).id;
 
-    const draftRes = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId, clientId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const contractId = (draftRes.body as { id: string }).id;
+    const { id: contractId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      clientId,
+    });
 
     await request(app.getHttpServer())
       .put(`/api/v1/fleet-leasing/lease-contracts/${contractId}/asset-lines`)
@@ -321,13 +320,10 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     const masterId = await createMaster(classId, `M ${unique}`);
     const vehicle = await createVehicle(classId, masterId);
 
-    const draftRes = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const draftId = (draftRes.body as { id: string }).id;
+    const { id: draftId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+    });
 
     const res = await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')

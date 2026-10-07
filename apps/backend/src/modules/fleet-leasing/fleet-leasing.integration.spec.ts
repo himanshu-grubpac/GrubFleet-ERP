@@ -22,6 +22,10 @@ import {
   loginAs,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import {
+  createDraftLeaseContract,
+  createFleetClientForIntegrationTest,
+} from '../../../test/helpers/fleet-leasing-test.util';
 import * as schema from '../../database/schema';
 import { organizations } from '../../database/schema';
 
@@ -176,18 +180,22 @@ describe('Fleet leasing lease contracts (integration)', () => {
     expect(typeof summaryBody.activeContracts).toBe('number');
     expect(typeof summaryBody.draft).toBe('number');
 
-    const created = await request(app.getHttpServer())
+    const createdBody = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+    });
+    expect(createdBody.contractNumber).toMatch(/^LC-/);
+    expect(createdBody.rawStatus).toBe('draft');
+
+    const emptyClientDraft = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/lease-contracts')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => {
-        expect([200, 201]).toContain(res.status);
-      });
-
-    const createdBody = created.body as LeaseContractResponse;
-    expect(createdBody.contractNumber).toMatch(/^LC-/);
-    expect(createdBody.rawStatus).toBe('draft');
+      .send({ organizationId, clientId: '' })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    expect((emptyClientDraft.body as LeaseContractResponse).rawStatus).toBe(
+      'draft',
+    );
 
     const clientRes = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/clients')
@@ -595,13 +603,17 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   it('LEASE-05: activate rejects draft status', async () => {
-    const draft = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const draftId = (draft.body as LeaseContractResponse).id;
+    const clientId = await createFleetClientForIntegrationTest(
+      app,
+      organizationId,
+      accessToken,
+      'LEASE05-activate',
+    );
+    const { id: draftId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      clientId,
+    });
 
     const activateRes = await request(app.getHttpServer())
       .post(`/api/v1/fleet-leasing/lease-contracts/${draftId}/activate`)
@@ -617,13 +629,17 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   it('LEASE-05: confirm requires auth and update permission', async () => {
-    const draft = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const draftId = (draft.body as LeaseContractResponse).id;
+    const clientId = await createFleetClientForIntegrationTest(
+      app,
+      organizationId,
+      accessToken,
+      'LEASE05-confirm-auth',
+    );
+    const { id: draftId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      clientId,
+    });
 
     await request(app.getHttpServer())
       .post(`/api/v1/fleet-leasing/lease-contracts/${draftId}/confirm`)
@@ -639,13 +655,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   it('LEASE-06: PATCH update auth, validation, IDOR, and audit', async () => {
-    const draft = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const draftId = (draft.body as LeaseContractResponse).id;
+    const { id: draftId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+    });
 
     const detailBeforePatch = await request(app.getHttpServer())
       .get(`/api/v1/fleet-leasing/lease-contracts/${draftId}`)
@@ -785,13 +798,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   it('LEASE-06: PATCH blocked on deactivated (rule 31)', async () => {
-    const draft = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const contractId = (draft.body as LeaseContractResponse).id;
+    const { id: contractId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+    });
 
     await db
       .update(schema.leaseContracts)
@@ -861,13 +871,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
       FLEET_UPDATE_ONLY_USER.password,
     );
 
-    const draft = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const contractId = (draft.body as LeaseContractResponse).id;
+    const { id: contractId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+    });
 
     await db
       .update(schema.leaseContracts)
@@ -924,14 +931,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('x-organization-id', organizationId)
       .expect(410);
 
-    const legacyPendingDraft = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const legacyContractId = (legacyPendingDraft.body as LeaseContractResponse)
-      .id;
+    const { id: legacyContractId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+    });
 
     await db
       .update(schema.leaseContracts)
@@ -959,13 +962,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   it('LEASE-07: deactivate active contract writes audit log', async () => {
-    const draft = await request(app.getHttpServer())
-      .post('/api/v1/fleet-leasing/lease-contracts')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const contractId = (draft.body as LeaseContractResponse).id;
+    const { id: contractId } = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+    });
 
     await db
       .update(schema.leaseContracts)

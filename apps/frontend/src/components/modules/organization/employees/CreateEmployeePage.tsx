@@ -501,12 +501,10 @@ export default function CreateEmployeePage({
     locationsQuery.isLoading ||
     employeesPickerQuery.isLoading;
 
-  const canSubmit = useMemo(() => {
-    if (isSaving || pickersLoading) {
-      return false;
-    }
-    return Object.keys(validateForm()).length === 0;
-  }, [form, isSaving, pickersLoading]);
+  const canSubmit =
+    !isSaving &&
+    !pickersLoading &&
+    Object.keys(validateForm()).length === 0;
 
   return (
     <OrganizationFormLayout

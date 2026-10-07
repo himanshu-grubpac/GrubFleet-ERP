@@ -99,6 +99,8 @@ jobs:
             @tailwindcss/oxide-linux-x64-gnu@4.3.3 \
             lightningcss-linux-x64-gnu@1.32.0 \
             -w frontend
+      - name: Build shared packages (frontend)
+        run: npm run build -w @grubpac/validation
       - name: Lint frontend
         run: npm run lint -w frontend
       - name: Typecheck frontend

@@ -84,7 +84,8 @@ export default function EditClientPage() {
         address: data.address,
         pointsOfContact: data.pointsOfContact,
       });
-      const { organizationId: _orgId, ...updatePayload } = full;
+      const { organizationId: payloadOrgId, ...updatePayload } = full;
+      void payloadOrgId;
       payload = updatePayload;
     } catch {
       showErrorToast(CLIENT_SAVE_ERROR);

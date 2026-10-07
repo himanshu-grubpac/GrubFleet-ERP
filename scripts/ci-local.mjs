@@ -90,6 +90,12 @@ async function main() {
     'run',
     'prepare:lambda',
   ]);
+  runStep('Build @grubpac/validation (frontend)', [
+    'run',
+    'build',
+    '-w',
+    '@grubpac/validation',
+  ]);
   runStep('Lint frontend', ['run', 'lint', '-w', 'frontend']);
   runStep('Typecheck frontend', ['run', 'typecheck', '-w', 'frontend']);
   runStep('Build frontend', ['run', 'build', '-w', 'frontend']);

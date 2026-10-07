@@ -38,10 +38,18 @@ export class FleetLeasingRepository {
 
   async nextContractNumber(organizationId: string): Promise<string> {
     const [row] = await this.db
-      .select({ count: sql<number>`count(*)::int` })
+      .select({
+        maxSeq: sql<number>`coalesce(max(
+          case
+            when ${leaseContracts.contractNumber} ~ '^LC-[0-9]+$'
+            then substring(${leaseContracts.contractNumber} from 4)::int
+            else null
+          end
+        ), 1999)`,
+      })
       .from(leaseContracts)
       .where(eq(leaseContracts.organizationId, organizationId));
-    const seq = (row?.count ?? 0) + 2000;
+    const seq = (row?.maxSeq ?? 1999) + 1;
     return `LC-${seq}`;
   }
 
@@ -353,9 +361,16 @@ export class FleetLeasingRepository {
   async insertContract(
     values: typeof leaseContracts.$inferInsert,
   ): Promise<typeof leaseContracts.$inferSelect> {
+    const { clientId, ...rest } = values;
+    const insertValues =
+      clientId === null ||
+      clientId === undefined ||
+      (typeof clientId === 'string' && clientId.trim() === '')
+        ? rest
+        : { ...rest, clientId };
     const [row] = await this.db
       .insert(leaseContracts)
-      .values(values)
+      .values(insertValues)
       .returning();
     return row;
   }
@@ -365,9 +380,17 @@ export class FleetLeasingRepository {
     organizationId: string,
     patch: Partial<typeof leaseContracts.$inferInsert>,
   ) {
+    const { clientId, ...rest } = patch;
+    const normalizedPatch =
+      clientId === undefined
+        ? rest
+        : clientId === null ||
+            (typeof clientId === 'string' && clientId.trim() === '')
+          ? { ...rest, clientId: null }
+          : { ...rest, clientId };
     const [row] = await this.db
       .update(leaseContracts)
-      .set({ ...patch, updatedAt: new Date() })
+      .set({ ...normalizedPatch, updatedAt: new Date() })
       .where(
         and(
           eq(leaseContracts.id, contractId),
