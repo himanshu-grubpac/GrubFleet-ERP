@@ -325,9 +325,46 @@ describe('Organisation clients (integration)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
         .expect(200);
-      const body = res.body as ClientDetail;
+      const body = res.body as ClientDetail & {
+        linkedFleetClientId?: string;
+      };
       expect(body.contractHistory).toEqual([]);
       expect(body.isActive).toBe(true);
+      expect(body.linkedFleetClientId).toMatch(/^[0-9a-f-]{36}$/i);
+    });
+
+    it('organisation client appears in fleet leasing client list after create', async () => {
+      const unique = `FleetPickerSync ${Date.now()}`;
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/organisation/clients')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildClientCreatePayload({
+            clientName: unique,
+          }),
+        )
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const created = createRes.body as ClientDetail & {
+        linkedFleetClientId?: string;
+      };
+      expect(created.linkedFleetClientId).toBeTruthy();
+
+      const fleetList = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/clients')
+        .query({ organizationId, search: unique, page: 1, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const fleetBody = fleetList.body as {
+        items: Array<{ id: string; companyName: string }>;
+      };
+      expect(
+        fleetBody.items.some((row) => row.id === created.linkedFleetClientId),
+      ).toBe(true);
+      expect(
+        fleetBody.items.some((row) => row.companyName.includes(unique)),
+      ).toBe(true);
     });
 
     it('returns contract count and history when fleet client links organisation client', async () => {

@@ -16,7 +16,16 @@ import TermsStep, {
 
 import ReviewStep from "./ReviewStep";
 
-import CustomerRegistrationForm from "./CustomerRegistrationForm";
+import CreateClientPage, {
+    type ClientFormData,
+} from "@/components/modules/organization/clients/CreateClientPage";
+import {
+    buildFleetClientPayloadFromForm,
+    organisationClientsQueryKey,
+} from "@/lib/api/organisation/clients";
+import { ApiClientError } from "@/lib/api/client";
+import { createFleetClient } from "@/lib/api/lease-contracts";
+import { useQueryClient } from "@tanstack/react-query";
 
 import type {
     FleetClientDetail,
@@ -87,6 +96,7 @@ function wizardDescription(screen: Screen): string | undefined {
 
 export default function NewLeaseContractPage() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const {
         token,
         organizationId,
@@ -205,6 +215,54 @@ export default function NewLeaseContractPage() {
         }
     };
 
+    const handleRegisterClientSaved = async (data: ClientFormData) => {
+        if (!token || !organizationId) {
+            throw new Error(
+                "Authentication or organization information is missing.",
+            );
+        }
+
+        let payload;
+        try {
+            payload = buildFleetClientPayloadFromForm({
+                organizationId,
+                clientName: data.companyName,
+                address: data.address,
+                pointsOfContact: data.pointsOfContact,
+            });
+        } catch {
+            showErrorToast("Could not prepare client data.");
+            throw new Error("Could not prepare client data.");
+        }
+
+        try {
+            const created = await createFleetClient(
+                token,
+                organizationId,
+                payload,
+            );
+            await Promise.all([
+                queryClient.invalidateQueries({
+                    queryKey: organisationClientsQueryKey(organizationId),
+                }),
+                queryClient.invalidateQueries({
+                    queryKey: ["fleet-leasing-clients", organizationId],
+                }),
+            ]);
+
+            await handleClientCreated(created);
+        } catch (error) {
+            const message =
+                error instanceof ApiClientError
+                    ? error.message
+                    : error instanceof Error
+                      ? error.message
+                      : "Could not save client.";
+            showErrorToast(message);
+            throw error;
+        }
+    };
+
     let stepContent: ReactNode = null;
 
     if (screen === "select-client") {
@@ -241,11 +299,12 @@ export default function NewLeaseContractPage() {
                         {wizardError}
                     </div>
                 )}
-                <CustomerRegistrationForm
-                    initialCompanyName={
-                        registerClientDraftName
-                    }
-                    onSuccess={handleClientCreated}
+                <CreateClientPage
+                    variant="embedded"
+                    initialData={{
+                        companyName: registerClientDraftName,
+                    }}
+                    onSaved={handleRegisterClientSaved}
                     onCancel={() => {
                         setRegisterClientDraftName("");
                         setScreen("select-client");

@@ -152,6 +152,23 @@ export class FleetLeasingRepository {
     return row ?? null;
   }
 
+  async findFleetClientByOrganisationClientId(
+    organizationId: string,
+    organisationClientId: string,
+  ) {
+    const [row] = await this.db
+      .select()
+      .from(fleetClients)
+      .where(
+        and(
+          eq(fleetClients.organizationId, organizationId),
+          eq(fleetClients.organisationClientId, organisationClientId),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
   async listAssetLines(contractId: string) {
     return this.db
       .select()
