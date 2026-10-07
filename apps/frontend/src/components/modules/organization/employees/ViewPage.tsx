@@ -1,6 +1,8 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import { organisationEmployeeEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -24,7 +26,6 @@ import type { DeactivateReasonType, EmployeeRecord } from "./types";
 import { formatEmployeeDateForForm } from "./employeeFormMappers";
 
 export default function EmployeeViewPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const {
@@ -34,7 +35,7 @@ export default function EmployeeViewPage() {
     permissions,
   } = useAuth();
 
-  const employeeId = String(params.id);
+  const employeeId = useOrganisationEntityId("employeeId");
 
   const canUpdate =
     permissions.has("organisation.update") ||
@@ -152,7 +153,7 @@ export default function EmployeeViewPage() {
 
   const handleEdit = () => {
     if (!isActive || !canUpdate) return;
-    router.push(`/organization/employees/${employee.id}/edit`);
+    router.push(organisationEmployeeEditHref(employee.id));
   };
 
   const handleOpenDeactivate = () => {

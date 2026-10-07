@@ -14,6 +14,7 @@ import {
     showErrorToast,
     showSupplierCreatedToast,
 } from "@/lib/toast/show-toast";
+import { organisationSupplierDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 import CreateSupplierForm, {
     type SupplierFormData,
@@ -61,7 +62,7 @@ export default function CreateSupplierPage() {
                 queryKey: ["organization", "suppliers"],
             });
             showSupplierCreatedToast(created.name);
-            router.push(`/organization/suppliers/${created.id}`);
+            router.push(organisationSupplierDetailHref(created.id));
         } catch (error) {
             const message =
                 error instanceof ApiClientError

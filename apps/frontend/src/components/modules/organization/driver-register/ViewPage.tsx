@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import { organisationDriverEditHref } from "@/lib/navigation/organisation-static-routes";
 import {
   useMutation,
   useQuery,
@@ -31,7 +33,6 @@ import {
 } from "@/lib/toast/show-toast";
 
 export default function ViewPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const {
@@ -41,7 +42,7 @@ export default function ViewPage() {
     permissions,
   } = useAuth();
 
-  const driverId = String(params.id);
+  const driverId = useOrganisationEntityId("driverId");
 
   const canUpdate =
     permissions.has("organisation.update") ||
@@ -157,7 +158,7 @@ export default function ViewPage() {
 
   const handleEdit = () => {
     if (!isActive || !canUpdate) return;
-    router.push(`/organization/driver-register/${driverId}/edit`);
+    router.push(organisationDriverEditHref(driverId));
   };
 
   const handleToggleStatus = () => {

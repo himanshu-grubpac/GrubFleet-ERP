@@ -20,6 +20,7 @@ import {
 } from "@/lib/api/asset-register/asset-classes";
 import { createAssetRegisterAssetMasterApi } from "@/lib/api/asset-register/asset-masters";
 import { assetClassDetailToMasterOption } from "@/lib/api/asset-register/mappers";
+import { assetRegisterAssetMasterDetailHref } from "@/lib/navigation/asset-register-static-routes";
 
 export default function AssetMasterCreatePage() {
   const router = useRouter();
@@ -76,7 +77,7 @@ export default function AssetMasterCreatePage() {
         queryKey: ["asset-register", "asset-masters"],
       });
       showAssetMasterCreatedToast();
-      router.push(`/asset-register/asset-master/${created.id}`);
+      router.push(assetRegisterAssetMasterDetailHref(created.id));
     },
     onError: (error: Error) => {
       showErrorToast(error.message || ASSET_MASTER_CREATE_ERROR);

@@ -1,7 +1,8 @@
 "use client";
 
 import { ArrowLeft } from "lucide-react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
@@ -91,11 +92,10 @@ function getLeaseStatusClass(
 ============================================================ */
 
 export default function FleetLeaseHistoryPage() {
-    const params = useParams();
     const router = useRouter();
     const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
-    const assetId = String(params.id);
+    const assetId = useAssetRegisterEntityId("vehicleId");
 
     const vehicleQuery = useQuery({
         queryKey: ["asset-register", "vehicles", organizationId, assetId],

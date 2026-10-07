@@ -32,6 +32,7 @@ import {
     DashboardRowActionsMenu,
     DashboardRowActionsMenuItem,
 } from "./DashboardRowActionsMenu";
+import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 type DashboardTableActionsProps = {
     status: "active" | "inactive";
@@ -87,7 +88,7 @@ export default function DashboardTableActions({
     const resolvedViewHref =
         viewHref ??
         (locationId
-            ? `/organization/locations/${locationId}`
+            ? organisationLocationDetailHref(locationId)
             : "#");
 
     /* ---------------------------------------------------------------------- */

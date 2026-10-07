@@ -14,6 +14,7 @@ import {
   showDriverCreatedToast,
   showErrorToast,
 } from "@/lib/toast/show-toast";
+import { organisationDriverDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 import CreateDriverPage, {
   type DriverFormData,
@@ -47,7 +48,7 @@ export default function CreateDriverRoute() {
         queryKey: ["organization", "drivers"],
       });
       showDriverCreatedToast(created.name);
-      router.push(`/organization/driver-register/${created.id}`);
+      router.push(organisationDriverDetailHref(created.id));
     } catch (error) {
       const message =
         error instanceof ApiClientError

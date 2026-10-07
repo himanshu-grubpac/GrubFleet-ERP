@@ -32,6 +32,10 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import {
+  organisationDriverDetailHref,
+  organisationDriverEditHref,
+} from "@/lib/navigation/organisation-static-routes";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardContact from "@/components/dashboard/DashboardContact";
 
@@ -216,7 +220,7 @@ export default function DriverRegisterPage() {
   };
 
   const handleEdit = (driver: Driver) => {
-    router.push(`/organization/driver-register/${driver.id}/edit`);
+    router.push(organisationDriverEditHref(driver.id));
   };
 
   const handleClearFilters = () => {
@@ -458,7 +462,7 @@ export default function DriverRegisterPage() {
               <DashboardTableActions
                 status={driver.apiStatus}
                 locationId={driver.id}
-                viewHref={`/organization/driver-register/${driver.id}`}
+                viewHref={organisationDriverDetailHref(driver.id)}
                 onEdit={
                   canUpdate && driver.apiStatus === "active"
                     ? () => handleEdit(driver)

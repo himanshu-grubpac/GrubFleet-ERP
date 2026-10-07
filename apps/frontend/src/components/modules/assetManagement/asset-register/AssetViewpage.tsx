@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { assetRegisterAssetClassEditHref } from "@/lib/navigation/asset-register-static-routes";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -51,7 +53,6 @@ type AssetClass = {
 /* -------------------------------------------------------------------------- */
 
 export default function AssetClassViewPage() {
-    const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
     const {
@@ -65,7 +66,7 @@ export default function AssetClassViewPage() {
         permissions.has("asset_register.update") ||
         permissions.has("asset_register.manage");
 
-    const assetClassId = String(params.id);
+    const assetClassId = useAssetRegisterEntityId("assetClassId");
 
     const detailQuery = useQuery({
         queryKey: [
@@ -159,9 +160,7 @@ export default function AssetClassViewPage() {
 
     const handleEdit = () => {
         if (!assetClass || assetClass.status !== "active") return;
-        router.push(
-            `/asset-register/assestclass/${assetClass.id}/edit`,
-        );
+        router.push(assetRegisterAssetClassEditHref(assetClass.id));
     };
 
     /* ---------------------------------------------------------------------- */

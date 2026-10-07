@@ -17,6 +17,12 @@ import {
 import { CheckCircle2 } from "lucide-react";
 
 import { useLeaseApi } from "@/lib/api/lease-contracts-context";
+import {
+  fleetLeaseContractChangeHistoryHref,
+  fleetLeaseContractEditHref,
+} from "@/lib/navigation/fleet-static-routes";
+import { organisationDriverDetailHref } from "@/lib/navigation/organisation-static-routes";
+import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
 import { ApiClientError } from "@/lib/api/client";
 import {
     LEASE_CONTRACT_STATUS_UPDATE_ERROR,
@@ -166,7 +172,7 @@ function ContractVehicleDriverLinks({
                                 </span>
                                 {linked ? (
                                     <Link
-                                        href={`/organization/driver-register/${linked.id}`}
+                                        href={organisationDriverDetailHref(linked.id)}
                                         className="text-sm font-medium text-[#FE5720] hover:underline"
                                     >
                                         {linked.name}
@@ -198,8 +204,7 @@ export default function LeaseContractDetails() {
 
     const { token } = useAuth();
 
-    const leaseId =
-        searchParams.get("leaseId") ?? "";
+    const leaseId = useFleetEntityId("leaseId");
     const showConfirmationSummary =
         searchParams.get("confirmed") === "1";
 
@@ -413,7 +418,7 @@ export default function LeaseContractDetails() {
         confirmationQuery.data;
 
     const changeHistoryHref = contract.hasFieldChangeHistory
-        ? `/fleet-leasing/lease-contracts/detail/change-history/?leaseId=${encodeURIComponent(leaseId)}`
+        ? fleetLeaseContractChangeHistoryHref(leaseId)
         : undefined;
 
     return (
@@ -475,7 +480,7 @@ export default function LeaseContractDetails() {
                     )
                         ? () =>
                             router.push(
-                                `/fleet-leasing/lease-contracts/${leaseId}/edit`,
+                                fleetLeaseContractEditHref(leaseId),
                             )
                         : undefined
                 }

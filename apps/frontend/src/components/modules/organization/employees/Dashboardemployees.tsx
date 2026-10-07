@@ -33,6 +33,7 @@ import {
   showErrorToast,
 } from "@/lib/toast/show-toast";
 import { buildEmployeeDepartmentFilterOptions } from "./employeeDepartmentCatalog";
+import { organisationEmployeeEditHref } from "@/lib/navigation/organisation-static-routes";
 import type { DeactivateReasonType, EmployeeRecord } from "./types";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -240,7 +241,7 @@ export default function EmployeesPage() {
   };
 
   const handleEditEmployee = (employee: Employee) => {
-    router.push(`/organization/employees/${employee.id}/edit`);
+    router.push(organisationEmployeeEditHref(employee.id));
   };
 
   const handleClearFilters = () => {

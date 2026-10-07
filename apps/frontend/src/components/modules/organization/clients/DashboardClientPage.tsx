@@ -30,6 +30,10 @@ import {
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import {
+  organisationClientDetailHref,
+  organisationClientEditHref,
+} from "@/lib/navigation/organisation-static-routes";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardContact from "@/components/dashboard/DashboardContact";
 
@@ -158,7 +162,7 @@ export default function ClientDashboardPage() {
   ) : undefined;
 
   const handleEdit = (client: Client) => {
-    router.push(`/organization/clients/${client.id}/edit`);
+    router.push(organisationClientEditHref(client.id));
   };
 
   const handleClearFilters = () => {
@@ -381,7 +385,7 @@ export default function ClientDashboardPage() {
             <DashboardTableActions
               status={client.status}
               locationId={client.id}
-              viewHref={`/organization/clients/${client.id}`}
+              viewHref={organisationClientDetailHref(client.id)}
               onEdit={
                 canUpdate && client.status === "active"
                   ? () => handleEdit(client)

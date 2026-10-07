@@ -1,7 +1,11 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
+import {
+  organisationDriverDetailHref,
+} from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
@@ -23,7 +27,6 @@ import CreateDriverPage, {
 } from "@/components/modules/organization/driver-register/CreateDriverPage";
 
 export default function EditDriverPage() {
-  const params = useParams();
   const router = useRouter();
   const queryClient = useQueryClient();
   const {
@@ -33,7 +36,7 @@ export default function EditDriverPage() {
     permissions,
   } = useAuth();
 
-  const driverId = String(params.id);
+  const driverId = useOrganisationEntityId("driverId");
 
   const canUpdate =
     permissions.has("organisation.update") ||
@@ -58,7 +61,7 @@ export default function EditDriverPage() {
     const detail = driverQuery.data;
     if (!detail) return;
     if (!detail.isActive || detail.status === "inactive") {
-      router.replace(`/organization/driver-register/${driverId}`);
+      router.replace(organisationDriverDetailHref(driverId));
     }
   }, [driverQuery.data, driverId, router]);
 
@@ -68,7 +71,7 @@ export default function EditDriverPage() {
   }, [driverQuery.data]);
 
   const handleCancel = () => {
-    router.push(`/organization/driver-register/${driverId}`);
+    router.push(organisationDriverDetailHref(driverId));
   };
 
   const handleSaved = async (data: DriverFormData) => {
@@ -90,7 +93,7 @@ export default function EditDriverPage() {
         queryKey: ["organization", "drivers", organizationId, driverId],
       });
       showDriverUpdatedToast(updated.name);
-      router.push(`/organization/driver-register/${driverId}`);
+      router.push(organisationDriverDetailHref(driverId));
     } catch (error) {
       const message =
         error instanceof ApiClientError

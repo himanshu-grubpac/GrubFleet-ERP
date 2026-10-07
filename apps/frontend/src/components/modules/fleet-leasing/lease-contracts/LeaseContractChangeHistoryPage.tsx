@@ -1,6 +1,7 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
+import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
+import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
 import { useQuery } from "@tanstack/react-query";
 
 import DashboardTable from "@/components/dashboard/DashboardTable";
@@ -26,8 +27,7 @@ function formatChangedWhen(iso: string): string {
 }
 
 export default function LeaseContractChangeHistoryPage() {
-    const searchParams = useSearchParams();
-    const leaseId = searchParams.get("leaseId") ?? "";
+    const leaseId = useFleetEntityId("leaseId");
     const { token, organizationId } = useGrubpacAuth();
 
     const historyQuery = useQuery({
@@ -51,7 +51,7 @@ export default function LeaseContractChangeHistoryPage() {
     });
 
     const backHref = leaseId
-        ? `/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(leaseId)}`
+        ? fleetLeaseContractDetailHref(leaseId)
         : "/fleet-leasing/lease-contracts";
 
     const rows: HistoryRow[] =

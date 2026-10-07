@@ -13,6 +13,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
+import { assetRegisterAssetAssignDetailHref } from "@/lib/navigation/asset-register-static-routes";
 
 type AssetAssignmentVehicle = {
     id: string;
@@ -79,7 +80,7 @@ export default function AssetAssignmentDashboardPage() {
     }, [listQuery.data?.items]);
 
     const handleAssign = (vehicle: AssetAssignmentVehicle) => {
-        router.push(`/asset-register/asset-assign/${vehicle.id}`);
+        router.push(assetRegisterAssetAssignDetailHref(vehicle.id));
     };
 
     const isInitialLoading =

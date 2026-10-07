@@ -1,7 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import {
+  assetRegisterFleetEditHref,
+  assetRegisterFleetLeaseHistoryHref,
+} from "@/lib/navigation/asset-register-static-routes";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -120,13 +125,12 @@ const getStatusClass = (status: FleetStatus) => {
 /* -------------------------------------------------------------------------- */
 
 export default function FleetViewPage() {
-    const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
     const { token, organizationId, isLoading: isAuthLoading, permissions } =
         useAuth();
 
-    const assetId = String(params.id);
+    const assetId = useAssetRegisterEntityId("vehicleId");
 
     const canUpdate =
         permissions.has("asset_register.update") ||
@@ -225,7 +229,7 @@ export default function FleetViewPage() {
 
     const handleEdit = () => {
         if (!asset || !detailQuery.data?.isActive) return;
-        router.push(`/asset-register/fleetregister/${asset.id}/edit`);
+        router.push(assetRegisterFleetEditHref(asset.id));
     };
 
     const handleActivate = () => {
@@ -583,7 +587,7 @@ export default function FleetViewPage() {
                         variant="neutral"
                         onClick={() => {
                             router.push(
-                                `/asset-register/fleetregister/${asset.id}/lease-history`,
+                                assetRegisterFleetLeaseHistoryHref(asset.id),
                             );
                         }}
                         className="h-8 border-gray-300 bg-white px-4 text-xs text-gray-700 hover:bg-gray-50"

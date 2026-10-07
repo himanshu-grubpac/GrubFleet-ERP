@@ -13,6 +13,7 @@ import {
   showAssetClassCreatedToast,
   showErrorToast,
 } from "@/lib/toast/show-toast";
+import { assetRegisterAssetClassDetailHref } from "@/lib/navigation/asset-register-static-routes";
 
 export default function Page() {
   const router = useRouter();
@@ -26,7 +27,7 @@ export default function Page() {
         body: assetClassFormToCreatePayload(organizationId, data),
       });
       showAssetClassCreatedToast(created.name);
-      router.push(`/asset-register/assestclass/${created.id}`);
+      router.push(assetRegisterAssetClassDetailHref(created.id));
     } catch (error) {
       showErrorToast(
         error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,

@@ -14,6 +14,7 @@ import {
 } from "@/lib/toast/show-toast";
 import { createAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
 import { fleetFormToCreateVehiclePayload } from "@/lib/api/asset-register/mappers";
+import { assetRegisterFleetDetailHref } from "@/lib/navigation/asset-register-static-routes";
 
 export default function FleetCreatePage() {
   const router = useRouter();
@@ -40,7 +41,7 @@ export default function FleetCreatePage() {
         queryKey: ["asset-register", "vehicles"],
       });
       showFleetVehicleAddedToast();
-      router.push(`/asset-register/fleetregister/${created.id}`);
+      router.push(assetRegisterFleetDetailHref(created.id));
     },
     onError: (error: Error) => {
       showErrorToast(error.message || FLEET_VEHICLE_ADD_ERROR);

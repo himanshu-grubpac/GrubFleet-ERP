@@ -42,6 +42,10 @@ import {
     updateAssetRegisterAssetMasterStatusApi,
     type AssetRegisterAssetMasterListItem,
 } from "@/lib/api/asset-register/asset-masters";
+import {
+  assetRegisterAssetMasterDetailHref,
+  assetRegisterAssetMasterEditHref,
+} from "@/lib/navigation/asset-register-static-routes";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -369,14 +373,12 @@ export default function AssetMasterDashboardPage() {
     };
 
     const handleViewAsset = (asset: AssetMaster) => {
-        router.push(`/asset-register/asset-master/${asset.id}`);
+        router.push(assetRegisterAssetMasterDetailHref(asset.id));
     };
 
     const handleEditAsset = (asset: AssetMaster) => {
         if (!canUpdate || asset.status !== "Active") return;
-        router.push(
-            `/asset-register/asset-master/${asset.id}/edit`,
-        );
+        router.push(assetRegisterAssetMasterEditHref(asset.id));
     };
 
     /* ---------------------------------------------------------------------- */

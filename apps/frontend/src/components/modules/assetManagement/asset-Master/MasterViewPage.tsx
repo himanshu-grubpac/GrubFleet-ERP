@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { assetRegisterAssetMasterEditHref } from "@/lib/navigation/asset-register-static-routes";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -83,7 +85,6 @@ function InfoRow({
 /* -------------------------------------------------------------------------- */
 
 export default function AssetMasterViewPage() {
-    const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
     const {
@@ -93,7 +94,7 @@ export default function AssetMasterViewPage() {
         permissions,
     } = useAuth();
 
-    const assetId = String(params.id);
+    const assetId = useAssetRegisterEntityId("assetMasterId");
 
     const canUpdate =
         permissions.has("asset_register.update") ||
@@ -182,7 +183,7 @@ export default function AssetMasterViewPage() {
         if (!asset || asset.status !== "Active") {
             return;
         }
-        router.push(`/asset-register/asset-master/${asset.id}/edit`);
+        router.push(assetRegisterAssetMasterEditHref(asset.id));
     };
 
     if (detailQuery.isError) {

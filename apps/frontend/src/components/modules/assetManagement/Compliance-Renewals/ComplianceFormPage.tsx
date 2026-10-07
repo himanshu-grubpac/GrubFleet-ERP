@@ -1,6 +1,7 @@
 "use client";
 
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -58,14 +59,10 @@ type ComplianceVehicle = {
 
 export default function RenewCompliancePage() {
     const router = useRouter();
-    const params = useParams();
     const queryClient = useQueryClient();
     const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
-    const vehicleId =
-        typeof params?.id === "string"
-            ? params.id
-            : "";
+    const vehicleId = useAssetRegisterEntityId("vehicleId");
 
     const detailQuery = useQuery({
         queryKey: ["asset-register", "compliance", organizationId, vehicleId],

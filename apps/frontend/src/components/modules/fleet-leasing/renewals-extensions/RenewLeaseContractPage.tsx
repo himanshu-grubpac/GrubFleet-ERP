@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 
@@ -27,6 +27,8 @@ import {
   showLeaseContractRenewedToast,
 } from "@/lib/toast/show-toast";
 import { ApiClientError } from "@/lib/api/client";
+import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
+import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
 
 const INPUT_LABEL =
   "mb-1.5 block text-sm font-medium text-gray-700";
@@ -41,8 +43,7 @@ const RENEW_BACK_LINK = {
 
 export default function RenewLeaseContractPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const leaseId = searchParams.get("leaseId")?.trim() ?? "";
+  const leaseId = useFleetEntityId("leaseId");
   const queryClient = useQueryClient();
   const { permissions, isLoading: isAuthLoading } = useAuth();
   const { api, organizationId } = useLeaseApi();
@@ -103,9 +104,7 @@ export default function RenewLeaseContractPage() {
       } else {
         showLeaseContractRenewedToast();
       }
-      router.replace(
-        `/fleet-leasing/lease-contracts/detail/?leaseId=${encodeURIComponent(leaseId)}`,
-      );
+      router.replace(fleetLeaseContractDetailHref(leaseId));
     },
     onError: (error) => {
       const message =
