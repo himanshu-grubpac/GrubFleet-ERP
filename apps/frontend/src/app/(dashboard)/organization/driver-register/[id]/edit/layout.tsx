@@ -1,10 +1,10 @@
 import type { ReactNode } from "react";
 
 export async function generateStaticParams() {
-  return [{ leaseId: "_" }];
+  return [{ id: "_" }];
 }
 
-export default function EditLeaseContractLayout({
+export default function OrganisationDriverRegisterEditLayout({
   children,
 }: {
   children: ReactNode;
