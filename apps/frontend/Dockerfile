@@ -11,10 +11,12 @@ COPY apps/frontend/package.json ./apps/frontend/
 COPY packages/shared-types/package.json ./packages/shared-types/
 COPY packages/api-contracts/package.json ./packages/api-contracts/
 COPY packages/validation/package.json ./packages/validation/
-RUN npm ci --workspace=frontend --include-workspace-root
+ENV CI=true HUSKY=0
+RUN npm ci --workspace=frontend --include-workspace-root --ignore-scripts
 
 COPY packages ./packages
 COPY apps/frontend ./apps/frontend
+RUN npm run build -w @grubpac/validation -w @grubpac/shared-types
 RUN npm run build -w frontend
 
 FROM node:20-alpine AS runner
