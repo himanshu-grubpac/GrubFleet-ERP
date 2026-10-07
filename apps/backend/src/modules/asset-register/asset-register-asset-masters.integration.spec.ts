@@ -84,10 +84,11 @@ describe('Asset Register — asset masters (integration)', () => {
   function buildAssetClassPayload(
     overrides: Record<string, unknown> = {},
   ): Record<string, unknown> {
-    const unique = Date.now();
+    const unique = `${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
     return {
       organizationId,
-      name: `Master Lattice Class ${unique}`,
+      // Single-token name so generated class codes stay unique across repeated local runs.
+      name: `mlc${unique}`,
       vehicleType: '4W',
       fuelType: 'Diesel',
       fuelTankCapacity: 60,
