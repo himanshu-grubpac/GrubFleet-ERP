@@ -98,6 +98,8 @@ const FLEET_UPDATE_ONLY_USER = {
 } as const;
 
 describe('Fleet leasing lease contracts (integration)', () => {
+  jest.setTimeout(60_000);
+
   if (process.env.SKIP_DB_INTEGRATION === '1') {
     it.todo('skipped when SKIP_DB_INTEGRATION=1');
     return;

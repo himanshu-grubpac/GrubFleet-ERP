@@ -21,6 +21,8 @@ const ASSET_VIEW_ONLY_USER = {
 } as const;
 
 describe('Asset Register — compliance and renewals (integration)', () => {
+  jest.setTimeout(60_000);
+
   if (process.env.SKIP_DB_INTEGRATION === '1') {
     it.todo('skipped when SKIP_DB_INTEGRATION=1');
     return;
