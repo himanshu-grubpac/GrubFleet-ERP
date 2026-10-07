@@ -79,14 +79,14 @@ export function Sidebar({ collapsed, onToggleCollapsed }: SidebarProps) {
                     {/* Title */}
                     {!collapsed && (
                         <h1 className="text-xl font-bold text-[#FE5720]">
-                            Fleet ERP
+                            Fleet Pulse
                         </h1>
                     )}
 
                     {/* {collapsed && (
                         <span
                             className="text-xs font-bold text-[#FE5720]"
-                            title="Fleet ERP"
+                            title="Fleet Pulse"
                         >
 
                         </span>
@@ -313,17 +313,23 @@ function SidebarItem({
     const hasChildren =
         !!item.children && item.children.length > 0;
 
-    const isActive = isNavHrefActive(pathname, item.href);
+    const isSelfActive = isNavHrefActive(pathname, item.href);
+    const isChildActive =
+        hasChildren &&
+        item.children!.some((child) =>
+            isNavHrefActive(pathname, child.href),
+        );
+    const isModuleActive = isSelfActive || isChildActive;
 
-    const [open, setOpen] = useState(isActive);
+    const [open, setOpen] = useState(isModuleActive);
     const [flyoutOpen, setFlyoutOpen] = useState(false);
     const flyoutRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        if (isActive) {
+        if (isModuleActive) {
             setOpen(true);
         }
-    }, [isActive]);
+    }, [isModuleActive]);
 
     useEffect(() => {
         if (!flyoutOpen) return undefined;
@@ -368,6 +374,7 @@ function SidebarItem({
                                     <Link
                                         key={child.href}
                                         href={internalHref(child.href)}
+                                        scroll={false}
                                         role="menuitem"
                                         onClick={() => setFlyoutOpen(false)}
                                         className={cn(
@@ -393,7 +400,7 @@ function SidebarItem({
                         className={cn(
                             "flex w-full items-center justify-center rounded-lg px-2 py-3",
                             "text-sm font-medium transition-colors",
-                            isActive || flyoutOpen
+                            isModuleActive || flyoutOpen
                                 ? "bg-[#FE5720] text-white"
                                 : "text-slate-800 hover:bg-orange-50 hover:text-[#FE5720]",
                         )}
@@ -406,13 +413,13 @@ function SidebarItem({
         }
 
         const handleParentClick = () => {
-            setOpen(true);
             const firstChild = item.children?.[0];
-            if (!isActive && firstChild) {
+            if (!isModuleActive && firstChild) {
+                setOpen(true);
                 router.push(internalHref(firstChild.href));
-            } else {
-                setOpen((prev) => !prev);
+                return;
             }
+            setOpen((prev) => !prev);
         };
 
         return (
@@ -423,7 +430,7 @@ function SidebarItem({
                     className={cn(
                         "flex w-full items-center gap-3 rounded-lg px-3 py-3",
                         "text-sm font-medium transition-colors",
-                        isActive
+                        isModuleActive
                             ? "bg-[#FE5720] text-white"
                             : "text-slate-800 hover:bg-orange-50 hover:text-[#FE5720]",
                     )}
@@ -458,6 +465,7 @@ function SidebarItem({
                                 <Link
                                     key={child.href}
                                     href={internalHref(child.href)}
+                                    scroll={false}
                                     className={cn(
                                         "block rounded-md px-3 py-2 text-sm transition-colors",
                                         childActive
@@ -478,13 +486,14 @@ function SidebarItem({
     return (
         <Link
             href={internalHref(item.href)}
+            scroll={false}
             title={collapsed ? item.label : undefined}
             className={cn(
                 "flex items-center rounded-lg text-sm font-medium transition-colors",
                 collapsed
                     ? "justify-center gap-0 px-2 py-3"
                     : "gap-3 px-3 py-3",
-                isActive
+                isModuleActive
                     ? "bg-[#FE5720] text-white"
                     : "text-slate-800 hover:bg-orange-50 hover:text-[#FE5720]",
             )}

@@ -38,7 +38,7 @@ import {
 
 type AssetStatus = "active" | "inactive";
 
-type VehicleType = "2-Wheeler" | "3-Wheeler";
+type VehicleType = "2-Wheeler" | "3-Wheeler" | "4-Wheeler";
 
 type AssetClass = {
   id: string;
@@ -55,6 +55,7 @@ type AssetFilter =
   | "all"
   | "2-wheeler"
   | "3-wheeler"
+  | "4-wheeler"
   | "active"
   | "inactive";
 
@@ -65,6 +66,7 @@ const ASSET_FILTERS: {
   { label: "All", value: "all" },
   { label: "2-Wheeler", value: "2-wheeler" },
   { label: "3-Wheeler", value: "3-wheeler" },
+  { label: "4-Wheeler", value: "4-wheeler" },
   { label: "Active", value: "active" },
   { label: "Inactive", value: "inactive" },
 ];
@@ -192,6 +194,9 @@ export default function AssetClassesPage() {
     }
     if (activeFilter === "3-wheeler") {
       return items.filter((row) => row.vehicleType === "3-Wheeler");
+    }
+    if (activeFilter === "4-wheeler") {
+      return items.filter((row) => row.vehicleType === "4-Wheeler");
     }
     return items;
   }, [listQuery.data?.items, activeFilter]);

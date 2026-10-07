@@ -43,6 +43,7 @@ export type CreateAssetClassFormProps = {
 const VEHICLE_TYPES = [
     "2-Wheeler",
     "3-Wheeler",
+    "4-Wheeler",
 ];
 
 const FUEL_TYPES = [
