@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -327,6 +327,36 @@ export default function CreateAssetClassForm({
     const readOnlyInputClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-500 outline-none";
 
+    const canSubmit = useMemo(() => {
+        if (isSaving) {
+            return false;
+        }
+        if (
+            !form.name.trim() ||
+            !form.vehicleType.trim() ||
+            !form.fuelType.trim() ||
+            !form.mileageFrom.trim() ||
+            !form.mileageTo.trim() ||
+            !form.mileageUnit.trim() ||
+            !form.fuelTankCapacity.trim() ||
+            !form.ratedLoadCapacityFrom.trim() ||
+            !form.ratedLoadCapacityTo.trim() ||
+            !form.defaultIntakeChecklist.trim()
+        ) {
+            return false;
+        }
+        if (Number(form.mileageFrom) > Number(form.mileageTo)) {
+            return false;
+        }
+        if (
+            Number(form.ratedLoadCapacityFrom) >
+            Number(form.ratedLoadCapacityTo)
+        ) {
+            return false;
+        }
+        return true;
+    }, [form, isSaving]);
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                     */
     /* ---------------------------------------------------------------------- */
@@ -353,7 +383,7 @@ export default function CreateAssetClassForm({
                     <Button
                         type="button"
                         onClick={handleSave}
-                        disabled={isSaving}
+                        disabled={!canSubmit}
                         className="h-10 px-5"
                     >
                         {isSaving

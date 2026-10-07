@@ -9,6 +9,7 @@ import { FleetVehiclesController } from './fleet-vehicles.controller';
 import { FleetReturnsController } from './fleet-returns.controller';
 import { FleetReturnsService } from './fleet-returns.service';
 import { LeaseContractsController } from './lease-contracts.controller';
+import { RenewalsExtensionsController } from './renewals-extensions.controller';
 import { LeaseContractsService } from './lease-contracts.service';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 import { VehicleAllocationsController } from './vehicle-allocations.controller';
@@ -22,6 +23,7 @@ import { VehicleAllocationsService } from './vehicle-allocations.service';
   ],
   controllers: [
     LeaseContractsController,
+    RenewalsExtensionsController,
     VehicleAllocationsController,
     FleetReturnsController,
     AssetClassesController,

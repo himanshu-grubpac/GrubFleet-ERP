@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 
@@ -24,6 +25,8 @@ import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
 import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { DRIVER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -345,6 +348,48 @@ export default function CreateDriverForm({
             validationErrors["address.country"],
     };
 
+    const canSubmit = useMemo(() => {
+        if (isSaving) {
+            return false;
+        }
+
+        const errors: OrganizationValidationErrors = {};
+
+        if (!form.name.trim()) {
+            errors.name = "Driver name is required.";
+        }
+        if (!form.cprNo.trim()) {
+            errors.cprNo = "CPR no. is required.";
+        }
+
+        const phoneError = validatePhone(form.mobileNo, "Mobile number");
+        if (phoneError) {
+            errors.mobileNo = phoneError;
+        }
+
+        if (!form.drivingLicenseNo.trim()) {
+            errors.drivingLicenseNo = "Driving license no. is required.";
+        }
+        if (!form.licenseExpiryDate.trim()) {
+            errors.licenseExpiryDate = "License expiry date is required.";
+        }
+        if (!form.supplier.trim()) {
+            errors.supplier = "Supplier is required.";
+        }
+
+        const emailError = validateEmail(form.email, "Email");
+        if (emailError) {
+            errors.email = emailError;
+        }
+
+        const addressValidationErrors = validateOrganizationAddress(form.address);
+        Object.entries(addressValidationErrors).forEach(([field, message]) => {
+            errors[`address.${field}`] = message;
+        });
+
+        return !hasValidationErrors(errors);
+    }, [form, isSaving]);
+
     /* ---------------------------------------------------------------------- */
     /* Input Class                                                             */
     /* ---------------------------------------------------------------------- */
@@ -380,7 +425,7 @@ export default function CreateDriverForm({
                     <Button
                         type="button"
                         onClick={handleSave}
-                        disabled={isSaving}
+                        disabled={!canSubmit}
                         className="h-10 px-5"
                     >
                         {isSaving
@@ -405,15 +450,13 @@ export default function CreateDriverForm({
                     </span>
                 </label>
 
-                <input
+                <RestrictedInput
                     id="driver-name"
-                    type="text"
+                    restrictedKind="name"
+                    maxLength={DRIVER_INPUT_LIMITS.name}
                     value={form.name}
-                    onChange={(event) => {
-                        updateForm(
-                            "name",
-                            event.target.value,
-                        );
+                    onChange={(name) => {
+                        updateForm("name", name);
                         clearError("name");
                     }}
                     placeholder="Enter driver name"
@@ -443,15 +486,13 @@ export default function CreateDriverForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="driver-cpr"
-                        type="text"
+                        restrictedKind="text"
+                        maxLength={DRIVER_INPUT_LIMITS.cprNo}
                         value={form.cprNo}
-                        onChange={(event) => {
-                            updateForm(
-                                "cprNo",
-                                event.target.value,
-                            );
+                        onChange={(cprNo) => {
+                            updateForm("cprNo", cprNo);
                             clearError("cprNo");
                         }}
                         placeholder="e.g. 880417213"
@@ -476,18 +517,16 @@ export default function CreateDriverForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="driver-mobile"
-                        type="tel"
+                        restrictedKind="phone"
+                        maxLength={DRIVER_INPUT_LIMITS.phone}
                         value={form.mobileNo}
-                        onChange={(event) => {
-                            updateForm(
-                                "mobileNo",
-                                event.target.value,
-                            );
+                        onChange={(mobileNo) => {
+                            updateForm("mobileNo", mobileNo);
                             clearError("mobileNo");
                         }}
-                        placeholder="+973 3XXX XXXX"
+                        placeholder={getInternationalPhonePlaceholder()}
                         className={inputClass("mobileNo")}
                     />
 
@@ -515,25 +554,20 @@ export default function CreateDriverForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="driving-license"
-                        type="text"
-                        value={
-                            form.drivingLicenseNo
-                        }
-                        onChange={(event) => {
+                        restrictedKind="text"
+                        maxLength={DRIVER_INPUT_LIMITS.licenseNumber}
+                        value={form.drivingLicenseNo}
+                        onChange={(drivingLicenseNo) => {
                             updateForm(
                                 "drivingLicenseNo",
-                                event.target.value,
+                                drivingLicenseNo,
                             );
-                            clearError(
-                                "drivingLicenseNo",
-                            );
+                            clearError("drivingLicenseNo");
                         }}
                         placeholder="e.g. DL-172094"
-                        className={inputClass(
-                            "drivingLicenseNo",
-                        )}
+                        className={inputClass("drivingLicenseNo")}
                     />
 
                     {validationErrors.drivingLicenseNo && (
@@ -648,15 +682,13 @@ export default function CreateDriverForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="driver-email"
-                        type="email"
+                        restrictedKind="email"
+                        maxLength={DRIVER_INPUT_LIMITS.email}
                         value={form.email}
-                        onChange={(event) => {
-                            updateForm(
-                                "email",
-                                event.target.value,
-                            );
+                        onChange={(email) => {
+                            updateForm("email", email);
                             clearError("email");
                         }}
                         placeholder="name@example.com"

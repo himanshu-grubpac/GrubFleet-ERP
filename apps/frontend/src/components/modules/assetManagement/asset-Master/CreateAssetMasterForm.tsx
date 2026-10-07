@@ -457,6 +457,16 @@ export default function CreateAssetMasterForm({
     const readOnlyInputClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-gray-50 px-3 text-sm text-gray-500 outline-none cursor-not-allowed";
 
+    const canSubmit = useMemo(() => {
+        if (isSaving) {
+            return false;
+        }
+        return (
+            form.assetClassId.trim().length > 0 &&
+            form.vehicleName.trim().length > 0
+        );
+    }, [form.assetClassId, form.vehicleName, isSaving]);
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                       */
     /* ---------------------------------------------------------------------- */
@@ -483,7 +493,7 @@ export default function CreateAssetMasterForm({
                     <Button
                         type="button"
                         onClick={handleSave}
-                        disabled={isSaving}
+                        disabled={!canSubmit}
                         className="h-10 px-5"
                     >
                         {isSaving

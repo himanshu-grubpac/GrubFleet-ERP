@@ -13,6 +13,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { organisationClients } from './organisation.schema';
 
 /** Flow 00 + Figma list/detail (Completed → closed/concluded). */
 export const leaseContractStatusEnum = pgEnum('lease_contract_status', [
@@ -67,6 +68,11 @@ export const fleetClients = pgTable(
     /** GSTIN or other tax identifier (optional until country-specific validation ships). */
     taxId: varchar('tax_id', { length: 32 }),
     address: text('address'),
+    /** Links fleet leasing client to Organisation client register (Decision E). */
+    organisationClientId: uuid('organisation_client_id').references(
+      () => organisationClients.id,
+      { onDelete: 'set null' },
+    ),
     isActive: boolean('is_active').notNull().default(true),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
@@ -82,6 +88,9 @@ export const fleetClients = pgTable(
     ),
     index('fleet_clients_organization_id_idx').on(t.organizationId),
     index('fleet_clients_company_name_idx').on(t.companyName),
+    index('fleet_clients_organisation_client_id_idx').on(
+      t.organisationClientId,
+    ),
   ],
 );
 

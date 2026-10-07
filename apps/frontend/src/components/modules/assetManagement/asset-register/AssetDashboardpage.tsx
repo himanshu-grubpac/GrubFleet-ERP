@@ -19,7 +19,12 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  ASSET_CLASS_STATUS_UPDATE_ERROR,
+  showAssetClassActivatedToast,
+  showAssetClassDeactivatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 import {
   fetchAssetRegisterAssetClassesApi,
   updateAssetRegisterAssetClassStatusApi,
@@ -163,14 +168,14 @@ export default function AssetClassesPage() {
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
-      showSuccessToast(
-        variables.action === "activate"
-          ? "Asset class activated"
-          : "Asset class deactivated",
-      );
+      if (variables.action === "activate") {
+        showAssetClassActivatedToast(variables.assetClass.name);
+      } else {
+        showAssetClassDeactivatedToast(variables.assetClass.name);
+      }
     },
     onError: (error: Error) => {
-      const message = error.message || "Could not update asset class status";
+      const message = error.message || ASSET_CLASS_STATUS_UPDATE_ERROR;
       setStatusError(message);
       showErrorToast(message);
     },

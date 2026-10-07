@@ -322,23 +322,61 @@ export const breadcrumbConfig: Record<
         },
     ],
 
-    // ============================================================
-    // CUSTOMERS
-    // ============================================================
-
-    "/customers": [
+    "/fleet-leasing/lease-contracts": [
         {
-            label: "Customers",
+            label: "Fleet Leasing",
+            href: "/fleet-leasing",
+        },
+        {
+            label: "Lease Contracts",
         },
     ],
 
-    "/customers/corporate": [
+    "/fleet-leasing/lease-contracts/detail/change-history": [
         {
-            label: "Customers",
-            href: "/customers",
+            label: "Fleet Leasing",
+            href: "/fleet-leasing",
         },
         {
-            label: "Corporate Customers",
+            label: "Lease Contracts",
+            href: "/fleet-leasing/lease-contracts",
+        },
+        {
+            label: "Change history",
+        },
+    ],
+
+    "/fleet-leasing/renewals-extensions": [
+        {
+            label: "Fleet Leasing",
+            href: "/fleet-leasing",
+        },
+        {
+            label: "Renewals & Extensions",
+        },
+    ],
+
+    "/fleet-leasing/renewals-extensions/renew": [
+        {
+            label: "Fleet Leasing",
+            href: "/fleet-leasing",
+        },
+        {
+            label: "Renewals & Extensions",
+            href: "/fleet-leasing/renewals-extensions",
+        },
+        {
+            label: "Renew contract",
+        },
+    ],
+
+    "/fleet-leasing/returns-inspections": [
+        {
+            label: "Fleet Leasing",
+            href: "/fleet-leasing",
+        },
+        {
+            label: "Returns & Inspections",
         },
     ],
 };

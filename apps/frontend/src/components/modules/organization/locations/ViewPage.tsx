@@ -22,23 +22,8 @@ import {
 import { formatStructuredAddressMultiline } from "@/lib/format/address-format";
 import { formatPhoneDisplay } from "@/lib/format/phone-format";
 import { getCountryDefinition } from "@/lib/geo/countries";
-
-function DetailField({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div>
-      <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-        {label}
-      </dt>
-      <dd className="mt-1.5 text-sm font-medium text-gray-900">{value}</dd>
-    </div>
-  );
-}
+import DetailField from "@/components/common/DetailField";
+import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 
 const EMPTY = "—";
 
@@ -166,8 +151,7 @@ export default function LocationDetailsPage() {
   ).phoneDefaultCountry;
 
   return (
-    <div className="min-h-screen bg-[#f7f7f7]">
-      <main className="px-6 py-3 pb-8">
+    <OrganizationViewLayout>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
             <h1 className="text-[15px] font-semibold text-gray-900">
@@ -257,7 +241,6 @@ export default function LocationDetailsPage() {
             />
           </dl>
         </div>
-      </main>
 
       <ConfirmDialog
         open={activateOpen}
@@ -303,6 +286,6 @@ export default function LocationDetailsPage() {
           });
         }}
       />
-    </div>
+    </OrganizationViewLayout>
   );
 }

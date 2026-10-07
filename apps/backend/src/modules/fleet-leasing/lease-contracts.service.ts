@@ -17,7 +17,6 @@ import { AMC_TIER_STUB_VALUES } from './constants/amc-tier-stub';
 import { normalizeEditClassification } from './constants/contract-edit-classification';
 import {
   LIST_STATUS_FILTER,
-  RENEWABLE_CONTRACT_STATUSES,
   type LeaseContractStatus,
 } from './constants/lease-contract-status';
 import {
@@ -31,19 +30,35 @@ import {
   resolveReviewAction,
 } from './utils/contract-review.util';
 import {
+  collectChangeHistoryReferenceIds,
+  flattenEditLogsToChangeHistoryRows,
+} from './utils/contract-change-history.presentation.util';
+import {
   evaluateContractPricing,
   type ContractPricingEvaluation,
 } from './utils/contract-pricing-engine.util';
 import {
   buildContractConfirmationInfoMessages,
   buildContractLineAllocationRow,
+  formatContractLineStatusLabel,
+  isContractFullyAllocated,
+  sumContractAllocationTotals,
 } from './utils/contract-line-allocation.util';
 import type { UpdateContractTermsDto } from './dto/update-contract-terms.dto';
 import type { UpdateContractAssetLinesDto } from './dto/update-contract-asset-lines.dto';
 import type { CreateLeaseContractDto } from './dto/create-lease-contract.dto';
 import type { ListLeaseContractsQueryDto } from './dto/list-lease-contracts-query.dto';
+import type { ListRenewalsExtensionsQueryDto } from './dto/list-renewals-extensions-query.dto';
+import type { RenewLeaseContractDto } from './dto/renew-lease-contract.dto';
 import type { UpdateLeaseContractDto } from './dto/update-lease-contract.dto';
 import type { RegisterReturnDto } from './dto/register-return.dto';
+import { RENEWABLE_CONTRACT_STATUSES } from './constants/lease-contract-status';
+import {
+  classifyRenewOutcomeKind,
+  findLatestRenewOutcomeEvent,
+  renewEventTypeForKind,
+  renewOutcomePublicLabel,
+} from './utils/contract-renew.util';
 import { AssetRegisterCatalogService } from '../asset-register/asset-register-catalog.service';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 import {
@@ -56,6 +71,7 @@ import {
   mapLifecycleLogs,
 } from './utils/contract-detail.presentation.util';
 import { getContractEditBlockReason } from './utils/contract-edit.util';
+import { resolveFleetClientCompanyDisplayName } from './utils/fleet-client-display.util';
 
 @Injectable()
 export class LeaseContractsService {
@@ -93,12 +109,131 @@ export class LeaseContractsService {
       statusFilter,
       search: query.search,
     });
-    const items = await Promise.all(
-      rows.map(async (r) =>
-        this.toListItem(r.contract, r.clientCompanyName ?? null),
+    const contractIds = rows.map((r) => r.contract.id);
+    const allLines =
+      contractIds.length > 0
+        ? await this.repo.listAssetLinesForContractIds(contractIds)
+        : [];
+    const linesByContractId = new Map<
+      string,
+      Awaited<
+        ReturnType<FleetLeasingRepository['listAssetLinesForContractIds']>
+      >
+    >();
+    for (const line of allLines) {
+      const bucket = linesByContractId.get(line.contractId);
+      if (bucket) {
+        bucket.push(line);
+      } else {
+        linesByContractId.set(line.contractId, [line]);
+      }
+    }
+    const items = rows.map((r) =>
+      this.toListItem(
+        r.contract,
+        r.clientCompanyName ?? null,
+        linesByContractId.get(r.contract.id) ?? [],
       ),
     );
     return toPaginatedResult(items, page, pageSize, total);
+  }
+
+  /** LEASE-16 — paginated active contracts eligible for renew / extension. */
+  async listRenewalEligible(query: ListRenewalsExtensionsQueryDto) {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { rows, total } = await this.repo.listContracts({
+      organizationId: query.organizationId,
+      page,
+      pageSize,
+      statusFilter: [...RENEWABLE_CONTRACT_STATUSES],
+      search: query.search,
+    });
+    const contractIds = rows.map((r) => r.contract.id);
+    const allLines =
+      contractIds.length > 0
+        ? await this.repo.listAssetLinesForContractIds(contractIds)
+        : [];
+    const linesByContractId = new Map<
+      string,
+      Awaited<
+        ReturnType<FleetLeasingRepository['listAssetLinesForContractIds']>
+      >
+    >();
+    for (const line of allLines) {
+      const bucket = linesByContractId.get(line.contractId);
+      if (bucket) {
+        bucket.push(line);
+      } else {
+        linesByContractId.set(line.contractId, [line]);
+      }
+    }
+    const items = rows.map((r) =>
+      this.toListItem(
+        r.contract,
+        r.clientCompanyName ?? null,
+        linesByContractId.get(r.contract.id) ?? [],
+      ),
+    );
+    return toPaginatedResult(items, page, pageSize, total);
+  }
+
+  /** LEASE-17/18 — extend same contract term/dates; deposit unchanged; stays active. */
+  async renewContract(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+    dto: RenewLeaseContractDto,
+  ) {
+    const contract = await this.requireContract(organizationId, contractId);
+    if (!RENEWABLE_CONTRACT_STATUSES.includes(contract.status)) {
+      throw new BadRequestException(
+        'Only active contracts are eligible for renewal or extension',
+      );
+    }
+    const startDate = parseIsoDateOnlyUtc(dto.newStartDate);
+    const endDate = addMonthsUtc(startDate, dto.newTermMonths);
+    const outcomeKind = classifyRenewOutcomeKind(dto.newTermMonths);
+    const eventType = renewEventTypeForKind(outcomeKind);
+    const outcomeLabel = renewOutcomePublicLabel(outcomeKind);
+    await this.repo.updateContract(contractId, organizationId, {
+      startDate,
+      endDate,
+      termMonths: dto.newTermMonths,
+      status: 'active',
+      updatedByUserId: userId,
+    });
+    await this.logEvent(
+      contractId,
+      organizationId,
+      userId,
+      eventType,
+      `Contract ${outcomeLabel.toLowerCase()} — new term ${dto.newTermMonths} month(s) from ${dto.newStartDate}`,
+      {
+        newTermMonths: dto.newTermMonths,
+        newStartDate: dto.newStartDate,
+        outcomeKind,
+      },
+    );
+    await this.audit.log({
+      organizationId,
+      userId,
+      action: 'lease_contract.renew',
+      resourceType: 'lease_contract',
+      resourceId: contractId,
+      status: 'SUCCESS',
+      metadata: {
+        outcomeKind,
+        newTermMonths: dto.newTermMonths,
+        newStartDate: dto.newStartDate,
+      },
+    });
+    const detail = await this.getById(organizationId, contractId);
+    return {
+      outcomeKind,
+      outcomeLabel,
+      contract: detail,
+    };
   }
 
   async getById(organizationId: string, contractId: string) {
@@ -108,6 +243,39 @@ export class LeaseContractsService {
     );
     if (!contract) throw new NotFoundException('Lease contract not found');
     return this.toDetail(organizationId, contract);
+  }
+
+  async getChangeHistory(organizationId: string, contractId: string) {
+    const contract = await this.repo.findContractInOrg(
+      organizationId,
+      contractId,
+    );
+    if (!contract) throw new NotFoundException('Lease contract not found');
+
+    const editLogs = await this.repo.listEditLogs(contractId, 200);
+    const actorIds = editLogs
+      .map((log) => log.actorUserId)
+      .filter((id): id is string => Boolean(id));
+    const { clientIds, vehicleIds } =
+      collectChangeHistoryReferenceIds(editLogs);
+    const [labelsByUserId, clientNamesById, vehicles] = await Promise.all([
+      this.repo.findUserDisplayLabels(actorIds),
+      this.repo.findClientDisplayLabels(organizationId, clientIds),
+      this.repo.getVehiclesByIds(organizationId, vehicleIds),
+    ]);
+    const vehicleLabelsById = new Map(
+      vehicles.map((v) => [v.id, v.registrationNo.trim() || 'Unknown vehicle']),
+    );
+    const items = flattenEditLogsToChangeHistoryRows(editLogs, labelsByUserId, {
+      clientNamesById,
+      vehicleLabelsById,
+    });
+
+    return {
+      contractId: contract.id,
+      contractNumber: contract.contractNumber,
+      items,
+    };
   }
 
   /** Post-wizard success screen — allocation table + info blocks (Figma confirmation). */
@@ -285,7 +453,7 @@ export class LeaseContractsService {
         availabilityMessage: snapshot.message,
       };
     });
-    const reviewAction = resolveReviewAction(pricingEvaluation);
+    const reviewAction = resolveReviewAction();
     const messages = buildContractReviewMessages({
       pricing: pricingEvaluation,
       assetLines: reviewAssetLineInputs,
@@ -302,7 +470,11 @@ export class LeaseContractsService {
       status: this.toPublicStatus(contract.status),
       client: clientBundle
         ? {
-            companyName: clientBundle.client.companyName,
+            companyName:
+              resolveFleetClientCompanyDisplayName(
+                clientBundle.client.companyName,
+                clientBundle.organisationClientName,
+              ) ?? clientBundle.client.companyName,
             primaryPoc: primaryPoc
               ? {
                   name: primaryPoc.name,
@@ -347,15 +519,6 @@ export class LeaseContractsService {
         pricingEvaluation: pricing,
       });
     }
-    if (pricing.requiresApproval) {
-      throw new BadRequestException({
-        code: 'PRICING_REQUIRES_APPROVAL',
-        message:
-          'Rates or deposit require approval — use Submit for approval instead of Confirm',
-        pricingEvaluation: pricing,
-        reviewAction: 'submit_for_approval' as const,
-      });
-    }
     const lines = await this.repo.listAssetLines(contractId);
     const allCovered = lines.every((l) => l.availabilityCovered);
     const hasAwaitingLine = lines.some((l) => l.awaitingAssetsLine);
@@ -363,21 +526,24 @@ export class LeaseContractsService {
       allCovered && !hasAwaitingLine ? 'active' : 'awaiting_assets';
     await this.repo.updateContract(contractId, organizationId, {
       status: nextStatus,
-      rateRequiresApproval: false,
+      rateRequiresApproval: pricing.requiresApproval,
       onHold: false,
       billingPaused: false,
       awaitingFutureAssets: nextStatus === 'awaiting_assets' || hasAwaitingLine,
       updatedByUserId: userId,
     });
     await this.markLinkedVehiclesLeased(contractId);
+    const rateNote = pricing.requiresApproval
+      ? ' (non-standard rates — MVP activates without pending approval)'
+      : '';
     await this.logEvent(
       contractId,
       organizationId,
       userId,
       'contract.confirmed',
       nextStatus === 'active'
-        ? 'Contract confirmed and activated (standard rates)'
-        : 'Contract confirmed — awaiting assets for one or more lines',
+        ? `Contract submitted and activated${rateNote}`
+        : `Contract submitted — awaiting assets for one or more lines${rateNote}`,
     );
     await this.audit.log({
       organizationId,
@@ -731,7 +897,7 @@ export class LeaseContractsService {
         availabilityMessage: snapshot.message,
       };
     });
-    const reviewAction = resolveReviewAction(pricing);
+    const reviewAction = resolveReviewAction();
     const messages = buildContractReviewMessages({
       pricing,
       assetLines: reviewAssetLineInputs,
@@ -869,7 +1035,16 @@ export class LeaseContractsService {
     return this.getById(organizationId, contractId);
   }
 
-  async deactivate(userId: string, organizationId: string, contractId: string) {
+  async deactivate(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+    reason: string,
+  ) {
+    const trimmedReason = reason?.trim();
+    if (!trimmedReason) {
+      throw new BadRequestException('Deactivate reason is required');
+    }
     const contract = await this.requireContract(organizationId, contractId);
     if (contract.status !== 'active') {
       throw new BadRequestException('Only active contracts can be deactivated');
@@ -894,6 +1069,7 @@ export class LeaseContractsService {
       resourceType: 'lease_contract',
       resourceId: contractId,
       status: 'SUCCESS',
+      metadata: { reason: trimmedReason },
     });
     await this.driversService.clearAssignmentsForActiveLease(
       organizationId,
@@ -944,47 +1120,53 @@ export class LeaseContractsService {
     return this.getById(organizationId, contractId);
   }
 
-  async requestTermination(
-    userId: string,
-    organizationId: string,
-    contractId: string,
-  ) {
+  async terminate(userId: string, organizationId: string, contractId: string) {
     const contract = await this.requireContract(organizationId, contractId);
-    if (!['deactivated', 'billing_paused'].includes(contract.status)) {
+    if (contract.status === 'closed' || contract.status === 'concluded') {
+      throw new BadRequestException('Contract is already terminated');
+    }
+    if (
+      !['deactivated', 'billing_paused', 'pending_termination'].includes(
+        contract.status,
+      )
+    ) {
       throw new BadRequestException(
         'Terminate from deactivated/on-hold state only',
       );
     }
-    if (
-      await this.repo.findPendingApproval(contractId, 'contract_termination')
-    ) {
-      throw new ConflictException('Termination already pending approval');
-    }
-    await this.repo.insertApproval({
-      organizationId,
+    const pending = await this.repo.findPendingApproval(
       contractId,
-      sourceType: 'contract_termination',
-      requestedByUserId: userId,
-    });
+      'contract_termination',
+    );
+    if (pending) {
+      await this.repo.resolveApproval(pending.id, 'approved', userId);
+    }
     await this.repo.updateContract(contractId, organizationId, {
-      status: 'pending_termination',
+      status: 'closed',
+      billingPaused: true,
+      onHold: true,
       updatedByUserId: userId,
     });
     await this.logEvent(
       contractId,
       organizationId,
       userId,
-      'contract.termination_requested',
-      'Termination requested — pending Contract Admin approval',
+      'contract.termination_approved',
+      'Termination completed successfully — security deposit settled immediately. Contract closed.',
     );
     await this.audit.log({
       organizationId,
       userId,
-      action: 'lease_contract.request_termination',
+      action: 'lease_contract.terminate',
       resourceType: 'lease_contract',
       resourceId: contractId,
       status: 'SUCCESS',
     });
+    await this.driversService.clearAssignmentsForActiveLease(
+      organizationId,
+      contractId,
+      'fleet_contract_inactive',
+    );
     return this.getById(organizationId, contractId);
   }
 
@@ -1029,128 +1211,6 @@ export class LeaseContractsService {
       userId,
       'return.registered',
       `Vehicle ${vehicle.registrationNo} registered as returned`,
-    );
-    return this.getById(organizationId, contractId);
-  }
-
-  async renewContract(
-    userId: string,
-    organizationId: string,
-    contractId: string,
-  ) {
-    const source = await this.requireContract(organizationId, contractId);
-    const rawStatus = source.status;
-    if (!RENEWABLE_CONTRACT_STATUSES.includes(rawStatus)) {
-      throw new BadRequestException(
-        'Renewal is available for active, awaiting assets, or completed contracts',
-      );
-    }
-    const lines = await this.repo.listAssetLines(contractId);
-    const contractNumber = await this.repo.nextContractNumber(organizationId);
-    const draft = await this.repo.insertContract({
-      organizationId,
-      contractNumber,
-      clientId: source.clientId,
-      status: 'draft',
-      startDate: null,
-      endDate: null,
-      termMonths: null,
-      securityDeposit: source.securityDeposit,
-      billingFrequency: source.billingFrequency,
-      additionalTerms: source.additionalTerms,
-      amcTier: source.amcTier,
-      description: source.description,
-      renewedFromContractId: source.id,
-      awaitingFutureAssets: false,
-      createdByUserId: userId,
-      updatedByUserId: userId,
-    });
-    if (lines.length > 0) {
-      await this.repo.replaceAssetLines(
-        draft.id,
-        lines.map((l) => ({
-          assetClass: l.assetClass,
-          committedQuantity: l.committedQuantity,
-          ratePerVehicleMonth: l.ratePerVehicleMonth,
-          availabilityCovered: l.availabilityCovered,
-          availabilityStatus: l.availabilityStatus,
-          availableNowCount: l.availableNowCount,
-          inboundCount: l.inboundCount,
-          shortfallCount: l.shortfallCount,
-          awaitingAssetsLine: l.awaitingAssetsLine,
-          sortOrder: l.sortOrder,
-        })),
-      );
-    }
-    await this.logEvent(
-      source.id,
-      organizationId,
-      userId,
-      'contract.renewal_started',
-      `Renewal draft ${draft.contractNumber} created from ${source.contractNumber}`,
-      { renewalDraftId: draft.id },
-    );
-    await this.logEvent(
-      draft.id,
-      organizationId,
-      userId,
-      'contract.created',
-      `Renewal draft created from ${source.contractNumber} — set terms to compute end date`,
-      { renewedFromContractId: source.id },
-    );
-    await this.audit.log({
-      organizationId,
-      userId,
-      action: 'lease_contract.renew',
-      resourceType: 'lease_contract',
-      resourceId: draft.id,
-      status: 'SUCCESS',
-      metadata: { sourceContractId: source.id },
-    });
-    return this.getById(organizationId, draft.id);
-  }
-
-  async approveTermination(
-    userId: string,
-    organizationId: string,
-    contractId: string,
-  ) {
-    const contract = await this.requireContract(organizationId, contractId);
-    if (contract.status !== 'pending_termination') {
-      throw new BadRequestException('Contract is not pending termination');
-    }
-    const pending = await this.repo.findPendingApproval(
-      contractId,
-      'contract_termination',
-    );
-    if (!pending)
-      throw new NotFoundException('Pending termination approval not found');
-    await this.repo.resolveApproval(pending.id, 'approved', userId);
-    await this.repo.updateContract(contractId, organizationId, {
-      status: 'closed',
-      billingPaused: true,
-      onHold: true,
-      updatedByUserId: userId,
-    });
-    await this.logEvent(
-      contractId,
-      organizationId,
-      userId,
-      'contract.termination_approved',
-      'Termination completed successfully — security deposit settled immediately. Contract closed.',
-    );
-    await this.audit.log({
-      organizationId,
-      userId,
-      action: 'lease_contract.approve_termination',
-      resourceType: 'lease_contract',
-      resourceId: contractId,
-      status: 'SUCCESS',
-    });
-    await this.driversService.clearAssignmentsForActiveLease(
-      organizationId,
-      contractId,
-      'fleet_contract_inactive',
     );
     return this.getById(organizationId, contractId);
   }
@@ -1372,7 +1432,7 @@ export class LeaseContractsService {
     await this.repo.markVehiclesLeased(ids);
   }
 
-  private async toListItem(
+  private toListItem(
     contract: {
       id: string;
       contractNumber: string;
@@ -1385,8 +1445,8 @@ export class LeaseContractsService {
       onHold: boolean;
     },
     clientCompanyName: string | null,
+    lines: Array<{ assetClass: string }>,
   ) {
-    const lines = await this.repo.listAssetLines(contract.id);
     const assetClasses = lines.map((l) => l.assetClass).join(', ') || null;
     const rawStatus = contract.status as LeaseContractStatus;
     return {
@@ -1424,8 +1484,7 @@ export class LeaseContractsService {
       client,
       returned,
       committed,
-      pendingTermination,
-      editLogs,
+      editLogCount,
       allocatedByClass,
     ] = await Promise.all([
       this.repo.listAssetLines(contract.id),
@@ -1436,8 +1495,7 @@ export class LeaseContractsService {
         : Promise.resolve(null),
       this.repo.countRegisteredReturns(contract.id),
       this.repo.countCommittedVehicles(contract.id),
-      this.repo.findPendingApproval(contract.id, 'contract_termination'),
-      this.repo.listEditLogs(contract.id, 50),
+      this.repo.countEditLogs(contract.id),
       this.repo.countAllocatedVehiclesByAssetClass(contract.id),
     ]);
     const allocationByLine = lines.map((line) =>
@@ -1452,9 +1510,8 @@ export class LeaseContractsService {
       }),
     );
     const contractFullyAllocated =
-      rawStatus === 'active' &&
-      lines.length > 0 &&
-      lines.every((l) => l.availabilityCovered && !l.awaitingAssetsLine);
+      rawStatus === 'active' && isContractFullyAllocated(allocationByLine);
+    const allocationTotals = sumContractAllocationTotals(allocationByLine);
     const vehicles = (
       await this.repo.getVehiclesByIds(organizationId, vehicleIds)
     ).map((v) => ({
@@ -1480,23 +1537,34 @@ export class LeaseContractsService {
       billingPaused: contract.billingPaused,
       onHold: contract.onHold,
     });
+    const latestRenewOutcome = findLatestRenewOutcomeEvent(events);
+    const clientCompanyName = client
+      ? resolveFleetClientCompanyDisplayName(
+          client.client.companyName,
+          client.organisationClientName,
+        )
+      : null;
     const subtitle = buildDetailSubtitle({
       rawStatus,
-      clientCompanyName: client?.client.companyName ?? null,
+      clientCompanyName,
       billingPaused: contract.billingPaused,
       onHold: contract.onHold,
       contractFullyAllocated,
+      totalCommitted: allocationTotals.totalCommitted,
+      totalAllocated: allocationTotals.totalAllocated,
+      latestRenewOutcomeKind: latestRenewOutcome?.kind ?? null,
     });
     const statusBanner = buildStatusBanner({
       rawStatus,
       events,
       labelsByUserId,
       contractFullyAllocated,
+      totalCommitted: allocationTotals.totalCommitted,
+      totalAllocated: allocationTotals.totalAllocated,
     });
     const availableActions = buildAvailableActions({
       rawStatus,
       canPauseBilling,
-      hasPendingTerminationApproval: Boolean(pendingTermination),
     });
     const deactivatedEvent = findLatestEventByType(
       events,
@@ -1526,7 +1594,7 @@ export class LeaseContractsService {
       client: client
         ? {
             id: client.client.id,
-            companyName: client.client.companyName,
+            companyName: clientCompanyName ?? client.client.companyName,
             address: client.client.address,
             pointsOfContact: client.pocs.map((p) => ({
               id: p.id,
@@ -1552,16 +1620,9 @@ export class LeaseContractsService {
       description: contract.description,
       assetLines: lines.map((l, index) => {
         const allocation = allocationByLine[index];
-        const lineStatusLabel =
-          rawStatus === 'active' &&
-          l.availabilityCovered &&
-          !l.awaitingAssetsLine
-            ? 'Allocated'
-            : allocation.lineStatus === 'allocated'
-              ? 'Allocated'
-              : allocation.lineStatus === 'partially_allocated'
-                ? 'Partially allocated'
-                : 'Awaiting Assets';
+        const lineStatusLabel = formatContractLineStatusLabel(
+          allocation.lineStatus,
+        );
         return {
           id: l.id,
           assetClass: l.assetClass,
@@ -1581,14 +1642,12 @@ export class LeaseContractsService {
       vehicleIds,
       vehicles,
       renewedFromContractId: contract.renewedFromContractId ?? null,
+      lastRenewOutcome: latestRenewOutcome?.kind ?? null,
+      lastRenewOutcomeLabel: latestRenewOutcome
+        ? renewOutcomePublicLabel(latestRenewOutcome.kind)
+        : null,
       requiresEditReview: contract.requiresEditReview,
-      editLogs: editLogs.map((log) => ({
-        id: log.id,
-        classification: log.classification,
-        changedFields: log.changedFields,
-        actorUserId: log.actorUserId,
-        createdAt: log.createdAt.toISOString(),
-      })),
+      hasFieldChangeHistory: editLogCount > 0,
       returnProgress,
       availableActions,
       lifecycleLogs,
@@ -1623,11 +1682,14 @@ export class LeaseContractsService {
       Awaited<ReturnType<FleetLeasingRepository['findContractInOrg']>>
     >,
   ) {
-    const [lines, allocatedByClass, client] = await Promise.all([
+    const [lines, allocatedByClass, clientJoined] = await Promise.all([
       this.repo.listAssetLines(contract.id),
       this.repo.countAllocatedVehiclesByAssetClass(contract.id),
       contract.clientId
-        ? this.repo.getClientInOrg(organizationId, contract.clientId)
+        ? this.repo.getClientInOrgWithDisplayName(
+            organizationId,
+            contract.clientId,
+          )
         : Promise.resolve(null),
     ]);
     const rawStatus = contract.status;
@@ -1643,9 +1705,7 @@ export class LeaseContractsService {
         availabilityStatus: line.availabilityStatus,
       }),
     );
-    const contractFullyAllocated =
-      allocationByLine.length > 0 &&
-      allocationByLine.every((l) => l.lineStatus === 'allocated');
+    const contractFullyAllocated = isContractFullyAllocated(allocationByLine);
     const hasAwaitingLines = allocationByLine.some(
       (l) => l.lineStatus === 'awaiting_assets',
     );
@@ -1662,7 +1722,13 @@ export class LeaseContractsService {
     return {
       contractId: contract.id,
       contractNumber: contract.contractNumber,
-      clientCompanyName: client?.companyName ?? 'Not yet selected',
+      clientCompanyName:
+        (clientJoined
+          ? resolveFleetClientCompanyDisplayName(
+              clientJoined.client.companyName,
+              clientJoined.organisationClientName,
+            )
+          : null) ?? 'Not yet selected',
       publicStatus,
       rawStatus,
       headline: 'Contract confirmed',
@@ -1670,6 +1736,47 @@ export class LeaseContractsService {
       allocationByLine,
       contractFullyAllocated,
     };
+  }
+
+  async getOrganisationClientContractCounts(
+    organizationId: string,
+    organisationClientIds: string[],
+  ): Promise<Map<string, number>> {
+    return this.repo.countContractsGroupedByOrganisationClientIds(
+      organizationId,
+      organisationClientIds,
+    );
+  }
+
+  async getOrganisationClientContractHistory(
+    organizationId: string,
+    organisationClientId: string,
+  ) {
+    const rows = await this.repo.listContractsForOrganisationClient(
+      organizationId,
+      organisationClientId,
+    );
+    const classByContract = await this.repo.listAssetClassesByContractIds(
+      rows.map((row) => row.id),
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      assetClasses: classByContract.get(row.id) ?? '—',
+      startDate: row.startDate ? row.startDate.toISOString().slice(0, 10) : '—',
+      status: this.toPublicStatus(row.status),
+    }));
+  }
+
+  async getContractSummariesForHistory(
+    organizationId: string,
+    contractIds: string[],
+  ) {
+    const rows = await this.repo.getContractSummariesByIds(
+      organizationId,
+      contractIds,
+    );
+    const byId = new Map(rows.map((row) => [row.id, row]));
+    return byId;
   }
 
   private toPublicStatus(status: LeaseContractStatus): string {
@@ -1693,4 +1800,12 @@ function addMonthsUtc(start: Date, months: number): Date {
   const d = new Date(start.getTime());
   d.setUTCMonth(d.getUTCMonth() + months);
   return d;
+}
+
+function parseIsoDateOnlyUtc(isoDate: string): Date {
+  const [y, m, d] = isoDate.split('-').map((part) => Number(part));
+  if (!y || !m || !d) {
+    throw new BadRequestException('Invalid start date');
+  }
+  return new Date(Date.UTC(y, m - 1, d));
 }

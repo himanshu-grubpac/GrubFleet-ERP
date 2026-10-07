@@ -1,7 +1,4 @@
-import {
-  RENEWABLE_CONTRACT_STATUSES,
-  type LeaseContractStatus,
-} from '../constants/lease-contract-status';
+import type { LeaseContractStatus } from '../constants/lease-contract-status';
 import { getContractEditBlockReason } from './contract-edit.util';
 
 export type ContractEventRow = {
@@ -15,13 +12,7 @@ export type ContractEventRow = {
 export type StatusBannerLevel = 'success' | 'info' | 'warning';
 
 export type AvailableActionKey =
-  | 'editContract'
-  | 'deactivate'
-  | 'reactivate'
-  | 'pauseBilling'
-  | 'requestTermination'
-  | 'approveTermination'
-  | 'renew';
+  'editContract' | 'deactivate' | 'reactivate' | 'pauseBilling' | 'terminate';
 
 export type AvailableAction = {
   allowed: boolean;
@@ -38,6 +29,8 @@ const LIFECYCLE_EVENT_TYPES = new Set([
   'contract.termination_approved',
   'contract.activated',
   'contract.confirmed',
+  'contract.renewed',
+  'contract.extended',
 ]);
 
 export function findLatestEventByType(
@@ -84,6 +77,14 @@ export function buildLifecycleLogMessage(
       return actorLabel
         ? `${actorLabel} completed termination — security deposit settled. Contract closed.`
         : 'Termination completed successfully — security deposit settled. Contract closed.';
+    case 'contract.renewed':
+      return actorLabel
+        ? `${actorLabel} renewed this contract.`
+        : 'Contract renewed.';
+    case 'contract.extended':
+      return actorLabel
+        ? `${actorLabel} extended this contract.`
+        : 'Contract extended.';
     default:
       return rawMessage;
   }
@@ -144,9 +145,40 @@ export function buildDetailSubtitle(input: {
   billingPaused: boolean;
   onHold: boolean;
   contractFullyAllocated?: boolean;
+  totalCommitted?: number;
+  totalAllocated?: number;
+  latestRenewOutcomeKind?: 'renewal' | 'extension' | null;
 }): string {
+  if (
+    input.rawStatus === 'active' &&
+    input.latestRenewOutcomeKind === 'renewal'
+  ) {
+    return 'Contract renewed — terms updated and contract remains active.';
+  }
+  if (
+    input.rawStatus === 'active' &&
+    input.latestRenewOutcomeKind === 'extension'
+  ) {
+    return 'Contract extended — terms updated and contract remains active.';
+  }
   if (input.rawStatus === 'active' && input.contractFullyAllocated) {
-    return 'All requested vehicles allocated.';
+    if (
+      input.totalCommitted != null &&
+      input.totalCommitted > 0 &&
+      input.totalAllocated != null
+    ) {
+      return `${input.totalAllocated} of ${input.totalCommitted} committed unit(s) allocated.`;
+    }
+    return 'All committed units allocated.';
+  }
+  if (
+    input.rawStatus === 'active' &&
+    input.totalCommitted != null &&
+    input.totalAllocated != null &&
+    input.totalCommitted > 0 &&
+    input.totalAllocated < input.totalCommitted
+  ) {
+    return `${input.totalAllocated} of ${input.totalCommitted} committed unit(s) allocated.`;
   }
   const client = input.clientCompanyName ?? 'the client';
   const base = `Fleet & Leasing contract with ${client}.`;
@@ -154,7 +186,7 @@ export function buildDetailSubtitle(input: {
     return `${base} Terminated.`;
   }
   if (input.rawStatus === 'pending_termination') {
-    return `${base} Termination pending Contract Admin approval.`;
+    return `${base} Termination in progress — complete to close the contract.`;
   }
   if (
     input.rawStatus === 'deactivated' ||
@@ -174,47 +206,27 @@ export function buildStatusBanner(input: {
   events: ContractEventRow[];
   labelsByUserId: Map<string, string>;
   contractFullyAllocated?: boolean;
+  totalCommitted?: number;
+  totalAllocated?: number;
 }): {
   level: StatusBannerLevel;
   text: string;
   occurredAt: string | null;
   actorLabel: string | null;
 } | null {
-  const { rawStatus, events, labelsByUserId } = input;
-  if (rawStatus === 'active' && input.contractFullyAllocated) {
-    return {
-      level: 'success',
-      text: 'Contract is Active — every asset-class line is fully allocated.',
-      occurredAt: null,
-      actorLabel: null,
-    };
+  const { rawStatus } = input;
+  if (rawStatus === 'active') {
+    return null;
   }
   if (rawStatus === 'closed' || rawStatus === 'concluded') {
-    const term = findLatestEventByType(events, 'contract.termination_approved');
-    const actorLabel = term
-      ? resolveActorLabel(term.actorUserId, labelsByUserId)
-      : null;
-    const occurredAt = term?.createdAt.toISOString() ?? null;
-    const actorPart = actorLabel ? ` by ${actorLabel}` : '';
-    return {
-      level: 'success',
-      text: `Termination successfully completed${actorPart} — security deposit settled immediately. Contract is Closed.`,
-      occurredAt,
-      actorLabel,
-    };
+    return null;
   }
   if (rawStatus === 'pending_termination') {
-    const req = findLatestEventByType(events, 'contract.termination_requested');
-    const actorLabel = req
-      ? resolveActorLabel(req.actorUserId, labelsByUserId)
-      : null;
     return {
       level: 'info',
-      text: actorLabel
-        ? `Termination requested by ${actorLabel} — awaiting Contract Admin approval.`
-        : 'Termination requested — awaiting Contract Admin approval.',
-      occurredAt: req?.createdAt.toISOString() ?? null,
-      actorLabel,
+      text: 'Termination in progress — use Terminate to close this contract and settle the security deposit.',
+      occurredAt: null,
+      actorLabel: null,
     };
   }
   return null;
@@ -223,9 +235,8 @@ export function buildStatusBanner(input: {
 export function buildAvailableActions(input: {
   rawStatus: LeaseContractStatus;
   canPauseBilling: boolean;
-  hasPendingTerminationApproval: boolean;
 }): AvailableActionsMap {
-  const { rawStatus, canPauseBilling, hasPendingTerminationApproval } = input;
+  const { rawStatus, canPauseBilling } = input;
   const deny = (reason: string): AvailableAction => ({
     allowed: false,
     disabledReason: reason,
@@ -260,34 +271,25 @@ export function buildAvailableActions(input: {
     pauseBilling = allow();
   }
 
-  let requestTermination: AvailableAction;
-  if (!['deactivated', 'billing_paused'].includes(rawStatus)) {
-    requestTermination = deny('Terminate from deactivated/on-hold state only');
-  } else if (hasPendingTerminationApproval) {
-    requestTermination = deny('Termination already pending approval');
-  } else {
-    requestTermination = allow();
-  }
-
-  const approveTermination =
+  let terminate: AvailableAction;
+  if (rawStatus === 'closed' || rawStatus === 'concluded') {
+    terminate = deny('Contract is already terminated');
+  } else if (
+    rawStatus === 'deactivated' ||
+    rawStatus === 'billing_paused' ||
     rawStatus === 'pending_termination'
-      ? allow()
-      : deny('No termination pending approval');
-
-  const renew = RENEWABLE_CONTRACT_STATUSES.includes(rawStatus)
-    ? allow()
-    : deny(
-        'Renewal is available for active, awaiting assets, or completed contracts',
-      );
+  ) {
+    terminate = allow();
+  } else {
+    terminate = deny('Terminate from deactivated/on-hold state only');
+  }
 
   return {
     editContract,
     deactivate,
     reactivate,
     pauseBilling,
-    requestTermination,
-    approveTermination,
-    renew,
+    terminate,
   };
 }
 

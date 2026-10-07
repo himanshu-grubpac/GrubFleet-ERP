@@ -31,7 +31,12 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  ASSET_MASTER_STATUS_UPDATE_ERROR,
+  showAssetMasterActivatedToast,
+  showAssetMasterDeactivatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 import {
     fetchAssetRegisterAssetMastersApi,
     updateAssetRegisterAssetMasterStatusApi,
@@ -326,15 +331,15 @@ export default function AssetMasterDashboardPage() {
             setDeactivateTarget(null);
             setActivateTarget(null);
             setStatusError(null);
-            showSuccessToast(
-                variables.action === "activate"
-                    ? "Asset master activated"
-                    : "Asset master deactivated",
-            );
+            if (variables.action === "activate") {
+                showAssetMasterActivatedToast();
+            } else {
+                showAssetMasterDeactivatedToast();
+            }
         },
         onError: (error: Error) => {
             const message =
-                error.message || "Could not update asset master status";
+                error.message || ASSET_MASTER_STATUS_UPDATE_ERROR;
             setStatusError(message);
             showErrorToast(message);
         },

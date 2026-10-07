@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchAssetRegisterAssetClassApi,
@@ -15,7 +16,12 @@ import {
   assetClassDetailToFormData,
   mapAssetRegisterVehicleTypeToUiLabel,
 } from "@/lib/api/asset-register/mappers";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  ASSET_CLASS_STATUS_UPDATE_ERROR,
+  showAssetClassActivatedToast,
+  showAssetClassDeactivatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -104,17 +110,19 @@ export default function AssetClassViewPage() {
             void queryClient.invalidateQueries({
                 queryKey: ["asset-register", "asset-classes"],
             });
-            setShowDeactivateModal(false);
-            setDeactivateReason("");
-            showSuccessToast(
-                variables.action === "activate"
-                    ? "Asset class activated"
-                    : "Asset class deactivated",
-            );
+            setDeactivateOpen(false);
+            setActivateOpen(false);
+            const displayName =
+                detailQuery.data?.name ?? "Asset class";
+            if (variables.action === "activate") {
+                showAssetClassActivatedToast(displayName);
+            } else {
+                showAssetClassDeactivatedToast(displayName);
+            }
         },
         onError: (error: Error) => {
             showErrorToast(
-                error.message || "Could not update asset class status",
+                error.message || ASSET_CLASS_STATUS_UPDATE_ERROR,
             );
         },
     });
@@ -142,14 +150,8 @@ export default function AssetClassViewPage() {
           }
         : null;
 
-    const [showDeactivateModal, setShowDeactivateModal] =
-        useState(false);
-
-    const [deactivateReason, setDeactivateReason] =
-        useState("");
-
-    const [deactivateReasonError, setDeactivateReasonError] =
-        useState("");
+    const [deactivateOpen, setDeactivateOpen] = useState(false);
+    const [activateOpen, setActivateOpen] = useState(false);
 
     /* ---------------------------------------------------------------------- */
     /* Edit                                                                   */
@@ -165,41 +167,6 @@ export default function AssetClassViewPage() {
     /* ---------------------------------------------------------------------- */
     /* Deactivate                                                             */
     /* ---------------------------------------------------------------------- */
-
-    const handleDeactivate = () => {
-        const reason = deactivateReason.trim();
-
-        if (!reason) {
-            setDeactivateReasonError(
-                "Reason is required.",
-            );
-            return;
-        }
-
-        statusMutation.mutate({
-            action: "deactivate",
-            reason,
-        });
-        setDeactivateReasonError("");
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Cancel Deactivate                                                      */
-    /* ---------------------------------------------------------------------- */
-
-    const handleCancelDeactivate = () => {
-        setShowDeactivateModal(false);
-        setDeactivateReason("");
-        setDeactivateReasonError("");
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Activate                                                               */
-    /* ---------------------------------------------------------------------- */
-
-    const handleActivate = () => {
-        statusMutation.mutate({ action: "activate" });
-    };
 
     if (isAuthLoading || detailQuery.isLoading) {
         return (
@@ -287,17 +254,7 @@ export default function AssetClassViewPage() {
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={() => {
-                                    setDeactivateReason(
-                                        "",
-                                    );
-                                    setDeactivateReasonError(
-                                        "",
-                                    );
-                                    setShowDeactivateModal(
-                                        true,
-                                    );
-                                }}
+                                onClick={() => setDeactivateOpen(true)}
                                 className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
                             >
                                 Deactivate
@@ -306,9 +263,7 @@ export default function AssetClassViewPage() {
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={
-                                    handleActivate
-                                }
+                                onClick={() => setActivateOpen(true)}
                                 className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
                             >
                                 Activate
@@ -400,134 +355,48 @@ export default function AssetClassViewPage() {
                 )}
             </div>
 
-            {/* ============================================================= */}
-            {/* DEACTIVATE MODAL                                                */}
-            {/* ============================================================= */}
+            <ReasonRequiredDialog
+                open={deactivateOpen}
+                title="Deactivate asset class?"
+                description={
+                    <>
+                        <span className="font-medium text-gray-900">
+                            {assetClass.name}
+                        </span>{" "}
+                        will no longer be used for new vehicles or lease lines.
+                    </>
+                }
+                reasonLabel="Reason for deactivation"
+                confirmLabel="Deactivate"
+                isPending={statusMutation.isPending}
+                onClose={() => {
+                    if (!statusMutation.isPending) {
+                        setDeactivateOpen(false);
+                    }
+                }}
+                onConfirm={(reason) => {
+                    statusMutation.mutate({
+                        action: "deactivate",
+                        reason,
+                    });
+                }}
+            />
 
-            {showDeactivateModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                    <div
-                        className="w-full max-w-[460px] rounded-lg bg-white p-5 shadow-xl"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="deactivate-asset-class-title"
-                    >
-                        {/* Modal Header */}
-
-                        <div className="flex items-start gap-3">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50">
-                                <AlertTriangle
-                                    className="h-4 w-4 text-red-500"
-                                    strokeWidth={1.8}
-                                />
-                            </div>
-
-                            <div>
-                                <h2
-                                    id="deactivate-asset-class-title"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    Deactivate this asset
-                                    class?
-                                </h2>
-
-                                <p className="mt-1 text-xs leading-5 text-gray-500">
-                                    This will deactivate{" "}
-                                    <span className="font-medium text-gray-700">
-                                        &quot;
-                                        {
-                                            assetClass.name
-                                        }
-                                        &quot;
-                                    </span>{" "}
-                                    from the asset class
-                                    register.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Reason */}
-
-                        <div className="mt-4">
-                            <label
-                                htmlFor="deactivate-reason"
-                                className="mb-1.5 block text-xs font-medium text-gray-700"
-                            >
-                                Reason
-                                <span className="ml-1 text-red-500">
-                                    *
-                                </span>
-                            </label>
-
-                            <textarea
-                                id="deactivate-reason"
-                                value={
-                                    deactivateReason
-                                }
-                                onChange={(event) => {
-                                    const value =
-                                        event.target
-                                            .value;
-
-                                    setDeactivateReason(
-                                        value,
-                                    );
-
-                                    if (
-                                        value.trim()
-                                    ) {
-                                        setDeactivateReasonError(
-                                            "",
-                                        );
-                                    }
-                                }}
-                                placeholder="Enter reason for deactivation..."
-                                rows={3}
-                                className={[
-                                    "w-full resize-none rounded-md bg-white px-3 py-2 text-xs text-gray-900 outline-none placeholder:text-gray-400",
-                                    deactivateReasonError
-                                        ? "border border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                                        : "border border-gray-200 focus:border-gray-300 focus:ring-1 focus:ring-gray-200",
-                                ].join(" ")}
-                            />
-
-                            {deactivateReasonError && (
-                                <p className="mt-1 text-xs text-red-500">
-                                    {
-                                        deactivateReasonError
-                                    }
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Modal Actions */}
-
-                        <div className="mt-5 flex justify-end gap-2">
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={
-                                    handleCancelDeactivate
-                                }
-                                className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
-                            >
-                                Cancel
-                            </Button>
-
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={
-                                    handleDeactivate
-                                }
-                                className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
-                            >
-                                Deactivate
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ConfirmDialog
+                open={activateOpen}
+                title="Activate asset class?"
+                message={`${assetClass.name} will be available for fleet register and lease lines.`}
+                confirmLabel="Activate"
+                isConfirmPending={statusMutation.isPending}
+                onClose={() => {
+                    if (!statusMutation.isPending) {
+                        setActivateOpen(false);
+                    }
+                }}
+                onConfirm={() => {
+                    statusMutation.mutate({ action: "activate" });
+                }}
+            />
         </div>
     );
 }

@@ -3,17 +3,21 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 
-import type { BreadcrumbItem } from "@/config/breadcrumb-config";
+import type { DashboardBreadcrumbItem } from "@/lib/navigation/dashboard-breadcrumbs";
+import { normalizeNavPath } from "@/lib/navigation/nav-path-match";
 
 interface BreadcrumbProps {
-    items: BreadcrumbItem[];
+    items: DashboardBreadcrumbItem[];
 }
 
 export default function Breadcrumb({
     items,
 }: BreadcrumbProps) {
+    const pathname = normalizeNavPath(usePathname() ?? "/");
+
     if (!items.length) {
         return null;
     }
@@ -26,15 +30,20 @@ export default function Breadcrumb({
             <ol className="flex items-center gap-1.5 text-xs">
                 {items.map((item, index) => {
                     const isLast = index === items.length - 1;
+                    const href = item.href
+                        ? normalizeNavPath(item.href)
+                        : undefined;
+                    const showLink =
+                        Boolean(href) && href !== pathname;
 
                     return (
                         <li
                             key={`${item.label}-${index}`}
                             className="flex min-w-0 items-center gap-1.5"
                         >
-                            {item.href && !isLast ? (
+                            {showLink && href ? (
                                 <Link
-                                    href={item.href}
+                                    href={href}
                                     className="truncate text-slate-400 transition-colors hover:text-slate-700"
                                 >
                                     {item.label}

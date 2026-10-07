@@ -789,7 +789,7 @@
               { "key": "x-organization-id", "value": "{{organizationId}}" }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/submit?organizationId={{organizationId}}",
-            "description": "POST .../submit — when reviewAction is submit_for_approval; status pending_approval + approval request."
+            "description": "POST .../submit — legacy pending-approval path; MVP wizard uses POST .../confirm (Submit contract) instead."
           },
           "response": []
         },
@@ -802,7 +802,20 @@
               { "key": "x-organization-id", "value": "{{organizationId}}" }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirm?organizationId={{organizationId}}",
-            "description": "POST .../confirm — when reviewAction is confirm_contract; activates or awaiting_assets. Response includes confirmation summary for success screen."
+            "description": "POST .../confirm — Submit contract (MVP); activates or awaiting_assets without pending approval. Response includes confirmation summary."
+          },
+          "response": []
+        },
+        {
+          "name": "Get contract change history",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/change-history?organizationId={{organizationId}}",
+            "description": "GET .../change-history — field-level FROM/TO rows from lease_contract_edit_logs."
           },
           "response": []
         },
@@ -856,10 +869,15 @@
             "method": "POST",
             "header": [
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
             ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Contract paused for operational review\"\n}"
+            },
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/deactivate?organizationId={{organizationId}}",
-            "description": "POST .../deactivate — active only; onHold true, billing continues."
+            "description": "POST .../deactivate — active only; reason required; onHold true, billing continues."
           },
           "response": []
         },
@@ -877,6 +895,37 @@
           "response": []
         },
         {
+          "name": "List renewals and extensions (eligible active)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/renewals-extensions?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /fleet-leasing/renewals-extensions — paginated active contracts only (LEASE-16)."
+          },
+          "response": []
+        },
+        {
+          "name": "Renew or extend lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newTermMonths\": 24,\n  \"newStartDate\": \"2027-01-12\"\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/renew?organizationId={{organizationId}}",
+            "description": "POST .../renew — active only; updates term/dates on same contract; 12+ months = renewal, under 12 = extension; deposit unchanged."
+          },
+          "response": []
+        },
+        {
           "name": "Pause lease contract billing",
           "request": {
             "method": "POST",
@@ -890,41 +939,15 @@
           "response": []
         },
         {
-          "name": "Request lease contract termination",
+          "name": "Terminate lease contract",
           "request": {
             "method": "POST",
             "header": [
               { "key": "Authorization", "value": "Bearer {{accessToken}}" },
               { "key": "x-organization-id", "value": "{{organizationId}}" }
             ],
-            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/request-termination?organizationId={{organizationId}}",
-            "description": "POST .../request-termination — from deactivated/billing_paused; pending Contract Admin."
-          },
-          "response": []
-        },
-        {
-          "name": "Approve lease contract termination",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/approve-termination?organizationId={{organizationId}}",
-            "description": "POST .../approve-termination — closes contract; deposit settle is messaging stub until Finance integration."
-          },
-          "response": []
-        },
-        {
-          "name": "Renew lease contract (Flow 04)",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/renew?organizationId={{organizationId}}",
-            "description": "POST .../renew — draft renewal with null end date until terms set."
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/terminate?organizationId={{organizationId}}",
+            "description": "POST .../terminate — from deactivated, billing_paused, or legacy pending_termination; closes contract in one step."
           },
           "response": []
         },

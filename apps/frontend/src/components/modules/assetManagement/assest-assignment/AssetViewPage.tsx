@@ -7,7 +7,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  showErrorToast,
+  showVehicleAssignedToLeaseToast,
+  VEHICLE_ASSIGN_ERROR,
+} from "@/lib/toast/show-toast";
 import { fetchAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
 import { bulkAssignAssetRegisterVehiclesApi } from "@/lib/api/asset-register/assignments";
 import { fetchLeaseContractsList, fetchLeaseContractById } from "@/lib/api/lease-contracts";
@@ -182,10 +186,10 @@ export default function AssetAssignmentViewPage() {
                 queryKey: ["asset-register", "vehicles"],
             });
             setIsAssigned(true);
-            showSuccessToast("Vehicle assigned to lease contract");
+            showVehicleAssignedToLeaseToast();
         },
         onError: (error: Error) => {
-            showErrorToast(error.message || "Could not assign vehicle");
+            showErrorToast(error.message || VEHICLE_ASSIGN_ERROR);
         },
     });
 
@@ -337,7 +341,7 @@ export default function AssetAssignmentViewPage() {
                     </Button>
                     <Button
                         type="button"
-                        variant="neutral"
+                        variant="primary"
                         onClick={handleAssign}
                         disabled={
                             !canAssign ||
@@ -345,7 +349,7 @@ export default function AssetAssignmentViewPage() {
                             isAssigned ||
                             assignMutation.isPending
                         }
-                        className="h-8 border-[#FE5720] bg-[#FE5720] px-5 text-xs font-medium text-white hover:bg-[#E94E1C] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="h-8 px-5 text-xs font-medium disabled:cursor-not-allowed"
                     >
                         {isAssigned ? "Assigned" : "Assign"}
                     </Button>

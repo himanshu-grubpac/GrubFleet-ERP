@@ -1,14 +1,18 @@
 "use client";
 
 import { useRouter, useParams } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  COMPLIANCE_RENEWAL_SAVE_ERROR,
+  showComplianceRenewalSavedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 import {
     fetchAssetRegisterComplianceDetailApi,
     renewAssetRegisterComplianceApi,
@@ -132,11 +136,11 @@ export default function RenewCompliancePage() {
             void queryClient.invalidateQueries({
                 queryKey: ["asset-register", "compliance"],
             });
-            showSuccessToast("Compliance renewal saved");
+            showComplianceRenewalSavedToast();
             router.push("/asset-register/compliance-renewals");
         },
         onError: (error: Error) => {
-            showErrorToast(error.message || "Could not save renewal");
+            showErrorToast(error.message || COMPLIANCE_RENEWAL_SAVE_ERROR);
         },
     });
 
@@ -171,6 +175,21 @@ export default function RenewCompliancePage() {
 
     const selectClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+    const canSubmit = useMemo(() => {
+        if (isSaving) {
+            return false;
+        }
+        if (!newExpiryDate.trim()) {
+            return false;
+        }
+        if (renewalType === "Insurance") {
+            if (!premium.trim() || !policyNumber.trim()) {
+                return false;
+            }
+        }
+        return parseRenewalEndDate(newExpiryDate) !== null;
+    }, [isSaving, newExpiryDate, renewalType, premium, policyNumber]);
 
     /* ---------------------------------------------------------------------- */
     /* Cancel                                                                 */
@@ -278,7 +297,7 @@ export default function RenewCompliancePage() {
                         <Button
                             type="button"
                             onClick={handleSave}
-                            disabled={isSaving}
+                            disabled={!canSubmit}
                             className="h-10 px-5"
                         >
                             {isSaving

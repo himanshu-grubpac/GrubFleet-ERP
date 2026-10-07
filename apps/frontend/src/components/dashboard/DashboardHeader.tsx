@@ -21,7 +21,7 @@ export default function DashboardHeader({
                 </h1>
 
                 {description && (
-                    <p className="mt-1 max-w-3xl text-sm text-gray-500">
+                    <p className="mt-1 text-sm text-gray-500">
                         {description}
                     </p>
                 )}

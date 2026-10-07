@@ -730,6 +730,28 @@ paths:
                 $ref: '#/components/schemas/PaginatedAuditLogs'
         '403':
           $ref: '#/components/responses/Forbidden'
+  /fleet-leasing/renewals-extensions:
+    get:
+      tags: [fleet-leasing]
+      summary: List active contracts eligible for renewal or extension (LEASE-16)
+      operationId: listRenewalsExtensions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+          description: Contract number or client name
+      responses:
+        '200':
+          description: Paginated active lease contracts
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /fleet-leasing/lease-contracts/summary:
     get:
       tags: [fleet-leasing]
@@ -934,6 +956,29 @@ paths:
           description: Saved lines with lineAvailability
         '409':
           description: ASSET_SHORTFALL — confirmShortfall required
+  /fleet-leasing/lease-contracts/{id}/change-history:
+    get:
+      tags: [fleet-leasing]
+      summary: Lease contract field change history (edit log rows)
+      operationId: getLeaseContractChangeHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            contractId, contractNumber, items[] with field, fieldLabel, fromValue,
+            toValue (human-readable labels for references, dates, and money),
+            changedBy, changedAt
+        '404':
+          $ref: '#/components/responses/NotFound'
   /fleet-leasing/lease-contracts/{id}/confirmation:
     get:
       tags: [fleet-leasing]
@@ -977,14 +1022,15 @@ paths:
       responses:
         '200':
           description: >-
-            reviewAction submit_for_approval | confirm_contract, messages (info|warning),
-            canSubmit, pricingEvaluation
+            reviewAction confirm_contract (MVP), messages (info), canSubmit,
+            pricingEvaluation
         '404':
           $ref: '#/components/responses/NotFound'
   /fleet-leasing/lease-contracts/{id}/confirm:
     post:
       tags: [fleet-leasing]
-      summary: Wizard step 4 — confirm when within standard limits (no rate approval)
+      summary: >-
+        Wizard step 4 — submit contract (activates or awaiting assets; MVP skips pending approval)
       operationId: confirmLeaseContract
       security:
         - bearerAuth: []
@@ -1002,7 +1048,7 @@ paths:
             contract, pricingEvaluation, activatedStatus; confirmation summary embedded;
             confirmationUrl for refresh
         '400':
-          description: TERMS_INCOMPLETE or PRICING_REQUIRES_APPROVAL — use submit instead
+          description: TERMS_INCOMPLETE
         '404':
           $ref: '#/components/responses/NotFound'
   /fleet-leasing/lease-contracts/{id}/submit:
@@ -1025,6 +1071,48 @@ paths:
           description: pending_approval when rate exception; includes reviewAction and messages
         '400':
           description: TERMS_INCOMPLETE
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /fleet-leasing/lease-contracts/{id}/renew:
+    post:
+      tags: [fleet-leasing]
+      summary: Renew or extend an active contract (same contract id; LEASE-17/18)
+      operationId: renewLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [newTermMonths, newStartDate]
+              properties:
+                newTermMonths:
+                  type: integer
+                  minimum: 1
+                  example: 24
+                newStartDate:
+                  type: string
+                  format: date
+                  example: '2027-01-12'
+      responses:
+        '200':
+          description: >-
+            outcomeKind renewal (12+ months) or extension (<12 months);
+            contract detail with updated term/dates; stays active
+        '400':
+          description: Not eligible or validation error
+        '403':
+          $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
   /fleet-leasing/lease-contracts/{id}:
@@ -1120,6 +1208,19 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+                  description: Audit reason (required)
       responses:
         '200':
           description: Deactivated contract detail
@@ -1171,33 +1272,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LeaseContractDetail'
-  /fleet-leasing/lease-contracts/{id}/request-termination:
+  /fleet-leasing/lease-contracts/{id}/terminate:
     post:
       tags: [fleet-leasing]
-      summary: Request contract termination (Contract Admin approval required)
-      operationId: requestLeaseContractTermination
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/OrganizationIdQuery'
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Contract pending termination
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LeaseContractDetail'
-  /fleet-leasing/lease-contracts/{id}/approve-termination:
-    post:
-      tags: [fleet-leasing]
-      summary: Approve termination — closes contract (deposit settle stub)
-      operationId: approveLeaseContractTermination
+      summary: Terminate contract — closes contract in one step (deposit settle stub)
+      operationId: terminateLeaseContract
       security:
         - bearerAuth: []
       parameters:
@@ -1215,14 +1294,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LeaseContractDetail'
-  /fleet-leasing/lease-contracts/{id}/renew:
+        '400':
+          description: Contract not in terminable state
+  /fleet-leasing/lease-contracts/{id}/request-termination:
     post:
       tags: [fleet-leasing]
-      summary: Create renewal draft (Flow 04)
-      description: |
-        Copies client and asset lines into a new draft contract with null start/end/term
-        until terms are set. Links renewedFromContractId to the source contract.
-      operationId: renewLeaseContract
+      summary: Deprecated — use POST .../terminate
+      deprecated: true
+      operationId: requestLeaseContractTerminationDeprecated
       security:
         - bearerAuth: []
       parameters:
@@ -1234,14 +1313,27 @@ paths:
             type: string
             format: uuid
       responses:
-        '200':
-          description: New renewal draft contract detail
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/LeaseContractDetail'
-        '400':
-          description: Source contract not eligible for renewal
+        '410':
+          description: Removed — use POST .../terminate
+  /fleet-leasing/lease-contracts/{id}/approve-termination:
+    post:
+      tags: [fleet-leasing]
+      summary: Deprecated — use POST .../terminate
+      deprecated: true
+      operationId: approveLeaseContractTerminationDeprecated
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '410':
+          description: Removed — use POST .../terminate
   /fleet-leasing/lease-contracts/{id}/register-return:
     post:
       tags: [fleet-leasing]
@@ -2706,6 +2798,26 @@ paths:
           description: Updated vehicle
         '400':
           description: Inactive vehicle or validation error
+  /asset-register/vehicles/{id}/lease-history:
+    get:
+      tags: [asset-register]
+      summary: Lease assignment history for a fleet register vehicle
+      operationId: getAssetRegisterVehicleLeaseHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignment rows with contract summary (lessee, dates, status)
+        '404':
+          description: Vehicle not found
   /asset-register/vehicles/{id}/status:
     patch:
       tags: [asset-register]
@@ -4476,9 +4588,7 @@ components:
             - deactivate
             - reactivate
             - pauseBilling
-            - requestTermination
-            - approveTermination
-            - renew
+            - terminate
           properties:
             editContract:
               $ref: '#/components/schemas/LeaseContractAvailableAction'
@@ -4488,11 +4598,7 @@ components:
               $ref: '#/components/schemas/LeaseContractAvailableAction'
             pauseBilling:
               $ref: '#/components/schemas/LeaseContractAvailableAction'
-            requestTermination:
-              $ref: '#/components/schemas/LeaseContractAvailableAction'
-            approveTermination:
-              $ref: '#/components/schemas/LeaseContractAvailableAction'
-            renew:
+            terminate:
               $ref: '#/components/schemas/LeaseContractAvailableAction'
         lifecycleLogs:
           type: array
@@ -4570,27 +4676,9 @@ components:
           nullable: true
         requiresEditReview:
           type: boolean
-        editLogs:
-          type: array
-          items:
-            type: object
-            properties:
-              id:
-                type: string
-                format: uuid
-              classification:
-                type: string
-              changedFields:
-                type: array
-                items:
-                  type: object
-              actorUserId:
-                type: string
-                format: uuid
-                nullable: true
-              createdAt:
-                type: string
-                format: date-time
+        hasFieldChangeHistory:
+          type: boolean
+          description: True when at least one lease_contract_edit_logs row exists for this contract (field-level PATCH diffs). Use GET change-history for rows.
     ApiError:
       type: object
       required: [message, code, statusCode]

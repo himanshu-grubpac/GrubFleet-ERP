@@ -1,8 +1,11 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import { LeaseContractsService } from '../fleet-leasing/lease-contracts.service';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -23,6 +26,8 @@ export class AssetRegisterVehiclesService {
   constructor(
     private readonly repo: AssetRegisterRepository,
     private readonly audit: AuditService,
+    @Inject(forwardRef(() => LeaseContractsService))
+    private readonly leaseContracts: LeaseContractsService,
   ) {}
 
   async list(query: ListAssetRegisterVehiclesQueryDto) {
@@ -317,6 +322,70 @@ export class AssetRegisterVehiclesService {
         'warrantyStartDate must be on or before warrantyEndDate',
       );
     }
+  }
+
+  async getLeaseHistory(organizationId: string, vehicleId: string) {
+    const vehicle = await this.repo.getVehicleInOrg(organizationId, vehicleId);
+    if (!vehicle) {
+      throw new NotFoundException('Vehicle not found');
+    }
+    const assignments = await this.repo.listAssignmentHistoryForVehicle(
+      organizationId,
+      vehicleId,
+    );
+    const contractIds = [
+      ...new Set(assignments.map((row) => row.leaseContractId)),
+    ];
+    const summaries = await this.leaseContracts.getContractSummariesForHistory(
+      organizationId,
+      contractIds,
+    );
+    return assignments.map((assignment) => {
+      const contract = summaries.get(assignment.leaseContractId);
+      const assignedDate = assignment.assignedAt.toISOString().slice(0, 10);
+      const startDate = contract?.startDate
+        ? contract.startDate.toISOString().slice(0, 10)
+        : assignedDate;
+      const endDate = contract?.endDate
+        ? contract.endDate.toISOString().slice(0, 10)
+        : assignment.unassignedAt
+          ? assignment.unassignedAt.toISOString().slice(0, 10)
+          : '—';
+      const status = this.mapLeaseHistoryStatus(
+        contract?.status,
+        assignment.unassignedAt,
+      );
+      return {
+        id: assignment.id,
+        date: assignedDate,
+        lessee: contract?.lesseeName ?? '—',
+        leaseStartDate: startDate,
+        leaseEndDate: endDate,
+        status,
+        changedBy: '—',
+        contractId: assignment.leaseContractId,
+        contractNumber: contract?.contractNumber ?? null,
+      };
+    });
+  }
+
+  private mapLeaseHistoryStatus(
+    rawStatus: string | undefined,
+    unassignedAt: Date | null,
+  ): 'Active' | 'Completed' | 'Cancelled' {
+    if (unassignedAt) {
+      return 'Completed';
+    }
+    if (
+      rawStatus === 'closed' ||
+      rawStatus === 'concluded' ||
+      rawStatus === 'deactivated' ||
+      rawStatus === 'billing_paused' ||
+      rawStatus === 'pending_termination'
+    ) {
+      return 'Cancelled';
+    }
+    return 'Active';
   }
 
   private toListItem(row: AssetRegisterVehicleWithRelations) {

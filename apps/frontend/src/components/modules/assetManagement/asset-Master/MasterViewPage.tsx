@@ -2,20 +2,24 @@
 
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AlertTriangle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  ASSET_MASTER_STATUS_UPDATE_ERROR,
+  showAssetMasterActivatedToast,
+  showAssetMasterDeactivatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 import {
   fetchAssetRegisterAssetMasterApi,
   updateAssetRegisterAssetMasterStatusApi,
 } from "@/lib/api/asset-register/asset-masters";
-import { mapAssetRegisterVehicleTypeToUiLabel } from "@/lib/api/asset-register/mappers";
-import type { AssetRegisterVehicleTypeApi } from "@/lib/api/asset-register/asset-classes";
+import { assetMasterDetailToFormData } from "@/lib/api/asset-register/mappers";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -131,51 +135,46 @@ export default function AssetMasterViewPage() {
             void queryClient.invalidateQueries({
                 queryKey: ["asset-register", "asset-masters"],
             });
-            setShowDeactivateModal(false);
-            setDeactivateReason("");
-            setDeactivateReasonError("");
+            setDeactivateOpen(false);
             setShowActivateConfirm(false);
-            showSuccessToast(
-                variables.action === "activate"
-                    ? "Asset master activated"
-                    : "Asset master deactivated",
-            );
+            if (variables.action === "activate") {
+                showAssetMasterActivatedToast();
+            } else {
+                showAssetMasterDeactivatedToast();
+            }
         },
         onError: (error: Error) => {
-            showErrorToast(error.message || "Could not update status");
+            showErrorToast(
+                error.message || ASSET_MASTER_STATUS_UPDATE_ERROR,
+            );
         },
     });
 
-    const [showDeactivateModal, setShowDeactivateModal] =
-        useState(false);
+    const [deactivateOpen, setDeactivateOpen] = useState(false);
     const [showActivateConfirm, setShowActivateConfirm] =
         useState(false);
-    const [deactivateReason, setDeactivateReason] =
-        useState("");
-    const [deactivateReasonError, setDeactivateReasonError] =
-        useState("");
 
-    const asset: AssetMasterDetails | undefined = detailQuery.data
+    const detail = detailQuery.data;
+    const hasClassSpec = !!detail?.classSpec;
+    const mapped = detail ? assetMasterDetailToFormData(detail) : undefined;
+
+    const asset: AssetMasterDetails | undefined = detail && mapped
         ? {
-              id: detailQuery.data.id,
-              assetCode: detailQuery.data.assetClassCode,
-              vehicleName: detailQuery.data.name,
-              assetClass: detailQuery.data.assetClassName,
-              vehicleType: mapAssetRegisterVehicleTypeToUiLabel(
-                  detailQuery.data.classSpec
-                      .vehicleType as AssetRegisterVehicleTypeApi,
-              ),
-              fuelType: detailQuery.data.classSpec.fuelType,
-              mileageFrom: detailQuery.data.classSpec.mileageFrom ?? "",
-              mileageTo: detailQuery.data.classSpec.mileageTo ?? "",
-              mileageUnit: detailQuery.data.classSpec.mileageUnit ?? "",
-              fuelTankCapacity: detailQuery.data.classSpec.fuelTankCapacity,
-              ratedLoadCapacityFrom:
-                  detailQuery.data.classSpec.ratedLoadFrom,
-              ratedLoadCapacityTo: detailQuery.data.classSpec.ratedLoadTo,
-              defaultIntakeChecklist: "",
-              notes: "",
-              status: detailQuery.data.isActive ? "Active" : "Inactive",
+              id: detail.id,
+              assetCode: detail.assetClassCode,
+              vehicleName: detail.name,
+              assetClass: detail.assetClassName,
+              vehicleType: mapped.vehicleType,
+              fuelType: mapped.fuelType,
+              mileageFrom: mapped.mileageFrom,
+              mileageTo: mapped.mileageTo,
+              mileageUnit: mapped.mileageUnit,
+              fuelTankCapacity: mapped.fuelTankCapacity,
+              ratedLoadCapacityFrom: mapped.ratedLoadCapacityFrom,
+              ratedLoadCapacityTo: mapped.ratedLoadCapacityTo,
+              defaultIntakeChecklist: mapped.defaultIntakeChecklist,
+              notes: mapped.notes,
+              status: detail.isActive ? "Active" : "Inactive",
           }
         : undefined;
 
@@ -184,22 +183,6 @@ export default function AssetMasterViewPage() {
             return;
         }
         router.push(`/asset-register/asset-master/${asset.id}/edit`);
-    };
-
-    const handleDeactivate = () => {
-        const reason = deactivateReason.trim();
-        if (!reason) {
-            setDeactivateReasonError("Reason is required.");
-            return;
-        }
-        statusMutation.mutate({ action: "deactivate", reason });
-    };
-
-    const handleCancelDeactivate = () => {
-        if (statusMutation.isPending) return;
-        setShowDeactivateModal(false);
-        setDeactivateReason("");
-        setDeactivateReasonError("");
     };
 
     if (detailQuery.isError) {
@@ -216,7 +199,7 @@ export default function AssetMasterViewPage() {
         );
     }
 
-    if (isAuthLoading || detailQuery.isLoading || !asset) {
+    if (isAuthLoading || detailQuery.isLoading || !detail || !asset) {
         return (
             <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
                 Loading asset master…
@@ -282,11 +265,7 @@ export default function AssetMasterViewPage() {
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={() => {
-                                    setDeactivateReason("");
-                                    setDeactivateReasonError("");
-                                    setShowDeactivateModal(true);
-                                }}
+                                onClick={() => setDeactivateOpen(true)}
                                 disabled={statusMutation.isPending}
                                 className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
                             >
@@ -332,37 +311,46 @@ export default function AssetMasterViewPage() {
                             value={asset.assetClass}
                         />
 
-                        <InfoRow
-                            label="Vehicle type"
-                            value={asset.vehicleType}
-                        />
+                        {hasClassSpec ? (
+                            <>
+                                <InfoRow
+                                    label="Vehicle type"
+                                    value={asset.vehicleType}
+                                />
 
-                        <InfoRow
-                            label="Fuel type"
-                            value={asset.fuelType}
-                        />
+                                <InfoRow
+                                    label="Fuel type"
+                                    value={asset.fuelType}
+                                />
 
-                        <InfoRow
-                            label="Mileage"
-                            value={`${asset.mileageFrom}–${asset.mileageTo} ${asset.mileageUnit}`}
-                        />
+                                <InfoRow
+                                    label="Mileage"
+                                    value={`${asset.mileageFrom}–${asset.mileageTo} ${asset.mileageUnit}`}
+                                />
 
-                        <InfoRow
-                            label="Fuel tank capacity"
-                            value={`${asset.fuelTankCapacity} L`}
-                        />
+                                <InfoRow
+                                    label="Fuel tank capacity"
+                                    value={`${asset.fuelTankCapacity} L`}
+                                />
 
-                        <InfoRow
-                            label="Rated load capacity"
-                            value={`${asset.ratedLoadCapacityFrom}–${asset.ratedLoadCapacityTo} kg`}
-                        />
+                                <InfoRow
+                                    label="Rated load capacity"
+                                    value={`${asset.ratedLoadCapacityFrom}–${asset.ratedLoadCapacityTo} kg`}
+                                />
 
-                        <InfoRow
-                            label="Default intake checklist"
-                            value={
-                                asset.defaultIntakeChecklist
-                            }
-                        />
+                                <InfoRow
+                                    label="Default intake checklist"
+                                    value={asset.defaultIntakeChecklist}
+                                />
+                            </>
+                        ) : (
+                            <div className="border-b border-gray-100 px-4 py-3 last:border-b-0">
+                                <p className="text-xs text-gray-500">
+                                    Class specification is not available for
+                                    this asset master.
+                                </p>
+                            </div>
+                        )}
 
                         <InfoRow
                             label="Status"
@@ -391,127 +379,29 @@ export default function AssetMasterViewPage() {
 
             </div>
 
-            {/* ============================================================= */}
-            {/* DEACTIVATE MODAL                                              */}
-            {/* ============================================================= */}
-
-            {showDeactivateModal && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-                    <div
-                        className="w-full max-w-[460px] rounded-lg bg-white p-5 shadow-xl"
-                        role="dialog"
-                        aria-modal="true"
-                        aria-labelledby="deactivate-asset-title"
-                    >
-                        {/* Modal Header */}
-
-                        <div className="flex items-start gap-3">
-                            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50">
-                                <AlertTriangle
-                                    className="h-4 w-4 text-red-500"
-                                    strokeWidth={1.8}
-                                />
-                            </div>
-
-                            <div>
-                                <h2
-                                    id="deactivate-asset-title"
-                                    className="text-sm font-semibold text-gray-900"
-                                >
-                                    Deactivate this asset?
-                                </h2>
-
-                                <p className="mt-1 text-xs leading-5 text-gray-500">
-                                    This will deactivate{" "}
-                                    <span className="font-medium text-gray-700">
-                                        &quot;
-                                        {asset.vehicleName}
-                                        &quot;
-                                    </span>{" "}
-                                    from the asset master
-                                    register.
-                                </p>
-                            </div>
-                        </div>
-
-                        {/* Reason */}
-
-                        <div className="mt-4">
-                            <label
-                                htmlFor="deactivate-reason"
-                                className="mb-1.5 block text-xs font-medium text-gray-700"
-                            >
-                                Reason
-                                <span className="ml-1 text-red-500">
-                                    *
-                                </span>
-                            </label>
-
-                            <textarea
-                                id="deactivate-reason"
-                                value={deactivateReason}
-                                onChange={(event) => {
-                                    const value =
-                                        event.target.value;
-
-                                    setDeactivateReason(
-                                        value,
-                                    );
-
-                                    if (value.trim()) {
-                                        setDeactivateReasonError(
-                                            "",
-                                        );
-                                    }
-                                }}
-                                placeholder="Enter reason for deactivation..."
-                                rows={3}
-                                className={[
-                                    "w-full resize-none rounded-md bg-white px-3 py-2 text-xs text-gray-900 outline-none placeholder:text-gray-400",
-                                    deactivateReasonError
-                                        ? "border border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                                        : "border border-gray-200 focus:border-gray-300 focus:ring-1 focus:ring-gray-200",
-                                ].join(" ")}
-                            />
-
-                            {deactivateReasonError && (
-                                <p className="mt-1 text-xs text-red-500">
-                                    {
-                                        deactivateReasonError
-                                    }
-                                </p>
-                            )}
-                        </div>
-
-                        {/* Modal Actions */}
-
-                        <div className="mt-5 flex justify-end gap-2">
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={
-                                    handleCancelDeactivate
-                                }
-                                className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
-                            >
-                                Cancel
-                            </Button>
-
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={
-                                    handleDeactivate
-                                }
-                                disabled={statusMutation.isPending}
-                                className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
-                            >
-                                Deactivate
-                            </Button>
-                        </div>
-                    </div>
-                </div>
-            )}
+            <ReasonRequiredDialog
+                open={deactivateOpen}
+                title="Deactivate asset master?"
+                description={
+                    <>
+                        <span className="font-medium text-gray-900">
+                            {asset.vehicleName}
+                        </span>{" "}
+                        will no longer be available for fleet register.
+                    </>
+                }
+                reasonLabel="Reason for deactivation"
+                confirmLabel="Deactivate"
+                isPending={statusMutation.isPending}
+                onClose={() => {
+                    if (!statusMutation.isPending) {
+                        setDeactivateOpen(false);
+                    }
+                }}
+                onConfirm={(reason) => {
+                    statusMutation.mutate({ action: "deactivate", reason });
+                }}
+            />
 
             <ConfirmDialog
                 open={showActivateConfirm}

@@ -13,6 +13,8 @@ export type ConfirmDialogProps = {
   cancelLabel?: string;
   variant?: "default" | "destructive";
   isConfirmPending?: boolean;
+  /** When true, primary confirm is disabled (e.g. preconditions not met). */
+  confirmDisabled?: boolean;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -25,9 +27,11 @@ export function ConfirmDialog({
   cancelLabel = "Cancel",
   variant = "default",
   isConfirmPending = false,
+  confirmDisabled = false,
   onClose,
   onConfirm,
 }: ConfirmDialogProps) {
+  const primaryConfirmDisabled = isConfirmPending || confirmDisabled;
   const titleId = useId();
 
   useEffect(() => {
@@ -107,7 +111,7 @@ export function ConfirmDialog({
               variant="primary"
               size="md"
               loading={isConfirmPending}
-              disabled={isConfirmPending}
+              disabled={primaryConfirmDisabled}
               onClick={onConfirm}
             >
               {confirmLabel}

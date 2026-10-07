@@ -1,37 +1,32 @@
+"use client";
+
 import Link from "next/link";
+
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import LeaseContractsTable from "@/components/modules/fleet-leasing/lease-contracts/LeaseContractsTable";
+import Button from "@/components/ui/GrubpacButton";
+import { useAuth } from "@/providers/auth-provider";
 
 export default function LeaseContractsPage() {
+  const { permissions, isLoading: isAuthLoading } = useAuth();
+
+  const canCreate =
+    permissions.has("fleet_leasing.create") ||
+    permissions.has("fleet_leasing.manage");
+
   return (
-    <div className="space-y-6">
-      {/* =====================================================
-                PAGE HEADER
-            ====================================================== */}
-
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Lease Contracts
-          </h1>
-
-          <p className="mt-1 text-sm text-slate-500">
-            Manage fleet and leasing contracts.
-          </p>
-        </div>
-
-        <Link
-          href="/fleet-leasing/lease-contracts/new"
-          className="rounded-lg bg-[#FE5720] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#e94d1c]"
-        >
-          New Contract
-        </Link>
-      </div>
-
-      {/* =====================================================
-                LEASE CONTRACTS TABLE
-            ====================================================== */}
-
+    <DashboardLayout
+      title="Lease Contracts"
+      description="Manage fleet and leasing contracts."
+      action={
+        !isAuthLoading && canCreate ? (
+          <Link href="/fleet-leasing/lease-contracts/new">
+            <Button type="button">New Contract</Button>
+          </Link>
+        ) : undefined
+      }
+    >
       <LeaseContractsTable />
-    </div>
+    </DashboardLayout>
   );
 }

@@ -12,7 +12,11 @@ import {
   fetchOrganisationDriverByIdApi,
   updateOrganisationDriverApi,
 } from "@/lib/api/organisation/drivers";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  DRIVER_SAVE_ERROR,
+  showDriverUpdatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 
 import CreateDriverPage, {
   type DriverFormData,
@@ -85,13 +89,13 @@ export default function EditDriverPage() {
       await queryClient.invalidateQueries({
         queryKey: ["organization", "drivers", organizationId, driverId],
       });
-      showSuccessToast(`${updated.name} was updated`);
+      showDriverUpdatedToast(updated.name);
       router.push(`/organization/driver-register/${driverId}`);
     } catch (error) {
       const message =
         error instanceof ApiClientError
           ? error.message
-          : "Failed to save driver. Please try again.";
+          : DRIVER_SAVE_ERROR;
       showErrorToast(message);
       throw error;
     }

@@ -15,7 +15,11 @@ import {
   assetClassDetailToFormData,
   assetClassFormToUpdatePayload,
 } from "@/lib/api/asset-register/mappers";
-import { showErrorToast } from "@/lib/toast/show-toast";
+import {
+  ASSET_CLASS_SAVE_ERROR,
+  showAssetClassUpdatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 
 export default function EditAssetClassPage() {
   const params = useParams();
@@ -67,16 +71,17 @@ export default function EditAssetClassPage() {
   const handleSaved = async (data: AssetClassFormData) => {
     if (!token || !organizationId) return;
     try {
-      await updateAssetRegisterAssetClassApi({
+      const updated = await updateAssetRegisterAssetClassApi({
         token,
         organizationId,
         id: assetClassId,
         body: assetClassFormToUpdatePayload(data),
       });
+      showAssetClassUpdatedToast(updated.name);
       router.push(`/asset-register/assestclass/${assetClassId}`);
     } catch (error) {
       showErrorToast(
-        error instanceof Error ? error.message : "Could not save asset class",
+        error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,
       );
     }
   };

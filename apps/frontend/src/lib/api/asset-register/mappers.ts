@@ -143,21 +143,24 @@ export function assetClassDetailToMasterOption(
 export function assetMasterDetailToFormData(
   detail: AssetRegisterAssetMasterDetail,
 ): AssetMasterFormData {
+  const spec = detail.classSpec;
   return {
     id: detail.id,
     assetClassId: detail.assetClassId,
     assetClassName: detail.assetClassName,
     vehicleName: detail.name,
-    vehicleType: mapAssetRegisterVehicleTypeToUiLabel(
-      detail.classSpec.vehicleType as AssetRegisterVehicleTypeApi,
-    ),
-    fuelType: detail.classSpec.fuelType,
-    mileageFrom: detail.classSpec.mileageFrom ?? "",
-    mileageTo: detail.classSpec.mileageTo ?? "",
-    mileageUnit: detail.classSpec.mileageUnit ?? "",
-    fuelTankCapacity: detail.classSpec.fuelTankCapacity,
-    ratedLoadCapacityFrom: detail.classSpec.ratedLoadFrom,
-    ratedLoadCapacityTo: detail.classSpec.ratedLoadTo,
+    vehicleType: spec
+      ? mapAssetRegisterVehicleTypeToUiLabel(
+            spec.vehicleType as AssetRegisterVehicleTypeApi,
+        )
+      : "",
+    fuelType: spec?.fuelType ?? "",
+    mileageFrom: spec?.mileageFrom ?? "",
+    mileageTo: spec?.mileageTo ?? "",
+    mileageUnit: spec?.mileageUnit ?? "",
+    fuelTankCapacity: spec?.fuelTankCapacity ?? "",
+    ratedLoadCapacityFrom: spec?.ratedLoadFrom ?? "",
+    ratedLoadCapacityTo: spec?.ratedLoadTo ?? "",
     defaultIntakeChecklist: "",
     notes: "",
   };

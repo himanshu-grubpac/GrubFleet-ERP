@@ -8,7 +8,11 @@ import CreateAssetClassForm, {
 import { useAuth } from "@/providers/auth-provider";
 import { createAssetRegisterAssetClassApi } from "@/lib/api/asset-register/asset-classes";
 import { assetClassFormToCreatePayload } from "@/lib/api/asset-register/mappers";
-import { showErrorToast } from "@/lib/toast/show-toast";
+import {
+  ASSET_CLASS_SAVE_ERROR,
+  showAssetClassCreatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 
 export default function Page() {
   const router = useRouter();
@@ -21,10 +25,11 @@ export default function Page() {
         token,
         body: assetClassFormToCreatePayload(organizationId, data),
       });
+      showAssetClassCreatedToast(created.name);
       router.push(`/asset-register/assestclass/${created.id}`);
     } catch (error) {
       showErrorToast(
-        error instanceof Error ? error.message : "Could not create asset class",
+        error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,
       );
     }
   };

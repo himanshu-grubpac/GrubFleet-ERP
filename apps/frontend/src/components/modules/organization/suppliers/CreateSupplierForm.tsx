@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -525,6 +525,41 @@ export default function CreateSupplierForm({
             ],
     };
 
+    const canSubmit = useMemo(() => {
+        if (isSaving) {
+            return false;
+        }
+
+        const errors: OrganizationValidationErrors = {};
+
+        if (!form.name.trim()) {
+            errors.name = "Supplier / company name is required.";
+        }
+        if (!form.type.trim()) {
+            errors.type = "Please select a supplier type.";
+        }
+        if (!form.contactPerson.trim()) {
+            errors.contactPerson = "Contact person is required.";
+        }
+
+        const phoneError = validatePhone(form.phone, "Phone number");
+        if (phoneError) {
+            errors.phone = phoneError;
+        }
+
+        const emailError = validateEmail(form.email, "Email");
+        if (emailError) {
+            errors.email = emailError;
+        }
+
+        const addressValidationErrors = validateOrganizationAddress(form.address);
+        Object.entries(addressValidationErrors).forEach(([field, message]) => {
+            errors[`address.${field}`] = message;
+        });
+
+        return !hasValidationErrors(errors);
+    }, [form, isSaving]);
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                      */
     /* ---------------------------------------------------------------------- */
@@ -556,7 +591,7 @@ export default function CreateSupplierForm({
                             handleSave
                         }
                         disabled={
-                            isSaving
+                            !canSubmit
                         }
                         className="h-10 px-5"
                     >

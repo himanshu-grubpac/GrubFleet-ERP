@@ -9,7 +9,11 @@ import CreateFleetVehicleForm, {
 } from "@/components/modules/assetManagement/fleet-management/FleetFormPage";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  FLEET_VEHICLE_SAVE_ERROR,
+  showErrorToast,
+  showFleetVehicleUpdatedToast,
+} from "@/lib/toast/show-toast";
 import {
   fetchAssetRegisterVehicleApi,
   updateAssetRegisterVehicleApi,
@@ -64,11 +68,11 @@ export default function FleetEditPage() {
       void queryClient.invalidateQueries({
         queryKey: ["asset-register", "vehicles"],
       });
-      showSuccessToast("Fleet vehicle updated");
+      showFleetVehicleUpdatedToast();
       router.push(`/asset-register/fleetregister/${vehicleId}`);
     },
     onError: (error: Error) => {
-      showErrorToast(error.message || "Could not update vehicle");
+      showErrorToast(error.message || FLEET_VEHICLE_SAVE_ERROR);
     },
   });
 

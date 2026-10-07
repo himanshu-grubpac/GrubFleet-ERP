@@ -2,14 +2,24 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import OrganizationAddressForm, {
     type OrganizationAddress,
 } from "@/components/common/OrganizationAddressForm";
+import {
+    hasValidationErrors,
+    validateEmail,
+    validateOrganizationAddress,
+    validatePhone,
+    type OrganizationValidationErrors,
+} from "@/components/common/OrganizationValidation";
+import { ORGANISATION_CLIENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
 
 export type PointOfContact = {
     id: string;
@@ -175,33 +185,13 @@ export default function CreateClientPage({
                 "Company name is required.";
         }
 
-        if (!address.line1.trim()) {
-            nextErrors.line1 =
-                "Address Line 1 is required.";
-        }
-
-        if (!address.city.trim()) {
-            nextErrors.city = "City is required.";
-        }
-
-        if (!address.state.trim()) {
-            nextErrors.state = "State is required.";
-        }
-
-        if (!address.district.trim()) {
-            nextErrors.district =
-                "District is required.";
-        }
-
-        if (!address.pincode.trim()) {
-            nextErrors.pincode =
-                "Pincode is required.";
-        } else if (
-            !/^\d{6}$/.test(address.pincode)
-        ) {
-            nextErrors.pincode =
-                "Pincode must be 6 digits.";
-        }
+        const addressValidationErrors =
+            validateOrganizationAddress(address);
+        Object.entries(addressValidationErrors).forEach(
+            ([field, message]) => {
+                nextErrors[field] = message;
+            },
+        );
 
         pointsOfContact.forEach((contact, index) => {
             if (!contact.name.trim()) {
@@ -209,16 +199,18 @@ export default function CreateClientPage({
                     "Name is required.";
             }
 
-            if (!contact.contactNumber.trim()) {
-                nextErrors[
-                    `contact-${index}-contactNumber`
-                ] = "Contact number is required.";
+            const phoneError = validatePhone(
+                contact.contactNumber,
+                "Contact number",
+            );
+            if (phoneError) {
+                nextErrors[`contact-${index}-contactNumber`] =
+                    phoneError;
             }
 
-            if (!contact.email.trim()) {
-                nextErrors[
-                    `contact-${index}-email`
-                ] = "Email is required.";
+            const emailError = validateEmail(contact.email, "Email");
+            if (emailError) {
+                nextErrors[`contact-${index}-email`] = emailError;
             }
         });
 
@@ -236,6 +228,52 @@ export default function CreateClientPage({
 
         return Object.keys(nextErrors).length === 0;
     };
+
+    const canSubmit = useMemo(() => {
+        if (saving) {
+            return false;
+        }
+
+        const draftErrors: OrganizationValidationErrors = {};
+
+        if (!companyName.trim()) {
+            draftErrors.companyName = "Company name is required.";
+        }
+
+        const addressValidationErrors =
+            validateOrganizationAddress(address);
+        Object.entries(addressValidationErrors).forEach(([field, message]) => {
+            draftErrors[field] = message;
+        });
+
+        pointsOfContact.forEach((contact, index) => {
+            if (!contact.name.trim()) {
+                draftErrors[`contact-${index}-name`] = "Name is required.";
+            }
+
+            const phoneError = validatePhone(
+                contact.contactNumber,
+                "Contact number",
+            );
+            if (phoneError) {
+                draftErrors[`contact-${index}-contactNumber`] = phoneError;
+            }
+
+            const emailError = validateEmail(contact.email, "Email");
+            if (emailError) {
+                draftErrors[`contact-${index}-email`] = emailError;
+            }
+        });
+
+        if (
+            pointsOfContact.length > 0 &&
+            !pointsOfContact.some((contact) => contact.isPrimary)
+        ) {
+            draftErrors.primaryContact = "Select a primary contact.";
+        }
+
+        return !hasValidationErrors(draftErrors);
+    }, [address, companyName, pointsOfContact, saving]);
 
     const handleSubmit = async () => {
         if (!validate()) {
@@ -303,7 +341,7 @@ export default function CreateClientPage({
                         type="button"
                         variant="primary"
                         onClick={handleSubmit}
-                        disabled={saving}
+                        disabled={!canSubmit}
                     >
                         {saving
                             ? "Saving..."
@@ -329,14 +367,13 @@ export default function CreateClientPage({
                             </span>
                         </label>
 
-                        <input
-                            type="text"
-                            value={companyName}
-                            onChange={(event) =>
-                                setCompanyName(
-                                    event.target.value
-                                )
+                        <RestrictedInput
+                            restrictedKind="name"
+                            maxLength={
+                                ORGANISATION_CLIENT_INPUT_LIMITS.clientName
                             }
+                            value={companyName}
+                            onChange={setCompanyName}
                             placeholder="Enter company name"
                             className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${errors.companyName
                                 ? "border-red-500"
@@ -436,20 +473,17 @@ export default function CreateClientPage({
                                                 </span>
                                             </label>
 
-                                            <input
-                                                type="text"
-                                                value={
-                                                    contact.name
+                                            <RestrictedInput
+                                                restrictedKind="name"
+                                                maxLength={
+                                                    ORGANISATION_CLIENT_INPUT_LIMITS.pocName
                                                 }
-                                                onChange={(
-                                                    event
-                                                ) =>
+                                                value={contact.name}
+                                                onChange={(name) =>
                                                     updateContact(
                                                         contact.id,
                                                         "name",
-                                                        event
-                                                            .target
-                                                            .value
+                                                        name,
                                                     )
                                                 }
                                                 className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${errors[
@@ -483,20 +517,17 @@ export default function CreateClientPage({
                                                 </span>
                                             </label>
 
-                                            <input
-                                                type="text"
-                                                value={
-                                                    contact.contactNumber
+                                            <RestrictedInput
+                                                restrictedKind="phone"
+                                                maxLength={
+                                                    ORGANISATION_CLIENT_INPUT_LIMITS.pocPhone
                                                 }
-                                                onChange={(
-                                                    event
-                                                ) =>
+                                                value={contact.contactNumber}
+                                                onChange={(contactNumber) =>
                                                     updateContact(
                                                         contact.id,
                                                         "contactNumber",
-                                                        event
-                                                            .target
-                                                            .value
+                                                        contactNumber,
                                                     )
                                                 }
                                                 className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${errors[
@@ -505,7 +536,7 @@ export default function CreateClientPage({
                                                     ? "border-red-500"
                                                     : "border-gray-300"
                                                     }`}
-                                                placeholder="+91 98765 43210"
+                                                placeholder={getInternationalPhonePlaceholder()}
                                             />
 
                                             {errors[
@@ -530,20 +561,17 @@ export default function CreateClientPage({
                                                 </span>
                                             </label>
 
-                                            <input
-                                                type="email"
-                                                value={
-                                                    contact.email
+                                            <RestrictedInput
+                                                restrictedKind="email"
+                                                maxLength={
+                                                    ORGANISATION_CLIENT_INPUT_LIMITS.pocEmail
                                                 }
-                                                onChange={(
-                                                    event
-                                                ) =>
+                                                value={contact.email}
+                                                onChange={(email) =>
                                                     updateContact(
                                                         contact.id,
                                                         "email",
-                                                        event
-                                                            .target
-                                                            .value
+                                                        email,
                                                     )
                                                 }
                                                 className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${errors[

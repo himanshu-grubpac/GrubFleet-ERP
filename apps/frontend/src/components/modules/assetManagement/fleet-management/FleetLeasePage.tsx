@@ -6,7 +6,12 @@ import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { fetchAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
+import {
+    fetchAssetRegisterVehicleApi,
+    fetchAssetRegisterVehicleLeaseHistoryApi,
+    type AssetRegisterVehicleLeaseHistoryItem,
+} from "@/lib/api/asset-register/vehicles";
+import { formatCalendarDateEnIn } from "@/lib/format/date-format";
 
 /* ============================================================
    TYPES
@@ -21,21 +26,6 @@ type FleetAsset = {
     registrationNumber: string;
     status: FleetStatus;
 };
-
-type LeaseHistoryRecord = {
-    id: string;
-    date: string;
-    lessee: string;
-    leaseStartDate: string;
-    leaseEndDate: string;
-    status: "Active" | "Completed" | "Cancelled";
-    changedBy: string;
-};
-
-/* ============================================================
-   MOCK FLEET DATA
-   Replace this with API data later.
-============================================================ */
 
 /* ============================================================
    STATUS HELPERS
@@ -80,7 +70,7 @@ function getStatusClass(status: FleetStatus) {
 }
 
 function getLeaseStatusClass(
-    status: LeaseHistoryRecord["status"],
+    status: AssetRegisterVehicleLeaseHistoryItem["status"],
 ) {
     switch (status) {
         case "Active":
@@ -124,6 +114,28 @@ export default function FleetLeaseHistoryPage() {
         ...dashboardListQueryOptions,
     });
 
+    const leaseHistoryQuery = useQuery({
+        queryKey: [
+            "asset-register",
+            "vehicles",
+            organizationId,
+            assetId,
+            "lease-history",
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterVehicleLeaseHistoryApi({
+                token,
+                organizationId,
+                id: assetId,
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardListQueryOptions,
+    });
+
     const asset: FleetAsset | undefined = vehicleQuery.data
         ? {
               id: vehicleQuery.data.id,
@@ -138,7 +150,11 @@ export default function FleetLeaseHistoryPage() {
        NOT FOUND
     ======================================================== */
 
-    if (vehicleQuery.isLoading || isAuthLoading) {
+    if (
+        vehicleQuery.isLoading ||
+        leaseHistoryQuery.isLoading ||
+        isAuthLoading
+    ) {
         return (
             <div className="min-h-screen bg-[#f7f7f7] px-6 py-6 text-sm text-gray-500">
                 Loading lease history…
@@ -146,10 +162,18 @@ export default function FleetLeaseHistoryPage() {
         );
     }
 
+    if (leaseHistoryQuery.isError) {
+        return (
+            <div className="min-h-screen bg-[#f7f7f7] px-6 py-6 text-sm text-red-600">
+                Could not load lease history.
+            </div>
+        );
+    }
+
     if (!asset) {
         return (
             <div className="min-h-screen bg-[#f7f7f7] px-6 py-6">
-                <div className="mx-auto max-w-[1100px]">
+                <div className="w-full">
                     <button
                         type="button"
                         onClick={() =>
@@ -178,8 +202,18 @@ export default function FleetLeaseHistoryPage() {
         );
     }
 
-    const leaseHistory =
-        [] as LeaseHistoryRecord[];
+    const leaseHistory = (leaseHistoryQuery.data ?? []).map((record) => ({
+        ...record,
+        date: formatCalendarDateEnIn(record.date) ?? record.date,
+        leaseStartDate:
+            formatCalendarDateEnIn(record.leaseStartDate) ??
+            record.leaseStartDate,
+        leaseEndDate:
+            record.leaseEndDate === "—"
+                ? record.leaseEndDate
+                : (formatCalendarDateEnIn(record.leaseEndDate) ??
+                  record.leaseEndDate),
+    }));
 
     const hasHistory = leaseHistory.length > 0;
 
@@ -205,7 +239,7 @@ export default function FleetLeaseHistoryPage() {
 
     return (
         <div className="min-h-screen bg-[#f7f7f7]">
-            <div className="mx-auto w-full max-w-[1100px] px-6 py-5">
+            <div className="w-full px-6 py-5">
 
                 {/* ==================================================
                     HEADER
@@ -260,7 +294,9 @@ export default function FleetLeaseHistoryPage() {
 
                             <p className="mt-1 text-[11px] text-gray-400">
                                 This vehicle has not been assigned to
-                                a lease.
+                                a lease. Per-vehicle lease history API
+                                is not shipped yet — counts and rows will
+                                appear here when backend exposes them.
                             </p>
                         </div>
                     ) : (

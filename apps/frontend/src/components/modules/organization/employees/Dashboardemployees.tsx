@@ -462,7 +462,7 @@ export default function EmployeesPage() {
           renderActions={(employee) => (
             <EmployeeTableActions
               status={employee.status}
-              employeeId={employee.id}
+              employee={employee}
               onEdit={
                 canUpdate && employee.status === "active"
                   ? () => handleEditEmployee(employee)

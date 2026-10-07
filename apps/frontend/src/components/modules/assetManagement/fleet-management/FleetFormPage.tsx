@@ -513,6 +513,35 @@ export default function CreateFleetVehicleForm({
     const selectClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
+    const canSubmit = useMemo(() => {
+        if (isSaving) {
+            return false;
+        }
+        if (
+            !form.assetClassId ||
+            !form.assetMasterId ||
+            (PURCHASE_INVOICES.length > 0 && !form.purchaseInvoiceId) ||
+            !form.registrationNumber.trim() ||
+            !form.chassisNumber.trim() ||
+            !form.modelYear.trim() ||
+            !form.odometerReading.trim() ||
+            !form.registrationStartDate ||
+            !form.registrationEndDate ||
+            form.registrationStartDate > form.registrationEndDate ||
+            !form.insuranceSupplier ||
+            !form.insurancePremium.trim() ||
+            !form.insuranceStartDate ||
+            !form.insuranceEndDate ||
+            form.insuranceStartDate > form.insuranceEndDate ||
+            !form.warrantyStartDate ||
+            !form.warrantyEndDate ||
+            form.warrantyStartDate > form.warrantyEndDate
+        ) {
+            return false;
+        }
+        return true;
+    }, [form, isSaving]);
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                     */
     /* ---------------------------------------------------------------------- */
@@ -543,7 +572,7 @@ export default function CreateFleetVehicleForm({
                     <Button
                         type="button"
                         onClick={handleSave}
-                        disabled={isSaving}
+                        disabled={!canSubmit}
                         className="h-10 px-5"
                     >
                         {isSaving

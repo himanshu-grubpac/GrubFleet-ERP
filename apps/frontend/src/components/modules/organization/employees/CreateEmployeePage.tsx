@@ -501,6 +501,13 @@ export default function CreateEmployeePage({
     locationsQuery.isLoading ||
     employeesPickerQuery.isLoading;
 
+  const canSubmit = useMemo(() => {
+    if (isSaving || pickersLoading) {
+      return false;
+    }
+    return Object.keys(validateForm()).length === 0;
+  }, [form, isSaving, pickersLoading]);
+
   return (
     <OrganizationFormLayout
       title={isEdit ? "Edit Employee" : "Add Employee"}
@@ -524,7 +531,7 @@ export default function CreateEmployeePage({
           <Button
             type="button"
             onClick={() => void handleSave()}
-            disabled={isSaving || pickersLoading}
+            disabled={!canSubmit}
             className="h-10 px-5"
           >
             {isSaving

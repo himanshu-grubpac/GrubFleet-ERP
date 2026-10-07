@@ -76,6 +76,33 @@ export async function fetchAssetRegisterVehiclesApi(params: {
   );
 }
 
+export type AssetRegisterVehicleLeaseHistoryItem = {
+  id: string;
+  date: string;
+  lessee: string;
+  leaseStartDate: string;
+  leaseEndDate: string;
+  status: "Active" | "Completed" | "Cancelled";
+  changedBy: string;
+  contractId: string;
+  contractNumber: string | null;
+};
+
+export async function fetchAssetRegisterVehicleLeaseHistoryApi(params: {
+  organizationId: string;
+  token: string;
+  id: string;
+}): Promise<AssetRegisterVehicleLeaseHistoryItem[]> {
+  const q = new URLSearchParams({ organizationId: params.organizationId });
+  return apiFetch<AssetRegisterVehicleLeaseHistoryItem[]>(
+    `/asset-register/vehicles/${params.id}/lease-history?${q.toString()}`,
+    {
+      token: params.token,
+      headers: orgHeaders(params.organizationId),
+    },
+  );
+}
+
 export async function fetchAssetRegisterVehicleApi(params: {
   organizationId: string;
   token: string;

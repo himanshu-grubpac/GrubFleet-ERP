@@ -742,6 +742,22 @@ export class AssetRegisterRepository {
     }));
   }
 
+  async listAssignmentHistoryForVehicle(
+    organizationId: string,
+    vehicleId: string,
+  ): Promise<AssetRegisterVehicleAssignmentRow[]> {
+    return this.db
+      .select()
+      .from(assetRegisterVehicleAssignments)
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          eq(assetRegisterVehicleAssignments.vehicleId, vehicleId),
+        ),
+      )
+      .orderBy(desc(assetRegisterVehicleAssignments.assignedAt));
+  }
+
   async findActiveAssignmentForVehicle(
     organizationId: string,
     vehicleId: string,

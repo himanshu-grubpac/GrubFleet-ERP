@@ -20,11 +20,15 @@
     "@tanstack/react-table": "^9.2.4",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "country-state-city": "^3.2.1",
+    "libphonenumber-js": "^1.12.9",
+    "postcode-validator": "^3.10.5",
     "lucide-react": "^1.47.0",
     "next": "15.5.26",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.88.0",
+    "sonner": "^2.0.7",
     "tailwind-merge": "^3.7.0",
     "zod": "^4.6.5"
   },
@@ -45,6 +49,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.26",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }

@@ -7,7 +7,11 @@ import FleetFormPage, {
   type FleetVehicleFormData,
 } from "@/components/modules/assetManagement/fleet-management/FleetFormPage";
 import { useAuth } from "@/providers/auth-provider";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  FLEET_VEHICLE_ADD_ERROR,
+  showErrorToast,
+  showFleetVehicleAddedToast,
+} from "@/lib/toast/show-toast";
 import { createAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
 import { fleetFormToCreateVehiclePayload } from "@/lib/api/asset-register/mappers";
 
@@ -35,11 +39,11 @@ export default function FleetCreatePage() {
       void queryClient.invalidateQueries({
         queryKey: ["asset-register", "vehicles"],
       });
-      showSuccessToast("Vehicle added to fleet register");
+      showFleetVehicleAddedToast();
       router.push(`/asset-register/fleetregister/${created.id}`);
     },
     onError: (error: Error) => {
-      showErrorToast(error.message || "Could not add vehicle");
+      showErrorToast(error.message || FLEET_VEHICLE_ADD_ERROR);
     },
   });
 

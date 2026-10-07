@@ -44,6 +44,21 @@ export class AssetRegisterVehiclesController {
     return this.vehicles.list(query);
   }
 
+  @Get(':id/lease-history')
+  @RequireOrganizationContext()
+  @RequirePermissions(AssetRegisterPermissionKeys.VIEW)
+  @ApiOperation({
+    summary: 'Lease assignment history for a fleet register vehicle',
+    description:
+      'Rows from asset_register_vehicle_assignments joined to lease contract summary (lessee, dates, status).',
+  })
+  getLeaseHistory(
+    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.vehicles.getLeaseHistory(organizationId, id);
+  }
+
   @Get(':id')
   @RequireOrganizationContext()
   @RequirePermissions(AssetRegisterPermissionKeys.VIEW)

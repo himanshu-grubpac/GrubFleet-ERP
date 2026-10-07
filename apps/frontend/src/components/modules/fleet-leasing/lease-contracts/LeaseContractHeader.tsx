@@ -1,215 +1,234 @@
 "use client";
 
 import { useState } from "react";
-
-import {
-    Pencil,
-    Power,
-    RotateCcw,
-    XCircle,
-} from "lucide-react";
+import Link from "next/link";
 
 import Button from "@/components/ui/GrubpacButton";
-
-import LeaseContractActionModal, {
-    type LeaseContractAction,
-} from "./LeaseContractActionModal";
-
-export type LeaseContractStatus =
-    | "Draft"
-    | "Active"
-    | "Deactivated"
-    | "Terminated";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
+import { leaseStatusPillClass } from "@/lib/lease-contract/lease-contract-status-display";
 
 interface LeaseContractHeaderProps {
     contractNumber: string;
-    status: LeaseContractStatus;
+    /** Public status label from API (e.g. Awaiting Assets). */
+    statusLabel: string;
     description: string;
 
     onActivate?: () => void;
-    onDeactivate?: () => void;
+    onDeactivate?: (reason: string) => void;
     onReactivate?: () => void;
     onTerminate?: () => void;
+    onPauseBilling?: () => void;
     onEdit?: () => void;
+    historyHref?: string;
+    isActionPending?: boolean;
 }
 
 export default function LeaseContractHeader({
     contractNumber,
-    status,
+    statusLabel,
     description,
     onActivate,
     onDeactivate,
     onReactivate,
     onTerminate,
+    onPauseBilling,
     onEdit,
+    historyHref,
+    isActionPending = false,
 }: LeaseContractHeaderProps) {
-    const [activeModal, setActiveModal] =
-        useState<LeaseContractAction | null>(null);
+    const [activateOpen, setActivateOpen] = useState(false);
+    const [deactivateOpen, setDeactivateOpen] = useState(false);
+    const [reactivateOpen, setReactivateOpen] = useState(false);
+    const [terminateOpen, setTerminateOpen] = useState(false);
+    const [pauseBillingOpen, setPauseBillingOpen] = useState(false);
 
-    const statusClasses = {
-        Draft: "bg-amber-100 text-amber-700",
-        Active: "bg-green-100 text-green-700",
-        Deactivated: "bg-slate-100 text-slate-700",
-        Terminated: "bg-red-100 text-red-700",
+    const statusPillClass = leaseStatusPillClass(statusLabel);
+
+    const closeAll = () => {
+        if (isActionPending) return;
+        setActivateOpen(false);
+        setDeactivateOpen(false);
+        setReactivateOpen(false);
+        setTerminateOpen(false);
+        setPauseBillingOpen(false);
     };
 
-    const closeModal = () => {
-        setActiveModal(null);
-    };
-
-    const handleConfirm = () => {
-        if (activeModal === "deactivate") {
-            onDeactivate?.();
-        }
-
-        if (activeModal === "reactivate") {
-            onReactivate?.();
-        }
-
-        if (activeModal === "terminate") {
-            onTerminate?.();
-        }
-
-        setActiveModal(null);
-    };
+    const showReactivate = Boolean(onReactivate);
+    const showDeactivate = Boolean(onDeactivate);
 
     return (
         <>
-            <div className="flex items-start justify-between gap-6">
-
-                {/* =================================================
-                    CONTRACT INFORMATION
-                ================================================= */}
-
-                <div className="min-w-0">
-                    <div className="flex items-center gap-3">
-                        <h1 className="text-2xl font-bold text-slate-900">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <h1 className="text-[15px] font-semibold text-gray-900">
                             {contractNumber}
                         </h1>
-
                         <span
-                            className={`rounded-md px-2.5 py-1 text-xs font-semibold ${statusClasses[status]}`}
+                            className={`inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-medium ${statusPillClass}`}
                         >
-                            {status}
+                            {statusLabel}
                         </span>
                     </div>
-
-                    <p className="mt-1 text-sm text-slate-500">
-                        {description}
-                    </p>
+                    {description ? (
+                        <p className="mt-1 text-sm text-gray-500">
+                            {description}
+                        </p>
+                    ) : null}
                 </div>
 
-                {/* =================================================
-                    ACTION BUTTONS
-                ================================================= */}
-
-                <div className="flex shrink-0 items-center gap-3">
-
-                    {/* =================================================
-                        DRAFT → ACTIVATE
-                    ================================================= */}
-
-                    {status === "Draft" && onActivate && (
-                        <Button
-                            type="button"
-                            variant="primary"
-                            size="md"
-                            leftIcon={<Power className="h-4 w-4" />}
-                            onClick={onActivate}
+                <div className="flex flex-wrap items-center gap-2">
+                    {historyHref ? (
+                        <Link
+                            href={historyHref}
+                            className="inline-flex h-10 items-center px-2 text-sm font-medium text-[#FE5720] hover:underline"
                         >
-                            Activate
-                        </Button>
-                    )}
+                            View history
+                        </Link>
+                    ) : null}
 
-                    {/* =================================================
-                        ACTIVE → DEACTIVATE
-                    ================================================= */}
-
-                    {status === "Active" && onDeactivate && (
+                    {onEdit ? (
                         <Button
                             type="button"
-                            variant="outline"
-                            size="md"
-                            leftIcon={<Power className="h-4 w-4" />}
-                            onClick={() => setActiveModal("deactivate")}
+                            variant="secondary"
+                            onClick={onEdit}
+                            disabled={isActionPending}
+                        >
+                            Edit
+                        </Button>
+                    ) : null}
+
+                    {onPauseBilling ? (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setPauseBillingOpen(true)}
+                            disabled={isActionPending}
+                        >
+                            Pause billing
+                        </Button>
+                    ) : null}
+
+                    {onTerminate ? (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => setTerminateOpen(true)}
+                            disabled={isActionPending}
+                        >
+                            Terminate
+                        </Button>
+                    ) : null}
+
+                    {showDeactivate ? (
+                        <Button
+                            type="button"
+                            onClick={() => setDeactivateOpen(true)}
+                            disabled={isActionPending}
                         >
                             Deactivate
                         </Button>
-                    )}
+                    ) : null}
 
-                    {/* =================================================
-                        DEACTIVATED → TERMINATE + REACTIVATE
-                    ================================================= */}
-
-                    {status === "Deactivated" && (
-                        <>
-                            {/* TERMINATE — SECONDARY */}
-
-                            {onTerminate && (
-                                <Button
-                                    type="button"
-                                    variant="outline"
-                                    size="md"
-                                    leftIcon={
-                                        <XCircle className="h-4 w-4" />
-                                    }
-                                    onClick={() =>
-                                        setActiveModal("terminate")
-                                    }
-                                >
-                                    Terminate
-                                </Button>
-                            )}
-
-                            {/* REACTIVATE — PRIMARY */}
-
-                            {onReactivate && (
-                                <Button
-                                    type="button"
-                                    variant="primary"
-                                    size="md"
-                                    leftIcon={
-                                        <RotateCcw className="h-4 w-4" />
-                                    }
-                                    onClick={() =>
-                                        setActiveModal("reactivate")
-                                    }
-                                >
-                                    Reactivate
-                                </Button>
-                            )}
-                        </>
-                    )}
-
-                    {/* =================================================
-                        EDIT CONTRACT — SECONDARY
-                    ================================================= */}
-
-                    {status !== "Terminated" && onEdit && (
+                    {onActivate ? (
                         <Button
                             type="button"
-                            variant="outline"
-                            size="md"
-                            leftIcon={<Pencil className="h-4 w-4" />}
-                            onClick={onEdit}
+                            onClick={() => setActivateOpen(true)}
+                            disabled={isActionPending}
                         >
-                            Edit contract
+                            Activate
                         </Button>
-                    )}
+                    ) : null}
+
+                    {showReactivate ? (
+                        <Button
+                            type="button"
+                            onClick={() => setReactivateOpen(true)}
+                            disabled={isActionPending}
+                        >
+                            Reactivate
+                        </Button>
+                    ) : null}
                 </div>
             </div>
 
-            {/* =====================================================
-                ACTION CONFIRMATION MODAL
-            ====================================================== */}
-
-            <LeaseContractActionModal
-                isOpen={activeModal !== null}
-                action={activeModal ?? "deactivate"}
-                contractNumber={contractNumber}
-                onClose={closeModal}
-                onConfirm={handleConfirm}
+            <ConfirmDialog
+                open={activateOpen}
+                title="Activate contract?"
+                message="This contract will become Active or Awaiting Assets per allocation."
+                confirmLabel="Activate"
+                isConfirmPending={isActionPending}
+                onClose={closeAll}
+                onConfirm={() => {
+                    onActivate?.();
+                    setActivateOpen(false);
+                }}
             />
+
+            <ReasonRequiredDialog
+                open={deactivateOpen}
+                title="Deactivate contract?"
+                description={
+                    <>
+                        <span className="font-medium text-gray-900">
+                            {contractNumber}
+                        </span>{" "}
+                        will be put on hold. Billing continues as normal until
+                        all vehicles on this contract have been returned and
+                        registered.
+                    </>
+                }
+                reasonLabel="Reason for deactivation"
+                confirmLabel="Deactivate"
+                isPending={isActionPending}
+                onClose={closeAll}
+                onConfirm={(reason) => {
+                    onDeactivate?.(reason);
+                    setDeactivateOpen(false);
+                }}
+            />
+
+            <ConfirmDialog
+                open={reactivateOpen}
+                title="Reactivate contract?"
+                message={`${contractNumber} will return to Active or Awaiting Assets per allocation.`}
+                confirmLabel="Reactivate"
+                isConfirmPending={isActionPending}
+                onClose={closeAll}
+                onConfirm={() => {
+                    onReactivate?.();
+                    setReactivateOpen(false);
+                }}
+            />
+
+            <ConfirmDialog
+                open={terminateOpen}
+                title="Terminate contract?"
+                message={`${contractNumber} will be closed and the security deposit settled immediately.`}
+                confirmLabel="Terminate"
+                variant="destructive"
+                isConfirmPending={isActionPending}
+                onClose={closeAll}
+                onConfirm={() => {
+                    onTerminate?.();
+                    setTerminateOpen(false);
+                }}
+            />
+
+            <ConfirmDialog
+                open={pauseBillingOpen}
+                title="Pause billing?"
+                message="Billing will pause once all vehicles are returned and registered on this contract."
+                confirmLabel="Pause billing"
+                isConfirmPending={isActionPending}
+                onClose={closeAll}
+                onConfirm={() => {
+                    onPauseBilling?.();
+                    setPauseBillingOpen(false);
+                }}
+            />
+
         </>
     );
 }

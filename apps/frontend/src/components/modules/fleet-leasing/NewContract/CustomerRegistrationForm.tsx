@@ -1,21 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 
-import {
-    Building2,
-    Check,
-    MapPin,
-    UserRound,
-    Phone,
-    Mail,
-    Plus,
-    Trash2,
-    Loader2,
-} from "lucide-react";
-
+import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { useGrubpacAuth } from "@/lib/auth-context";
+import {
+    createFleetClient,
+    type FleetClientDetail,
+} from "@/lib/api/lease-contracts";
+import { FLEET_CLIENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
+import {
+    normalizePhoneForApi,
+} from "@/lib/format/phone-format";
+import { ORG_EMAIL_PATTERN } from "@/lib/validation/org-input-constraints";
+import { showErrorToast } from "@/lib/toast/show-toast";
 
 interface PointOfContact {
     id: string;
@@ -26,68 +27,81 @@ interface PointOfContact {
 }
 
 interface CustomerRegistrationFormProps {
-    onSuccess?: (customer: unknown) => void;
+    initialCompanyName?: string;
+    /** May perform async wizard steps (e.g. draft contract); stay pending until settled. */
+    onSuccess?: (
+        customer: FleetClientDetail,
+    ) => void | Promise<void>;
     onCancel?: () => void;
-    redirectOnSuccess?: boolean;
+}
+
+function emptyPoc(isPrimary: boolean): PointOfContact {
+    return {
+        id: crypto.randomUUID(),
+        name: "",
+        contactNumber: "",
+        email: "",
+        isPrimary,
+    };
 }
 
 export default function CustomerRegistrationForm({
+    initialCompanyName = "",
     onSuccess,
     onCancel,
-    redirectOnSuccess = true,
 }: CustomerRegistrationFormProps) {
-    const router = useRouter();
     const { token, organizationId } = useGrubpacAuth();
 
-    // ============================================================
-    // CUSTOMER STATE
-    // ============================================================
-
-    const [companyName, setCompanyName] = useState("");
-    const [address, setAddress] = useState("");
-
+    const [companyName, setCompanyName] = useState(
+        initialCompanyName.trim(),
+    );
+    const [taxId, setTaxId] = useState("");
     const [pointsOfContact, setPointsOfContact] = useState<
         PointOfContact[]
-    >([
-        {
-            id: crypto.randomUUID(),
-            name: "",
-            contactNumber: "",
-            email: "",
-            isPrimary: true,
-        },
-    ]);
-
-    // ============================================================
-    // UI STATE
-    // ============================================================
+    >([emptyPoc(true)]);
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
-    const [isSuccess, setIsSuccess] = useState(false);
 
-    // ============================================================
-    // ADD CONTACT
-    // ============================================================
+    const phonePlaceholder = getInternationalPhonePlaceholder();
+
+    const isSaveDisabled = useMemo(() => {
+        if (!companyName.trim()) {
+            return true;
+        }
+        if (pointsOfContact.length === 0) {
+            return true;
+        }
+        const primaryCount = pointsOfContact.filter(
+            (p) => p.isPrimary,
+        ).length;
+        if (primaryCount !== 1) {
+            return true;
+        }
+        for (const contact of pointsOfContact) {
+            if (!contact.name.trim()) {
+                return true;
+            }
+            if (!contact.contactNumber.trim()) {
+                return true;
+            }
+            if (
+                !contact.email.trim() ||
+                !ORG_EMAIL_PATTERN.test(contact.email.trim())
+            ) {
+                return true;
+            }
+        }
+        return false;
+    }, [companyName, pointsOfContact]);
 
     const addContact = () => {
         setFormError(null);
-
         setPointsOfContact((previous) => [
             ...previous,
-            {
-                id: crypto.randomUUID(),
-                name: "",
-                contactNumber: "",
-                email: "",
-                isPrimary: false,
-            },
+            emptyPoc(false),
         ]);
     };
-
-    // ============================================================
-    // REMOVE CONTACT
-    // ============================================================
 
     const removeContact = (id: string) => {
         if (pointsOfContact.length === 1) {
@@ -97,89 +111,53 @@ export default function CustomerRegistrationForm({
             return;
         }
 
-        const contactToRemove =
-            pointsOfContact.find(
-                (contact) => contact.id === id,
-            );
+        const contactToRemove = pointsOfContact.find(
+            (contact) => contact.id === id,
+        );
+        const wasPrimary = contactToRemove?.isPrimary;
+        const remainingContacts = pointsOfContact.filter(
+            (contact) => contact.id !== id,
+        );
 
-        const wasPrimary =
-            contactToRemove?.isPrimary;
-
-        const remainingContacts =
-            pointsOfContact.filter(
-                (contact) => contact.id !== id,
-            );
-
-        if (
-            wasPrimary &&
-            remainingContacts.length > 0
-        ) {
+        if (wasPrimary && remainingContacts.length > 0) {
             remainingContacts[0] = {
                 ...remainingContacts[0],
                 isPrimary: true,
             };
         }
 
-        setPointsOfContact(
-            remainingContacts,
-        );
-
+        setPointsOfContact(remainingContacts);
         setFormError(null);
     };
-
-    // ============================================================
-    // UPDATE CONTACT
-    // ============================================================
 
     const updateContact = (
         id: string,
         patch: Partial<PointOfContact>,
     ) => {
         setFormError(null);
-
         setPointsOfContact((previous) =>
             previous.map((contact) =>
                 contact.id === id
-                    ? {
-                        ...contact,
-                        ...patch,
-                    }
+                    ? { ...contact, ...patch }
                     : contact,
             ),
         );
     };
 
-    // ============================================================
-    // SET PRIMARY CONTACT
-    // ============================================================
-
-    const setPrimaryContact = (
-        id: string,
-    ) => {
+    const setPrimaryContact = (id: string) => {
         setPointsOfContact((previous) =>
             previous.map((contact) => ({
                 ...contact,
-                isPrimary:
-                    contact.id === id,
+                isPrimary: contact.id === id,
             })),
         );
     };
-
-    // ============================================================
-    // SUBMIT
-    // ============================================================
 
     const handleSubmit = async (
         event: React.FormEvent<HTMLFormElement>,
     ) => {
         event.preventDefault();
-
         setFormError(null);
-        setIsSuccess(false);
-
-        // --------------------------------------------------------
-        // AUTH VALIDATION
-        // --------------------------------------------------------
 
         if (!token || !organizationId) {
             setFormError(
@@ -188,772 +166,314 @@ export default function CustomerRegistrationForm({
             return;
         }
 
-        // --------------------------------------------------------
-        // COMPANY VALIDATION
-        // --------------------------------------------------------
-
-        if (!companyName.trim()) {
+        if (isSaveDisabled) {
             setFormError(
-                "Company name is required.",
+                "Please complete all required fields before continuing.",
             );
             return;
         }
 
-        // Address is intentionally optional.
-
-        // --------------------------------------------------------
-        // CONTACT VALIDATION
-        // --------------------------------------------------------
-
-        if (pointsOfContact.length === 0) {
-            setFormError(
-                "At least one point of contact is required.",
-            );
-            return;
-        }
-
-        const primaryContacts =
-            pointsOfContact.filter(
-                (contact) =>
-                    contact.isPrimary,
-            );
-
-        if (
-            primaryContacts.length !== 1
-        ) {
-            setFormError(
-                "Please select exactly one primary contact.",
-            );
-            return;
-        }
-
-        for (const contact of pointsOfContact) {
-            if (!contact.name.trim()) {
-                setFormError(
-                    "All contacts must have a name.",
-                );
-                return;
-            }
-
-            if (
-                !contact.contactNumber.trim()
-            ) {
-                setFormError(
-                    `Contact number is required for ${contact.name ||
-                    "all contacts"
-                    }.`,
-                );
-                return;
-            }
-
-            if (!contact.email.trim()) {
-                setFormError(
-                    `Email is required for ${contact.name ||
-                    "all contacts"
-                    }.`,
-                );
-                return;
-            }
-
-            const emailPattern =
-                /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-            if (
-                !emailPattern.test(
-                    contact.email.trim(),
-                )
-            ) {
-                setFormError(
-                    `Please enter a valid email for ${contact.name}.`,
-                );
-                return;
-            }
-        }
-
-        // --------------------------------------------------------
-        // REQUEST BODY
-        // --------------------------------------------------------
-
-        const payload = {
-            organizationId,
-            companyName:
-                companyName.trim(),
-            address: address.trim(),
-
-            pointsOfContact:
-                pointsOfContact.map(
-                    (contact) => ({
-                        id: contact.id,
-                        name: contact.name.trim(),
-                        contactNumber:
-                            contact.contactNumber.trim(),
-                        email:
-                            contact.email.trim(),
-                        isPrimary:
-                            contact.isPrimary,
-                    }),
-                ),
-        };
+        setIsSubmitting(true);
 
         try {
-            setIsSubmitting(true);
-
-            const configuredBaseUrl =
-                process.env.NEXT_PUBLIC_API_BASE_URL?.replace(
-                    /\/$/,
-                    "",
-                );
-
-            if (!configuredBaseUrl) {
-                throw new Error(
-                    "NEXT_PUBLIC_API_BASE_URL is not configured.",
-                );
-            }
-
-            const apiUrl =
-                configuredBaseUrl.endsWith(
-                    "/api/v1",
-                )
-                    ? `${configuredBaseUrl}/fleet-leasing/clients`
-                    : `${configuredBaseUrl}/api/v1/fleet-leasing/clients`;
-
-            const response =
-                await fetch(apiUrl, {
-                    method: "POST",
-
-                    headers: {
-                        "Content-Type":
-                            "application/json",
-                        Authorization: `Bearer ${token}`,
-                    },
-
-                    body: JSON.stringify(
-                        payload,
-                    ),
-                });
-
-            const responseData =
-                await response
-                    .json()
-                    .catch(() => null);
-
-            if (!response.ok) {
-                const message =
-                    responseData?.message ||
-                    responseData?.error ||
-                    `Failed to create customer (${response.status})`;
-
-                throw new Error(message);
-            }
-
-            // ----------------------------------------------------
-            // SUCCESS
-            // ----------------------------------------------------
-
-            setIsSuccess(true);
-
-            onSuccess?.(responseData);
-
-            if (!redirectOnSuccess) {
-                return;
-            }
-
-            setCompanyName("");
-            setAddress("");
-
-            setPointsOfContact([
+            const created = await createFleetClient(
+                token,
+                organizationId,
                 {
-                    id: crypto.randomUUID(),
-                    name: "",
-                    contactNumber: "",
-                    email: "",
-                    isPrimary: true,
+                    companyName: companyName.trim(),
+                    taxId: taxId.trim() || undefined,
+                    pointsOfContact: pointsOfContact.map(
+                        (contact) => ({
+                            name: contact.name.trim(),
+                            contactNumber: normalizePhoneForApi(
+                                contact.contactNumber,
+                            ),
+                            email: contact.email
+                                .trim()
+                                .toLowerCase(),
+                            isPrimary: contact.isPrimary,
+                        }),
+                    ),
                 },
-            ]);
+            );
 
-            setTimeout(() => {
-                router.push(
-                    "/fleet-leasing/customers",
-                );
-            }, 800);
+            await onSuccess?.(created);
         } catch (error) {
-            setFormError(
+            setIsSubmitting(false);
+            const message =
                 error instanceof Error
                     ? error.message
-                    : "Failed to create customer.",
-            );
-        } finally {
-            setIsSubmitting(false);
+                    : "Failed to create client.";
+            setFormError(message);
+            showErrorToast(message);
         }
     };
-
-    // ============================================================
-    // CANCEL
-    // ============================================================
-
-    const handleCancel = () => {
-        if (onCancel) {
-            onCancel();
-            return;
-        }
-
-        router.push(
-            "/fleet-leasing/customers",
-        );
-    };
-
-    // ============================================================
-    // UI
-    // ============================================================
 
     return (
-        <form
-            onSubmit={handleSubmit}
-            className="min-h-full w-full bg-[#f7f7f7]"
-        >
-            {/* ====================================================
-                STEP 1 → CLIENT
-            ===================================================== */}
-
-            <LeaseContractStepper
-                currentStep={1}
-            />
-
-            {/* ====================================================
-                CONTENT
-            ===================================================== */}
-
-            <div className="mx-auto w-full max-w-7xl px-4 pb-8 pt-5 sm:px-6 sm:pt-6">
-
-                <div className="w-full max-w-[760px]">
-
-                    {/* ==================================================
-                        NEW CLIENT RECORD
-                    ================================================== */}
-
-                    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-
-                        {/* HEADER */}
-
-                        <div className="border-b border-slate-100 px-4 py-3 sm:px-5">
-
-                            <h1 className="text-sm font-semibold text-slate-900 sm:text-base">
-                                New client record
-                            </h1>
-
-                        </div>
-
-                        {/* ==================================================
-                          COMPANY INFORMATION
-                        ================================================== */}
-
-                        <div className="px-4 py-4 sm:px-5">
-
-                            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-
-                                {/* COMPANY NAME */}
-
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700">
-                                        Company name
-                                    </label>
-
-                                    <div className="relative mt-1.5">
-
-                                        <Building2 className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-
-                                        <input
-                                            type="text"
-                                            value={companyName}
-                                            onChange={(event) =>
-                                                setCompanyName(event.target.value)
-                                            }
-                                            placeholder="e.g. Meridian Logistics Pvt Ltd"
-                                            className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
-                                        />
-
-                                    </div>
-                                </div>
-
-                                {/* ADDRESS */}
-
-                                <div>
-                                    <label className="block text-xs font-semibold text-slate-700">
-                                        Address
-                                    </label>
-
-                                    <div className="relative mt-1.5">
-
-                                        <MapPin className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-
-                                        <input
-                                            type="text"
-                                            value={address}
-                                            onChange={(event) =>
-                                                setAddress(event.target.value)
-                                            }
-                                            placeholder="Optional"
-                                            className="h-10 w-full rounded-md border border-slate-300 bg-white pl-9 pr-3 text-xs text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
-                                        />
-
-                                    </div>
-                                </div>
-
-                            </div>
-
-                        </div>
-
-                        {/* ==================================================
-                            POINT OF CONTACT
-                        ================================================== */}
-
-                        <div className="border-t border-slate-100 px-4 py-4 sm:px-5">
-
-                            {/* POC HEADER */}
-
-                            <div className="mb-2.5 flex items-center justify-between gap-3">
-
-                                <h2 className="text-xs font-semibold text-slate-800 sm:text-sm">
-                                    Point of contact
-                                </h2>
-
-                                <button
-                                    type="button"
-                                    onClick={
-                                        addContact
-                                    }
-                                    className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline"
-                                >
-                                    <Plus className="h-3.5 w-3.5" />
-                                    Add another POC
-                                </button>
-
-                            </div>
-
-                            {/* ==================================================
-                                POC TABLE
-                            ================================================== */}
-
-                            <div className="overflow-hidden rounded-md border border-slate-200">
-
-                                {/* DESKTOP HEADERS */}
-
-                                <div className="hidden grid-cols-[1.15fr_1.15fr_1.15fr_28px] gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2 md:grid">
-
-                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                        Name
-                                    </span>
-
-                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                        Contact number
-                                    </span>
-
-                                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-                                        Email
-                                    </span>
-
-                                    <span />
-
-                                </div>
-
-                                {/* CONTACTS */}
-
-                                <div className="divide-y divide-slate-100">
-
-                                    {pointsOfContact.map(
-                                        (
-                                            contact,
-                                            index,
-                                        ) => (
-                                            <div
-                                                key={
-                                                    contact.id
-                                                }
-                                                className="px-3 py-3"
-                                            >
-
-                                                {/* MOBILE TITLE */}
-
-                                                <div className="mb-2 flex items-center justify-between md:hidden">
-
-                                                    <span className="text-xs font-semibold text-slate-700">
-                                                        Point of Contact{" "}
-                                                        {index +
-                                                            1}
-                                                    </span>
-
-                                                    {pointsOfContact.length >
-                                                        1 && (
-                                                            <button
-                                                                type="button"
-                                                                onClick={() =>
-                                                                    removeContact(
-                                                                        contact.id,
-                                                                    )
-                                                                }
-                                                                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
-                                                            >
-                                                                <Trash2 className="h-3.5 w-3.5" />
-                                                            </button>
-                                                        )}
-
-                                                </div>
-
-                                                {/* FIELDS */}
-
-                                                <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.15fr_1.15fr_1.15fr_28px] md:items-start md:gap-2">
-
-                                                    {/* NAME */}
-
-                                                    <div>
-                                                        <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
-                                                            Name
-                                                        </label>
-
-                                                        <div className="relative">
-
-                                                            <UserRound className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-
-                                                            <input
-                                                                type="text"
-                                                                value={
-                                                                    contact.name
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    updateContact(
-                                                                        contact.id,
-                                                                        {
-                                                                            name: event
-                                                                                .target
-                                                                                .value,
-                                                                        },
-                                                                    )
-                                                                }
-                                                                placeholder="Point of contact"
-                                                                className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
-                                                            />
-
-                                                        </div>
-                                                    </div>
-
-                                                    {/* CONTACT NUMBER */}
-
-                                                    <div>
-                                                        <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
-                                                            Contact number
-                                                        </label>
-
-                                                        <div className="relative">
-
-                                                            <Phone className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-
-                                                            <input
-                                                                type="tel"
-                                                                value={
-                                                                    contact.contactNumber
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    updateContact(
-                                                                        contact.id,
-                                                                        {
-                                                                            contactNumber:
-                                                                                event
-                                                                                    .target
-                                                                                    .value,
-                                                                        },
-                                                                    )
-                                                                }
-                                                                placeholder="Phone number"
-                                                                className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
-                                                            />
-
-                                                        </div>
-                                                    </div>
-
-                                                    {/* EMAIL */}
-
-                                                    <div>
-                                                        <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
-                                                            Email
-                                                        </label>
-
-                                                        <div className="relative">
-
-                                                            <Mail className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-
-                                                            <input
-                                                                type="email"
-                                                                value={
-                                                                    contact.email
-                                                                }
-                                                                onChange={(
-                                                                    event,
-                                                                ) =>
-                                                                    updateContact(
-                                                                        contact.id,
-                                                                        {
-                                                                            email: event
-                                                                                .target
-                                                                                .value,
-                                                                        },
-                                                                    )
-                                                                }
-                                                                placeholder="name@company.com"
-                                                                className="h-9 w-full rounded-md border border-slate-300 bg-white pl-8 pr-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
-                                                            />
-
-                                                        </div>
-                                                    </div>
-
-                                                    {/* DELETE */}
-
-                                                    <button
-                                                        type="button"
-                                                        onClick={() =>
-                                                            removeContact(
-                                                                contact.id,
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            pointsOfContact.length ===
-                                                            1
-                                                        }
-                                                        className="hidden h-8 w-7 items-center justify-center self-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
-                                                        title="Remove contact"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </button>
-
-                                                </div>
-
-                                                {/* ==================================================
-                                                    PRIMARY POC
-                                                    ONLY SHOWN AFTER ADDING
-                                                    ANOTHER POC
-                                                ================================================== */}
-
-                                                {pointsOfContact.length >
-                                                    1 && (
-                                                        <label className="mt-2.5 inline-flex cursor-pointer items-center gap-2">
-
-                                                            <input
-                                                                type="radio"
-                                                                name="primaryContact"
-                                                                checked={
-                                                                    contact.isPrimary
-                                                                }
-                                                                onChange={() =>
-                                                                    setPrimaryContact(
-                                                                        contact.id,
-                                                                    )
-                                                                }
-                                                                className="h-3.5 w-3.5 accent-[#FE5720]"
-                                                            />
-
-                                                            <span className="text-[11px] font-medium text-slate-600">
-                                                                Primary POC
-                                                            </span>
-
-                                                        </label>
-                                                    )}
-
-                                            </div>
-                                        ),
-                                    )}
-
-                                </div>
-
-                            </div>
-
-                            {/* BOTTOM ADD */}
-
-                            <button
-                                type="button"
-                                onClick={
-                                    addContact
-                                }
-                                className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-[#FE5720] hover:underline"
+        <form onSubmit={handleSubmit} className="w-full">
+            <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                <div className="px-4 py-4 sm:px-5">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label
+                                htmlFor="lease-client-company-name"
+                                className="block text-xs font-semibold text-slate-700"
                             >
-                                <Plus className="h-3.5 w-3.5" />
-                                Add another POC
-                            </button>
-
+                                Client name *
+                            </label>
+                            <RestrictedInput
+                                id="lease-client-company-name"
+                                restrictedKind="name"
+                                maxLength={
+                                    FLEET_CLIENT_INPUT_LIMITS.companyName
+                                }
+                                value={companyName}
+                                onChange={setCompanyName}
+                                placeholder="Sunrise Freight Co"
+                                className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15"
+                            />
                         </div>
 
-                        {/* ==================================================
-                            ERROR
-                        ================================================== */}
-
-                        {formError && (
-                            <div className="border-t border-red-100 bg-red-50 px-4 py-2.5 sm:px-5">
-                                <p className="text-xs font-medium text-red-600">
-                                    {formError}
-                                </p>
-                            </div>
-                        )}
-
-                        {/* ==================================================
-                            ACTIONS
-                        ================================================== */}
-
-                        <div className="flex flex-col-reverse items-stretch justify-end gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
-
-                            <button
-                                type="button"
-                                onClick={
-                                    handleCancel
-                                }
-                                disabled={
-                                    isSubmitting
-                                }
-                                className="h-9 rounded-md border border-slate-300 bg-white px-5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:text-sm"
+                        <div>
+                            <label
+                                htmlFor="lease-client-tax-id"
+                                className="block text-xs font-semibold text-slate-700"
                             >
-                                Cancel
-                            </button>
-
-                            <button
-                                type="submit"
-                                disabled={
-                                    isSubmitting ||
-                                    isSuccess
+                                GSTIN / Tax ID{" "}
+                                <span className="font-normal text-slate-400">
+                                    (optional)
+                                </span>
+                            </label>
+                            <RestrictedInput
+                                id="lease-client-tax-id"
+                                restrictedKind="text"
+                                maxLength={
+                                    FLEET_CLIENT_INPUT_LIMITS.taxId
                                 }
-                                className="inline-flex h-9 items-center justify-center gap-2 rounded-md bg-[#FE5720] px-5 text-xs font-semibold text-white shadow-sm transition hover:bg-[#e94d12] disabled:cursor-not-allowed disabled:opacity-60 sm:text-sm"
-                            >
-                                {isSubmitting && (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                )}
-
-                                {isSubmitting
-                                    ? "Saving..."
-                                    : "Save client"}
-                            </button>
-
+                                value={taxId}
+                                onChange={setTaxId}
+                                placeholder="Optional"
+                                className="mt-1.5 h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15"
+                            />
                         </div>
+                    </div>
+                </div>
 
-                    </section>
-
-                    {/* ==================================================
-                        INFORMATION NOTE
-                    ================================================== */}
-
-                    <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:px-5">
-
-                        <p className="text-[11px] leading-5 text-slate-500 sm:text-xs">
-                            This is the shared Customer /
-                            Client Register in Organisation
-                            (Flow 39) — one record per
-                            client, reused across every
-                            lease contract. A client can
-                            carry several POCs, each with
-                            their own name, contact number
-                            and email; one is marked Primary
-                            and is what&apos;s used by
-                            default.
-                        </p>
-
+                <div className="border-t border-slate-100 px-4 py-4 sm:px-5">
+                    <div className="mb-2.5 flex items-center justify-between gap-3">
+                        <h2 className="text-xs font-semibold text-slate-800 sm:text-sm">
+                            Point of contact
+                        </h2>
                     </div>
 
-                </div>
-            </div>
-        </form>
-    );
-}
+                    <div className="overflow-hidden rounded-md border border-slate-200">
+                        <div className="hidden grid-cols-[1.15fr_1.15fr_1.15fr_28px] gap-2 border-b border-slate-100 bg-slate-50 px-3 py-2 md:grid">
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                Name
+                            </span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                Contact number
+                            </span>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                                Email
+                            </span>
+                            <span />
+                        </div>
 
-/* ================================================================
-   LEASE CONTRACT STEPPER
-================================================================ */
-
-function LeaseContractStepper({
-    currentStep,
-}: {
-    currentStep: number;
-}) {
-    const steps = [
-        "Client",
-        "Asset Lines",
-        "Terms",
-        "Review",
-    ];
-
-    return (
-        <div className="border-b border-slate-200 bg-white">
-
-            <div className="mx-auto w-full max-w-[1000px] px-4 py-3.5 sm:px-6 sm:py-4">
-
-                <div className="mx-auto flex w-full max-w-[600px] items-start">
-
-                    {steps.map(
-                        (label, index) => {
-                            const step =
-                                index + 1;
-
-                            const isCompleted =
-                                step <
-                                currentStep;
-
-                            const isActive =
-                                step ===
-                                currentStep;
-
-                            return (
+                        <div className="divide-y divide-slate-100">
+                            {pointsOfContact.map((contact, index) => (
                                 <div
-                                    key={label}
-                                    className="flex min-w-0 flex-1 items-start"
+                                    key={contact.id}
+                                    className="px-3 py-3"
                                 >
-                                    {/* STEP */}
-
-                                    <div className="flex min-w-[58px] flex-col items-center sm:min-w-[72px]">
-
-                                        <div
-                                            className={`flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-semibold transition-colors sm:h-8 sm:w-8 sm:text-xs ${isActive ||
-                                                isCompleted
-                                                ? "bg-[#FE5720] text-white"
-                                                : "border border-slate-300 bg-white text-slate-400"
-                                                }`}
-                                        >
-                                            {isCompleted ? (
-                                                <Check className="h-4 w-4" />
-                                            ) : (
-                                                step
-                                            )}
-                                        </div>
-
-                                        <span
-                                            className={`mt-1 whitespace-nowrap text-[10px] sm:text-xs ${isActive ||
-                                                isCompleted
-                                                ? "font-semibold text-[#FE5720]"
-                                                : "text-slate-400"
-                                                }`}
-                                        >
-                                            {label}
+                                    <div className="mb-2 flex items-center justify-between md:hidden">
+                                        <span className="text-xs font-semibold text-slate-700">
+                                            Point of contact {index + 1}
                                         </span>
-
+                                        {pointsOfContact.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() =>
+                                                    removeContact(
+                                                        contact.id,
+                                                    )
+                                                }
+                                                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                            >
+                                                <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        )}
                                     </div>
 
-                                    {/* CONNECTOR */}
-
-                                    {step <
-                                        steps.length && (
-                                            <div
-                                                className={`mt-3.5 h-px flex-1 sm:mt-4 ${isCompleted
-                                                    ? "bg-[#FE5720]"
-                                                    : "bg-slate-200"
-                                                    }`}
+                                    <div className="grid grid-cols-1 gap-3 md:grid-cols-[1.15fr_1.15fr_1.15fr_28px] md:items-start md:gap-2">
+                                        <div>
+                                            <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
+                                                Name
+                                            </label>
+                                            <RestrictedInput
+                                                restrictedKind="name"
+                                                maxLength={
+                                                    FLEET_CLIENT_INPUT_LIMITS.pocName
+                                                }
+                                                value={contact.name}
+                                                onChange={(name) =>
+                                                    updateContact(
+                                                        contact.id,
+                                                        { name },
+                                                    )
+                                                }
+                                                placeholder="Arjun Mehta"
+                                                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
                                             />
-                                        )}
-                                </div>
-                            );
-                        },
-                    )}
+                                        </div>
 
+                                        <div>
+                                            <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
+                                                Contact number
+                                            </label>
+                                            <RestrictedInput
+                                                restrictedKind="phone"
+                                                maxLength={
+                                                    FLEET_CLIENT_INPUT_LIMITS.pocPhone
+                                                }
+                                                value={
+                                                    contact.contactNumber
+                                                }
+                                                onChange={(
+                                                    contactNumber,
+                                                ) =>
+                                                    updateContact(
+                                                        contact.id,
+                                                        {
+                                                            contactNumber,
+                                                        },
+                                                    )
+                                                }
+                                                placeholder={
+                                                    phonePlaceholder
+                                                }
+                                                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
+                                                Email
+                                            </label>
+                                            <RestrictedInput
+                                                restrictedKind="email"
+                                                maxLength={
+                                                    FLEET_CLIENT_INPUT_LIMITS.pocEmail
+                                                }
+                                                value={contact.email}
+                                                onChange={(email) =>
+                                                    updateContact(
+                                                        contact.id,
+                                                        { email },
+                                                    )
+                                                }
+                                                placeholder="name@company.com"
+                                                className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
+                                            />
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            onClick={() =>
+                                                removeContact(
+                                                    contact.id,
+                                                )
+                                            }
+                                            disabled={
+                                                pointsOfContact.length ===
+                                                1
+                                            }
+                                            className="hidden h-8 w-7 items-center justify-center self-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
+                                            title="Remove contact"
+                                        >
+                                            <Trash2 className="h-3.5 w-3.5" />
+                                        </button>
+                                    </div>
+
+                                    {pointsOfContact.length > 1 ? (
+                                        <label className="mt-2.5 inline-flex cursor-pointer items-center gap-2">
+                                            <input
+                                                type="radio"
+                                                name="primaryContact"
+                                                checked={contact.isPrimary}
+                                                onChange={() =>
+                                                    setPrimaryContact(
+                                                        contact.id,
+                                                    )
+                                                }
+                                                className="h-3.5 w-3.5 accent-[#FE5720]"
+                                            />
+                                            <span className="text-[11px] font-medium text-slate-600">
+                                                Primary POC
+                                            </span>
+                                        </label>
+                                    ) : null}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+
+                    <button
+                        type="button"
+                        onClick={addContact}
+                        className="mt-2.5 inline-flex items-center gap-1 text-xs font-semibold text-[#FE5720] hover:underline"
+                    >
+                        <Plus className="h-3.5 w-3.5" />
+                        Add another POC
+                    </button>
                 </div>
 
-            </div>
+                {formError && (
+                    <div
+                        className="border-t border-red-100 bg-red-50 px-4 py-2.5 sm:px-5"
+                        role="alert"
+                    >
+                        <p className="text-xs font-medium text-red-600">
+                            {formError}
+                        </p>
+                    </div>
+                )}
 
-        </div>
+                <div className="flex flex-col-reverse items-stretch justify-end gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={onCancel}
+                        disabled={isSubmitting}
+                        className="h-9 px-5 text-sm"
+                    >
+                        Cancel
+                    </Button>
+
+                    <Button
+                        type="submit"
+                        disabled={isSubmitting || isSaveDisabled}
+                        className="inline-flex h-9 items-center justify-center gap-2 px-5 text-sm"
+                    >
+                        {isSubmitting && (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        )}
+                        {isSubmitting
+                            ? "Saving..."
+                            : "Save & continue"}
+                    </Button>
+                </div>
+            </section>
+
+            <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:px-5">
+                <p className="text-[11px] leading-5 text-slate-500 sm:text-xs">
+                    A client can carry several POCs, each with their
+                    own name, contact number and email; exactly one is
+                    marked Primary. This is the same shared
+                    Customer/Client Register used across Organisation
+                    and every lease contract.
+                </p>
+            </div>
+        </form>
     );
 }

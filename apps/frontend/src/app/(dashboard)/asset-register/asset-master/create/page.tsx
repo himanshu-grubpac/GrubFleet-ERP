@@ -9,7 +9,11 @@ import CreateAssetMasterForm, {
 } from "@/components/modules/assetManagement/asset-Master/CreateAssetMasterForm";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  ASSET_MASTER_CREATE_ERROR,
+  showAssetMasterCreatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 import {
   fetchAssetRegisterAssetClassApi,
   fetchAssetRegisterAssetClassesApi,
@@ -71,11 +75,11 @@ export default function AssetMasterCreatePage() {
       void queryClient.invalidateQueries({
         queryKey: ["asset-register", "asset-masters"],
       });
-      showSuccessToast("Asset master created");
+      showAssetMasterCreatedToast();
       router.push(`/asset-register/asset-master/${created.id}`);
     },
     onError: (error: Error) => {
-      showErrorToast(error.message || "Could not create asset master");
+      showErrorToast(error.message || ASSET_MASTER_CREATE_ERROR);
     },
   });
 

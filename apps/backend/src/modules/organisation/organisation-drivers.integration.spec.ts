@@ -728,6 +728,7 @@ describe('Organisation drivers (integration)', () => {
         .query({ organizationId })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
+        .send({ reason: 'Driver hook deactivate test' })
         .expect(201);
 
       const detailRes = await request(app.getHttpServer())

@@ -704,6 +704,7 @@ export default function AddLocationForm({
                     : "Failed to add location type.";
 
             setError(message);
+            showErrorToast(message);
         }
     };
 
@@ -756,6 +757,7 @@ export default function AddLocationForm({
                     : "Failed to delete location type.";
 
             setError(message);
+            showErrorToast(message);
         }
     };
 

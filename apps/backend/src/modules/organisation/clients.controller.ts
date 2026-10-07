@@ -50,7 +50,7 @@ export class ClientsController {
   @ApiOperation({
     summary: 'Organisation client detail',
     description:
-      'contractHistory is empty until fleet lease contracts link organisation_client_id (Decision E deferral).',
+      'Contract counts and contractHistory join fleet_clients.organisation_client_id to lease_contracts.',
   })
   getOne(
     @Query('organizationId', ParseUUIDPipe) organizationId: string,

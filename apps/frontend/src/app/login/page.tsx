@@ -58,6 +58,8 @@ export default function LoginPage() {
   }
 
   const formBusy = isSubmitting || isAuthenticating;
+  const canSubmit =
+    email.trim().length > 0 && password.trim().length > 0;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,8 +174,7 @@ export default function LoginPage() {
               variant="primary"
               size="md"
               fullWidth
-              disabled={isSubmitting || isAuthenticating}
-              className="!bg-[#FE5720] !text-white hover:!bg-[#E64A19]"
+              disabled={!canSubmit || formBusy}
             >
               {isSubmitting || isAuthenticating ? "Signing in..." : "Sign In"}
             </Button>

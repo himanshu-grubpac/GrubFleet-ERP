@@ -9,7 +9,11 @@ import {
   buildDriverPayloadFromForm,
   createOrganisationDriverApi,
 } from "@/lib/api/organisation/drivers";
-import { showErrorToast, showSuccessToast } from "@/lib/toast/show-toast";
+import {
+  DRIVER_SAVE_ERROR,
+  showDriverCreatedToast,
+  showErrorToast,
+} from "@/lib/toast/show-toast";
 
 import CreateDriverPage, {
   type DriverFormData,
@@ -42,13 +46,13 @@ export default function CreateDriverRoute() {
       await queryClient.invalidateQueries({
         queryKey: ["organization", "drivers"],
       });
-      showSuccessToast(`${created.name} was added to the register`);
+      showDriverCreatedToast(created.name);
       router.push(`/organization/driver-register/${created.id}`);
     } catch (error) {
       const message =
         error instanceof ApiClientError
           ? error.message
-          : "Failed to save driver. Please try again.";
+          : DRIVER_SAVE_ERROR;
       showErrorToast(message);
       throw error;
     }

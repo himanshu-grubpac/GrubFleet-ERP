@@ -1,13 +1,37 @@
 "use client";
 
-import React from "react";
+import React, { type ReactNode } from "react";
+
+/** Empty `<></>` from renderAdditionalMenuItems is truthy — must not open an empty ⋮ menu. */
+function reactNodeHasRenderableContent(node: ReactNode): boolean {
+    if (node == null || node === false) {
+        return false;
+    }
+    if (Array.isArray(node)) {
+        return node.some(reactNodeHasRenderableContent);
+    }
+    if (React.isValidElement(node)) {
+        if (node.type === React.Fragment) {
+            const fragmentProps = node.props as { children?: ReactNode };
+            return reactNodeHasRenderableContent(fragmentProps.children);
+        }
+        return true;
+    }
+    if (typeof node === "string") {
+        return node.trim().length > 0;
+    }
+    return true;
+}
 import {
     Copy,
     Edit,
-    MoreVertical,
     Power,
 } from "lucide-react";
 import Link from "next/link";
+import {
+    DashboardRowActionsMenu,
+    DashboardRowActionsMenuItem,
+} from "./DashboardRowActionsMenu";
 
 type DashboardTableActionsProps = {
     status: "active" | "inactive";
@@ -27,8 +51,17 @@ type DashboardTableActionsProps = {
      */
     viewHref?: string;
 
+    /**
+     * Organisation default: Edit only when `status === "active"` (`31`).
+     * Set true for modules that allow edit while inactive (e.g. lease contracts).
+     */
+    allowEditWhenInactive?: boolean;
+
     onEdit?: () => void;
     onToggleStatus?: () => void;
+
+    /** Module-specific overflow entries (same menu panel as Edit / status toggle). */
+    renderAdditionalMenuItems?: () => ReactNode;
 };
 
 export default function DashboardTableActions({
@@ -36,10 +69,16 @@ export default function DashboardTableActions({
     locationId,
     copyText,
     viewHref,
+    allowEditWhenInactive = false,
     onEdit,
     onToggleStatus,
+    renderAdditionalMenuItems,
 }: DashboardTableActionsProps) {
     const isActive = status === "active";
+    const showEdit = onEdit && (isActive || allowEditWhenInactive);
+    const additionalMenuItems = renderAdditionalMenuItems?.();
+    const hasAdditionalMenuItems =
+        reactNodeHasRenderableContent(additionalMenuItems);
 
     /* ---------------------------------------------------------------------- */
     /* View URL                                                               */
@@ -65,6 +104,9 @@ export default function DashboardTableActions({
             // Clipboard denied or unavailable — no-op
         }
     };
+
+    const hasOverflowMenu =
+        showEdit || hasAdditionalMenuItems || !!onToggleStatus;
 
     return (
         <div className="flex items-center justify-end gap-3">
@@ -104,80 +146,40 @@ export default function DashboardTableActions({
                 />
             </button>
 
-            {/* More */}
-            <div className="relative">
-                <details className="group">
-                    <summary
-                        className="
-                            flex
-                            h-8
-                            w-8
-                            cursor-pointer
-                            list-none
-                            items-center
-                            justify-center
-                            rounded-md
-                            hover:bg-gray-100
-                        "
-                    >
-                        <MoreVertical
-                            className="h-4 w-4 text-gray-600"
-                        />
-                    </summary>
+            {/* More — portaled fixed menu (escapes table overflow-x-auto clip) */}
+            {hasOverflowMenu ? (
+                <DashboardRowActionsMenu ariaLabel="Row actions">
+                    {({ close }) => (
+                        <>
+                            {showEdit ? (
+                                <DashboardRowActionsMenuItem
+                                    icon={<Edit className="h-4 w-4" />}
+                                    label="Edit"
+                                    onSelect={() => {
+                                        close();
+                                        onEdit?.();
+                                    }}
+                                />
+                            ) : null}
 
-                    <div
-                        className="
-                            absolute
-                            right-0
-                            top-9
-                            z-20
-                            w-40
-                            rounded-md
-                            border
-                            border-gray-200
-                            bg-white
-                            py-1
-                            shadow-lg
-                        "
-                    >
-                        {onEdit && isActive ? (
-                            <button
-                                type="button"
-                                onClick={onEdit}
-                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                            >
-                                <Edit className="h-4 w-4" />
-                                Edit
-                            </button>
-                        ) : null}
+                            {hasAdditionalMenuItems
+                                ? additionalMenuItems
+                                : null}
 
-                        {onToggleStatus ? (
-                            <button
-                                type="button"
-                                onClick={onToggleStatus}
-                                className="
-                                    flex
-                                    w-full
-                                    items-center
-                                    gap-2
-                                    px-3
-                                    py-2
-                                    text-left
-                                    text-sm
-                                    text-gray-700
-                                    hover:bg-gray-50
-                                "
-                            >
-                                <Power className="h-4 w-4" />
-
-                                {isActive
-                                    ? "Deactivate"
-                                    : "Activate"}
-                            </button>
-                        ) : null}
-                    </div>
-                </details>
-            </div>
+                            {onToggleStatus ? (
+                                <DashboardRowActionsMenuItem
+                                    icon={<Power className="h-4 w-4" />}
+                                    label={isActive ? "Deactivate" : "Activate"}
+                                    onSelect={() => {
+                                        close();
+                                        onToggleStatus();
+                                    }}
+                                />
+                            ) : null}
+                        </>
+                    )}
+                </DashboardRowActionsMenu>
+            ) : null}
         </div>
     );
 }

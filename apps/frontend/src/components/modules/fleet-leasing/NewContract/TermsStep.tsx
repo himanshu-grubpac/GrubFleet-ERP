@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import LeaseContractStepper from "./LeaseContractStepper";
+import { useMemo, useState } from "react";
 import Button from "@/components/ui/GrubpacButton";
-import {
-    AlertTriangle,
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { AlertTriangle } from "lucide-react";
+import { FLEET_LEASE_TERMS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 
-} from "lucide-react";
+import type { AssetLine } from "./AssetLinesStep";
 
 const BILLING_FREQUENCIES = [
     "monthly",
@@ -14,25 +14,83 @@ const BILLING_FREQUENCIES = [
     "annual",
 ] as const;
 
+const BILLING_FREQUENCY_LABELS: Record<
+    (typeof BILLING_FREQUENCIES)[number],
+    string
+> = {
+    monthly: "Monthly",
+    quarterly: "Quarterly",
+    annual: "Annually",
+};
+
+const FIELD_INPUT_CLASS =
+    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+const MONEY_INPUT_CLASS =
+    "h-10 w-full rounded-md border border-gray-300 bg-white pl-12 pr-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+const FIELD_LABEL_CLASS =
+    "mb-1.5 block text-sm font-medium text-gray-700";
+
 export interface LeaseTerms {
     startDate: string;
     termMonths: number | "";
     securityDeposit: string;
-    billingFrequency:
-    | "monthly"
-    | "quarterly"
-    | "annual";
+    billingFrequency: "monthly" | "quarterly" | "annual";
 }
 
 interface TermsStepProps {
-    clientName: string;
+    assetLines: AssetLine[];
     initialTerms?: Partial<LeaseTerms>;
     onBack: () => void;
-    onContinue: (terms: LeaseTerms) => void;
+    onContinue: (
+        terms: LeaseTerms,
+        assetLines: AssetLine[],
+    ) => void | Promise<void>;
+}
+
+function rateFieldLabel(assetClass: string): string {
+    return `Rate per ${assetClass} — Standard / month`;
+}
+
+function MoneyField({
+    id,
+    label,
+    value,
+    onChange,
+    placeholder,
+}: {
+    id: string;
+    label: string;
+    value: string;
+    onChange: (value: string) => void;
+    placeholder: string;
+}) {
+    return (
+        <div>
+            <label htmlFor={id} className={FIELD_LABEL_CLASS}>
+                {label}
+            </label>
+            <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
+                    Rs.
+                </span>
+                <RestrictedInput
+                    id={id}
+                    restrictedKind="digits"
+                    maxLength={FLEET_LEASE_TERMS_INPUT_LIMITS.moneyMaxDigits}
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    className={MONEY_INPUT_CLASS}
+                />
+            </div>
+        </div>
+    );
 }
 
 export default function TermsStep({
-    clientName,
+    assetLines,
     initialTerms,
     onBack,
     onContinue,
@@ -41,334 +99,294 @@ export default function TermsStep({
         initialTerms?.startDate ?? "",
     );
 
-    const [termMonths, setTermMonths] =
-        useState<number | "">(
-            initialTerms?.termMonths ?? "",
-        );
+    const [termMonths, setTermMonths] = useState<number | "">(
+        initialTerms?.termMonths ?? "",
+    );
 
-    const [securityDeposit, setSecurityDeposit] =
-        useState(
-            initialTerms?.securityDeposit ?? "",
-        );
+    const [securityDeposit, setSecurityDeposit] = useState(
+        initialTerms?.securityDeposit ?? "",
+    );
 
-    const [billingFrequency, setBillingFrequency] =
-        useState<
-            "monthly" | "quarterly" | "annual"
-        >(
-            initialTerms?.billingFrequency ??
-            "monthly",
-        );
+    const [billingFrequency, setBillingFrequency] = useState<
+        "monthly" | "quarterly" | "annual"
+    >(initialTerms?.billingFrequency ?? "monthly");
 
-    const [formError, setFormError] =
-        useState<string | null>(null);
+    const [lineRates, setLineRates] = useState<Record<string, string>>(() => {
+        const initial: Record<string, string> = {};
+        for (const line of assetLines) {
+            initial[line.id] = line.ratePerVehicleMonth ?? "";
+        }
+        return initial;
+    });
 
-    // ============================================================
-    // CONTINUE
-    // ============================================================
+    const [formError, setFormError] = useState<string | null>(null);
+    const [isContinuing, setIsContinuing] = useState(false);
+
+    const primaryLine = assetLines[0];
+    const additionalLines = assetLines.slice(1);
+    const fallbackAssetClass = "Petrol Scooter";
+
+    const canSubmit = useMemo(() => {
+        if (!startDate.trim()) {
+            return false;
+        }
+        if (termMonths === "" || Number(termMonths) < 1) {
+            return false;
+        }
+        if (
+            securityDeposit === "" ||
+            Number.isNaN(Number(securityDeposit)) ||
+            Number(securityDeposit) < 0
+        ) {
+            return false;
+        }
+        if (!assetLines.length) {
+            return false;
+        }
+        for (const line of assetLines) {
+            const rate = lineRates[line.id] ?? "";
+            if (
+                rate === "" ||
+                Number.isNaN(Number(rate)) ||
+                Number(rate) < 0
+            ) {
+                return false;
+            }
+        }
+        return true;
+    }, [
+        assetLines,
+        lineRates,
+        securityDeposit,
+        startDate,
+        termMonths,
+    ]);
 
     const handleContinue = () => {
         setFormError(null);
 
+        if (!canSubmit) {
+            setFormError("Complete all required contract terms to continue.");
+            return;
+        }
+
         if (!startDate) {
-            setFormError(
-                "Please select a start date.",
-            );
+            setFormError("Please select a start date.");
             return;
         }
 
         if (termMonths === "") {
-            setFormError(
-                "Please enter the time period.",
-            );
+            setFormError("Please enter the contract term in months.");
             return;
         }
 
         if (Number(termMonths) < 1) {
-            setFormError(
-                "Time period must be at least 1 month.",
-            );
+            setFormError("Term must be at least 1 month.");
             return;
         }
 
         if (securityDeposit === "") {
-            setFormError(
-                "Please enter the security deposit.",
-            );
+            setFormError("Please enter the security deposit.");
             return;
         }
 
-        onContinue({
-            startDate,
-            termMonths,
-            securityDeposit,
-            billingFrequency,
+        if (Number.isNaN(Number(securityDeposit)) || Number(securityDeposit) < 0) {
+            setFormError("Security deposit must be a valid amount.");
+            return;
+        }
+
+        const linesWithRates: AssetLine[] = [];
+        for (const line of assetLines) {
+            const rate = lineRates[line.id] ?? "";
+            if (
+                rate === "" ||
+                Number.isNaN(Number(rate)) ||
+                Number(rate) < 0
+            ) {
+                setFormError(
+                    `Enter a valid monthly rate for ${line.assetClass}.`,
+                );
+                return;
+            }
+            linesWithRates.push({
+                ...line,
+                ratePerVehicleMonth: rate,
+            });
+        }
+
+        setIsContinuing(true);
+        void Promise.resolve(
+            onContinue(
+                {
+                    startDate,
+                    termMonths,
+                    securityDeposit,
+                    billingFrequency,
+                },
+                linesWithRates,
+            ),
+        ).finally(() => {
+            setIsContinuing(false);
         });
     };
 
+    const renderRateField = (line: AssetLine) => (
+        <MoneyField
+            key={line.id}
+            id={`lease-rate-${line.id}`}
+            label={rateFieldLabel(line.assetClass || fallbackAssetClass)}
+            value={lineRates[line.id] ?? ""}
+            onChange={(value) =>
+                setLineRates((previous) => ({
+                    ...previous,
+                    [line.id]: value,
+                }))
+            }
+            placeholder="e.g. 3200"
+        />
+    );
+
     return (
-        <div className="min-h-full w-full bg-[#f7f7f7]">
+        <>
+            {formError && (
+                <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
+                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <span>{formError}</span>
+                </div>
+            )}
 
-            {/* ==================================================
-                COMMON STEPPER
-            ================================================== */}
-
-            <LeaseContractStepper currentStep={3} />
-
-            {/* ==================================================
-                CONTENT
-            ================================================== */}
-
-            <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
-
-                <div className="w-full max-w-[860px]">
-
-                    {/* ==================================================
-                        HEADER
-                    ================================================== */}
-
-                    <div className="mb-5">
-
-                        <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                            Contract terms
-                        </h1>
-
-                        <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                            These apply to the whole contract.
-                            Each asset-class line keeps its own
-                            rate, set on the previous step.
-                        </p>
-
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+                <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 sm:py-5 md:grid-cols-2">
+                    <div>
+                        <label
+                            htmlFor="lease-billing-frequency"
+                            className={FIELD_LABEL_CLASS}
+                        >
+                            Billing frequency
+                        </label>
+                        <select
+                            id="lease-billing-frequency"
+                            value={billingFrequency}
+                            onChange={(event) =>
+                                setBillingFrequency(
+                                    event.target
+                                        .value as typeof billingFrequency,
+                                )
+                            }
+                            className={FIELD_INPUT_CLASS}
+                        >
+                            {BILLING_FREQUENCIES.map((frequency) => (
+                                <option key={frequency} value={frequency}>
+                                    {BILLING_FREQUENCY_LABELS[frequency]}
+                                </option>
+                            ))}
+                        </select>
                     </div>
 
-                    {/* ==================================================
-                        CLIENT
-                    ================================================== */}
-
-                    <div className="mb-4 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm sm:px-5">
-
-                        <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-                            Client
-                        </p>
-
-                        <p className="mt-1 text-sm font-semibold text-slate-800">
-                            {clientName ||
-                                "Selected client"}
-                        </p>
-
-                    </div>
-
-                    {/* ==================================================
-                        ERROR
-                    ================================================== */}
-
-                    {formError && (
-                        <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
-
-                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-
-                            <span>
-                                {formError}
-                            </span>
-
+                    {primaryLine ? (
+                        renderRateField(primaryLine)
+                    ) : (
+                        <div>
+                            <p className={FIELD_LABEL_CLASS}>
+                                {rateFieldLabel(fallbackAssetClass)}
+                            </p>
+                            <p className="text-sm text-gray-500">
+                                Add asset-class lines on the previous step to
+                                set rates.
+                            </p>
                         </div>
                     )}
 
-                    {/* ==================================================
-                        CONTRACT TERMS
-                    ================================================== */}
+                    <MoneyField
+                        id="lease-security-deposit"
+                        label="Security deposit"
+                        value={securityDeposit}
+                        onChange={setSecurityDeposit}
+                        placeholder="e.g. 45000"
+                    />
 
-                    <div className="rounded-lg border border-slate-200 bg-white shadow-sm">
-
-                        <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:grid-cols-2 sm:px-5 sm:py-5">
-
-                            {/* ==================================================
-                                START DATE
-                            ================================================== */}
-
-                            <div>
-
-                                <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
-                                    Start date
-                                </label>
-
-                                <input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={(event) =>
-                                        setStartDate(
-                                            event.target.value,
-                                        )
-                                    }
-                                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                />
-
-                            </div>
-
-                            {/* ==================================================
-                                TIME PERIOD
-                            ================================================== */}
-
-                            <div>
-
-                                <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
-                                    Time period
-                                </label>
-
-                                <div className="relative">
-
-                                    <input
-                                        type="number"
-                                        min="1"
-                                        value={termMonths}
-                                        onChange={(event) =>
-                                            setTermMonths(
-                                                event.target
-                                                    .value ===
-                                                    ""
-                                                    ? ""
-                                                    : Number(
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    ),
-                                            )
-                                        }
-                                        placeholder="24 months"
-                                        className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 pr-16 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                    />
-
-                                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400">
-                                        months
-                                    </span>
-
-                                </div>
-
-                            </div>
-
-                            {/* ==================================================
-                                SECURITY DEPOSIT
-                            ================================================== */}
-
-                            <div>
-
-                                <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
-                                    Security deposit
-                                </label>
-
-                                <input
-                                    type="number"
-                                    min="0"
-                                    value={securityDeposit}
-                                    onChange={(event) =>
-                                        setSecurityDeposit(
-                                            event.target.value,
-                                        )
-                                    }
-                                    placeholder="e.g. 96,000 — one figure for the whole contract"
-                                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
-                                />
-
-                            </div>
-
-                            {/* ==================================================
-                                BILLING FREQUENCY
-                            ================================================== */}
-
-                            <div>
-
-                                <label className="mb-1.5 block text-[10px] font-semibold text-slate-600">
-                                    Billing frequency
-                                </label>
-
-                                <div className="flex flex-wrap gap-2">
-
-                                    {BILLING_FREQUENCIES.map(
-                                        (frequency) => {
-                                            const isActive =
-                                                billingFrequency ===
-                                                frequency;
-
-                                            return (
-                                                <button
-                                                    key={
-                                                        frequency
-                                                    }
-                                                    type="button"
-                                                    onClick={() =>
-                                                        setBillingFrequency(
-                                                            frequency,
-                                                        )
-                                                    }
-                                                    className={`h-10 rounded-md border px-4 text-sm font-semibold capitalize transition ${isActive
-                                                        ? "border-[#FE5720] bg-orange-50 text-[#FE5720]"
-                                                        : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                                                        }`}
-                                                >
-                                                    {
-                                                        frequency
-                                                    }
-                                                </button>
-                                            );
-                                        },
-                                    )}
-
-                                </div>
-
-                            </div>
-
-                        </div>
-
+                    <div>
+                        <label
+                            htmlFor="lease-term-months"
+                            className={FIELD_LABEL_CLASS}
+                        >
+                            Term (months)
+                        </label>
+                        <RestrictedInput
+                            id="lease-term-months"
+                            restrictedKind="digits"
+                            maxLength={
+                                FLEET_LEASE_TERMS_INPUT_LIMITS.termMonthsMaxDigits
+                            }
+                            value={
+                                termMonths === ""
+                                    ? ""
+                                    : String(termMonths)
+                            }
+                            onChange={(value) =>
+                                setTermMonths(
+                                    value === "" ? "" : Number(value),
+                                )
+                            }
+                            placeholder="24"
+                            className={FIELD_INPUT_CLASS}
+                        />
                     </div>
 
-                    {/* ==================================================
-                        PRICING WARNING
-                    ================================================== */}
-
-                    <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-orange-200 bg-orange-50 px-4 py-3 text-xs text-orange-700">
-
-                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[#FE5720]" />
-                        <p className="leading-5">
-                            Outside standard pricing limits. One or more
-                            lines&apos; rate, or the deposit, falls below
-                            the pricing engine&apos;s floor and doesn&apos;t
-                            match a sanctioned discount — confirming will
-                            raise a single approval request covering the
-                            whole contract, to the Fleet/Leasing Manager,
-                            instead of activating directly.
+                    <div>
+                        <label
+                            htmlFor="lease-start-date"
+                            className={FIELD_LABEL_CLASS}
+                        >
+                            Start date
+                        </label>
+                        <input
+                            id="lease-start-date"
+                            type="date"
+                            value={startDate}
+                            onChange={(event) =>
+                                setStartDate(event.target.value)
+                            }
+                            className={FIELD_INPUT_CLASS}
+                            aria-describedby="lease-start-date-hint"
+                        />
+                        <p
+                            id="lease-start-date-hint"
+                            className="mt-1 text-xs text-gray-400"
+                        >
+                            DD-MM-YYYY
                         </p>
-
                     </div>
 
-                    {/* ==================================================
-                        ACTIONS
-                    ================================================== */}
-
-                    <div className="mt-5 flex items-center justify-between">
-
-                        <button
-                            type="button"
-                            onClick={onBack}
-                            className="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-                        >
-
-
-                            Back
-                        </button>
-
-                        <Button
-                            type="button"
-                            variant="primary"
-                            onClick={handleContinue}
-                        >
-                            Next: Review
-                        </Button>
-
-                    </div>
-
+                    {additionalLines.map((line) => (
+                        <div key={line.id} className="md:col-span-2">
+                            <div className="md:grid md:grid-cols-2 md:gap-4">
+                                <div className="hidden md:block" aria-hidden />
+                                {renderRateField(line)}
+                            </div>
+                        </div>
+                    ))}
                 </div>
+            </div>
 
-            </main>
+            <div className="mt-5 flex items-center justify-between">
+                <button
+                    type="button"
+                    onClick={onBack}
+                    className="inline-flex h-10 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
+                >
+                    Back
+                </button>
 
-        </div>
+                <Button
+                    type="button"
+                    variant="primary"
+                    onClick={handleContinue}
+                    disabled={!canSubmit || isContinuing}
+                >
+                    {isContinuing ? "Saving…" : "Continue"}
+                </Button>
+            </div>
+        </>
     );
 }
