@@ -1,5 +1,13 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-export default function EditLocationLayout({ children }: { children: ReactNode }) {
+export async function generateStaticParams() {
+  return [{ id: "_" }];
+}
+
+export default function OrganisationLocationEditLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return children;
 }

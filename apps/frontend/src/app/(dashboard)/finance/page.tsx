@@ -1,5 +1,12 @@
-import { FinanceModule } from '@/components/modules/finance';
+"use client";
 
-export default function FinancePage() {
-  return <FinanceModule />;
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+export default function FinanceRootPage() {
+  const router = useRouter();
+  useEffect(() => {
+    router.replace("/finance/invoices/");
+  }, [router]);
+  return null;
 }

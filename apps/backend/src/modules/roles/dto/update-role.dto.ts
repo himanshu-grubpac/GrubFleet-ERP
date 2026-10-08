@@ -5,7 +5,9 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { ModuleAccessEntryDto } from './module-access-entry.dto';
@@ -43,4 +45,15 @@ export class UpdateRoleDto {
   @IsOptional()
   @IsBoolean()
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Single parent role in org hierarchy; null clears parent (root).',
+    format: 'uuid',
+    nullable: true,
+  })
+  @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
+  @IsUUID()
+  parentRoleId?: string | null;
 }

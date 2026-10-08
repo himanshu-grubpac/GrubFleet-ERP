@@ -3,8 +3,6 @@
 import React from "react";
 import { Inbox } from "lucide-react";
 
-import Button from "@/components/ui/GrubpacButton";
-
 type DashboardEmptyStateProps = {
     title: string;
     description?: string;
@@ -16,10 +14,12 @@ type DashboardEmptyStateProps = {
 export default function DashboardEmptyState({
     title,
     description,
-    buttonLabel,
-    onButtonClick,
+    buttonLabel: _buttonLabel,
+    onButtonClick: _onButtonClick,
     icon,
 }: DashboardEmptyStateProps) {
+    void _buttonLabel;
+    void _onButtonClick;
     return (
         <div className="w-full rounded-lg border border-gray-200 bg-white">
             <div className="flex min-h-[180px] flex-col items-center justify-center px-6 py-8 text-center">
@@ -45,19 +45,7 @@ export default function DashboardEmptyState({
                     </p>
                 )}
 
-                {/* Action */}
-                {buttonLabel && onButtonClick && (
-                    <div className="mt-4">
-                        <Button
-                            type="button"
-                            onClick={onButtonClick}
-                            className="h-9 rounded-md px-4 text-xs font-medium"
-                        >
-                            <span className="mr-1">+</span>
-                            {buttonLabel}
-                        </Button>
-                    </div>
-                )}
+
             </div>
         </div>
     );

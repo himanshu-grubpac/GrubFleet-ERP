@@ -3,27 +3,35 @@
 import React from "react";
 
 type DashboardHeaderProps = {
-  title: string;
-  description?: string;
-  action?: React.ReactNode;
+    title: string;
+    description?: string;
+    action?: React.ReactNode;
 };
 
 export default function DashboardHeader({
-  title,
-  description,
-  action,
+    title,
+    description,
+    action,
 }: DashboardHeaderProps) {
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <h1 className="text-xl font-semibold text-gray-900">{title}</h1>
+    return (
+        <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+                <h1 className="text-xl font-semibold text-gray-900">
+                    {title}
+                </h1>
 
-        {description ? (
-          <p className="mt-1 max-w-3xl text-sm text-gray-500">{description}</p>
-        ) : null}
-      </div>
+                {description && (
+                    <p className="mt-1 text-sm text-gray-500">
+                        {description}
+                    </p>
+                )}
+            </div>
 
-      {action ? <div className="shrink-0">{action}</div> : null}
-    </div>
-  );
+            {action && (
+                <div className="shrink-0">
+                    {action}
+                </div>
+            )}
+        </div>
+    );
 }

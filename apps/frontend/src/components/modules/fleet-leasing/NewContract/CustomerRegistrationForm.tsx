@@ -16,6 +16,7 @@ import {
     normalizePhoneForApi,
 } from "@/lib/format/phone-format";
 import { ORG_EMAIL_PATTERN } from "@/lib/validation/org-input-constraints";
+import { showErrorToast } from "@/lib/toast/show-toast";
 
 interface PointOfContact {
     id: string;
@@ -27,7 +28,10 @@ interface PointOfContact {
 
 interface CustomerRegistrationFormProps {
     initialCompanyName?: string;
-    onSuccess?: (customer: FleetClientDetail) => void;
+    /** May perform async wizard steps (e.g. draft contract); stay pending until settled. */
+    onSuccess?: (
+        customer: FleetClientDetail,
+    ) => void | Promise<void>;
     onCancel?: () => void;
 }
 
@@ -169,9 +173,9 @@ export default function CustomerRegistrationForm({
             return;
         }
 
-        try {
-            setIsSubmitting(true);
+        setIsSubmitting(true);
 
+        try {
             const created = await createFleetClient(
                 token,
                 organizationId,
@@ -193,31 +197,21 @@ export default function CustomerRegistrationForm({
                 },
             );
 
-            onSuccess?.(created);
+            await onSuccess?.(created);
         } catch (error) {
-            setFormError(
+            setIsSubmitting(false);
+            const message =
                 error instanceof Error
                     ? error.message
-                    : "Failed to create client.",
-            );
-        } finally {
-            setIsSubmitting(false);
+                    : "Failed to create client.";
+            setFormError(message);
+            showErrorToast(message);
         }
     };
 
     return (
         <form onSubmit={handleSubmit} className="w-full">
-            <div className="mb-5">
-                <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                    Add client
-                </h1>
-                <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                    Registered once, then selectable immediately for
-                    this contract.
-                </p>
-            </div>
-
-            <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                 <div className="px-4 py-4 sm:px-5">
                     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
@@ -448,10 +442,10 @@ export default function CustomerRegistrationForm({
                 <div className="flex flex-col-reverse items-stretch justify-end gap-2 border-t border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:px-5">
                     <Button
                         type="button"
-                        variant="secondary"
+                        variant="outline"
                         onClick={onCancel}
                         disabled={isSubmitting}
-                        className="h-9 px-5 text-sm"
+                        className="h-9 px-5 text-sm font-semibold text-gray-700"
                     >
                         Cancel
                     </Button>

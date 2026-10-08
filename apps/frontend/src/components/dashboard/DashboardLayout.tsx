@@ -1,18 +1,25 @@
 "use client";
 
-import React, { useMemo } from "react";
-import { usePathname } from "next/navigation";
+import Link from "next/link";
+import React from "react";
 
-import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
-import { DashboardBreadcrumb } from "@/components/dashboard/DashboardBreadcrumb";
-import {
-  buildDashboardBreadcrumbs,
-  type DashboardBreadcrumbItem,
-} from "@/lib/navigation/dashboard-breadcrumbs";
+import { internalHref } from "@/lib/navigation/nav-path-match";
+
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
 
 type DashboardTab = {
     label: string;
     href: string;
+};
+
+type DashboardPaginationProps = {
+    currentPage: number;
+    totalPages: number;
+    totalItems: number;
+    pageSize: number;
+    onPageChange: (page: number) => void;
 };
 
 type DashboardLayoutProps = {
@@ -21,12 +28,176 @@ type DashboardLayoutProps = {
     tabs?: DashboardTab[];
     activeTab?: string;
     action?: React.ReactNode;
-    backHref?: string;
-    backLabel?: string;
-    breadcrumbItems?: DashboardBreadcrumbItem[];
-    breadcrumbCurrentLabel?: string;
     children: React.ReactNode;
+
+    /**
+     * Optional pagination.
+     *
+     * Pass this from dashboards that contain paginated
+     * table data. Dashboards without pagination can
+     * simply omit this prop.
+     */
+    pagination?: DashboardPaginationProps;
 };
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard Pagination                                                       */
+/* -------------------------------------------------------------------------- */
+
+function DashboardPagination({
+    currentPage,
+    totalPages,
+    totalItems,
+    pageSize,
+    onPageChange,
+}: DashboardPaginationProps) {
+    /* ---------------------------------------------------------------------- */
+    /* Safe Pagination Values                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    const safeTotalPages = Math.max(
+        1,
+        totalPages,
+    );
+
+    const safeCurrentPage = Math.max(
+        1,
+        Math.min(
+            currentPage,
+            safeTotalPages,
+        ),
+    );
+
+    /* ---------------------------------------------------------------------- */
+    /* Showing Count                                                          */
+    /* ---------------------------------------------------------------------- */
+
+    const startItem =
+        totalItems === 0
+            ? 0
+            : (safeCurrentPage - 1) *
+            pageSize +
+            1;
+
+    const endItem = Math.min(
+        safeCurrentPage * pageSize,
+        totalItems,
+    );
+
+    /* ---------------------------------------------------------------------- */
+    /* Render                                                                 */
+    /* ---------------------------------------------------------------------- */
+
+    return (
+        <div className="mt-3 flex items-center justify-between">
+            {/* ========================================================== */}
+            {/* Showing Count                                               */}
+            {/* ========================================================== */}
+
+            <p className="text-xs text-gray-500">
+                Showing {startItem}–{endItem} of{" "}
+                {totalItems}
+            </p>
+
+            {/* ========================================================== */}
+            {/* Pagination Controls                                         */}
+            {/* ========================================================== */}
+
+            <div className="flex items-center gap-1.5">
+                {/* Previous */}
+
+                <button
+                    type="button"
+                    disabled={
+                        safeCurrentPage === 1
+                    }
+                    onClick={() =>
+                        onPageChange(
+                            Math.max(
+                                1,
+                                safeCurrentPage - 1,
+                            ),
+                        )
+                    }
+                    className="
+                        h-8
+                        rounded-md
+                        border
+                        border-gray-200
+                        bg-white
+                        px-3
+                        text-xs
+                        font-medium
+                        text-gray-500
+                        transition-colors
+                        hover:bg-gray-50
+                        disabled:cursor-not-allowed
+                        disabled:opacity-50
+                    "
+                >
+                    Prev
+                </button>
+
+                {/* Current Page */}
+
+                <button
+                    type="button"
+                    className="
+                        h-8
+                        min-w-8
+                        rounded-md
+                        bg-[#FE5720]
+                        px-2
+                        text-xs
+                        font-medium
+                        text-white
+                    "
+                >
+                    {safeCurrentPage}
+                </button>
+
+                {/* Next */}
+
+                <button
+                    type="button"
+                    disabled={
+                        safeCurrentPage >=
+                        safeTotalPages
+                    }
+                    onClick={() =>
+                        onPageChange(
+                            Math.min(
+                                safeTotalPages,
+                                safeCurrentPage + 1,
+                            ),
+                        )
+                    }
+                    className="
+                        h-8
+                        rounded-md
+                        border
+                        border-gray-200
+                        bg-white
+                        px-3
+                        text-xs
+                        font-medium
+                        text-gray-500
+                        transition-colors
+                        hover:bg-gray-50
+                        disabled:cursor-not-allowed
+                        disabled:opacity-50
+                    "
+                >
+                    Next
+                </button>
+            </div>
+        </div>
+    );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Dashboard Layout                                                           */
+/* -------------------------------------------------------------------------- */
 
 export default function DashboardLayout({
     title,
@@ -34,37 +205,19 @@ export default function DashboardLayout({
     tabs = [],
     activeTab,
     action,
-    backHref,
-    backLabel,
-    breadcrumbItems,
-    breadcrumbCurrentLabel,
     children,
+    pagination,
 }: DashboardLayoutProps) {
-    const pathname = usePathname();
-    const showBack = Boolean(backHref && backLabel);
-
-    const resolvedBreadcrumbs = useMemo(
-        () =>
-            buildDashboardBreadcrumbs(pathname ?? "/", {
-                items: breadcrumbItems,
-                currentLabel: breadcrumbCurrentLabel,
-            }),
-        [pathname, breadcrumbItems, breadcrumbCurrentLabel],
-    );
-
     return (
-        <div className="-mx-4 -my-4 flex min-h-full flex-col bg-[#f8f8f8] md:-mx-6 md:-my-6">
-            {/* Header */}
-            <div className="shrink-0 border-b border-gray-200 bg-white px-6 pt-5">
+        <div className="flex min-h-full flex-col bg-[#f8f8f8]">
+            {/* ========================================================== */}
+            {/* Header                                                      */}
+            {/* ========================================================== */}
+            <div className=" px-6 py-5">
                 <div className="flex items-start justify-between">
-                    <div className="min-w-0 flex-1 space-y-2">
-                        {showBack ? (
-                            <SubPageBackLink
-                                href={backHref!}
-                                label={backLabel!}
-                            />
-                        ) : null}
-                        <DashboardBreadcrumb items={resolvedBreadcrumbs} />
+                    {/* Title + Description */}
+
+                    <div>
                         <h1 className="text-xl font-semibold text-gray-900">
                             {title}
                         </h1>
@@ -76,19 +229,30 @@ export default function DashboardLayout({
                         )}
                     </div>
 
-                    {action && <div className="shrink-0 pl-4">{action}</div>}
+                    {/* Header Action */}
+
+                    {action && (
+                        <div>
+                            {action}
+                        </div>
+                    )}
                 </div>
 
-                {/* Sub navigation */}
+                {/* ====================================================== */}
+                {/* Sub Navigation                                          */}
+                {/* ====================================================== */}
+
                 {tabs.length > 0 && (
                     <nav className="mt-5 flex gap-6">
                         {tabs.map((tab) => {
-                            const isActive = activeTab === tab.href;
+                            const isActive =
+                                activeTab ===
+                                tab.href;
 
                             return (
-                                <a
+                                <Link
                                     key={tab.href}
-                                    href={tab.href}
+                                    href={internalHref(tab.href)}
                                     className={[
                                         "border-b-2 pb-3 text-sm font-medium transition-colors",
                                         isActive
@@ -97,15 +261,44 @@ export default function DashboardLayout({
                                     ].join(" ")}
                                 >
                                     {tab.label}
-                                </a>
+                                </Link>
                             );
                         })}
                     </nav>
                 )}
             </div>
 
-            {/* Content */}
-            <main className="min-h-0 flex-1 p-6 pb-8">{children}</main>
+            {/* ========================================================== */}
+            {/* Content                                                     */}
+            {/* ========================================================== */}
+
+            <main className="flex-1 p-6">
+                {children}
+
+                {/* ====================================================== */}
+                {/* Common Pagination                                       */}
+                {/* ====================================================== */}
+
+                {pagination && (
+                    <DashboardPagination
+                        currentPage={
+                            pagination.currentPage
+                        }
+                        totalPages={
+                            pagination.totalPages
+                        }
+                        totalItems={
+                            pagination.totalItems
+                        }
+                        pageSize={
+                            pagination.pageSize
+                        }
+                        onPageChange={
+                            pagination.onPageChange
+                        }
+                    />
+                )}
+            </main>
         </div>
     );
 }

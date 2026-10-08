@@ -2,6 +2,7 @@
 
 import { useParams, useRouter } from "next/navigation";
 import AddLocationForm from "@/components/modules/organization/locations/AddLocationForm";
+import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 export default function EditLocationPage() {
   const router = useRouter();
@@ -11,8 +12,8 @@ export default function EditLocationPage() {
   return (
     <AddLocationForm
       locationId={locationId}
-      onCancel={() => router.push(`/organization/locations/${locationId}`)}
-      onSaved={() => router.push(`/organization/locations/${locationId}`)}
+      onCancel={() => router.push(organisationLocationDetailHref(locationId))}
+      onSaved={() => router.push(organisationLocationDetailHref(locationId))}
     />
   );
 }

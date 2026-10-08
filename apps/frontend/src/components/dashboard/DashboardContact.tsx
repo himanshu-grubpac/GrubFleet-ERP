@@ -1,43 +1,99 @@
 "use client";
 
-import { Mail, Smartphone } from "lucide-react";
-import ContactCopyIcon from "@/components/ui/ContactCopyIcon";
-import { isPhoneValueEmpty } from "@/lib/format/phone-format";
+import { Mail, Phone } from "lucide-react";
 
 type DashboardContactProps = {
-  phone?: string;
-  email?: string;
+    phone?: string;
+    email?: string;
 };
 
-/** Combined phone + email icons for a single table "Contact" column (Locations/Employees use separate columns + ContactCopyIcon). */
 export default function DashboardContact({
-  phone,
-  email,
+    phone,
+    email,
 }: DashboardContactProps) {
-  const hasPhone = phone !== undefined && !isPhoneValueEmpty(phone);
-  const hasEmail = Boolean(email?.trim());
+    return (
+        <div className="flex items-center gap-3">
+            {/* Phone */}
+            {phone && (
+                <div className="group relative">
+                    <button
+                        type="button"
+                        aria-label="Show phone number"
+                        className="text-gray-500 transition-colors hover:text-gray-900"
+                    >
+                        <Phone
+                            className="h-4 w-4"
+                            strokeWidth={1.7}
+                        />
+                    </button>
 
-  if (!hasPhone && !hasEmail) {
-    return <span className="text-sm text-gray-400">—</span>;
-  }
+                    {/* Phone Tooltip */}
+                    <div
+                        className="
+                            pointer-events-none
+                            absolute
+                            bottom-full
+                            left-1/2
+                            z-20
+                            mb-2
+                            hidden
+                            -translate-x-1/2
+                            whitespace-nowrap
+                            rounded-md
+                            bg-gray-900
+                            px-3
+                            py-2
+                            text-xs
+                            text-white
+                            shadow-lg
+                            group-hover:block
+                        "
+                    >
+                        {phone}
+                    </div>
+                </div>
+            )}
 
-  return (
-    <div className="flex items-center gap-1">
-      {hasPhone ? (
-        <ContactCopyIcon
-          value={phone!}
-          label="mobile number"
-          icon={Smartphone}
-          copyKind="phone"
-        />
-      ) : null}
-      {hasEmail ? (
-        <ContactCopyIcon
-          value={email!}
-          label="email"
-          icon={Mail}
-        />
-      ) : null}
-    </div>
-  );
+            {/* Email */}
+            {email && (
+                <div className="group relative">
+                    <button
+                        type="button"
+                        aria-label="Show email address"
+                        className="text-gray-500 transition-colors hover:text-gray-900"
+                    >
+                        <Mail
+                            className="h-4 w-4"
+                            strokeWidth={1.7}
+                        />
+                    </button>
+
+                    {/* Email Tooltip */}
+                    <div
+                        className="
+                            pointer-events-none
+                            absolute
+                            bottom-full
+                            left-1/2
+                            z-20
+                            mb-2
+                            hidden
+                            -translate-x-1/2
+                            whitespace-nowrap
+                            rounded-md
+                            bg-gray-900
+                            px-3
+                            py-2
+                            text-xs
+                            text-white
+                            shadow-lg
+                            group-hover:block
+                        "
+                    >
+                        {email}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
 }

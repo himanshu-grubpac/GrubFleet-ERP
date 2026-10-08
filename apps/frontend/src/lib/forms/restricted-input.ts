@@ -71,6 +71,12 @@ export const FLEET_CLIENT_INPUT_LIMITS = {
   pocPhone: ORG_INPUT_LIMITS.phone,
 } as const;
 
+/** Lease contract terms wizard — numeric money/term caps (UX; API stores deposit/rate as string). */
+export const FLEET_LEASE_TERMS_INPUT_LIMITS = {
+  termMonthsMaxDigits: 3,
+  moneyMaxDigits: 12,
+} as const;
+
 /** ITU E.164 maximum significant digits (excludes leading +). */
 export const ORG_PHONE_MAX_DIGITS = 15;
 

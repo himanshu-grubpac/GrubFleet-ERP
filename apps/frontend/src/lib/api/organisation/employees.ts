@@ -38,6 +38,9 @@ export type OrganisationEmployeeDepartmentsResponse = {
   items: string[];
 };
 
+/** Matches backend `EMPLOYEE_LIST_MAX_PAGE_SIZE` for form dropdowns. */
+export const ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE = 200;
+
 export type ListOrganisationEmployeesParams = {
   organizationId: string;
   page?: number;

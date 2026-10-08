@@ -1,5 +1,13 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-export default function EditLeaseContractLayout({ children }: { children: ReactNode }) {
+export async function generateStaticParams() {
+  return [{ leaseId: "_" }];
+}
+
+export default function EditLeaseContractLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return children;
 }

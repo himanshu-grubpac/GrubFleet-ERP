@@ -13,8 +13,8 @@ import {
   FileText,
   Users,
   ArrowLeftRight,
-  ClipboardCheck,
   RefreshCw,
+  ClipboardCheck,
   MapPin,
   Truck,
   UserRound,
@@ -24,11 +24,10 @@ import {
 export type NavItem = {
   label: string;
   href: string;
-  icon: LucideIcon;
+  icon?: LucideIcon;
   requiredPermission?: string;
   children?: NavItem[];
 };
-
 export const mainNavItems: NavItem[] = [
   // ============================================================
   // DASHBOARD
@@ -45,47 +44,64 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Fleet & leasing",
-    href: "/fleet-leasing",
+    href: "/fleet-leasing/",
     icon: Car,
     requiredPermission: "fleet_leasing.view",
 
     children: [
       {
         label: "Lease Contracts",
-        href: "/fleet-leasing/lease-contracts",
+        href: "/fleet-leasing/lease-contracts/",
         icon: FileText,
       },
       {
-        label: "Corporate Customers",
-        href: "/fleet-leasing/corporate-customers",
-        icon: Users,
-      },
-      {
-        label: "Vehicle Allocation & Reallocation",
-        href: "/fleet-leasing/vehicle-allocation",
-        icon: ArrowLeftRight,
+        label: "Renewals & Extensions",
+        href: "/fleet-leasing/renewals-extensions/",
+        icon: RefreshCw,
       },
       {
         label: "Returns & Inspections",
-        href: "/fleet-leasing/returns-inspections",
+        href: "/fleet-leasing/returns-inspections/",
         icon: ClipboardCheck,
-      },
-      {
-        label: "Renewals & Extensions",
-        href: "/fleet-leasing/renewals-extensions",
-        icon: RefreshCw,
       },
     ],
   },
-
   // ============================================================
-  // ASSET REGISTER
+  // ASSET MANAGEMENT
   // ============================================================
   {
-    label: "Asset Register",
-    href: "/asset-register",
+    label: "Asset Management",
+    href: "/asset-management/",
     icon: ClipboardList,
     requiredPermission: "asset_register.view",
+    children: [
+      {
+        label: "Asset Class",
+        href: "/asset-register/assestclass/",
+        icon: ClipboardList,
+      },
+      {
+        label: "Asset Master",
+        href: "/asset-register/asset-master/",
+        icon: Shield,
+      },
+      {
+        label: "Fleet Register",
+        href: "/asset-register/fleetregister/",
+        icon: Car,
+      },
+      {
+        label: "Asset Assignment",
+        href: "/asset-register/asset-assign/",
+        icon: ArrowLeftRight,
+      },
+      {
+        label: "Compliance & Renewals",
+        href: "/asset-register/compliance-renewals/",
+        icon: Shield,
+      },
+
+    ],
   },
 
   // ============================================================
@@ -93,7 +109,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Workshop",
-    href: "/workshop",
+    href: "/workshop/",
     icon: Wrench,
     requiredPermission: "workshop.view",
   },
@@ -103,9 +119,34 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Inventory",
-    href: "/inventory",
+    href: "/inventory/",
     icon: Package,
     requiredPermission: "inventory.view",
+
+    children: [
+
+      {
+        label: "Stock Register",
+        href: "/inventory/Stock-register/",
+        icon: Package,
+      },
+
+      {
+        label: "Stock Balance",
+        href: "/inventory/stock-balance/",
+        icon: ClipboardList,
+      },
+      {
+        label: "Stock Receipt",
+        href: "/inventory/stock-receipt/",
+        icon: ClipboardCheck,
+      },
+      {
+        label: "Parts Requests",
+        href: "/inventory/parts-requests/",
+        icon: Wrench,
+      },
+    ],
   },
 
   // ============================================================
@@ -113,34 +154,34 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Organization",
-    href: "/organization",
+    href: "/organization/",
     icon: Building2,
     requiredPermission: "organisation.view",
 
     children: [
       {
         label: "Locations",
-        href: "/organization/locations",
+        href: "/organization/locations/",
         icon: MapPin,
       },
       {
         label: "Suppliers",
-        href: "/organization/suppliers",
+        href: "/organization/suppliers/",
         icon: Truck,
       },
       {
         label: "Employees",
-        href: "/organization/employees",
+        href: "/organization/employees/",
         icon: UserRound,
       },
       {
         label: "Driver Register",
-        href: "/organization/driver-register",
+        href: "/organization/driver-register/",
         icon: Contact,
       },
       {
         label: "Clients",
-        href: "/organization/clients",
+        href: "/organization/clients/",
         icon: Users,
       },
     ],
@@ -151,9 +192,26 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Finance",
-    href: "/finance",
+    href: "/finance/",
     icon: Wallet,
     requiredPermission: "finance.view",
+    children: [
+      {
+        label: "Invoices",
+        href: "/finance/invoices/",
+        icon: FileText,
+      },
+      {
+        label: "Client Statements",
+        href: "/finance/client-statements/",
+        icon: FileText,
+      },
+      {
+        label: "Vendor Payments",
+        href: "/finance/vendor-payments/",
+        icon: Wallet,
+      },
+    ],
   },
 
   // ============================================================
@@ -161,7 +219,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Administration",
-    href: "/administration",
+    href: "/administration/",
     icon: Shield,
     requiredPermission: "administration.view",
   },
@@ -171,7 +229,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Platform",
-    href: "/platform",
+    href: "/platform/",
     icon: Settings,
     requiredPermission: "platform.view",
   },

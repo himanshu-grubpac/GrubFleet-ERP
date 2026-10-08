@@ -137,6 +137,7 @@ export function ReasonRequiredDialog({
           </button>
           <Button
             type="button"
+            variant="primary"
             disabled={confirmDisabled}
             loading={isPending}
             onClick={() => onConfirm(trimmedReason)}

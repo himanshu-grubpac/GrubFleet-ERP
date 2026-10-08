@@ -15,19 +15,15 @@ export default function HomePage() {
     }
 
     if (isAuthenticated) {
-      router.replace("/dashboard/");
+      router.replace("/dashboard");
     } else {
       router.replace("/login");
     }
   }, [isAuthenticated, isLoading, isLoggingOut, router]);
 
   if (isLoggingOut) {
-    return <AuthBootstrapLoader layout="login" phase="sign-out" />;
+    return <AuthBootstrapLoader layout="minimal" phase="sign-out" />;
   }
 
-  if (isAuthenticated) {
-    return <AuthBootstrapLoader layout="dashboard" phase="boot" />;
-  }
-
-  return <AuthBootstrapLoader layout="login" phase="boot" />;
+  return <AuthBootstrapLoader layout="minimal" phase="boot" />;
 }

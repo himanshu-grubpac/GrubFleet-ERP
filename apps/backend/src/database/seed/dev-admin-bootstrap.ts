@@ -12,6 +12,8 @@ import {
   users,
 } from '../schema';
 import { buildPhase1PermissionCatalog } from './permission-catalog';
+import { seedFinanceDevCatalogParts } from './finance-dev-catalog.seed';
+import { seedInventoryDevData } from './inventory-dev.seed';
 
 export const DEV_ADMIN_EMAIL = 'admin@grubpac.local';
 export const DEV_ADMIN_PASSWORD = 'Grubpac123';
@@ -233,6 +235,9 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
       .limit(1);
     systemRoleId = resolvedSystemRole[0]?.id;
   }
+
+  await seedFinanceDevCatalogParts(db);
+  await seedInventoryDevData(db);
 
   if (systemRoleId) {
     for (const perm of permissionRows) {

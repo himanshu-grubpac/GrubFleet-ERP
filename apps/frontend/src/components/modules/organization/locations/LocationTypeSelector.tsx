@@ -1,220 +1,157 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Plus, X } from "lucide-react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
-import {
-  createOrganisationLocationTypeApi,
-  deleteOrganisationLocationTypeApi,
-  fetchOrganisationLocationTypesApi,
-} from "@/lib/api/organisation/location-types";
-import { InlineAddField } from "@/components/ui/inline-add-field";
-import { ORG_INPUT_LIMITS } from "@/lib/validation/org-input-constraints";
+import Button from "@/components/ui/GrubpacButton";
 
-type LocationType = {
-  id: string;
-  name: string;
-  isCustom: boolean;
-  isUsed: boolean;
+export type LocationType = {
+    id: string;
+    name: string;
+    isCustom: boolean;
+    isUsed: boolean;
 };
 
 type LocationTypeSelectorProps = {
-  value: string;
-  onChange: (value: string) => void;
+    locationTypes: LocationType[];
+    selectedType: string;
+    showAddType: boolean;
+    newType: string;
+    error?: string;
+    onSelect: (type: string) => void;
+    onToggleAddType: () => void;
+    onNewTypeChange: (value: string) => void;
+    onAddType: () => void;
+    onDeleteType: (type: LocationType) => void;
 };
 
 export default function LocationTypeSelector({
-  value,
-  onChange,
+    locationTypes,
+    selectedType,
+    showAddType,
+    newType,
+    error,
+    onSelect,
+    onToggleAddType,
+    onNewTypeChange,
+    onAddType,
+    onDeleteType,
 }: LocationTypeSelectorProps) {
-  const { token, organizationId, isLoading: isAuthLoading } = useAuth();
-  const queryClient = useQueryClient();
-
-  const [locationTypes, setLocationTypes] = useState<LocationType[]>([]);
-  const [showAddType, setShowAddType] = useState(false);
-  const [newType, setNewType] = useState("");
-  const [typeError, setTypeError] = useState("");
-  const [isAddingType, setIsAddingType] = useState(false);
-
-  const locationTypesQuery = useQuery({
-    queryKey: ["organization", "location-types", organizationId],
-    queryFn: () => {
-      if (!token || !organizationId) {
-        throw new Error("Missing auth context");
-      }
-      return fetchOrganisationLocationTypesApi(token, organizationId);
-    },
-    enabled: !!token && !!organizationId && !isAuthLoading,
-  });
-
-  useEffect(() => {
-    if (!locationTypesQuery.data?.items) return;
-    setLocationTypes(
-      locationTypesQuery.data.items.map((type) => ({
-        id: type.id,
-        name: type.name,
-        isCustom: type.isCustom,
-        isUsed: type.isUsed,
-      })),
-    );
-  }, [locationTypesQuery.data?.items]);
-
-  const handleAddType = async () => {
-    const trimmedName = newType.trim();
-    if (!trimmedName || !token || !organizationId) {
-      return;
-    }
-
-    const alreadyExists = locationTypes.some(
-      (type) => type.name.toLowerCase() === trimmedName.toLowerCase(),
-    );
-    if (alreadyExists) {
-      setTypeError("This location type already exists.");
-      return;
-    }
-
-    setTypeError("");
-    setIsAddingType(true);
-    try {
-      const created = await createOrganisationLocationTypeApi(
-        token,
-        organizationId,
-        trimmedName,
-      );
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "location-types"],
-      });
-      setNewType("");
-      setShowAddType(false);
-      onChange(created.name);
-    } catch (error) {
-      const message =
-        error instanceof ApiClientError
-          ? error.message
-          : "Failed to add location type.";
-      setTypeError(message);
-    } finally {
-      setIsAddingType(false);
-    }
-  };
-
-  const handleDeleteType = async (type: LocationType) => {
-    if (!type.isCustom || type.isUsed || !token || !organizationId) {
-      return;
-    }
-
-    if (value === type.name) {
-      onChange("");
-    }
-
-    setTypeError("");
-    try {
-      await deleteOrganisationLocationTypeApi(token, organizationId, type.id);
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "location-types"],
-      });
-    } catch (error) {
-      const message =
-        error instanceof ApiClientError
-          ? error.message
-          : "Failed to delete location type.";
-      setTypeError(message);
-    }
-  };
-
-  if (locationTypesQuery.isLoading) {
     return (
-      <p className="text-sm text-gray-500">Loading location types...</p>
-    );
-  }
+        <div className="mt-4">
+            <label className="mb-2 block text-xs font-semibold text-gray-700">
+                TYPE
+                <span className="ml-1 text-red-500">
+                    *
+                </span>
+            </label>
 
-  if (locationTypesQuery.isError) {
-    return (
-      <p className="text-sm text-red-600">Failed to load location types.</p>
-    );
-  }
+            <div className="flex flex-wrap items-center gap-2">
+                {locationTypes.map((type) => {
+                    const selected =
+                        selectedType === type.name;
 
-  return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        {locationTypes.map((type) => {
-          const isSelected = value === type.name;
+                    return (
+                        <div
+                            key={type.id}
+                            className="relative"
+                        >
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    onSelect(type.name)
+                                }
+                                className={[
+                                    "h-9 rounded-md border px-4 text-sm font-semibold transition",
+                                    selected
+                                        ? "border-blue-600 bg-blue-50 text-blue-700"
+                                        : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
+                                ].join(" ")}
+                            >
+                                {type.name}
+                            </button>
 
-          return (
-            <div key={type.id} className="relative">
-              <button
-                type="button"
-                onClick={() => onChange(type.name)}
-                className={[
-                  "rounded-md border px-4 py-2 text-sm font-medium transition-colors",
-                  isSelected
-                    ? "border-blue-600 bg-blue-50 text-blue-700"
-                    : "border-gray-300 bg-white text-gray-700 hover:bg-gray-50",
-                ].join(" ")}
-              >
-                {type.name}
-              </button>
+                            {type.isCustom && (
+                                <button
+                                    type="button"
+                                    disabled={type.isUsed}
+                                    onClick={() =>
+                                        onDeleteType(type)
+                                    }
+                                    title={
+                                        type.isUsed
+                                            ? "This type is already used by a location"
+                                            : "Delete location type"
+                                    }
+                                    className={[
+                                        "absolute -right-2 -top-2 flex h-5 w-5 items-center justify-center rounded-full border bg-white shadow-sm",
+                                        type.isUsed
+                                            ? "cursor-not-allowed border-gray-200 text-gray-300"
+                                            : "border-gray-300 text-gray-500 hover:border-red-300 hover:text-red-500",
+                                    ].join(" ")}
+                                >
+                                    <X className="h-3 w-3" />
+                                </button>
+                            )}
+                        </div>
+                    );
+                })}
 
-              {type.isCustom && (
                 <button
-                  type="button"
-                  disabled={type.isUsed}
-                  onClick={() => void handleDeleteType(type)}
-                  title={
-                    type.isUsed
-                      ? "This type is already used by a location"
-                      : "Delete type"
-                  }
-                  className={[
-                    "absolute -right-1.5 -top-1.5 flex h-4 w-4 items-center justify-center rounded-full border text-[10px]",
-                    type.isUsed
-                      ? "cursor-not-allowed border-gray-200 bg-gray-100 text-gray-300"
-                      : "border-gray-300 bg-white text-gray-500 hover:border-red-300 hover:text-red-500",
-                  ].join(" ")}
+                    type="button"
+                    onClick={onToggleAddType}
+                    className="inline-flex h-9 items-center gap-1 rounded-md border border-dashed border-gray-300 px-3 text-sm font-semibold text-gray-600 transition hover:border-gray-400 hover:bg-gray-50"
                 >
-                  <X className="h-3 w-3" />
+                    <Plus className="h-4 w-4" />
+                    Add Type
                 </button>
-              )}
             </div>
-          );
-        })}
 
-        <button
-          type="button"
-          onClick={() => setShowAddType((previous) => !previous)}
-          className="inline-flex items-center gap-1 rounded-md border border-dashed border-gray-300 px-4 py-2 text-sm font-medium text-gray-600 hover:border-gray-400 hover:bg-gray-50"
-        >
-          <Plus className="h-4 w-4" />
-          Add Type
-        </button>
-      </div>
+            {error && (
+                <p className="mt-1 text-xs text-red-500">
+                    {error}
+                </p>
+            )}
 
-      {showAddType ? (
-        <InlineAddField
-          layout="panel"
-          value={newType}
-          onChange={(value) => {
-            setNewType(value);
-            if (typeError) {
-              setTypeError("");
-            }
-          }}
-          onAdd={() => void handleAddType()}
-          isPending={isAddingType}
-          maxLength={ORG_INPUT_LIMITS.locationTypeName}
-          placeholder="Enter location type"
-          error={typeError}
-          autoFocus
-          onCancel={() => {
-            setNewType("");
-            setShowAddType(false);
-            setTypeError("");
-          }}
-        />
-      ) : null}
-    </div>
-  );
+            {showAddType && (
+                <div className="mt-3 flex max-w-md items-center gap-2">
+                    <input
+                        type="text"
+                        value={newType}
+                        onChange={(event) =>
+                            onNewTypeChange(event.target.value)
+                        }
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                                event.preventDefault();
+                                onAddType();
+                            }
+                        }}
+                        autoFocus
+                        placeholder="Enter new location type"
+                        className="h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                    />
+
+                    <Button
+                        type="button"
+                        onClick={onAddType}
+                        className="h-9 px-4"
+                    >
+                        Add
+                    </Button>
+
+                    <button
+                        type="button"
+                        onClick={() => {
+                            onNewTypeChange("");
+                            onToggleAddType();
+                        }}
+                        className="flex h-9 w-9 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:bg-gray-50"
+                        title="Cancel"
+                    >
+                        <X className="h-4 w-4" />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
 }

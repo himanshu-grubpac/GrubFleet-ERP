@@ -1,46 +1,57 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Building2, Mail, Smartphone } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Building2 } from "lucide-react";
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
-import ContactCopyIcon from "@/components/ui/ContactCopyIcon";
 import { useAuth } from "@/providers/auth-provider";
-import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
-import {
-  fetchOrganisationClientsApi,
-  organisationClientsQueryKey,
-  updateOrganisationClientStatusApi,
-  type OrganisationClientListItem,
-} from "@/lib/api/organisation/clients";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { ApiClientError } from "@/lib/api/client";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   CLIENT_STATUS_UPDATE_ERROR,
   showClientActivatedToast,
   showClientDeactivatedToast,
   showErrorToast,
 } from "@/lib/toast/show-toast";
-import { formatPhoneDisplay } from "@/lib/format/phone-format";
-import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
-import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
+import {
+  fetchOrganisationClientsApi,
+  updateOrganisationClientStatusApi,
+  type OrganisationClientListItem,
+} from "@/lib/api/organisation/clients";
 
-import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
-import DashboardViewCopyRowActions from "@/components/dashboard/DashboardViewCopyRowActions";
+import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import {
+  organisationClientDetailHref,
+  organisationClientEditHref,
+} from "@/lib/navigation/organisation-static-routes";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardContact from "@/components/dashboard/DashboardContact";
 
-type ClientListRow = OrganisationClientListItem;
+/* -------------------------------------------------------------------------- */
+/* Types                                                                      */
+/* -------------------------------------------------------------------------- */
+
+type Client = OrganisationClientListItem;
+
+const CLIENTS_PAGE_SIZE = 10;
+
+/* -------------------------------------------------------------------------- */
+/* Page                                                                       */
+/* -------------------------------------------------------------------------- */
 
 export default function ClientDashboardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-
   const {
     token,
     organizationId,
@@ -56,27 +67,26 @@ export default function ClientDashboardPage() {
     permissions.has("organisation.update") ||
     permissions.has("organisation.manage");
 
-  const { searchInput, setSearchInput, debouncedSearch } =
-    useDashboardListSearch();
+  const [search, setSearch] = useState("");
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState("");
 
-  const [deactivateTarget, setDeactivateTarget] =
-    useState<ClientListRow | null>(null);
-  const [activateTarget, setActivateTarget] = useState<ClientListRow | null>(
+  const [deactivateTarget, setDeactivateTarget] = useState<Client | null>(
     null,
   );
+  const [activateTarget, setActivateTarget] = useState<Client | null>(null);
   const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch]);
 
   const clientsQuery = useQuery({
     queryKey: [
-      ...organisationClientsQueryKey(organizationId ?? ""),
+      "organization",
+      "clients",
+      organizationId,
       debouncedSearch,
-      statusFilter,
       page,
     ],
     queryFn: () => {
@@ -86,12 +96,8 @@ export default function ClientDashboardPage() {
       return fetchOrganisationClientsApi(token, {
         organizationId,
         page,
-        pageSize: DASHBOARD_DEFAULT_PAGE_SIZE,
+        pageSize: CLIENTS_PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
-        status:
-          statusFilter === "active" || statusFilter === "inactive"
-            ? statusFilter
-            : undefined,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -99,47 +105,46 @@ export default function ClientDashboardPage() {
   });
 
   const clients = clientsQuery.data?.items ?? [];
-  const totalClients = clientsQuery.data?.total ?? 0;
+  const clientsTotal = clientsQuery.data?.total ?? 0;
+  const totalPages = Math.max(
+    1,
+    Math.ceil(clientsTotal / CLIENTS_PAGE_SIZE),
+  );
+
+  const isInitialLoading =
+    isAuthLoading || (clientsQuery.isLoading && !clientsQuery.data);
 
   const statusMutation = useMutation({
     mutationFn: async (input: {
-      client: ClientListRow;
+      client: Client;
       action: "activate" | "deactivate";
       reason?: string;
     }) => {
       if (!token || !organizationId) {
-        throw new Error("Organization context is required.");
+        throw new Error("Missing auth context");
       }
       return updateOrganisationClientStatusApi(
         token,
         organizationId,
         input.client.id,
-        {
-          action: input.action,
-          reason: input.reason,
-        },
+        { action: input.action, reason: input.reason },
       );
     },
-    onSuccess: (data, variables) => {
+    onSuccess: (_data, variables) => {
       void queryClient.invalidateQueries({
-        queryKey: organisationClientsQueryKey(organizationId ?? ""),
+        queryKey: ["organization", "clients"],
       });
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
       if (variables.action === "activate") {
-        showClientActivatedToast(data.clientName);
+        showClientActivatedToast(variables.client.clientName);
       } else {
-        showClientDeactivatedToast(data.clientName);
+        showClientDeactivatedToast(variables.client.clientName);
       }
     },
-    onError: (error: unknown) => {
-      const message =
-        error instanceof ApiClientError
-          ? error.message
-          : error instanceof Error
-            ? error.message
-            : CLIENT_STATUS_UPDATE_ERROR;
+    onError: (error: Error) => {
+      const message = error.message || CLIENT_STATUS_UPDATE_ERROR;
       setStatusError(message);
       showErrorToast(message);
     },
@@ -150,233 +155,262 @@ export default function ClientDashboardPage() {
     router.push("/organization/clients/create");
   };
 
-  const handleEdit = (client: ClientListRow) => {
-    router.push(`/organization/clients/${client.id}/edit`);
-  };
-
-  const handleClearFilters = () => {
-    setSearchInput("");
-    setStatusFilter("");
-  };
-
-  const listHasFilters =
-    debouncedSearch.trim().length > 0 || statusFilter !== "";
-
-  const isInitialLoading =
-    isAuthLoading || (clientsQuery.isLoading && !clientsQuery.data);
-
-  const clientColumns = useMemo(
-    () => [
-      {
-        key: "clientName",
-        label: "CLIENT",
-        render: (client: ClientListRow) => (
-          <span className="font-medium text-gray-900">{client.clientName}</span>
-        ),
-      },
-      {
-        key: "primaryPoc",
-        label: "PRIMARY POC",
-        render: (client: ClientListRow) => (
-          <span className="text-sm text-gray-700">{client.primaryPoc}</span>
-        ),
-      },
-      {
-        key: "email",
-        label: "EMAIL",
-        render: (client: ClientListRow) => (
-          <ContactCopyIcon value={client.email} label="email" icon={Mail} />
-        ),
-      },
-      {
-        key: "phone",
-        label: "MOBILE",
-        render: (client: ClientListRow) => (
-          <ContactCopyIcon
-            value={formatPhoneDisplay(client.phone)}
-            label="mobile number"
-            icon={Smartphone}
-            copyKind="phone"
-          />
-        ),
-      },
-      {
-        key: "contracts",
-        label: "CONTRACTS",
-        render: (client: ClientListRow) => (
-          <span className="text-sm text-gray-700">{client.contracts}</span>
-        ),
-      },
-      {
-        key: "status",
-        label: "STATUS",
-        render: (client: ClientListRow) => (
-          <span
-            className={[
-              "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-              client.status === "active"
-                ? "bg-green-50 text-green-700"
-                : "bg-gray-100 text-gray-500",
-            ].join(" ")}
-          >
-            {client.status === "active" ? "Active" : "Inactive"}
-          </span>
-        ),
-      },
-    ],
-    [],
-  );
-
   const addClientAction = canCreate ? (
     <Button type="button" onClick={handleAddClient}>
       + Add Client
     </Button>
   ) : undefined;
 
-  return (
-    <>
+  const handleEdit = (client: Client) => {
+    router.push(organisationClientEditHref(client.id));
+  };
+
+  const handleClearFilters = () => {
+    setSearch("");
+  };
+
+  const handleActivate = (client: Client) => {
+    setStatusError(null);
+    setActivateTarget(client);
+  };
+
+  const handleDeactivate = (client: Client) => {
+    setStatusError(null);
+    setDeactivateTarget(client);
+  };
+
+  const clientColumns = [
+    {
+      key: "clientName",
+      label: "COMPANY",
+      render: (client: Client) => (
+        <span className="font-medium uppercase text-gray-900">
+          {client.clientName}
+        </span>
+      ),
+    },
+
+    {
+      key: "primaryPoc",
+      label: "PRIMARY POC",
+      render: (client: Client) => (
+        <span className="text-sm text-gray-700">{client.primaryPoc}</span>
+      ),
+    },
+
+    {
+      key: "contact",
+      label: "CONTACT",
+      render: (client: Client) => (
+        <DashboardContact phone={client.phone} email={client.email} />
+      ),
+    },
+
+    {
+      key: "contracts",
+      label: "CONTRACTS",
+      render: (client: Client) => (
+        <span className="text-sm text-gray-700">{client.contracts}</span>
+      ),
+    },
+  ];
+
+  if (isInitialLoading) {
+    return (
       <DashboardLayout
         title="Clients"
         description="Client register — companies, primary points of contact, contact details, and active contracts."
         tabs={[
           {
             label: "Clients",
-            href: "/organization/clients",
+            href: "/customer",
           },
         ]}
-        activeTab="/organization/clients"
+        activeTab="/customer"
         action={addClientAction}
       >
-        <DashboardFilters
-          searchValue={searchInput}
-          searchPlaceholder="Search by client or point of contact name"
-          onSearchChange={setSearchInput}
-          selectFilters={[
-            {
-              key: "status",
-              label: "All statuses",
-              options: [
-                { label: "Active", value: "active" },
-                { label: "Inactive", value: "inactive" },
-              ],
-            },
-          ]}
-          filterValues={{ status: statusFilter }}
-          onFilterChange={(key, value) => {
-            if (key === "status") {
-              setStatusFilter(value);
-            }
-          }}
-          onClear={handleClearFilters}
-        />
-
-        {isInitialLoading ? (
-          <div
-            className="min-h-[240px] animate-pulse rounded-lg bg-gray-100"
-            aria-busy="true"
-          />
-        ) : clientsQuery.isError ? (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {clientsQuery.error instanceof Error
-              ? clientsQuery.error.message
-              : "Failed to load clients."}
-            <button
-              type="button"
-              onClick={() => clientsQuery.refetch()}
-              className="ml-3 font-medium underline"
-            >
-              Retry
-            </button>
-          </div>
-        ) : totalClients === 0 && !listHasFilters ? (
-          <DashboardEmptyState
-            icon={
-              <Building2 className="h-7 w-7" strokeWidth={1.4} />
-            }
-            title="No clients added yet"
-            description="Add your first client to this organisation."
-            buttonLabel="Add Client"
-            onButtonClick={handleAddClient}
-          />
-        ) : clients.length === 0 ? (
-          <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white text-center">
-            <Building2
-              className="mb-3 h-7 w-7 text-gray-400"
-              strokeWidth={1.4}
-            />
-            <h3 className="text-sm font-semibold text-gray-900">
-              No clients found
-            </h3>
-            <p className="mt-1 text-xs text-gray-500">
-              Try changing your search or filters.
-            </p>
-            <button
-              type="button"
-              onClick={handleClearFilters}
-              className="mt-3 text-xs font-medium text-[#FE5720] hover:underline"
-            >
-              Clear filters
-            </button>
-          </div>
-        ) : (
-          <>
-          <DashboardTable
-            columns={clientColumns}
-            data={clients}
-            getRowKey={(client) => client.id}
-            renderActions={(client) => {
-              const isActive = client.status === "active";
-
-              return (
-                <DashboardViewCopyRowActions
-                  viewHref={`/organization/clients/${client.id}`}
-                  viewAriaLabel="View client"
-                  copyText={`${client.clientName}\t${client.primaryPoc}\t${client.email}\t${formatPhoneDisplay(client.phone)}`}
-                  copyAriaLabel="Copy client row details"
-                  onEdit={
-                    canUpdate && isActive
-                      ? () => handleEdit(client)
-                      : undefined
-                  }
-                  menuAriaLabel="Client actions"
-                  status={client.status}
-                  onActivate={
-                    canUpdate && !isActive
-                      ? () => {
-                          setStatusError(null);
-                          setActivateTarget(client);
-                        }
-                      : undefined
-                  }
-                  onDeactivate={
-                    canUpdate && isActive
-                      ? () => {
-                          setStatusError(null);
-                          setDeactivateTarget(client);
-                        }
-                      : undefined
-                  }
-                />
-              );
-            }}
-          />
-          <DashboardTablePagination
-            page={page}
-            pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
-            total={totalClients}
-            onPageChange={setPage}
-          />
-          </>
-        )}
+        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
+          <p className="text-sm text-gray-500">Loading clients...</p>
+        </div>
       </DashboardLayout>
+    );
+  }
+
+  if (clientsQuery.isError) {
+    return (
+      <DashboardLayout
+        title="Clients"
+        description="Client register — companies, primary points of contact, contact details, and active contracts."
+        tabs={[
+          {
+            label: "Clients",
+            href: "/customer",
+          },
+        ]}
+        activeTab="/customer"
+        action={addClientAction}
+      >
+        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
+          <p className="text-sm font-medium text-red-600">
+            Failed to load clients.
+          </p>
+          <button
+            type="button"
+            onClick={() => void clientsQuery.refetch()}
+            className="mt-2 text-sm text-gray-600 underline"
+          >
+            Try again
+          </button>
+        </div>
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout
+      title="Clients"
+      description="Client register — companies, primary points of contact, contact details, and active contracts."
+      tabs={[
+        {
+          label: "Clients",
+          href: "/customer",
+        },
+      ]}
+      activeTab="/customer"
+      action={addClientAction}
+      pagination={
+        clientsTotal > CLIENTS_PAGE_SIZE
+          ? {
+              currentPage: page,
+              totalPages,
+              totalItems: clientsTotal,
+              pageSize: CLIENTS_PAGE_SIZE,
+              onPageChange: setPage,
+            }
+          : undefined
+      }
+    >
+      {/* ---------------------------------------------------------------- */}
+      {/* Client Filters                                                   */}
+      {/* ---------------------------------------------------------------- */}
+
+      <div className="mb-4 flex items-center gap-3">
+        {/* Search */}
+        <div className="min-w-0 flex-1">
+          <input
+            type="text"
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Search by company or point of contact name"
+            className="
+                            h-9
+                            w-full
+                            rounded-md
+                            border
+                            border-gray-200
+                            bg-white
+                            px-3
+                            text-sm
+                            text-gray-900
+                            outline-none
+                            placeholder:text-gray-400
+                            focus:border-gray-300
+                            focus:ring-1
+                            focus:ring-gray-200
+                        "
+          />
+        </div>
+      </div>
+
+      {/* ---------------------------------------------------------------- */}
+      {/* Empty State                                                      */}
+      {/* ---------------------------------------------------------------- */}
+
+      {clientsTotal === 0 ? (
+        <DashboardEmptyState
+          icon={<Building2 className="h-7 w-7" strokeWidth={1.4} />}
+          title="No clients added yet"
+          description="Add your first client to this organisation."
+          buttonLabel={canCreate ? "Add Client" : undefined}
+          onButtonClick={canCreate ? handleAddClient : undefined}
+        />
+      ) : clients.length === 0 ? (
+        <div
+          className="
+                        flex
+                        min-h-[180px]
+                        flex-col
+                        items-center
+                        justify-center
+                        rounded-lg
+                        border
+                        border-gray-200
+                        bg-white
+                        text-center
+                    "
+        >
+          <Building2
+            className="mb-3 h-7 w-7 text-gray-400"
+            strokeWidth={1.4}
+          />
+
+          <h3 className="text-sm font-semibold text-gray-900">
+            No clients found
+          </h3>
+
+          <p className="mt-1 text-xs text-gray-500">
+            Try changing your search or filters.
+          </p>
+
+          <button
+            type="button"
+            onClick={handleClearFilters}
+            className="
+                            mt-3
+                            text-xs
+                            font-medium
+                            text-[#FE5720]
+                            hover:underline
+                        "
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : (
+        <DashboardTable
+          columns={clientColumns}
+          data={clients}
+          getRowKey={(client) => client.id}
+          renderActions={(client) => (
+            <DashboardTableActions
+              status={client.status}
+              locationId={client.id}
+              viewHref={organisationClientDetailHref(client.id)}
+              onEdit={
+                canUpdate && client.status === "active"
+                  ? () => handleEdit(client)
+                  : undefined
+              }
+              onToggleStatus={
+                canUpdate
+                  ? () =>
+                      client.status === "active"
+                        ? handleDeactivate(client)
+                        : handleActivate(client)
+                  : undefined
+              }
+            />
+          )}
+        />
+      )}
 
       <ConfirmDialog
-        open={!!activateTarget}
+        open={activateTarget !== null}
         title="Activate client?"
         message={
           activateTarget
-            ? `${activateTarget.clientName} will be marked active in the client register.`
-            : ""
+            ? `${activateTarget.clientName} will be marked active and available for new lease contracts.`
+            : "This client will be marked active."
         }
         confirmLabel="Activate"
         isConfirmPending={statusMutation.isPending}
@@ -386,9 +420,9 @@ export default function ClientDashboardPage() {
             setStatusError(null);
           }
         }}
-        onConfirm={async () => {
+        onConfirm={() => {
           if (!activateTarget) return;
-          await statusMutation.mutateAsync({
+          void statusMutation.mutateAsync({
             client: activateTarget,
             action: "activate",
           });
@@ -396,7 +430,7 @@ export default function ClientDashboardPage() {
       />
 
       <ReasonRequiredDialog
-        open={!!deactivateTarget}
+        open={deactivateTarget !== null}
         title="Deactivate client?"
         description={
           deactivateTarget ? (
@@ -404,7 +438,8 @@ export default function ClientDashboardPage() {
               <span className="font-medium text-gray-900">
                 {deactivateTarget.clientName}
               </span>{" "}
-              will be marked inactive. Provide a reason for the audit log.
+              will no longer be available for new lease contracts. Provide a
+              reason — it is recorded in the audit log.
             </>
           ) : null
         }
@@ -427,6 +462,6 @@ export default function ClientDashboardPage() {
           });
         }}
       />
-    </>
+    </DashboardLayout>
   );
 }

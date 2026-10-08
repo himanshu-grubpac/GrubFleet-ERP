@@ -14,13 +14,6 @@ function orgQuery(organizationId: string) {
 // Types
 // ─────────────────────────────────────────────────────────────────────────────
 
-export interface LeaseContractSummary {
-    activeContracts: number;
-    awaitingAssets: number;
-    pendingApproval: number;
-    draft: number;
-}
-
 export type LeaseContractStatusFilter =
     | 'all'
     | 'active'
@@ -35,6 +28,7 @@ export type LeaseContractStatusFilter =
 export interface LeaseContractListItem {
     id: string;
     contractNumber: string;
+    clientId: string | null;
     clientName: string;
     assetClasses: string;
     startDate: string | null;
@@ -114,6 +108,9 @@ export interface LeaseContractDetail {
     terminatedAt: string | null;
     terminationApprovedAt: string | null;
 
+    lastRenewOutcome?: 'renewal' | 'extension' | null;
+    lastRenewOutcomeLabel?: string | null;
+
     createdAt: string;
     updatedAt: string;
 
@@ -144,6 +141,7 @@ export interface LeaseContractDetail {
     billingPaused?: boolean;
     onHold?: boolean;
     contractFullyAllocated?: boolean;
+    hasFieldChangeHistory?: boolean;
 }
 
 export type LeaseContractAvailableActions = {
@@ -151,14 +149,88 @@ export type LeaseContractAvailableActions = {
     deactivate?: { allowed: boolean; disabledReason?: string };
     reactivate?: { allowed: boolean; disabledReason?: string };
     pauseBilling?: { allowed: boolean; disabledReason?: string };
-    requestTermination?: { allowed: boolean; disabledReason?: string };
-    approveTermination?: { allowed: boolean; disabledReason?: string };
-    renew?: { allowed: boolean; disabledReason?: string };
+    terminate?: { allowed: boolean; disabledReason?: string };
 };
 
 export interface ConfirmLeaseContractResponse {
     contract: LeaseContractDetail;
     activatedStatus: string;
+    confirmation?: LeaseContractConfirmationSummary | null;
+}
+
+export interface LeaseContractConfirmationLine {
+    assetClass: string;
+    committedQuantity: number;
+    allocatedCount: number;
+    lineStatus: 'allocated' | 'partially_allocated' | 'awaiting_assets';
+    lineStatusLabel: string;
+}
+
+export interface LeaseContractConfirmationSummary {
+    contractId: string;
+    contractNumber: string;
+    clientCompanyName: string;
+    publicStatus: string;
+    rawStatus: string;
+    headline: string;
+    infoMessages: string[];
+    allocationByLine: LeaseContractConfirmationLine[];
+    contractFullyAllocated: boolean;
+}
+
+export interface LeaseContractReviewAssetLine {
+    assetClass: string;
+    committedQuantity: number;
+    ratePerVehicleMonth: string | number;
+    availability: {
+        status: string;
+        availableNow: number;
+        inbound: number;
+        shortfallCount: number;
+        shortfallConfirmed: boolean;
+        displayMessage?: string;
+    };
+}
+
+export interface LeaseContractChangeHistoryItem {
+    id: string;
+    field: string;
+    fieldLabel: string;
+    fromValue: string;
+    toValue: string;
+    changedBy: string;
+    changedAt: string;
+}
+
+export interface LeaseContractChangeHistoryResponse {
+    contractId: string;
+    contractNumber: string;
+    items: LeaseContractChangeHistoryItem[];
+}
+
+export interface LeaseContractReviewResponse {
+    contractId: string;
+    contractNumber: string;
+    rawStatus: string;
+    status: string;
+    reviewAction: string;
+    canSubmit: boolean;
+    assetLines: LeaseContractReviewAssetLine[];
+    terms: {
+        termMonths: number | null;
+        securityDeposit: string | number | null;
+        billingFrequency: string;
+        startDate: string | null;
+    };
+    client: {
+        companyName: string;
+        primaryPoc: {
+            name: string;
+            contactNumber: string;
+            email: string;
+        } | null;
+    } | null;
+    messages: Array<{ level: string; text: string; code?: string }>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -196,6 +268,13 @@ export type CreateFleetClientPayload = {
     companyName: string;
     taxId?: string;
     address?: string;
+    addressLine1?: string;
+    addressLine2?: string;
+    addressCity?: string;
+    addressCountry?: string;
+    addressState?: string;
+    addressDistrict?: string;
+    addressPincode?: string;
     pointsOfContact: Array<{
         name: string;
         contactNumber: string;
@@ -387,29 +466,6 @@ export type VehicleAllocationResponse =
     LeaseContractDetail | unknown;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET lease contract summary
-// ─────────────────────────────────────────────────────────────────────────────
-
-export async function fetchLeaseContractsSummary(
-    token: string,
-    organizationId: string,
-): Promise<LeaseContractSummary> {
-    return apiFetch<LeaseContractSummary>(
-        `/fleet-leasing/lease-contracts/summary?${orgQuery(
-            organizationId,
-        )}`,
-        {
-            method: 'GET',
-            token,
-            headers: {
-                'x-organization-id':
-                    organizationId,
-            },
-        },
-    );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // GET lease contracts list
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -468,6 +524,73 @@ export async function fetchLeaseContractsList(
     );
 }
 
+export interface RenewLeaseContractInput {
+    newTermMonths: number;
+    newStartDate: string;
+}
+
+export interface RenewLeaseContractResponse {
+    outcomeKind: 'renewal' | 'extension';
+    outcomeLabel: string;
+    contract: LeaseContractDetail;
+}
+
+export async function fetchRenewalsExtensionsList(
+    token: string,
+    organizationId: string,
+    options: {
+        page?: number;
+        pageSize?: number;
+        search?: string;
+    } = {},
+): Promise<PaginatedLeaseContracts> {
+    const params = new URLSearchParams({
+        organizationId,
+    });
+
+    if (options.page) {
+        params.set('page', String(options.page));
+    }
+    if (options.pageSize) {
+        params.set('pageSize', String(options.pageSize));
+    }
+    if (options.search) {
+        params.set('search', options.search);
+    }
+
+    return apiFetch<PaginatedLeaseContracts>(
+        `/fleet-leasing/renewals-extensions?${params.toString()}`,
+        {
+            method: 'GET',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+        },
+    );
+}
+
+export async function renewLeaseContract(
+    token: string,
+    organizationId: string,
+    contractId: string,
+    payload: RenewLeaseContractInput,
+): Promise<RenewLeaseContractResponse> {
+    return apiFetch<RenewLeaseContractResponse>(
+        `/fleet-leasing/lease-contracts/${contractId}/renew?${orgQuery(
+            organizationId,
+        )}`,
+        {
+            method: 'POST',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+            body: JSON.stringify(payload),
+        },
+    );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // GET lease contract detail
 // ─────────────────────────────────────────────────────────────────────────────
@@ -500,8 +623,8 @@ export async function fetchLeaseContractReview(
     token: string,
     organizationId: string,
     contractId: string,
-): Promise<unknown> {
-    return apiFetch<unknown>(
+): Promise<LeaseContractReviewResponse> {
+    return apiFetch<LeaseContractReviewResponse>(
         `/fleet-leasing/lease-contracts/${contractId}/review?${orgQuery(
             organizationId,
         )}`,
@@ -524,8 +647,8 @@ export async function fetchLeaseContractConfirmation(
     token: string,
     organizationId: string,
     contractId: string,
-): Promise<unknown> {
-    return apiFetch<unknown>(
+): Promise<LeaseContractConfirmationSummary> {
+    return apiFetch<LeaseContractConfirmationSummary>(
         `/fleet-leasing/lease-contracts/${contractId}/confirmation?${orgQuery(
             organizationId,
         )}`,
@@ -621,12 +744,20 @@ export const deactivateLeaseContract = (
     token: string,
     organizationId: string,
     contractId: string,
+    reason: string,
 ) =>
-    contractAction(
-        token,
-        organizationId,
-        contractId,
-        'deactivate',
+    apiFetch<LeaseContractDetail>(
+        `/fleet-leasing/lease-contracts/${contractId}/deactivate?${orgQuery(
+            organizationId,
+        )}`,
+        {
+            method: 'POST',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+            body: JSON.stringify({ reason: reason.trim() }),
+        },
     );
 
 export const submitLeaseContract = (
@@ -659,6 +790,23 @@ export const confirmLeaseContract = (
         },
     );
 
+export const fetchLeaseContractChangeHistory = (
+    token: string,
+    organizationId: string,
+    contractId: string,
+): Promise<LeaseContractChangeHistoryResponse> =>
+    apiFetch<LeaseContractChangeHistoryResponse>(
+        `/fleet-leasing/lease-contracts/${contractId}/change-history?${orgQuery(
+            organizationId,
+        )}`,
+        {
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+        },
+    );
+
 export const approveLeaseContract = (
     token: string,
     organizationId: string,
@@ -683,7 +831,7 @@ export const pauseBillingLeaseContract = (
         'pause-billing',
     );
 
-export const requestTerminationLeaseContract = (
+export const terminateLeaseContract = (
     token: string,
     organizationId: string,
     contractId: string,
@@ -692,31 +840,7 @@ export const requestTerminationLeaseContract = (
         token,
         organizationId,
         contractId,
-        'request-termination',
-    );
-
-export const approveTerminationLeaseContract = (
-    token: string,
-    organizationId: string,
-    contractId: string,
-) =>
-    contractAction(
-        token,
-        organizationId,
-        contractId,
-        'approve-termination',
-    );
-
-export const renewLeaseContract = (
-    token: string,
-    organizationId: string,
-    contractId: string,
-) =>
-    contractAction(
-        token,
-        organizationId,
-        contractId,
-        'renew',
+        'terminate',
     );
 
 // ─────────────────────────────────────────────────────────────────────────────

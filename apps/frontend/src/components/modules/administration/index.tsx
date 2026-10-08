@@ -1,8 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Info } from "lucide-react";
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { fetchRolesApi } from "@/lib/api/roles";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
@@ -15,20 +18,18 @@ import {
   RolesListTable,
   RolesListToolbar,
 } from "./roles/RolesListTable";
-import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
-import {
-  DASHBOARD_DEFAULT_PAGE_SIZE,
-  paginateClientRows,
-} from "@/components/dashboard/dashboard-pagination";
-import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
+
+const ROLES_LIST_TITLE = "Roles & permissions";
+const ROLES_LIST_DESCRIPTION =
+  "Manage organization roles and CRUD permissions per module.";
 
 export function AdministrationModule() {
+  const router = useRouter();
   const { token, organizationId, permissions } = useAuth();
   const canCreate = canCreateRole(permissions);
   const canUpdate = canUpdateRole(permissions);
   const canDelete = canDeleteRole(permissions);
   const [searchQuery, setSearchQuery] = useState("");
-  const [page, setPage] = useState(1);
 
   const {
     data: rolesData,
@@ -45,6 +46,13 @@ export function AdministrationModule() {
   });
 
   const roles = useMemo(() => rolesData?.items ?? [], [rolesData?.items]);
+  const parentRoleNameById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const role of roles) {
+      map.set(role.id, role.name);
+    }
+    return map;
+  }, [roles]);
   const filteredRoles = useMemo(
     () =>
       roles.filter(
@@ -55,96 +63,97 @@ export function AdministrationModule() {
     [roles, searchQuery],
   );
 
-  useEffect(() => {
-    setPage(1);
-  }, [searchQuery]);
-
-  const {
-    rows: paginatedRoles,
-    safePage: rolesPage,
-    total: rolesTotal,
-  } = paginateClientRows(
-    filteredRoles,
-    page,
-    DASHBOARD_DEFAULT_PAGE_SIZE,
-  );
+  const createRoleAction = canCreate ? (
+    <Button
+      type="button"
+      onClick={() => router.push("/administration/roles/new/")}
+    >
+      + Create role
+    </Button>
+  ) : undefined;
 
   if (!organizationId) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
-        <div className="flex items-center gap-3">
-          <Info className="h-6 w-6 text-amber-600" />
-          <div>
-            <h3 className="font-semibold text-amber-900">
-              Organization context required
-            </h3>
-            <p className="text-sm text-amber-700">
-              Your account must belong to an active organization to manage
-              roles and permissions.
-            </p>
+      <DashboardLayout
+        title={ROLES_LIST_TITLE}
+        description={ROLES_LIST_DESCRIPTION}
+      >
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-900">
+          <div className="flex items-center gap-3">
+            <Info className="h-6 w-6 text-amber-600" />
+            <div>
+              <h3 className="font-semibold text-amber-900">
+                Organization context required
+              </h3>
+              <p className="text-sm text-amber-700">
+                Your account must belong to an active organization to manage
+                roles and permissions.
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      </DashboardLayout>
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <DashboardBreadcrumbsFromPath pathname="/administration" />
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Roles & permissions
-          </h1>
-          <p className="text-sm text-slate-500">
-            Manage organization roles and CRUD permissions per module.
-          </p>
-        </div>
-      </div>
-
-      {isLoading ? (
+  if (isLoading) {
+    return (
+      <DashboardLayout
+        title={ROLES_LIST_TITLE}
+        description={ROLES_LIST_DESCRIPTION}
+        action={createRoleAction}
+      >
         <LoadingState
           label="Loading roles"
           variant="skeleton"
           skeleton="table"
         />
-      ) : error ? (
+      </DashboardLayout>
+    );
+  }
+
+  if (error) {
+    return (
+      <DashboardLayout
+        title={ROLES_LIST_TITLE}
+        description={ROLES_LIST_DESCRIPTION}
+        action={createRoleAction}
+      >
         <ErrorState
           title="Failed to load roles"
           message={(error as Error).message}
           onRetry={refetch}
         />
+      </DashboardLayout>
+    );
+  }
+
+  return (
+    <DashboardLayout
+      title={ROLES_LIST_TITLE}
+      description={ROLES_LIST_DESCRIPTION}
+      action={createRoleAction}
+    >
+      <RolesListToolbar
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+      />
+      {filteredRoles.length === 0 ? (
+        <div className="mt-4 rounded-lg border border-gray-200 bg-white py-16 text-center text-sm text-gray-500">
+          {searchQuery
+            ? "No roles match your search."
+            : "No roles yet. Create a role to get started."}
+        </div>
       ) : (
-        <>
-          <RolesListToolbar
-            searchQuery={searchQuery}
-            onSearchChange={setSearchQuery}
-            canCreateRole={canCreate}
+        <div className="mt-4">
+          <RolesListTable
+            roles={filteredRoles}
+            parentRoleNameById={parentRoleNameById}
+            canUpdateRole={canUpdate}
+            canDeleteRole={canDelete}
           />
-          {filteredRoles.length === 0 ? (
-            <div className="rounded-xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-500">
-              {searchQuery
-                ? "No roles match your search."
-                : "No roles yet. Create a role to get started."}
-            </div>
-          ) : (
-            <>
-              <RolesListTable
-                roles={paginatedRoles}
-                canUpdateRole={canUpdate}
-                canDeleteRole={canDelete}
-              />
-              <DashboardTablePagination
-                page={rolesPage}
-                pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
-                total={rolesTotal}
-                onPageChange={setPage}
-                disabled={isLoading}
-              />
-            </>
-          )}
-        </>
+        </div>
       )}
-    </div>
+    </DashboardLayout>
   );
 }

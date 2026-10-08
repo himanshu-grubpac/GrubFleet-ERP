@@ -33,30 +33,31 @@ describe('contract-detail.presentation.util', () => {
       const active = buildAvailableActions({
         rawStatus: 'active',
         canPauseBilling: false,
-        hasPendingTerminationApproval: false,
       });
       expect(active.deactivate.allowed).toBe(true);
       expect(active.reactivate.allowed).toBe(false);
       expect(active.editContract.allowed).toBe(true);
+      expect(active.terminate.allowed).toBe(false);
     });
 
-    it('allows reactivate from deactivated without approval path', () => {
+    it('allows terminate from deactivated without approval path', () => {
       const deactivated = buildAvailableActions({
         rawStatus: 'deactivated',
         canPauseBilling: false,
-        hasPendingTerminationApproval: false,
       });
-      expect(deactivated.editContract.allowed).toBe(true);
+      expect(deactivated.editContract.allowed).toBe(false);
+      expect(deactivated.editContract.disabledReason).toMatch(
+        /cannot be edited until reactivated/i,
+      );
       expect(deactivated.reactivate.allowed).toBe(true);
       expect(deactivated.deactivate.allowed).toBe(false);
-      expect(deactivated.requestTermination.allowed).toBe(true);
+      expect(deactivated.terminate.allowed).toBe(true);
     });
 
-    it('blocks reactivate when closed or pending termination', () => {
+    it('blocks reactivate when closed; allows terminate when pending legacy status', () => {
       const closed = buildAvailableActions({
         rawStatus: 'closed',
         canPauseBilling: true,
-        hasPendingTerminationApproval: false,
       });
       expect(closed.editContract.allowed).toBe(false);
       expect(closed.editContract.disabledReason).toMatch(/closed contract/i);
@@ -64,28 +65,26 @@ describe('contract-detail.presentation.util', () => {
       expect(closed.reactivate.disabledReason).toMatch(
         /cannot be reactivated/i,
       );
+      expect(closed.terminate.allowed).toBe(false);
 
       const pending = buildAvailableActions({
         rawStatus: 'pending_termination',
         canPauseBilling: true,
-        hasPendingTerminationApproval: true,
       });
       expect(pending.reactivate.allowed).toBe(false);
-      expect(pending.approveTermination.allowed).toBe(true);
+      expect(pending.terminate.allowed).toBe(true);
     });
 
     it('gates pause billing on return progress', () => {
       const noReturns = buildAvailableActions({
         rawStatus: 'deactivated',
         canPauseBilling: false,
-        hasPendingTerminationApproval: false,
       });
       expect(noReturns.pauseBilling.allowed).toBe(false);
 
       const ready = buildAvailableActions({
         rawStatus: 'deactivated',
         canPauseBilling: true,
-        hasPendingTerminationApproval: false,
       });
       expect(ready.pauseBilling.allowed).toBe(true);
     });
@@ -123,10 +122,60 @@ describe('contract-detail.presentation.util', () => {
       expect(sub).toContain('On hold');
       expect(sub).toContain('billing continues');
     });
+
+    it('uses allocation counts only for active partial and full', () => {
+      expect(
+        buildDetailSubtitle({
+          rawStatus: 'active',
+          clientCompanyName: 'Acme',
+          billingPaused: false,
+          onHold: false,
+          contractFullyAllocated: false,
+          totalCommitted: 3,
+          totalAllocated: 1,
+        }),
+      ).toBe('1 of 3 committed unit(s) allocated.');
+
+      expect(
+        buildDetailSubtitle({
+          rawStatus: 'active',
+          clientCompanyName: 'Acme',
+          billingPaused: false,
+          onHold: false,
+          contractFullyAllocated: true,
+          totalCommitted: 3,
+          totalAllocated: 3,
+        }),
+      ).toBe('3 of 3 committed unit(s) allocated.');
+    });
   });
 
   describe('buildStatusBanner', () => {
-    it('includes termination timestamp for closed contracts', () => {
+    it('returns no banner for active allocation states (subtitle carries counts)', () => {
+      expect(
+        buildStatusBanner({
+          rawStatus: 'active',
+          events: [],
+          labelsByUserId: new Map(),
+          contractFullyAllocated: true,
+          totalCommitted: 3,
+          totalAllocated: 3,
+        }),
+      ).toBeNull();
+
+      expect(
+        buildStatusBanner({
+          rawStatus: 'active',
+          events: [],
+          labelsByUserId: new Map(),
+          contractFullyAllocated: false,
+          totalCommitted: 3,
+          totalAllocated: 1,
+        }),
+      ).toBeNull();
+    });
+
+    it('returns no banner for closed contracts (termination toast is FE-only)', () => {
       const events = [
         ev('contract.termination_approved', '2026-09-20T10:30:00.000Z'),
       ];
@@ -135,10 +184,7 @@ describe('contract-detail.presentation.util', () => {
         events,
         labelsByUserId: new Map([['user-1', 'Contract Admin']]),
       });
-      expect(banner?.level).toBe('success');
-      expect(banner?.occurredAt).toBe('2026-09-20T10:30:00.000Z');
-      expect(banner?.text).toMatch(/successfully completed/i);
-      expect(banner?.actorLabel).toBe('Contract Admin');
+      expect(banner).toBeNull();
     });
   });
 

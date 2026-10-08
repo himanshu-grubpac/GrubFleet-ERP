@@ -2,15 +2,21 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import { Header } from "@/components/layout/header";
+import LayoutHeader from "@/components/layout/LayoutHeader";
 import { Sidebar } from "@/components/layout/sidebar";
+
 import {
   readSidebarCollapsedPreference,
   writeSidebarCollapsedPreference,
 } from "@/lib/layout/sidebar-preference";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
   const [preferenceReady, setPreferenceReady] = useState(false);
 
   useEffect(() => {
@@ -19,7 +25,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (!preferenceReady) return;
+    if (!preferenceReady) {
+      return;
+    }
+
     writeSidebarCollapsedPreference(sidebarCollapsed);
   }, [sidebarCollapsed, preferenceReady]);
 
@@ -33,9 +42,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         collapsed={sidebarCollapsed}
         onToggleCollapsed={toggleSidebarCollapsed}
       />
+
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
+        <LayoutHeader />
+
+        <main className="min-h-0 flex-1 overflow-auto">
           {children}
         </main>
       </div>

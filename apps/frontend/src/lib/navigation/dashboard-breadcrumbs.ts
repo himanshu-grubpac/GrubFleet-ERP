@@ -9,6 +9,18 @@ export type DashboardBreadcrumbItem = {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * App Router has no index page for most module roots (e.g. `/fleet-leasing`).
+ * Breadcrumb module segments link to the first sidebar child instead.
+ */
+export function resolveModuleBreadcrumbHref(module: NavItem): string {
+  const firstChild = module.children?.[0];
+  if (firstChild?.href) {
+    return firstChild.href;
+  }
+  return module.href;
+}
+
 function findNavMatch(pathname: string): {
   module: NavItem;
   section?: NavItem;
@@ -151,7 +163,10 @@ export function buildDashboardBreadcrumbs(
   }
 
   const items: DashboardBreadcrumbItem[] = [
-    { label: match.module.label, href: match.module.href },
+    {
+      label: match.module.label,
+      href: resolveModuleBreadcrumbHref(match.module),
+    },
   ];
 
   if (match.section) {

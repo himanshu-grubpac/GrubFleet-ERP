@@ -1,6 +1,7 @@
 import { relations } from 'drizzle-orm';
 import {
   boolean,
+  foreignKey,
   index,
   jsonb,
   pgEnum,
@@ -135,6 +136,8 @@ export const roles = pgTable(
     description: text('description'),
     isSystem: boolean('is_system').notNull().default(false),
     isActive: boolean('is_active').notNull().default(true),
+    /** Single parent in org role tree (managed-by); null = root role. */
+    parentRoleId: uuid('parent_role_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -145,6 +148,12 @@ export const roles = pgTable(
   (t) => [
     index('roles_organization_id_idx').on(t.organizationId),
     uniqueIndex('roles_org_name_uidx').on(t.organizationId, t.name),
+    index('roles_parent_role_id_idx').on(t.parentRoleId),
+    foreignKey({
+      columns: [t.parentRoleId],
+      foreignColumns: [t.id],
+      name: 'roles_parent_role_id_roles_id_fk',
+    }).onDelete('restrict'),
   ],
 );
 
@@ -256,3 +265,6 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export * from './fleet-leasing.schema';
 export * from './organisation.schema';
+export * from './asset-register.schema';
+export * from './finance.schema';
+export * from './inventory.schema';
