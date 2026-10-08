@@ -64,7 +64,7 @@ Local deploy/migrate uses the same values in **gitignored** `samconfig.staging.t
 
 | Secret | Used by | Description |
 |--------|---------|-------------|
-| `DATABASE_URL` | Runtime / deploy | PostgreSQL connection string for that tier. **ERP:** shared RDS `grubpac-v2` (`grubpac-v2.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com`). Staging → `grubfleet_erp_nonprod`; pre-production → `grubfleet_erp_preprod` (logical DB split **2026-10-08**); production → `grubfleet_erp_production`. Values in GitHub Environment secrets and gitignored `samconfig.*.toml` — never commit passwords. Inventory: [aws-resources.md](./aws-resources.md). |
+| `DATABASE_URL` | Runtime / deploy | PostgreSQL connection string for that tier. **ERP (2026-10-01):** all tiers use shared RDS `grubpac-v2` (`grubpac-v2.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com`). Staging and pre-production share the same URL target database `grubfleet_erp_nonprod`; production uses `grubfleet_erp_production`. Values live in GitHub Environment secrets and gitignored `samconfig.*.toml` — never commit passwords. Inventory: [aws-resources.md](./aws-resources.md). |
 | `REDIS_URL` | Runtime / deploy | Redis connection string — still **per tier** from `grubfleet-data-*` ElastiCache (unchanged by RDS cutover) |
 | `JWT_ACCESS_SECRET` | Backend | Required when `APP_ENV=production` |
 | `JWT_REFRESH_SECRET` | Backend | Required when `APP_ENV=production` |
