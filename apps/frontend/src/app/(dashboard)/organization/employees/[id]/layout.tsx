@@ -1,10 +1,13 @@
-import type { ReactNode } from 'react';
+import type { ReactNode } from "react";
 
-/** Static export (S3): one shell per dynamic segment; runtime UUIDs via client nav + CloudFront fallback. */
 export async function generateStaticParams() {
-  return [{ id: '_' }];
+  return [{ id: "_" }];
 }
 
-export default function EmployeeIdLayout({ children }: { children: ReactNode }) {
+export default function OrganisationEmployeeIdLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   return children;
 }

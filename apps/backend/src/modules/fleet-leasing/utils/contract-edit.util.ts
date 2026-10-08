@@ -10,6 +10,12 @@ export function getContractEditBlockReason(
   if (TERMINAL_STATUSES.includes(status)) {
     return 'Cannot update a closed contract';
   }
+  if (status === 'deactivated' || status === 'billing_paused') {
+    return 'Inactive lease contract cannot be edited until reactivated';
+  }
+  if (status === 'pending_termination') {
+    return 'Contract cannot be edited while termination is pending';
+  }
   if (!EDITABLE_CONTRACT_STATUSES.includes(status)) {
     return 'Contract cannot be edited in the current status';
   }

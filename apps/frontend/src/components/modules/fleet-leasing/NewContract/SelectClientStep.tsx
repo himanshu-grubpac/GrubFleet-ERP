@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Plus, Loader2 } from "lucide-react";
+import { Search, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useGrubpacAuth } from "@/lib/auth-context";
@@ -58,26 +58,6 @@ export default function SelectClientStep({
 
     return (
         <>
-            <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                    <h1 className="text-lg font-semibold tracking-tight text-slate-900 sm:text-xl">
-                        Select client
-                    </h1>
-                    <p className="mt-1 text-xs leading-5 text-slate-500 sm:text-sm">
-                        Search by name, or pick from the list below.
-                    </p>
-                </div>
-
-                <button
-                    type="button"
-                    onClick={() => onAddNewClient(trimmedSearch || undefined)}
-                    className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-md bg-[#FE5720] px-4 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-[#e94d1c] focus:outline-none focus:ring-2 focus:ring-[#FE5720]/30 sm:w-auto sm:text-sm"
-                >
-                    <Plus className="h-4 w-4" />
-                    Add new client
-                </button>
-            </div>
-
             <div className="relative mb-4">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -118,27 +98,37 @@ export default function SelectClientStep({
                 )}
 
                 {showNoResultsEmpty && (
-                    <div className="flex min-h-[160px] flex-col items-center justify-center px-5 text-center">
-                        <p className="text-sm font-semibold text-slate-700">
-                            {`No results match "${trimmedSearch}".`}
-                        </p>
-                        <p className="mt-1.5 text-xs text-slate-400">
-                            Add them as a new client to continue.
-                        </p>
-                    </div>
+                        <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-5 text-center">
+                            <p className="text-sm font-semibold text-slate-700">
+                                {`No results match "${trimmedSearch}".`}
+                            </p>
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    onAddNewClient(trimmedSearch)
+                                }
+                                className="text-sm font-medium text-[#FE5720] hover:underline"
+                            >
+                                Add new client
+                            </button>
+                        </div>
                 )}
 
                 {!clientsQuery.isLoading &&
                     !clientsQuery.isError &&
                     !showNoResultsEmpty &&
                     clients.length === 0 && (
-                        <div className="flex min-h-[160px] flex-col items-center justify-center px-5 text-center">
+                        <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-5 text-center">
                             <p className="text-sm font-semibold text-slate-700">
                                 No clients found.
                             </p>
-                            <p className="mt-1.5 text-xs text-slate-400">
-                                Add them as a new client to continue.
-                            </p>
+                            <button
+                                type="button"
+                                onClick={() => onAddNewClient()}
+                                className="text-sm font-medium text-[#FE5720] hover:underline"
+                            >
+                                Add new client
+                            </button>
                         </div>
                     )}
 

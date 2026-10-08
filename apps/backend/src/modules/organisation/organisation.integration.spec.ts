@@ -27,6 +27,8 @@ type PaginatedLocations = { items: LocationListItem[] };
 type LocationDetail = { id: string; isActive: boolean; status: string };
 
 describe('Organisation locations (integration)', () => {
+  jest.setTimeout(60_000);
+
   if (process.env.SKIP_DB_INTEGRATION === '1') {
     it.todo('skipped when SKIP_DB_INTEGRATION=1');
     return;

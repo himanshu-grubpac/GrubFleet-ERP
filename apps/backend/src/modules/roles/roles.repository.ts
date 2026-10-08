@@ -17,32 +17,80 @@ export class RolesRepository {
     organizationId: string,
     page: number,
     pageSize: number,
+    visibleRoleIds?: string[] | null,
   ): Promise<{ rows: (typeof roles.$inferSelect)[]; total: number }> {
     const offset = (page - 1) * pageSize;
+    const scopeFilter = and(
+      eq(roles.organizationId, organizationId),
+      eq(roles.scope, 'organization'),
+    );
+    const whereClause =
+      visibleRoleIds === null || visibleRoleIds === undefined
+        ? scopeFilter
+        : visibleRoleIds.length === 0
+          ? sql`false`
+          : and(scopeFilter, inArray(roles.id, visibleRoleIds));
+
     const [rows, countRows] = await Promise.all([
       this.db
         .select()
         .from(roles)
-        .where(
-          and(
-            eq(roles.organizationId, organizationId),
-            eq(roles.scope, 'organization'),
-          ),
-        )
+        .where(whereClause)
         .orderBy(roles.name)
         .limit(pageSize)
         .offset(offset),
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(roles)
-        .where(
-          and(
-            eq(roles.organizationId, organizationId),
-            eq(roles.scope, 'organization'),
-          ),
-        ),
+        .where(whereClause),
     ]);
     return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async listOrgRoleParentLinks(
+    organizationId: string,
+  ): Promise<Array<{ id: string; parentRoleId: string | null }>> {
+    const rows = await this.db
+      .select({
+        id: roles.id,
+        parentRoleId: roles.parentRoleId,
+      })
+      .from(roles)
+      .where(
+        and(
+          eq(roles.organizationId, organizationId),
+          eq(roles.scope, 'organization'),
+        ),
+      );
+    return rows;
+  }
+
+  async listRoleIdsAssignedToUserInOrg(
+    userId: string,
+    organizationId: string,
+  ): Promise<string[]> {
+    const rows = await this.db
+      .select({ roleId: userRoles.roleId })
+      .from(userRoles)
+      .innerJoin(roles, eq(userRoles.roleId, roles.id))
+      .where(
+        and(
+          eq(userRoles.userId, userId),
+          eq(userRoles.organizationId, organizationId),
+          eq(roles.organizationId, organizationId),
+          eq(roles.scope, 'organization'),
+          eq(roles.isActive, true),
+        ),
+      );
+    return [...new Set(rows.map((r) => r.roleId))];
+  }
+
+  async countDirectChildRoles(roleId: string): Promise<number> {
+    const rows = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(roles)
+      .where(eq(roles.parentRoleId, roleId));
+    return rows[0]?.count ?? 0;
   }
 
   async findOrgRoleById(
@@ -76,6 +124,7 @@ export class RolesRepository {
     organizationId: string;
     name: string;
     description?: string | null;
+    parentRoleId?: string | null;
   }): Promise<typeof roles.$inferSelect> {
     const inserted = await this.db
       .insert(roles)
@@ -83,6 +132,7 @@ export class RolesRepository {
         organizationId: params.organizationId,
         name: params.name,
         description: params.description ?? null,
+        parentRoleId: params.parentRoleId ?? null,
         scope: 'organization',
         isSystem: false,
       })
@@ -100,6 +150,7 @@ export class RolesRepository {
       name?: string;
       description?: string | null;
       isActive?: boolean;
+      parentRoleId?: string | null;
     },
   ): Promise<void> {
     await this.db
@@ -110,6 +161,9 @@ export class RolesRepository {
           ? { description: patch.description }
           : {}),
         ...(patch.isActive !== undefined ? { isActive: patch.isActive } : {}),
+        ...(patch.parentRoleId !== undefined
+          ? { parentRoleId: patch.parentRoleId }
+          : {}),
         updatedAt: new Date(),
       })
       .where(eq(roles.id, roleId));

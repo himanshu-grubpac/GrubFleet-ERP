@@ -47,4 +47,14 @@ export class CreateRoleDto {
   @ArrayNotEmpty()
   @IsString({ each: true })
   permissionKeys?: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Single parent role in org hierarchy (managed-by). Omit or null for root roles (requires administration.manage).',
+    format: 'uuid',
+    nullable: true,
+  })
+  @IsOptional()
+  @IsUUID()
+  parentRoleId?: string | null;
 }

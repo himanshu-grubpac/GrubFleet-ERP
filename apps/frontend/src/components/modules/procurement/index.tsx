@@ -1,7 +1,6 @@
 "use client";
 
 import { ShoppingCart, FileCheck, Clock, XCircle, CheckCircle2, Plus } from "lucide-react";
-import { DashboardBreadcrumbsFromPath } from "@/components/dashboard/DashboardBreadcrumbsFromPath";
 
 const kpis = [
   { label: "Open PRs", value: "—", icon: ShoppingCart, color: "text-blue-600", bg: "bg-blue-50" },
@@ -23,7 +22,6 @@ const statusStyles: Record<string, string> = {
 export function ProcurementModule() {
   return (
     <div className="space-y-6">
-      <DashboardBreadcrumbsFromPath pathname="/procurement" />
       {/* Header */}
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>

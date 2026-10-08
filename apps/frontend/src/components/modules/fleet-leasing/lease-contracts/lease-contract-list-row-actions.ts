@@ -1,14 +1,13 @@
 import type { LeaseContractListItem } from "@/lib/api/lease-contracts";
 
-/** Mirrors backend EDITABLE_CONTRACT_STATUSES for list-row edit affordance. */
+/** Mirrors backend `EDITABLE_CONTRACT_STATUSES` (list has no availableActions). */
+/** Non-deactivated editable statuses (rule 31 — list has no availableActions). */
 const EDITABLE_RAW_STATUSES = new Set([
   "draft",
   "pending_approval",
   "approved",
   "active",
   "awaiting_assets",
-  "deactivated",
-  "billing_paused",
 ]);
 
 export function canEditLeaseContractListRow(
@@ -31,8 +30,17 @@ export function canReactivateLeaseContractListRow(
   );
 }
 
-export function canActivateDraftLeaseContractListRow(
+/** Backend POST /activate — approved or awaiting_assets only (not draft). */
+const ACTIVATABLE_RAW_STATUSES = new Set(["approved", "awaiting_assets"]);
+
+export function canActivateLeaseContractListRow(
   row: LeaseContractListItem,
 ): boolean {
-  return row.rawStatus === "draft";
+  return ACTIVATABLE_RAW_STATUSES.has(row.rawStatus);
+}
+
+export function canActivateLeaseContractByRawStatus(
+  rawStatus: string,
+): boolean {
+  return ACTIVATABLE_RAW_STATUSES.has(rawStatus);
 }

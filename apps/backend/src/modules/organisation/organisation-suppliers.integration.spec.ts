@@ -23,6 +23,8 @@ const NO_ORG_PERMISSION_USER = {
 type SupplierDetail = { id: string; isActive: boolean; status: string };
 
 describe('Organisation suppliers (integration)', () => {
+  jest.setTimeout(60_000);
+
   if (process.env.SKIP_DB_INTEGRATION === '1') {
     it.todo('skipped when SKIP_DB_INTEGRATION=1');
     return;

@@ -1,12 +1,12 @@
 "use client";
 
+import { AuthSessionProgress } from "@/components/states/auth-session-progress";
 import {
   AuthRedirectSkeleton,
   DashboardShellSkeleton,
 } from "@/components/states/dashboard-shell-skeleton";
-import { LoginCardSkeleton } from "@/components/states/skeleton";
 
-export type AuthBootstrapLayout = "dashboard" | "minimal" | "login";
+export type AuthBootstrapLayout = "dashboard" | "minimal";
 
 export type AuthBootstrapPhase = "boot" | "sign-in" | "sign-out";
 
@@ -17,15 +17,12 @@ export function AuthBootstrapLoader({
   layout?: AuthBootstrapLayout;
   phase?: AuthBootstrapPhase;
 }) {
-  if (layout === "login") {
-    return <LoginCardSkeleton />;
+  if (phase === "sign-in") {
+    return <AuthSessionProgress message="Signing in…" />;
   }
 
-  if (phase === "sign-in" || phase === "sign-out") {
-    if (layout === "dashboard") {
-      return <DashboardShellSkeleton />;
-    }
-    return <LoginCardSkeleton />;
+  if (phase === "sign-out") {
+    return <AuthSessionProgress message="Signing out…" />;
   }
 
   if (layout === "minimal") {

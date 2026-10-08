@@ -4,7 +4,7 @@ import { ParseUUIDPipe } from '@nestjs/common';
 import { RequireOrganizationContext } from '../auth/authorization/decorators/require-organization-context.decorator';
 import { RequirePermissions } from '../auth/authorization/decorators/require-permissions.decorator';
 import { FleetLeasingPermissionKeys } from './constants/fleet-leasing-permission-keys';
-import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
+import { AssetRegisterCatalogService } from '../asset-register/asset-register-catalog.service';
 import { PreviewAssetAvailabilityBatchDto } from './dto/preview-asset-availability.dto';
 import { computeAssetLineAvailability } from './utils/asset-class-availability.util';
 
@@ -12,17 +12,22 @@ import { computeAssetLineAvailability } from './utils/asset-class-availability.u
 @ApiBearerAuth()
 @Controller('fleet-leasing/asset-classes')
 export class AssetClassesController {
-  constructor(private readonly repo: FleetLeasingRepository) {}
+  constructor(
+    private readonly assetRegisterCatalog: AssetRegisterCatalogService,
+  ) {}
 
   @Get()
   @RequireOrganizationContext()
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
   @ApiOperation({
     summary:
-      'Distinct asset classes from fleet vehicle master (wizard dropdown)',
+      'Distinct active asset class names from asset register (wizard dropdown)',
   })
   async list(@Query('organizationId', ParseUUIDPipe) organizationId: string) {
-    const items = await this.repo.listDistinctAssetClasses(organizationId);
+    const items =
+      await this.assetRegisterCatalog.listDistinctActiveAssetClassNames(
+        organizationId,
+      );
     return { items };
   }
 
@@ -39,10 +44,11 @@ export class AssetClassesController {
     @Query('committedQuantity') committedQuantityRaw: string,
   ) {
     const committedQuantity = Number(committedQuantityRaw);
-    const { availableNow, inbound } = await this.repo.getAssetClassInventory(
-      organizationId,
-      assetClass,
-    );
+    const { availableNow, inbound } =
+      await this.assetRegisterCatalog.getAssetClassInventory(
+        organizationId,
+        assetClass,
+      );
     return computeAssetLineAvailability(
       assetClass,
       committedQuantity,
@@ -63,7 +69,7 @@ export class AssetClassesController {
     const lines = await Promise.all(
       dto.lines.map(async (line) => {
         const { availableNow, inbound } =
-          await this.repo.getAssetClassInventory(
+          await this.assetRegisterCatalog.getAssetClassInventory(
             dto.organizationId,
             line.assetClass,
           );

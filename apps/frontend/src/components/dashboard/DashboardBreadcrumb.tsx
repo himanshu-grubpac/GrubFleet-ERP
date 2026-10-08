@@ -2,7 +2,10 @@
 
 import Link from "next/link";
 import { Fragment } from "react";
+import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
+
+import { normalizeNavPath } from "@/lib/navigation/nav-path-match";
 
 import type { DashboardBreadcrumbItem } from "@/lib/navigation/dashboard-breadcrumbs";
 import { cn } from "@/lib/utils";
@@ -19,6 +22,8 @@ export function DashboardBreadcrumb({
   className,
   accentCurrent = false,
 }: DashboardBreadcrumbProps) {
+  const pathname = normalizeNavPath(usePathname() ?? "/");
+
   if (items.length === 0) {
     return null;
   }
@@ -33,7 +38,8 @@ export function DashboardBreadcrumb({
     >
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
-        const showLink = Boolean(item.href) && !isLast;
+        const href = item.href ? normalizeNavPath(item.href) : undefined;
+        const showLink = Boolean(href) && href !== pathname;
 
         return (
           <Fragment key={`${item.label}-${index}`}>
@@ -43,8 +49,8 @@ export function DashboardBreadcrumb({
                 aria-hidden
               />
             ) : null}
-            {showLink ? (
-              <Link href={item.href!} className="transition hover:text-gray-700">
+            {showLink && href ? (
+              <Link href={href} className="transition hover:text-gray-700">
                 {item.label}
               </Link>
             ) : (

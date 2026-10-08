@@ -7,7 +7,6 @@ export function useDebouncedValue<T>(value: T, delayMs = 300): T {
   const [debounced, setDebounced] = useState(value);
 
   useEffect(() => {
-    // Clear immediately so list queries and filter chrome stay in sync when the field empties.
     if (typeof value === "string" && value.length === 0) {
       setDebounced(value);
       return;

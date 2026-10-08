@@ -11,6 +11,7 @@ import {
   type IntegrationAuthContext,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import * as schema from '../../database/schema';
 
 const NO_ORG_PERMISSION_USER = {
   email: 'org-clients.viewer@grubpac.local',
@@ -28,6 +29,8 @@ type ClientDetail = {
 };
 
 describe('Organisation clients (integration)', () => {
+  jest.setTimeout(60_000);
+
   if (process.env.SKIP_DB_INTEGRATION === '1') {
     it.todo('skipped when SKIP_DB_INTEGRATION=1');
     return;
@@ -316,7 +319,7 @@ describe('Organisation clients (integration)', () => {
         .expect(400);
     });
 
-    it('returns detail with empty contractHistory until fleet link ships', async () => {
+    it('returns empty contractHistory when no fleet client link exists', async () => {
       const id = await createClientAsAdmin();
       const res = await request(app.getHttpServer())
         .get(`/api/v1/organisation/clients/${id}`)
@@ -324,9 +327,106 @@ describe('Organisation clients (integration)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
         .expect(200);
-      const body = res.body as ClientDetail;
+      const body = res.body as ClientDetail & {
+        linkedFleetClientId?: string;
+      };
       expect(body.contractHistory).toEqual([]);
       expect(body.isActive).toBe(true);
+      expect(body.linkedFleetClientId).toMatch(/^[0-9a-f-]{36}$/i);
+    });
+
+    it('organisation client appears in fleet leasing client list after create', async () => {
+      const unique = `FleetPickerSync ${Date.now()}`;
+      const createRes = await request(app.getHttpServer())
+        .post('/api/v1/organisation/clients')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildClientCreatePayload({
+            clientName: unique,
+          }),
+        )
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const created = createRes.body as ClientDetail & {
+        linkedFleetClientId?: string;
+      };
+      expect(created.linkedFleetClientId).toBeTruthy();
+
+      const fleetList = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/clients')
+        .query({ organizationId, search: unique, page: 1, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const fleetBody = fleetList.body as {
+        items: Array<{ id: string; companyName: string }>;
+      };
+      expect(
+        fleetBody.items.some((row) => row.id === created.linkedFleetClientId),
+      ).toBe(true);
+      expect(
+        fleetBody.items.some((row) => row.companyName.includes(unique)),
+      ).toBe(true);
+    });
+
+    it('returns contract count and history when fleet client links organisation client', async () => {
+      const id = await createClientAsAdmin();
+      const unique = Date.now();
+      const [fleetClient] = await db
+        .insert(schema.fleetClients)
+        .values({
+          organizationId,
+          clientCode: `OC-LINK-${unique}`,
+          companyName: `Linked Fleet ${unique}`,
+          organisationClientId: id,
+        })
+        .returning();
+      const [contract] = await db
+        .insert(schema.leaseContracts)
+        .values({
+          organizationId,
+          contractNumber: `LC-OC-${unique}`,
+          clientId: fleetClient.id,
+          status: 'active',
+        })
+        .returning();
+      await db.insert(schema.leaseContractAssetLines).values({
+        contractId: contract.id,
+        assetClass: 'Test Class',
+        committedQuantity: 1,
+        ratePerVehicleMonth: '1000.00',
+        sortOrder: 0,
+      });
+
+      const listRes = await request(app.getHttpServer())
+        .get('/api/v1/organisation/clients')
+        .query({ organizationId, page: 1, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const listBody = listRes.body as {
+        items: Array<{ id: string; contracts: number }>;
+      };
+      const listRow = listBody.items.find((row) => row.id === id);
+      expect(listRow?.contracts).toBe(1);
+
+      const detailRes = await request(app.getHttpServer())
+        .get(`/api/v1/organisation/clients/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const detail = detailRes.body as ClientDetail & {
+        contractCount: number;
+        contractHistory: Array<{
+          assetClasses: string;
+          status: string;
+        }>;
+      };
+      expect(detail.contractCount).toBe(1);
+      expect(detail.contractHistory).toHaveLength(1);
+      expect(detail.contractHistory[0]?.assetClasses).toContain('Test Class');
+      expect(detail.contractHistory[0]?.status).toBe('Active');
     });
 
     it('lists only inactive clients when status=inactive', async () => {

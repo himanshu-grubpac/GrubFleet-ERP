@@ -1,5 +1,5 @@
-import DashboardEmployeesPage from "@/components/modules/organization/employees/DashboardEmployeesPage";
+import EmployeesModule from "@/components/modules/organization/employees/Dashboardemployees";
 
 export default function OrganizationEmployeesPage() {
-  return <DashboardEmployeesPage />;
+  return <EmployeesModule />;
 }

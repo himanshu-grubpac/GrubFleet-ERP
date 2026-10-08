@@ -1,7 +1,10 @@
 "use client";
 
 import { Copy } from "lucide-react";
-import { showCopiedToClipboardToast, showErrorToast } from "@/lib/toast/show-toast";
+import {
+  showCopiedToClipboardToast,
+  showCopyToClipboardErrorToast,
+} from "@/lib/toast/show-toast";
 import { dashboardRowCopyButtonClassName } from "./dashboard-row-icon-button";
 
 type DashboardRowCopyButtonProps = {
@@ -34,7 +37,7 @@ export default function DashboardRowCopyButton({
       showCopiedToClipboardToast();
       return;
     }
-    showErrorToast("Could not copy to clipboard.");
+    showCopyToClipboardErrorToast();
   };
 
   return (

@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { DataTable, type Column } from "@grubpac/ui-kit";
 import { Shield, ShieldCheck } from "lucide-react";
 import type { Role } from "@grubpac/shared-types";
@@ -9,12 +8,14 @@ import { RoleRowActionsMenu } from "./RoleRowActionsMenu";
 
 type RolesListTableProps = {
   roles: Role[];
+  parentRoleNameById: Map<string, string>;
   canUpdateRole: boolean;
   canDeleteRole: boolean;
 };
 
 export function RolesListTable({
   roles,
+  parentRoleNameById,
   canUpdateRole,
   canDeleteRole,
 }: RolesListTableProps) {
@@ -56,6 +57,24 @@ export function RolesListTable({
             }`}
           >
             {active ? "Active" : "Inactive"}
+          </span>
+        );
+      },
+    },
+    {
+      header: "Managed by",
+      accessorKey: "parentRoleId",
+      sortable: false,
+      cell: ({ row }) => {
+        if (!row.parentRoleId) {
+          return (
+            <span className="text-sm text-slate-500">Top-level</span>
+          );
+        }
+        const parentName = parentRoleNameById.get(row.parentRoleId);
+        return (
+          <span className="text-sm text-slate-600">
+            {parentName ?? "—"}
           </span>
         );
       },
@@ -114,7 +133,7 @@ export function RolesListTable({
   ];
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="rounded-lg border border-gray-200 bg-white">
       <DataTable data={roles} columns={columns} getRowId={(row) => row.id} />
     </div>
   );
@@ -123,29 +142,19 @@ export function RolesListTable({
 export function RolesListToolbar({
   searchQuery,
   onSearchChange,
-  canCreateRole,
 }: {
   searchQuery: string;
   onSearchChange: (value: string) => void;
-  canCreateRole: boolean;
 }) {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <div className="min-w-0 flex-1">
       <input
         type="search"
         placeholder="Search roles by name or description..."
         value={searchQuery}
         onChange={(e) => onSearchChange(e.target.value)}
-        className="w-full max-w-md rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-[#FE5720] focus:outline-none focus:ring-1 focus:ring-[#FE5720]"
+        className="h-9 w-full max-w-md rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
       />
-      {canCreateRole ? (
-        <Link
-          href="/administration/roles/new/"
-          className="inline-flex items-center justify-center rounded-lg bg-[#FE5720] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[#e94d1c]"
-        >
-          Create role
-        </Link>
-      ) : null}
     </div>
   );
 }

@@ -100,11 +100,29 @@ export type UpdateOrganisationSupplierPayload = Partial<
 const SUPPLIER_TYPE_LABEL_TO_KEY: Record<string, OrganisationSupplierTypeKey> =
   {
     Bike: "bike",
+    Vehicle: "bike",
+    Vehicles: "bike",
     Driver: "driver",
+    Drivers: "driver",
+    "Driver Staffing": "driver",
     "Spare parts": "spare_parts",
     "Spare Parts": "spare_parts",
+    Parts: "spare_parts",
     Compliance: "compliance",
+    Insurance: "compliance",
+    RTO: "compliance",
+    "RTO / Compliance": "compliance",
   };
+
+const SUPPLIER_API_KEY_TO_FORM_LABEL: Record<
+  OrganisationSupplierTypeKey,
+  string
+> = {
+  bike: "Vehicles",
+  spare_parts: "Parts",
+  driver: "Drivers",
+  compliance: "Compliance",
+};
 
 export function supplierFormTypeToApiKey(
   label: string,
@@ -117,6 +135,50 @@ export function supplierFormTypeToApiKey(
       ? (trimmed as OrganisationSupplierTypeKey)
       : null)
   );
+}
+
+/** Maps API detail to Khushi form chip labels (no UI label changes). */
+export function supplierDetailTypeToFormLabel(
+  typeLabel: string,
+  supplierType: OrganisationSupplierTypeKey,
+): string {
+  return SUPPLIER_API_KEY_TO_FORM_LABEL[supplierType] ?? typeLabel;
+}
+
+export function supplierDetailToFormData(detail: OrganisationSupplierDetail): {
+  name: string;
+  type: string;
+  contactPerson: string;
+  phone: string;
+  email: string;
+  agreementReference: string;
+  address: {
+    line1: string;
+    line2: string;
+    city: string;
+    state: string;
+    district: string;
+    pincode: string;
+    country: string;
+  };
+} {
+  return {
+    name: detail.name,
+    type: supplierDetailTypeToFormLabel(detail.type, detail.supplierType),
+    contactPerson: detail.contactPerson,
+    phone: detail.phone,
+    email: detail.email,
+    agreementReference: detail.agreementReference ?? "",
+    address: {
+      line1: detail.addressLine1 ?? "",
+      line2: detail.addressLine2 ?? "",
+      city: detail.addressCity ?? "",
+      state: detail.addressState ?? "",
+      district: detail.addressDistrict ?? "",
+      pincode: detail.addressPincode ?? "",
+      country: detail.addressCountry ?? "",
+    },
+  };
 }
 
 export function supplierFilterToApiType(

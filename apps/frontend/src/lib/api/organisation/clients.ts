@@ -2,6 +2,7 @@ import type { PaginatedResponse } from "@grubpac/shared-types";
 import type { OrganizationAddress } from "@/components/common/OrganizationAddressForm";
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
+import type { CreateFleetClientPayload } from "@/lib/api/lease-contracts";
 import { apiFetch } from "../client";
 
 export type ClientStatus = "active" | "inactive";
@@ -40,6 +41,8 @@ export type OrganisationClientListItem = {
 export type OrganisationClientDetail = {
   id: string;
   clientName: string;
+  /** Fleet leasing picker id (linked fleet_clients row). */
+  linkedFleetClientId?: string | null;
   status: ClientStatus;
   isActive: boolean;
   address: string;
@@ -132,6 +135,20 @@ export function mapClientDetailToRecord(
   };
 }
 
+/** Maps API detail → create/edit form shape used by `CreateClientPage`. */
+export function clientDetailToFormData(detail: OrganisationClientDetail): {
+  companyName: string;
+  address: OrganizationAddress;
+  pointsOfContact: PointOfContact[];
+} {
+  const record = mapClientDetailToRecord(detail);
+  return {
+    companyName: record.clientName,
+    address: record.address,
+    pointsOfContact: record.pointsOfContact,
+  };
+}
+
 export async function fetchOrganisationClientsApi(
   token: string,
   params: ListOrganisationClientsParams,
@@ -185,6 +202,37 @@ export async function createOrganisationClientApi(
   });
 }
 
+/** Organisation create + fleet link (lease wizard and org create share this path). */
+export async function createOrganisationClientFromForm(
+  token: string,
+  organizationId: string,
+  input: {
+    clientName: string;
+    address: OrganizationAddress;
+    pointsOfContact: PointOfContact[];
+  },
+): Promise<OrganisationClientDetail> {
+  const payload = buildClientPayloadFromForm({
+    organizationId,
+    clientName: input.clientName,
+    address: input.address,
+    pointsOfContact: input.pointsOfContact,
+  });
+  return createOrganisationClientApi(token, payload);
+}
+
+export function requireLinkedFleetClientId(
+  detail: OrganisationClientDetail,
+): string {
+  const fleetId = detail.linkedFleetClientId?.trim();
+  if (!fleetId) {
+    throw new Error(
+      "Client was saved but fleet link is missing. Refresh and try again.",
+    );
+  }
+  return fleetId;
+}
+
 export async function updateOrganisationClientApi(
   token: string,
   organizationId: string,
@@ -222,6 +270,27 @@ export async function updateOrganisationClientStatusApi(
       body: JSON.stringify(body),
     },
   );
+}
+
+/** Maps shared client form → fleet create (creates organisation client + link server-side). */
+export function buildFleetClientPayloadFromForm(input: {
+  organizationId: string;
+  clientName: string;
+  address: OrganizationAddress;
+  pointsOfContact: PointOfContact[];
+}): Omit<CreateFleetClientPayload, "organizationId"> {
+  const org = buildClientPayloadFromForm(input);
+  return {
+    companyName: org.clientName,
+    addressLine1: org.addressLine1,
+    addressLine2: org.addressLine2,
+    addressCity: org.addressCity,
+    addressCountry: org.addressCountry,
+    addressState: org.addressState,
+    addressDistrict: org.addressDistrict,
+    addressPincode: org.addressPincode,
+    pointsOfContact: org.pointsOfContact,
+  };
 }
 
 export function buildClientPayloadFromForm(input: {

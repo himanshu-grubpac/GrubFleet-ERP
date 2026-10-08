@@ -17,6 +17,8 @@ import {
   DEV_ORG_SLUG,
   DEV_SYSTEM_ADMIN_ROLE_NAME,
 } from './dev-admin-bootstrap';
+import { isJunkIntegrationOrgRoleName } from './dev-role-data-policy';
+import { deleteOrgRolesInTreeOrder } from './purge-org-roles-dev';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env.development') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
@@ -200,15 +202,16 @@ export async function cleanDevRbacTestArtifacts(
     .where(eq(roles.organizationId, devOrgId));
 
   const orgRoleIdsToDelete = orgRoleRows
-    .filter((role) => role.name !== DEV_ADMIN_ROLE_NAME)
+    .filter(
+      (role) =>
+        role.name !== DEV_ADMIN_ROLE_NAME &&
+        isJunkIntegrationOrgRoleName(role.name),
+    )
     .map((role) => role.id);
 
-  const deletedOrgRoles =
+  const deletedOrgRoleNames =
     orgRoleIdsToDelete.length > 0
-      ? await db
-          .delete(roles)
-          .where(inArray(roles.id, orgRoleIdsToDelete))
-          .returning({ name: roles.name })
+      ? await deleteOrgRolesInTreeOrder(db, devOrgId, orgRoleIdsToDelete)
       : [];
 
   const junkSystemRoles = await db
@@ -243,8 +246,8 @@ export async function cleanDevRbacTestArtifacts(
   return {
     deletedTestUsers: deletedUsers.length,
     deletedTestUserEmails: deletedUsers.map((u) => u.email),
-    deletedOrgRoles: deletedOrgRoles.length,
-    deletedOrgRoleNames: deletedOrgRoles.map((r) => r.name),
+    deletedOrgRoles: deletedOrgRoleNames.length,
+    deletedOrgRoleNames,
     deletedSystemRoles: deletedSystemRoles.length,
     deletedSystemRoleNames: deletedSystemRoles.map((r) => r.name),
     remainingOrgRoles: remainingOrgRoles.map((r) => r.name),

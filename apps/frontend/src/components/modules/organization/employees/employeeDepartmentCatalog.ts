@@ -41,24 +41,3 @@ export function buildEmployeeDepartmentFilterOptions(
     .sort((a, b) => a.localeCompare(b))
     .map((name) => ({ label: name, value: name }));
 }
-
-export function customDepartmentNamesFromOrg(
-  usedInOrg: readonly string[],
-): string[] {
-  const presetKeys = new Set(
-    PRESET_EMPLOYEE_DEPARTMENTS.map((name) => normalizeDepartmentKey(name)),
-  );
-  const seen = new Set<string>();
-  const custom: string[] = [];
-
-  for (const department of usedInOrg) {
-    const trimmed = department.trim();
-    if (!trimmed) continue;
-    const key = normalizeDepartmentKey(trimmed);
-    if (presetKeys.has(key) || seen.has(key)) continue;
-    seen.add(key);
-    custom.push(trimmed);
-  }
-
-  return custom.sort((a, b) => a.localeCompare(b));
-}

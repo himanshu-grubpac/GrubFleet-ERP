@@ -1,127 +1,64 @@
 "use client";
 
-import type { KeyboardEvent } from "react";
-import { X } from "lucide-react";
+import { useCallback, useState } from "react";
 
-import GrubpacButton from "@/components/ui/GrubpacButton";
+import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
-import { cn } from "@/lib/utils";
-import type { RestrictedInputKind } from "@/lib/forms/restricted-input";
 
-/**
- * Inline "Add" row for chip/catalog creators (department, location type, etc.).
- * Primary Add stays disabled (gray) until trimmed value is non-empty and not pending —
- * same bar as form `canSubmit` (rules 24 §6a, 29).
- */
 export type InlineAddFieldProps = {
-  value: string;
-  onChange: (value: string) => void;
-  onAdd: () => void | Promise<void>;
-  isPending?: boolean;
-  placeholder?: string;
-  restrictedKind?: RestrictedInputKind;
-  maxLength: number;
-  error?: string;
-  /** `row` = input + actions only; `panel` = gray bordered container */
-  layout?: "row" | "panel";
-  inputClassName?: string;
-  className?: string;
-  addButtonLabel?: string;
-  onCancel?: () => void;
-  autoFocus?: boolean;
+    placeholder?: string;
+    maxLength?: number;
+    buttonLabel?: string;
+    isPending?: boolean;
+    disabled?: boolean;
+    onAdd: (trimmedValue: string) => void | Promise<void>;
+    className?: string;
 };
 
-export function InlineAddField({
-  value,
-  onChange,
-  onAdd,
-  isPending = false,
-  placeholder,
-  restrictedKind = "text",
-  maxLength,
-  error,
-  layout = "row",
-  inputClassName,
-  className,
-  addButtonLabel = "Add",
-  onCancel,
-  autoFocus,
+/**
+ * Combobox/catalog inline create — primary disabled until non-empty trim and not pending.
+ * Use with backend inline-create DTO max lengths.
+ */
+export default function InlineAddField({
+    placeholder = "Add new…",
+    maxLength = 255,
+    buttonLabel = "Add",
+    isPending = false,
+    disabled = false,
+    onAdd,
+    className = "",
 }: InlineAddFieldProps) {
-  const canAdd = value.trim().length > 0 && !isPending;
+    const [value, setValue] = useState("");
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      if (canAdd) {
-        void onAdd();
-      }
-    }
-  };
+    const trimmed = value.trim();
+    const canAdd =
+        !disabled && !isPending && trimmed.length > 0 && trimmed.length <= maxLength;
 
-  const defaultInputClass =
-    "h-9 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+    const handleAdd = useCallback(async () => {
+        if (!canAdd) return;
+        await onAdd(trimmed);
+        setValue("");
+    }, [canAdd, onAdd, trimmed]);
 
-  const actionsRow = (
-    <div className="flex items-center gap-2">
-      <RestrictedInput
-        restrictedKind={restrictedKind}
-        maxLength={maxLength}
-        value={value}
-        onChange={onChange}
-        onKeyDown={handleKeyDown}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        disabled={isPending}
-        className={cn(defaultInputClass, inputClassName)}
-      />
-
-      <GrubpacButton
-        type="button"
-        disabled={!canAdd}
-        onClick={() => void onAdd()}
-        className="h-9 shrink-0 px-4"
-      >
-        {addButtonLabel}
-      </GrubpacButton>
-
-      {onCancel ? (
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={isPending}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-gray-300 bg-white text-gray-500 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          title="Cancel"
-        >
-          <X className="h-4 w-4" />
-        </button>
-      ) : null}
-    </div>
-  );
-
-  const errorNode = error ? (
-    <p className="text-xs text-red-600" role="alert">
-      {error}
-    </p>
-  ) : null;
-
-  if (layout === "panel") {
     return (
-      <div
-        className={cn(
-          "flex max-w-md flex-col gap-2 rounded-md border border-gray-200 bg-gray-50 p-3",
-          className,
-        )}
-      >
-        {actionsRow}
-        {errorNode}
-      </div>
+        <div className={`flex flex-wrap items-center gap-2 ${className}`.trim()}>
+            <RestrictedInput
+                restrictedKind="text"
+                maxLength={maxLength}
+                value={value}
+                onChange={setValue}
+                placeholder={placeholder}
+                disabled={disabled || isPending}
+                className="min-w-[12rem] flex-1"
+            />
+            <Button
+                type="button"
+                variant="primary"
+                disabled={!canAdd}
+                onClick={() => void handleAdd()}
+            >
+                {isPending ? "Adding…" : buttonLabel}
+            </Button>
+        </div>
     );
-  }
-
-  return (
-    <div className={cn("flex max-w-md flex-col gap-2", className)}>
-      {actionsRow}
-      {errorNode}
-    </div>
-  );
 }

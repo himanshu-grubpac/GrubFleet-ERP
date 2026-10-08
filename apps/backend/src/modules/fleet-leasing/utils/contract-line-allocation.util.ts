@@ -19,6 +19,40 @@ export type ContractLineAllocationRow = {
   detailMessage: string;
 };
 
+export function formatContractLineStatusLabel(
+  lineStatus: ContractLineAllocationStatus,
+): string {
+  switch (lineStatus) {
+    case 'allocated':
+      return 'Allocated';
+    case 'partially_allocated':
+      return 'Partially allocated';
+    case 'awaiting_assets':
+      return 'Awaiting Assets';
+  }
+}
+
+export function isContractFullyAllocated(
+  lines: Pick<ContractLineAllocationRow, 'lineStatus'>[],
+): boolean {
+  return lines.length > 0 && lines.every((l) => l.lineStatus === 'allocated');
+}
+
+export function sumContractAllocationTotals(
+  lines: Pick<
+    ContractLineAllocationRow,
+    'committedQuantity' | 'allocatedCount'
+  >[],
+): { totalCommitted: number; totalAllocated: number } {
+  return lines.reduce(
+    (acc, line) => ({
+      totalCommitted: acc.totalCommitted + line.committedQuantity,
+      totalAllocated: acc.totalAllocated + line.allocatedCount,
+    }),
+    { totalCommitted: 0, totalAllocated: 0 },
+  );
+}
+
 export function resolveContractLineAllocationStatus(
   input: Pick<
     ContractLineAllocationInput,

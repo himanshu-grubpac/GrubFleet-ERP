@@ -126,6 +126,7 @@ export type Role = {
   description: string | null;
   isSystem: boolean;
   isActive: boolean;
+  parentRoleId: string | null;
   permissionKeys: string[];
   moduleAccess: ModuleAccessEntry[];
   createdAt: string;

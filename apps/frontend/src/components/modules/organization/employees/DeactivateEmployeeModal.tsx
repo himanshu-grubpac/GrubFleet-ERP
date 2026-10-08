@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useId, useState } from "react";
 import { createPortal } from "react-dom";
@@ -97,7 +97,7 @@ export default function DeactivateEmployeeModal({
                   {employee.fullName}
                 </span>{" "}
                 will be marked inactive. Select a reason and optionally add a
-                comment — the record stays in the register.
+                comment ΓÇö the record stays in the register.
               </p>
 
               <label className="mb-2 mt-4 block text-xs font-semibold uppercase tracking-wide text-gray-700">

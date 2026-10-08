@@ -9,6 +9,10 @@ export function canMutateAdministration(permissions: Set<string>): boolean {
   return ADMIN_WRITE_KEYS.some((key) => permissions.has(key));
 }
 
+export function canManageAdministration(permissions: Set<string>): boolean {
+  return permissions.has('administration.manage');
+}
+
 export function canCreateRole(permissions: Set<string>): boolean {
   return (
     permissions.has('administration.manage') ||

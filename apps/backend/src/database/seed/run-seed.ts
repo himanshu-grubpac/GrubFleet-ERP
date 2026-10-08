@@ -7,6 +7,8 @@ import * as schema from '../schema';
 import { permissions } from '../schema';
 import { buildPhase1PermissionCatalog } from './permission-catalog';
 import { seedDevAdminBootstrap } from './dev-admin-bootstrap';
+import { assertStagingDemoSeedAllowed } from './staging-demo-guards';
+import { seedStagingInterconnectedDemo } from './seed-staging-interconnected-demo';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env.development') });
 dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
@@ -52,6 +54,13 @@ async function main(): Promise<void> {
   console.log(
     'Credentials: see .project-tracking/SEED_CREDENTIALS.local.md (local only).',
   );
+
+  if (process.env.SEED_STAGING_DEMO === '1') {
+    assertStagingDemoSeedAllowed();
+    const summary = await seedStagingInterconnectedDemo(db);
+    console.log('Staging interconnected demo seed complete.');
+    console.log(JSON.stringify(summary, null, 2));
+  }
 
   await pool.end();
 }

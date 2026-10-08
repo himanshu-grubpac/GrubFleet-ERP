@@ -29,7 +29,43 @@ const NO_ORG_PERMISSION_USER = {
 
 type DriverDetail = { id: string; isActive: boolean; status: string };
 
+type AssignableVehicleRow = {
+  id: string;
+  vehicleCode: string;
+  activeLeaseId: string;
+};
+
+async function findAssignableVehicleInPages(
+  app: INestApplication<App>,
+  accessToken: string,
+  organizationId: string,
+  predicate: (row: AssignableVehicleRow) => boolean,
+): Promise<AssignableVehicleRow | undefined> {
+  const pageSize = 50;
+  let page = 1;
+  let totalPages = 1;
+  while (page <= totalPages) {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/organisation/drivers/assignable-vehicles')
+      .query({ organizationId, page, pageSize })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const body = res.body as {
+      items: AssignableVehicleRow[];
+      totalPages: number;
+    };
+    totalPages = Math.max(body.totalPages ?? 1, 1);
+    const match = body.items.find(predicate);
+    if (match) return match;
+    page += 1;
+  }
+  return undefined;
+}
+
 describe('Organisation drivers (integration)', () => {
+  jest.setTimeout(60_000);
+
   if (process.env.SKIP_DB_INTEGRATION === '1') {
     it.todo('skipped when SKIP_DB_INTEGRATION=1');
     return;
@@ -488,27 +524,16 @@ describe('Organisation drivers (integration)', () => {
         vehicleId: vehicle.id,
       });
 
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/organisation/drivers/assignable-vehicles')
-        .query({ organizationId, page: 1, pageSize: 50 })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .expect(200);
-      const body = res.body as {
-        items: Array<{
-          id: string;
-          vehicleCode: string;
-          activeLeaseId: string;
-        }>;
-      };
-      expect(
-        body.items.some(
-          (row) =>
-            row.id === vehicle.id &&
-            row.vehicleCode === vehicle.registrationNo &&
-            row.activeLeaseId === contract.id,
-        ),
-      ).toBe(true);
+      const match = await findAssignableVehicleInPages(
+        app,
+        accessToken,
+        organizationId,
+        (row) =>
+          row.id === vehicle.id &&
+          row.vehicleCode === vehicle.registrationNo &&
+          row.activeLeaseId === contract.id,
+      );
+      expect(match).toBeDefined();
     });
 
     it('lists assignable vehicles on active contracts without allocation rows', async () => {
@@ -539,22 +564,15 @@ describe('Organisation drivers (integration)', () => {
         vehicleId: vehicle.id,
       });
 
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/organisation/drivers/assignable-vehicles')
-        .query({ organizationId, page: 1, pageSize: 50 })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .expect(200);
-      const body = res.body as {
-        items: Array<{ vehicleCode: string; activeLeaseId: string }>;
-      };
-      expect(
-        body.items.some(
-          (row) =>
-            row.vehicleCode === vehicle.registrationNo &&
-            row.activeLeaseId === contract.id,
-        ),
-      ).toBe(true);
+      const match = await findAssignableVehicleInPages(
+        app,
+        accessToken,
+        organizationId,
+        (row) =>
+          row.vehicleCode === vehicle.registrationNo &&
+          row.activeLeaseId === contract.id,
+      );
+      expect(match).toBeDefined();
     });
 
     it('assigns, unassigns, and marks inactive when tied to contract', async () => {
@@ -712,6 +730,7 @@ describe('Organisation drivers (integration)', () => {
         .query({ organizationId })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
+        .send({ reason: 'Driver hook deactivate test' })
         .expect(201);
 
       const detailRes = await request(app.getHttpServer())

@@ -17,6 +17,8 @@ import { dashboardRowMenuTriggerClassName } from "./dashboard-row-icon-button";
 const MENU_GAP = 4;
 const VIEWPORT_PADDING = 8;
 export const DASHBOARD_ROW_MENU_MIN_WIDTH = 160;
+/** Minimum height assumed for flip math before menu children are measured. */
+const DASHBOARD_ROW_MENU_MIN_HEIGHT_ESTIMATE = 36;
 
 export type FixedMenuPosition = {
   top: number;
@@ -79,8 +81,13 @@ export function useFixedDropdownMenuPosition(options: {
     }
     const rect = trigger.getBoundingClientRect();
     const menuEl = menuRef.current;
-    const menuWidth = menuEl?.offsetWidth ?? menuMinWidth;
-    const menuHeight = menuEl?.offsetHeight ?? 0;
+    const measuredWidth = menuEl?.offsetWidth ?? 0;
+    const measuredHeight = menuEl?.offsetHeight ?? 0;
+    const menuWidth = Math.max(measuredWidth, menuMinWidth);
+    const menuHeight =
+      measuredHeight > 0
+        ? measuredHeight
+        : DASHBOARD_ROW_MENU_MIN_HEIGHT_ESTIMATE;
     setMenuPosition(computeFixedMenuPosition(rect, menuWidth, menuHeight));
   }, [menuMinWidth, menuRef, triggerRef]);
 
@@ -90,8 +97,17 @@ export function useFixedDropdownMenuPosition(options: {
       return;
     }
     updateMenuPosition();
+    const menuEl = menuRef.current;
+    let resizeObserver: ResizeObserver | null = null;
+    if (menuEl && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => updateMenuPosition());
+      resizeObserver.observe(menuEl);
+    }
     const frame = requestAnimationFrame(() => updateMenuPosition());
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      resizeObserver?.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure when menu content changes
   }, [open, updateMenuPosition, ...deps]);
 
@@ -185,11 +201,14 @@ export function DashboardRowActionsMenu({
     <div
       ref={menuRef}
       role="menu"
-      className="fixed z-50 w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg"
+      className={cn(
+        "fixed z-50 min-w-[160px] w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg",
+        !menuPosition && "pointer-events-none invisible",
+      )}
       style={
         menuPosition
           ? { top: menuPosition.top, left: menuPosition.left }
-          : { top: -9999, left: -9999, visibility: "hidden" }
+          : undefined
       }
     >
       {children({ close })}

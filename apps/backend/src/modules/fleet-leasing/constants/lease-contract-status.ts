@@ -24,14 +24,6 @@ export const LIST_STATUS_FILTER = {
   pending_termination: ['pending_termination'] as LeaseContractStatus[],
 } as const;
 
-/** Flow 04 — renew creates a new draft from these lifecycle states. */
-export const RENEWABLE_CONTRACT_STATUSES: LeaseContractStatus[] = [
-  'active',
-  'awaiting_assets',
-  'closed',
-  'concluded',
-];
-
 /** Flow 02 — allocate vehicles while contract is live or pre-active. */
 export const ALLOCATION_ELIGIBLE_CONTRACT_STATUSES: LeaseContractStatus[] = [
   'approved',
@@ -43,13 +35,14 @@ export type ListStatusFilterKey = keyof typeof LIST_STATUS_FILTER;
 
 export const TERMINAL_STATUSES: LeaseContractStatus[] = ['closed', 'concluded'];
 
-/** Detail edit (PATCH) and availableActions.editContract — all non-terminal lifecycle states except pending termination. */
+/** Detail edit (PATCH) and availableActions.editContract — non-terminal, non-deactivated lifecycle states (rule 31). */
 export const EDITABLE_CONTRACT_STATUSES: LeaseContractStatus[] = [
   'draft',
   'pending_approval',
   'approved',
   'active',
   'awaiting_assets',
-  'deactivated',
-  'billing_paused',
 ];
+
+/** Renewals & Extensions list — active contracts only (LEASE-16). */
+export const RENEWABLE_CONTRACT_STATUSES: LeaseContractStatus[] = ['active'];
