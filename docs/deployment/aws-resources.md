@@ -2,7 +2,7 @@
 
 
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-08
 
 
 
@@ -140,7 +140,9 @@ As of **2026-10-01**, GrubFleet ERP Postgres for all tiers runs on one shared RD
 
 |------------------|----------------|--------|
 
-| `grubfleet_erp_nonprod` | Staging + pre-prod | Same `DATABASE_URL` in GitHub Environments `staging` and `pre-production` (separate schemas/data; one server DB name) |
+| `grubfleet_erp_nonprod` | Staging only | GitHub Environment `staging` `DATABASE_URL`; gitignored `samconfig.staging.toml` |
+
+| `grubfleet_erp_preprod` | Pre-prod only | GitHub Environment `pre-production` `DATABASE_URL`; gitignored `samconfig.preprod.toml` (split **2026-10-08**) |
 
 | `grubfleet_erp_production` | Production | GitHub Environment `production` `DATABASE_URL` |
 
@@ -208,7 +210,7 @@ Pre-prod Redis sizing: `cache.t4g.micro` (see template `TierSizing` map).
 
 |----------|--------|
 
-| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_nonprod` (same server DB as staging; tier isolation via app/env) |
+| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_preprod` |
 
 | Redis cluster id | `grubfleet-preprod-redis` |
 
