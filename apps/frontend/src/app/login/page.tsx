@@ -121,7 +121,7 @@ export default function LoginPage() {
         {/* Header */}
         <div className="mb-6 space-y-1">
           <p className="text-xs font-bold uppercase tracking-wider text-[#FE5720]">
-            GrubPac
+            Fleet Pulse
           </p>
 
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">

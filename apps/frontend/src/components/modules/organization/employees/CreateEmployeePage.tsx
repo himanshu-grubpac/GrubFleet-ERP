@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import LocationTypeSelector, {
@@ -101,8 +100,10 @@ function buildDepartmentTypes(
   const add = (name: string, isCustom: boolean) => {
     const trimmed = name.trim();
     if (!trimmed) return;
+
     const key = trimmed.toLowerCase();
     if (seen.has(key)) return;
+
     seen.add(key);
     items.push({
       id: `employee-department-${items.length + 1}`,
@@ -115,9 +116,11 @@ function buildDepartmentTypes(
   for (const preset of PRESET_EMPLOYEE_DEPARTMENTS) {
     add(preset, false);
   }
+
   for (const department of apiDepartments) {
     add(department, false);
   }
+
   if (initialDepartment) {
     add(initialDepartment, true);
   }
@@ -125,9 +128,7 @@ function buildDepartmentTypes(
   return items;
 }
 
-function buildEmploymentTypes(
-  initialType?: string,
-): LocationType[] {
+function buildEmploymentTypes(initialType?: string): LocationType[] {
   const items: LocationType[] = EMPLOYMENT_TYPE_UI_OPTIONS.map(
     (type, index) => ({
       id: `employee-type-${index + 1}`,
@@ -141,6 +142,7 @@ function buildEmploymentTypes(
     const mapped = employmentTypeUiToApi(initialType)
       ? employmentTypeApiToUi(employmentTypeUiToApi(initialType)!)
       : initialType;
+
     if (
       !items.some(
         (item) => item.name.toLowerCase() === mapped.toLowerCase(),
@@ -214,6 +216,7 @@ export default function CreateEmployeePage({
       if (!token || !organizationId) {
         throw new Error("Missing auth context");
       }
+
       return fetchOrganisationLocationsApi(token, {
         organizationId,
         status: "active",
@@ -231,6 +234,7 @@ export default function CreateEmployeePage({
       if (!token || !organizationId) {
         throw new Error("Missing auth context");
       }
+
       return fetchOrganisationEmployeeDepartmentsApi(token, organizationId);
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -243,6 +247,7 @@ export default function CreateEmployeePage({
       if (!token || !organizationId) {
         throw new Error("Missing auth context");
       }
+
       return fetchOrganisationEmployeesApi(token, {
         organizationId,
         page: 1,
@@ -256,12 +261,14 @@ export default function CreateEmployeePage({
 
   useEffect(() => {
     if (!departmentsQuery.data) return;
+
     setDepartments((previous) => {
       const selected = form.department || initialData?.department;
       const next = buildDepartmentTypes(
         departmentsQuery.data.items,
         selected,
       );
+
       for (const item of previous) {
         if (
           item.isCustom &&
@@ -273,6 +280,7 @@ export default function CreateEmployeePage({
           next.push(item);
         }
       }
+
       return next;
     });
   }, [departmentsQuery.data, form.department, initialData?.department]);
@@ -338,10 +346,12 @@ export default function CreateEmployeePage({
 
   const handleDeleteDepartment = (type: LocationType) => {
     if (!type.isCustom || type.isUsed) return;
+
     if (form.department === type.name) {
       updateForm("department", "");
       clearError("department");
     }
+
     setDepartments((previous) =>
       previous.filter((item) => item.id !== type.id),
     );
@@ -379,10 +389,12 @@ export default function CreateEmployeePage({
 
   const handleDeleteEmploymentType = (type: LocationType) => {
     if (!type.isCustom || type.isUsed) return;
+
     if (form.employmentTypeUi === type.name) {
       updateForm("employmentTypeUi", "");
       clearError("employmentType");
     }
+
     setEmploymentTypes((previous) =>
       previous.filter((item) => item.id !== type.id),
     );
@@ -393,6 +405,7 @@ export default function CreateEmployeePage({
       onCancel();
       return;
     }
+
     router.push("/organization/employees");
   };
 
@@ -402,29 +415,36 @@ export default function CreateEmployeePage({
     if (!form.fullName.trim()) {
       errors.fullName = "Full name is required.";
     }
+
     if (!form.designation.trim()) {
       errors.designation = "Designation is required.";
     }
+
     if (!form.department.trim()) {
       errors.department = "Please select a department.";
     }
+
     if (!form.locationId.trim()) {
       errors.location = "Please select a location.";
     }
+
     if (!form.employmentTypeUi.trim()) {
       errors.employmentType = "Please select an employment type.";
     } else if (!employmentTypeUiToApi(form.employmentTypeUi)) {
       errors.employmentType =
         "Employment type must be Full-time, Part-time, or Contract.";
     }
+
     if (!form.dateOfJoining.trim()) {
       errors.dateOfJoining = "Date of joining is required.";
     } else if (!parseEmployeeDateForApi(form.dateOfJoining)) {
       errors.dateOfJoining = "Use DD-MMM-YYYY (e.g. 14-Jun-2022).";
     }
+
     if (!form.phone.trim()) {
       errors.phone = "Phone number is required.";
     }
+
     if (!form.email.trim()) {
       errors.email = "Email is required.";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
@@ -440,12 +460,14 @@ export default function CreateEmployeePage({
 
     const errors = validateForm();
     setValidationErrors(errors);
+
     if (Object.keys(errors).length > 0) {
       return;
     }
 
     const employmentType = employmentTypeUiToApi(form.employmentTypeUi);
     const dateOfJoining = parseEmployeeDateForApi(form.dateOfJoining);
+
     if (!employmentType || !dateOfJoining) {
       return;
     }
@@ -465,6 +487,7 @@ export default function CreateEmployeePage({
     try {
       setIsSaving(true);
       await onSaved?.(employee);
+
       if (!onSaved) {
         router.push("/organization/employees");
       }
@@ -525,7 +548,6 @@ export default function CreateEmployeePage({
           >
             Cancel
           </button>
-
           <Button
             type="button"
             onClick={() => void handleSave()}
@@ -549,7 +571,6 @@ export default function CreateEmployeePage({
           Full name
           <span className="ml-1 text-red-500">*</span>
         </label>
-
         <input
           id="employee-full-name"
           type="text"
@@ -561,7 +582,6 @@ export default function CreateEmployeePage({
           placeholder="Enter employee name"
           className={inputClass("fullName")}
         />
-
         {validationErrors.fullName && (
           <p className="mt-1 text-xs text-red-500">
             {validationErrors.fullName}
@@ -569,6 +589,7 @@ export default function CreateEmployeePage({
         )}
       </div>
 
+      {/* Designation */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label
@@ -578,7 +599,6 @@ export default function CreateEmployeePage({
             Designation
             <span className="ml-1 text-red-500">*</span>
           </label>
-
           <input
             id="employee-designation"
             type="text"
@@ -590,39 +610,40 @@ export default function CreateEmployeePage({
             placeholder="e.g. Workshop Technician"
             className={inputClass("designation")}
           />
-
           {validationErrors.designation && (
             <p className="mt-1 text-xs text-red-500">
               {validationErrors.designation}
             </p>
           )}
         </div>
-
-        <div>
-          <LocationTypeSelector
-            locationTypes={departments}
-            selectedType={form.department}
-            showAddType={showAddDepartment}
-            newType={newDepartment}
-            error={validationErrors.department}
-            onSelect={(type: string) => {
-              updateForm("department", type);
-              clearError("department");
-            }}
-            onToggleAddType={() => {
-              setShowAddDepartment((previous: boolean) => !previous);
-              setNewDepartment("");
-            }}
-            onNewTypeChange={(value: string) => {
-              setNewDepartment(value);
-              clearError("department");
-            }}
-            onAddType={handleAddDepartment}
-            onDeleteType={handleDeleteDepartment}
-          />
-        </div>
       </div>
 
+      {/* Department — full-width row */}
+      <div className="mt-3 w-full">
+        <LocationTypeSelector
+          locationTypes={departments}
+          selectedType={form.department}
+          showAddType={showAddDepartment}
+          newType={newDepartment}
+          error={validationErrors.department}
+          onSelect={(type: string) => {
+            updateForm("department", type);
+            clearError("department");
+          }}
+          onToggleAddType={() => {
+            setShowAddDepartment((previous: boolean) => !previous);
+            setNewDepartment("");
+          }}
+          onNewTypeChange={(value: string) => {
+            setNewDepartment(value);
+            clearError("department");
+          }}
+          onAddType={handleAddDepartment}
+          onDeleteType={handleDeleteDepartment}
+        />
+      </div>
+
+      {/* Branch / location and Reports to */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label
@@ -632,7 +653,6 @@ export default function CreateEmployeePage({
             Branch / location
             <span className="ml-1 text-red-500">*</span>
           </label>
-
           <div className="relative">
             <select
               id="employee-location"
@@ -651,13 +671,11 @@ export default function CreateEmployeePage({
                 </option>
               ))}
             </select>
-
             <ChevronDown
               className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
               strokeWidth={1.7}
             />
           </div>
-
           {validationErrors.location && (
             <p className="mt-1 text-xs text-red-500">
               {validationErrors.location}
@@ -672,7 +690,6 @@ export default function CreateEmployeePage({
           >
             Reports to
           </label>
-
           <div className="relative">
             <select
               id="employee-reports-to"
@@ -691,7 +708,6 @@ export default function CreateEmployeePage({
                 </option>
               ))}
             </select>
-
             <ChevronDown
               className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
               strokeWidth={1.7}
@@ -700,31 +716,33 @@ export default function CreateEmployeePage({
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <div>
-          <LocationTypeSelector
-            locationTypes={employmentTypes}
-            selectedType={form.employmentTypeUi}
-            showAddType={showAddEmploymentType}
-            newType={newEmploymentType}
-            error={validationErrors.employmentType}
-            onSelect={(type: string) => {
-              updateForm("employmentTypeUi", type);
-              clearError("employmentType");
-            }}
-            onToggleAddType={() => {
-              setShowAddEmploymentType((previous: boolean) => !previous);
-              setNewEmploymentType("");
-            }}
-            onNewTypeChange={(value: string) => {
-              setNewEmploymentType(value);
-              clearError("employmentType");
-            }}
-            onAddType={handleAddEmploymentType}
-            onDeleteType={handleDeleteEmploymentType}
-          />
-        </div>
+      {/* Employment Type — full-width row */}
+      <div className="mt-3 w-full">
+        <LocationTypeSelector
+          locationTypes={employmentTypes}
+          selectedType={form.employmentTypeUi}
+          showAddType={showAddEmploymentType}
+          newType={newEmploymentType}
+          error={validationErrors.employmentType}
+          onSelect={(type: string) => {
+            updateForm("employmentTypeUi", type);
+            clearError("employmentType");
+          }}
+          onToggleAddType={() => {
+            setShowAddEmploymentType((previous: boolean) => !previous);
+            setNewEmploymentType("");
+          }}
+          onNewTypeChange={(value: string) => {
+            setNewEmploymentType(value);
+            clearError("employmentType");
+          }}
+          onAddType={handleAddEmploymentType}
+          onDeleteType={handleDeleteEmploymentType}
+        />
+      </div>
 
+      {/* Date of Joining */}
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label
             htmlFor="employee-date-of-joining"
@@ -733,7 +751,6 @@ export default function CreateEmployeePage({
             Date of joining
             <span className="ml-1 text-red-500">*</span>
           </label>
-
           <input
             id="employee-date-of-joining"
             type="text"
@@ -745,7 +762,6 @@ export default function CreateEmployeePage({
             placeholder="DD-MMM-YYYY"
             className={inputClass("dateOfJoining")}
           />
-
           {validationErrors.dateOfJoining && (
             <p className="mt-1 text-xs text-red-500">
               {validationErrors.dateOfJoining}
@@ -754,6 +770,7 @@ export default function CreateEmployeePage({
         </div>
       </div>
 
+      {/* Phone and Email */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label
@@ -763,7 +780,6 @@ export default function CreateEmployeePage({
             Phone
             <span className="ml-1 text-red-500">*</span>
           </label>
-
           <input
             id="employee-phone"
             type="tel"
@@ -775,7 +791,6 @@ export default function CreateEmployeePage({
             placeholder="+91 98XXXXXXXX"
             className={inputClass("phone")}
           />
-
           {validationErrors.phone && (
             <p className="mt-1 text-xs text-red-500">
               {validationErrors.phone}
@@ -791,7 +806,6 @@ export default function CreateEmployeePage({
             Email
             <span className="ml-1 text-red-500">*</span>
           </label>
-
           <input
             id="employee-email"
             type="email"
@@ -803,7 +817,6 @@ export default function CreateEmployeePage({
             placeholder="name@company.com"
             className={inputClass("email")}
           />
-
           {validationErrors.email && (
             <p className="mt-1 text-xs text-red-500">
               {validationErrors.email}

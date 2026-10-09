@@ -1,6 +1,7 @@
 "use client";
 
-import { Mail, Phone } from "lucide-react";
+import { useState } from "react";
+import { Check, Mail, Phone } from "lucide-react";
 
 type DashboardContactProps = {
     phone?: string;
@@ -11,6 +12,24 @@ export default function DashboardContact({
     phone,
     email,
 }: DashboardContactProps) {
+    const [copied, setCopied] = useState<"phone" | "email" | null>(null);
+
+    const handleCopy = async (
+        value: string,
+        type: "phone" | "email",
+    ) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            setCopied(type);
+
+            window.setTimeout(() => {
+                setCopied((current) => (current === type ? null : current));
+            }, 1500);
+        } catch {
+            setCopied(null);
+        }
+    };
+
     return (
         <div className="flex items-center gap-3">
             {/* Phone */}
@@ -18,13 +37,23 @@ export default function DashboardContact({
                 <div className="group relative">
                     <button
                         type="button"
-                        aria-label="Show phone number"
-                        className="text-gray-500 transition-colors hover:text-gray-900"
+                        aria-label="Copy phone number"
+                        title="Click to copy phone number"
+                        onClick={() => void handleCopy(phone, "phone")}
+                        className="text-gray-500 transition-colors hover:text-[#FE5720]"
                     >
-                        <Phone
-                            className="h-4 w-4"
-                            strokeWidth={1.7}
-                        />
+                        {copied === "phone" ? (
+                            <Check
+                                className="h-4 w-4 text-green-600"
+                                aria-hidden
+                            />
+                        ) : (
+                            <Phone
+                                className="h-4 w-4"
+                                strokeWidth={1.7}
+                                aria-hidden
+                            />
+                        )}
                     </button>
 
                     {/* Phone Tooltip */}
@@ -49,7 +78,7 @@ export default function DashboardContact({
                             group-hover:block
                         "
                     >
-                        {phone}
+                        {copied === "phone" ? "Copied!" : phone}
                     </div>
                 </div>
             )}
@@ -59,13 +88,23 @@ export default function DashboardContact({
                 <div className="group relative">
                     <button
                         type="button"
-                        aria-label="Show email address"
-                        className="text-gray-500 transition-colors hover:text-gray-900"
+                        aria-label="Copy email address"
+                        title="Click to copy email address"
+                        onClick={() => void handleCopy(email, "email")}
+                        className="text-gray-500 transition-colors hover:text-[#FE5720]"
                     >
-                        <Mail
-                            className="h-4 w-4"
-                            strokeWidth={1.7}
-                        />
+                        {copied === "email" ? (
+                            <Check
+                                className="h-4 w-4 text-green-600"
+                                aria-hidden
+                            />
+                        ) : (
+                            <Mail
+                                className="h-4 w-4"
+                                strokeWidth={1.7}
+                                aria-hidden
+                            />
+                        )}
                     </button>
 
                     {/* Email Tooltip */}
@@ -90,7 +129,7 @@ export default function DashboardContact({
                             group-hover:block
                         "
                     >
-                        {email}
+                        {copied === "email" ? "Copied!" : email}
                     </div>
                 </div>
             )}

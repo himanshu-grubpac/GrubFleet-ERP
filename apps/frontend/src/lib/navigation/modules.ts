@@ -71,7 +71,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Asset Management",
-    href: "/asset-management/",
+    href: "/asset-register/",
     icon: ClipboardList,
     requiredPermission: "asset_register.view",
     children: [
@@ -112,6 +112,24 @@ export const mainNavItems: NavItem[] = [
     href: "/workshop/",
     icon: Wrench,
     requiredPermission: "workshop.view",
+
+    children: [
+      {
+        label: "Work Orders",
+        href: "/workshop/work-order/",
+        icon: ClipboardList,
+      },
+      {
+        label: "Labour Rate Cards",
+        href: "/workshop/labour-rate-cards/",
+        icon: FileText,
+      },
+      {
+        label: "AMC & Maintenance",
+        href: "/workshop/amc-maintenance/",
+        icon: Settings,
+      },
+    ],
   },
 
   // ============================================================
