@@ -32,10 +32,10 @@ import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
-  ASSET_MASTER_STATUS_UPDATE_ERROR,
-  showAssetMasterActivatedToast,
-  showAssetMasterDeactivatedToast,
-  showErrorToast,
+    ASSET_MASTER_STATUS_UPDATE_ERROR,
+    showAssetMasterActivatedToast,
+    showAssetMasterDeactivatedToast,
+    showErrorToast,
 } from "@/lib/toast/show-toast";
 import {
     fetchAssetRegisterAssetMastersApi,
@@ -43,8 +43,8 @@ import {
     type AssetRegisterAssetMasterListItem,
 } from "@/lib/api/asset-register/asset-masters";
 import {
-  assetRegisterAssetMasterDetailHref,
-  assetRegisterAssetMasterEditHref,
+    assetRegisterAssetMasterDetailHref,
+    assetRegisterAssetMasterEditHref,
 } from "@/lib/navigation/asset-register-static-routes";
 
 /* -------------------------------------------------------------------------- */
@@ -581,6 +581,17 @@ export default function AssetMasterDashboardPage() {
             <DashboardLayout
                 title="Asset Master"
                 description="Manage vehicles and their asset class associations."
+                action={
+                    canCreate ? (
+                        <Button
+                            type="button"
+                            onClick={handleAddAsset}
+                            className="h-9 px-4 text-xs"
+                        >
+                            Add Asset
+                        </Button>
+                    ) : null
+                }
                 pagination={{
                     currentPage: safeCurrentPage,
                     totalPages,
@@ -612,16 +623,6 @@ export default function AssetMasterDashboardPage() {
                             className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
                         />
                     </div>
-
-                    {canCreate ? (
-                        <Button
-                            type="button"
-                            onClick={handleAddAsset}
-                            className="h-9 shrink-0 px-4 text-xs"
-                        >
-                            Add Asset
-                        </Button>
-                    ) : null}
                 </div>
 
                 {/* ========================================================== */}
@@ -755,7 +756,7 @@ export default function AssetMasterDashboardPage() {
                                     asset.id && (
                                         <div className="absolute right-0 top-7 z-50 w-40 rounded-lg border border-gray-200 bg-white py-1 shadow-lg">
                                             {canUpdate &&
-                                            asset.status ===
+                                                asset.status ===
                                                 "Active" ? (
                                                 <button
                                                     type="button"
@@ -784,33 +785,33 @@ export default function AssetMasterDashboardPage() {
                                             ) : null}
 
                                             {canUpdate ? (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    setOpenActionId(
-                                                        null,
-                                                    );
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setOpenActionId(
+                                                            null,
+                                                        );
 
-                                                    handleToggleStatus(
-                                                        asset,
-                                                    );
-                                                }}
-                                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                            >
-                                                <Power
-                                                    className="h-4 w-4 text-gray-500"
-                                                    strokeWidth={
-                                                        1.7
-                                                    }
-                                                />
+                                                        handleToggleStatus(
+                                                            asset,
+                                                        );
+                                                    }}
+                                                    className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    <Power
+                                                        className="h-4 w-4 text-gray-500"
+                                                        strokeWidth={
+                                                            1.7
+                                                        }
+                                                    />
 
-                                                <span>
-                                                    {asset.status ===
-                                                        "Active"
-                                                        ? "Deactivate"
-                                                        : "Activate"}
-                                                </span>
-                                            </button>
+                                                    <span>
+                                                        {asset.status ===
+                                                            "Active"
+                                                            ? "Deactivate"
+                                                            : "Activate"}
+                                                    </span>
+                                                </button>
                                             ) : null}
                                         </div>
                                     )}

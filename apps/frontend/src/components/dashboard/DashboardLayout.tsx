@@ -279,23 +279,13 @@ export default function DashboardLayout({
                 {/* Common Pagination                                       */}
                 {/* ====================================================== */}
 
-                {pagination && (
+                {pagination && pagination.totalItems > 0 && (
                     <DashboardPagination
-                        currentPage={
-                            pagination.currentPage
-                        }
-                        totalPages={
-                            pagination.totalPages
-                        }
-                        totalItems={
-                            pagination.totalItems
-                        }
-                        pageSize={
-                            pagination.pageSize
-                        }
-                        onPageChange={
-                            pagination.onPageChange
-                        }
+                        currentPage={pagination.currentPage}
+                        totalPages={pagination.totalPages}
+                        totalItems={pagination.totalItems}
+                        pageSize={pagination.pageSize}
+                        onPageChange={pagination.onPageChange}
                     />
                 )}
             </main>
