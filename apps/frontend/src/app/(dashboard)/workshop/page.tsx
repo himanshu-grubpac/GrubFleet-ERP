@@ -1,5 +1,5 @@
-import { WorkshopModule } from '@/components/modules/workshop';
+import { redirect } from "next/navigation";
 
 export default function WorkshopPage() {
-  return <WorkshopModule />;
+  redirect("/workshop/work-order/");
 }
