@@ -299,7 +299,10 @@ export function Sidebar({
 
                 id="erp-sidebar-nav"
 
-                className="flex-1 space-y-1 hide-scrollbar overflow-y-auto overflow-x-hidden p-3"
+                className={cn(
+                    "flex-1 space-y-1 hide-scrollbar overflow-y-auto overflow-x-hidden",
+                    collapsed ? "px-1.5 py-3" : "p-3",
+                )}
 
                 aria-label="Main"
 
@@ -877,14 +880,14 @@ function SidebarItem({
 
                     )}
 
-                    <div className="flex items-center gap-0.5">
+                    <div className="flex h-11 w-full items-center">
                         <Link
                             href={internalHref(item.href)}
                             title={item.label}
                             aria-label={item.label}
                             className={cn(
-                                "flex min-w-0 flex-1 items-center justify-center rounded-lg px-1 py-3",
-                                "text-sm font-medium transition-colors",
+                                "flex h-10 w-full min-w-0 items-center justify-center rounded-lg",
+                                "transition-colors",
                                 isModuleActive
                                     ? "bg-[#FE5720] text-white"
                                     : "text-slate-800 hover:bg-orange-50 hover:text-[#FE5720]",
@@ -893,26 +896,6 @@ function SidebarItem({
                             <Icon className="h-5 w-5 shrink-0" aria-hidden />
                             <span className="sr-only">{item.label}</span>
                         </Link>
-                        <button
-                            type="button"
-                            title={`${flyoutOpen ? "Close" : "Open"} ${item.label} submenu`}
-                            aria-label={`${flyoutOpen ? "Close" : "Open"} ${item.label} submenu`}
-                            aria-expanded={flyoutOpen}
-                            aria-haspopup="menu"
-                            onClick={onToggleFlyout}
-                            className={cn(
-                                "flex h-8 w-5 shrink-0 items-center justify-center rounded-md transition-colors",
-                                flyoutOpen
-                                    ? "bg-orange-100 text-[#FE5720]"
-                                    : "text-slate-500 hover:bg-orange-50 hover:text-[#FE5720]",
-                            )}
-                        >
-                            {flyoutOpen ? (
-                                <ChevronDown className="h-4 w-4" aria-hidden />
-                            ) : (
-                                <ChevronRight className="h-4 w-4" aria-hidden />
-                            )}
-                        </button>
                     </div>
 
                 </div>
