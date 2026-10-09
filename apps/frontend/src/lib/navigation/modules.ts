@@ -112,8 +112,25 @@ export const mainNavItems: NavItem[] = [
     href: "/workshop/",
     icon: Wrench,
     requiredPermission: "workshop.view",
-  },
 
+    children: [
+      {
+        label: "Work Orders",
+        href: "/workshop/work-order/",
+        icon: ClipboardList,
+      },
+      {
+        label: "Labour Rate Cards",
+        href: "/workshop/labour-rate-cards/",
+        icon: FileText,
+      },
+      {
+        label: "AMC & Maintenance",
+        href: "/workshop/amc-maintenance/",
+        icon: Settings,
+      },
+    ],
+  },
   // ============================================================
   // INVENTORY
   // ============================================================
