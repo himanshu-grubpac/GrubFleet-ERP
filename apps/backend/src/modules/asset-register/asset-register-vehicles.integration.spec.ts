@@ -88,10 +88,11 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
   function buildAssetClassPayload(
     overrides: Record<string, unknown> = {},
   ): Record<string, unknown> {
-    const unique = Date.now();
+    const unique = `${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
     return {
       organizationId,
-      name: `Vehicle Lattice Class ${unique}`,
+      // Single-token name so auto class codes stay unique across repeated local runs.
+      name: `vlc${unique}`,
       vehicleType: '4W',
       fuelType: 'Diesel',
       fuelTankCapacity: 60,
