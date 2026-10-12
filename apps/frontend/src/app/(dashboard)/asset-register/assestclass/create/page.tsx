@@ -20,7 +20,9 @@ export default function Page() {
   const { token, organizationId } = useAuth();
 
   const handleSaved = async (data: AssetClassFormData) => {
-    if (!token || !organizationId) return;
+    if (!token || !organizationId) {
+      throw new Error("Missing auth context. Sign in again and retry.");
+    }
     try {
       const created = await createAssetRegisterAssetClassApi({
         token,
@@ -32,6 +34,7 @@ export default function Page() {
       showErrorToast(
         error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,
       );
+      throw error;
     }
   };
 

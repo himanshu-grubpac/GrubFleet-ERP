@@ -24,7 +24,14 @@ export const assetRegisterAssetClasses = pgTable(
     organizationId: uuid('organization_id').notNull(),
     name: varchar('name', { length: 255 }).notNull(),
     description: varchar('description', { length: 2000 }),
-    code: varchar('code', { length: 8 }).notNull(),
+    brand: varchar('brand', { length: 255 }).notNull(),
+    modelName: varchar('model_name', { length: 255 }).notNull(),
+    manufacturingYear: integer('manufacturing_year').notNull(),
+    engineDisplacementCc: integer('engine_displacement_cc').notNull(),
+    fuelCapacity: numeric('fuel_capacity', { precision: 10, scale: 2 }),
+    fuelSystem: varchar('fuel_system', { length: 64 }).notNull(),
+    color: varchar('color', { length: 128 }).notNull(),
+    colorCode: varchar('color_code', { length: 32 }).notNull(),
     vehicleType: assetRegisterVehicleTypeEnum('vehicle_type').notNull(),
     fuelType: varchar('fuel_type', { length: 64 }).notNull(),
     mileageFrom: numeric('mileage_from', { precision: 10, scale: 2 }),
@@ -33,15 +40,15 @@ export const assetRegisterAssetClasses = pgTable(
     fuelTankCapacity: numeric('fuel_tank_capacity', {
       precision: 10,
       scale: 2,
-    }).notNull(),
+    }),
     ratedLoadFrom: numeric('rated_load_from', {
       precision: 12,
       scale: 2,
-    }).notNull(),
+    }),
     ratedLoadTo: numeric('rated_load_to', {
       precision: 12,
       scale: 2,
-    }).notNull(),
+    }),
     defaultIntakeChecklist: text('default_intake_checklist'),
     isActive: boolean('is_active').notNull().default(true),
     deactivatedAt: timestamp('deactivated_at', { withTimezone: true }),
@@ -54,9 +61,9 @@ export const assetRegisterAssetClasses = pgTable(
       .defaultNow(),
   },
   (t) => [
-    uniqueIndex('asset_register_asset_classes_org_code_uidx').on(
+    uniqueIndex('asset_register_asset_classes_org_name_uidx').on(
       t.organizationId,
-      t.code,
+      t.name,
     ),
     index('asset_register_asset_classes_organization_id_idx').on(
       t.organizationId,
@@ -65,13 +72,13 @@ export const assetRegisterAssetClasses = pgTable(
       t.organizationId,
       t.isActive,
     ),
-    index('asset_register_asset_classes_name_idx').on(t.organizationId, t.name),
   ],
 );
 
 export type AssetRegisterAssetClassRow =
   typeof assetRegisterAssetClasses.$inferSelect;
 
+/** Legacy table (Option A): merged into asset class. No HTTP API; retained for existing FK rows until a future migration drops it. */
 export const assetRegisterAssetMasters = pgTable(
   'asset_register_asset_masters',
   {
@@ -130,7 +137,7 @@ export const assetRegisterVehicles = pgTable(
     id: uuid('id').defaultRandom().primaryKey(),
     organizationId: uuid('organization_id').notNull(),
     assetClassId: uuid('asset_class_id').notNull(),
-    assetMasterId: uuid('asset_master_id').notNull(),
+    assetMasterId: uuid('asset_master_id'),
     fleetCode: varchar('fleet_code', { length: 32 }).notNull(),
     registrationNumber: varchar('registration_number', {
       length: 32,

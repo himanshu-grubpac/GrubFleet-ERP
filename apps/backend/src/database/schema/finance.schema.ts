@@ -14,7 +14,10 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
-import { assetRegisterVehicles } from './asset-register.schema';
+import {
+  assetRegisterAssetClasses,
+  assetRegisterVehicles,
+} from './asset-register.schema';
 import { leaseContracts } from './fleet-leasing.schema';
 import {
   organisationClients,
@@ -38,6 +41,11 @@ export const financePurchaseLineKindEnum = pgEnum(
   'finance_purchase_line_kind',
   ['vehicle', 'spare_parts', 'sale_vehicle', 'billing_lease'],
 );
+
+export const financePurchaseTaxModeEnum = pgEnum('finance_purchase_tax_mode', [
+  'INCLUSIVE',
+  'EXCLUSIVE',
+]);
 
 /** Spare part master (Stock Register); shared FK from Finance invoice lines. */
 export const inventoryCatalogParts = pgTable(
@@ -175,7 +183,15 @@ export const financeInvoiceLines = pgTable(
       .notNull()
       .references(() => financeInvoices.id, { onDelete: 'cascade' }),
     lineKind: financePurchaseLineKindEnum('line_kind').notNull(),
+    assetClassId: uuid('asset_class_id').references(
+      () => assetRegisterAssetClasses.id,
+      { onDelete: 'restrict' },
+    ),
     assetClassName: varchar('asset_class_name', { length: 120 }),
+    taxMode: financePurchaseTaxModeEnum('tax_mode'),
+    vatPercent: integer('vat_percent'),
+    baseAmountMinor: bigint('base_amount_minor', { mode: 'number' }),
+    taxAmountMinor: bigint('tax_amount_minor', { mode: 'number' }),
     inventoryPartId: uuid('inventory_part_id').references(
       () => inventoryCatalogParts.id,
       { onDelete: 'restrict' },
@@ -194,6 +210,7 @@ export const financeInvoiceLines = pgTable(
   (t) => [
     index('finance_invoice_lines_invoice_id_idx').on(t.invoiceId),
     index('finance_invoice_lines_vehicle_id_idx').on(t.vehicleId),
+    index('finance_invoice_lines_asset_class_id_idx').on(t.assetClassId),
   ],
 );
 
@@ -265,6 +282,10 @@ export const financeInvoiceLinesRelations = relations(
     part: one(inventoryCatalogParts, {
       fields: [financeInvoiceLines.inventoryPartId],
       references: [inventoryCatalogParts.id],
+    }),
+    assetClass: one(assetRegisterAssetClasses, {
+      fields: [financeInvoiceLines.assetClassId],
+      references: [assetRegisterAssetClasses.id],
     }),
   }),
 );

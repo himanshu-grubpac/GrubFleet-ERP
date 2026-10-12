@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { AssetRegisterAssetClassListItem } from "@/lib/api/asset-register/asset-classes";
 
 export type FinanceInvoiceType = "purchase" | "sale" | "billing";
 export type FinanceInvoiceStatus =
@@ -77,12 +78,18 @@ export type FinanceInvoiceDetail = FinanceInvoiceListItem & {
   lines: Array<{
     id: string;
     lineKind: string;
+    assetClassId: string | null;
     assetClassName: string | null;
+    taxMode: "INCLUSIVE" | "EXCLUSIVE" | null;
+    vatPercent: number | null;
+    baseAmountMinor: number | null;
+    taxAmountMinor: number | null;
     inventoryPartId: string | null;
     inventoryPartName: string | null;
     vehicleId: string | null;
     quantity: number;
     unitCostMinor: number | null;
+    rateMinor: number | null;
     lineAmountMinor: number;
     batchLot: string | null;
   }>;
@@ -104,6 +111,31 @@ function orgHeaders(organizationId: string, token: string) {
     token,
     headers: { "x-organization-id": organizationId },
   };
+}
+
+export type ListFinancePurchaseAssetClassesParams = {
+  organizationId: string;
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  status?: "active" | "inactive";
+};
+
+export async function fetchFinancePurchaseAssetClassesCatalogApi(
+  token: string,
+  params: ListFinancePurchaseAssetClassesParams,
+): Promise<PaginatedResponse<AssetRegisterAssetClassListItem>> {
+  const q = new URLSearchParams();
+  q.set("organizationId", params.organizationId);
+  q.set("page", String(params.page ?? 1));
+  q.set("pageSize", String(params.pageSize ?? 50));
+  if (params.search?.trim()) q.set("search", params.search.trim());
+  if (params.status) q.set("status", params.status);
+
+  return apiFetch(`/finance/invoices/asset-classes/catalog?${q.toString()}`, {
+    method: "GET",
+    ...orgHeaders(params.organizationId, token),
+  });
 }
 
 export async function fetchFinanceInvoicesApi(
@@ -136,13 +168,20 @@ export async function fetchFinanceInvoiceDetailApi(
   });
 }
 
+export type CreatePurchaseVehicleInvoiceLinePayload = {
+  assetClassId: string;
+  quantity: number;
+  rateMinor: number;
+  taxMode: "INCLUSIVE" | "EXCLUSIVE";
+  vatPercent: number;
+};
+
 export type CreatePurchaseVehicleInvoicePayload = {
   organizationId: string;
   supplierId: string;
-  assetClassName: string;
-  totalAmountMinor: number;
   invoiceDate: string;
-  notes?: string;
+  lines: CreatePurchaseVehicleInvoiceLinePayload[];
+  grandTotalMinor: number;
 };
 
 export async function createPurchaseVehicleInvoiceApi(

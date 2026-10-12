@@ -2,6 +2,8 @@
 
 import { DataTable, type Column } from "@grubpac/ui-kit";
 
+import DashboardAssetClassNameCell from "@/components/dashboard/DashboardAssetClassNameCell";
+
 export interface LeaseAssetClass {
     id: string;
     assetClass: string;
@@ -26,6 +28,9 @@ export default function LeaseAssetClassTable({
             header: "Asset class",
             accessorKey: "assetClass",
             sortable: true,
+            cell: ({ row }) => (
+                <DashboardAssetClassNameCell name={row.assetClass} />
+            ),
         },
         {
             header: "Qty",
@@ -61,6 +66,9 @@ export default function LeaseAssetClassTable({
                       header: "Asset Class",
                       accessorKey: "assetClass",
                       sortable: true,
+                      cell: ({ row }) => (
+                          <DashboardAssetClassNameCell name={row.assetClass} />
+                      ),
                   },
                   {
                       header: "Committed",

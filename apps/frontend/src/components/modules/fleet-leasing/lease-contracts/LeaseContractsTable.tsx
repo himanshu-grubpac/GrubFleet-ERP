@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
+import DashboardAssetClassNameCell from "@/components/dashboard/DashboardAssetClassNameCell";
 import { formatLeaseContractRowCopyText } from "@/components/dashboard/dashboard-row-copy-text";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable, {
@@ -236,7 +237,16 @@ export default function LeaseContractsTable() {
   const columns: DashboardColumn<LeaseContractListItem>[] = [
     { key: "contractNumber", label: "Contract No." },
     { key: "clientName", label: "Company Name" },
-    { key: "assetClasses", label: "Asset Class" },
+    {
+      key: "assetClasses",
+      label: "Asset Class",
+      render: (row) => (
+        <DashboardAssetClassNameCell
+          name={row.assetClasses}
+          copyAriaLabel="Copy asset class summary"
+        />
+      ),
+    },
     {
       key: "startDate",
       label: "Start Date",

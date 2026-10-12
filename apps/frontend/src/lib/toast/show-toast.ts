@@ -225,29 +225,6 @@ export function showAssetClassDeactivatedToast(name: string): void {
   showSuccessToast(`${name} was deactivated`);
 }
 
-export const ASSET_MASTER_SAVE_ERROR =
-  "Could not save asset master. Try again.";
-export const ASSET_MASTER_CREATE_ERROR =
-  "Could not create asset master. Try again.";
-export const ASSET_MASTER_STATUS_UPDATE_ERROR =
-  "Could not update asset master status. Try again.";
-
-export function showAssetMasterCreatedToast(): void {
-  showSuccessToast("Asset master created");
-}
-
-export function showAssetMasterUpdatedToast(): void {
-  showSuccessToast("Asset master updated");
-}
-
-export function showAssetMasterActivatedToast(): void {
-  showSuccessToast("Asset master activated");
-}
-
-export function showAssetMasterDeactivatedToast(): void {
-  showSuccessToast("Asset master deactivated");
-}
-
 export const FLEET_VEHICLE_SAVE_ERROR = "Could not update vehicle. Try again.";
 export const FLEET_VEHICLE_ADD_ERROR = "Could not add vehicle. Try again.";
 export const FLEET_VEHICLE_STATUS_UPDATE_ERROR =

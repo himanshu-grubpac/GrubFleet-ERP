@@ -29,12 +29,24 @@ import {
 } from "@/lib/toast/show-toast";
 
 /** Wizard inline create — full class details can be edited later in Asset Register. */
-const WIZARD_QUICK_ASSET_CLASS_DEFAULTS = {
-    vehicleType: "4W" as const,
+const WIZARD_QUICK_ASSET_CLASS_DEFAULTS: Omit<
+  import("@/lib/api/asset-register/asset-classes").CreateAssetRegisterAssetClassPayload,
+  "organizationId" | "brand" | "modelName"
+> = {
+    manufacturingYear: new Date().getFullYear(),
+    engineDisplacementCc: 150,
+    fuelSystem: "standard",
+    color: "Unspecified",
+    colorCode: "na",
+    vehicleType: "4W",
     fuelType: "Unspecified",
-    fuelTankCapacity: 1,
-    ratedLoadFrom: 0,
-    ratedLoadTo: 1,
+    mileageFrom: 40,
+    mileageTo: 50,
+    mileageUnit: "km/L",
+    fuelTankCapacity: 10,
+    ratedLoadFrom: 150,
+    ratedLoadTo: 250,
+    intakeChecklistItems: ["Registration papers"],
 };
 
 export interface AssetLine {
@@ -96,7 +108,7 @@ export default function AssetLinesStep({
     const assetClassOptions = assetClassesQuery.data?.items ?? [];
 
     const createAssetClassMutation = useMutation({
-        mutationFn: async (name: string) => {
+        mutationFn: async (modelName: string) => {
             if (!token || !organizationId) {
                 throw new Error(
                     "Authentication or organization information is missing.",
@@ -106,7 +118,8 @@ export default function AssetLinesStep({
                 token,
                 body: {
                     organizationId,
-                    name,
+                    brand: "Wizard",
+                    modelName: modelName.trim(),
                     ...WIZARD_QUICK_ASSET_CLASS_DEFAULTS,
                 },
             });

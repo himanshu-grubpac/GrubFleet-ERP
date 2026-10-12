@@ -23,13 +23,6 @@ const assetManagementModules = [
         icon: Layers3,
     },
     {
-        title: "Asset Master",
-        description:
-            "Manage asset master records, vehicle details, and asset specifications.",
-        href: "/asset-register/asset-master/",
-        icon: Boxes,
-    },
-    {
         title: "Fleet Register",
         description:
             "View and manage fleet vehicles, registration details, and vehicle information.",

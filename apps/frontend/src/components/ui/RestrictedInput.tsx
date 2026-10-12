@@ -79,7 +79,7 @@ export const RestrictedInput = React.forwardRef<
         {...props}
         maxLength={effectiveMaxLength}
         className={cn(
-          "flex h-10 w-full rounded-md border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600",
+          "flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[#FE5720]/20",
           className,
         )}
         value={value ?? ""}

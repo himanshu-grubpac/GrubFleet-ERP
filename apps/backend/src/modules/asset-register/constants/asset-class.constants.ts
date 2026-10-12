@@ -2,11 +2,33 @@ export const ASSET_REGISTER_VEHICLE_TYPES = ['2W', '3W', '4W'] as const;
 export type AssetRegisterVehicleType =
   (typeof ASSET_REGISTER_VEHICLE_TYPES)[number];
 
-export const ASSET_CLASS_CODE_MAX_LENGTH = 8;
 export const ASSET_CLASS_NAME_MAX_LENGTH = 255;
 export const ASSET_CLASS_DESCRIPTION_MAX_LENGTH = 2000;
+export const ASSET_CLASS_BRAND_MAX_LENGTH = 255;
+export const ASSET_CLASS_MODEL_NAME_MAX_LENGTH = 255;
 export const ASSET_CLASS_FUEL_TYPE_MAX_LENGTH = 64;
+export const ASSET_CLASS_FUEL_SYSTEM_MAX_LENGTH = 64;
+export const ASSET_CLASS_COLOR_MAX_LENGTH = 128;
+export const ASSET_CLASS_COLOR_CODE_MAX_LENGTH = 32;
 export const ASSET_CLASS_MILEAGE_UNIT_MAX_LENGTH = 32;
-export const ASSET_CLASS_DEFAULT_INTAKE_MAX_LENGTH = 2000;
+export const ASSET_CLASS_DEFAULT_INTAKE_MAX_LENGTH = 8000;
+export const ASSET_CLASS_MANUFACTURING_YEAR_MIN = 1980;
+export const ASSET_CLASS_MANUFACTURING_YEAR_MAX = 2100;
+export const ASSET_CLASS_ENGINE_CC_MIN = 1;
+export const ASSET_CLASS_ENGINE_CC_MAX = 99999;
+export const ASSET_CLASS_INTAKE_ITEMS_MAX = 100;
+export const ASSET_CLASS_INTAKE_ITEM_MAX_LENGTH = 500;
 
 export const ASSET_CLASS_DEACTIVATE_REASON_MAX_LENGTH = 500;
+
+/** Global seed catalog for intake checklist dropdown on create (2026-10-12 meeting). */
+export const ASSET_CLASS_INTAKE_CATALOG_ITEMS = [
+  'Registration documents verified',
+  'Insurance policy copy received',
+  'PUC certificate checked',
+  'Odometer reading recorded',
+  'Fuel level noted',
+  'Exterior damage inspection',
+  'Tool kit and spare wheel present',
+  'Keys and remote handed over',
+] as const;

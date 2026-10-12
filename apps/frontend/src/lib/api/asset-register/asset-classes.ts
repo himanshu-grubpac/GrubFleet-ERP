@@ -7,7 +7,7 @@ export type AssetRegisterVehicleTypeApi = "2W" | "3W" | "4W";
 export type AssetRegisterAssetClassListItem = {
   id: string;
   name: string;
-  code: string;
+  specLabel: string;
   vehicleType: AssetRegisterVehicleTypeApi;
   fuelType: string;
   inFleetCount: number;
@@ -16,13 +16,22 @@ export type AssetRegisterAssetClassListItem = {
 };
 
 export type AssetRegisterAssetClassDetail = AssetRegisterAssetClassListItem & {
+  brand: string;
+  modelName: string;
+  manufacturingYear: number;
+  engineDisplacementCc: number;
+  fuelCapacity: string | null;
+  fuelSystem: string;
+  color: string;
+  colorCode: string;
   description: string;
   mileageFrom: string | null;
   mileageTo: string | null;
   mileageUnit: string | null;
-  fuelTankCapacity: string;
-  ratedLoadFrom: string;
-  ratedLoadTo: string;
+  fuelTankCapacity: string | null;
+  ratedLoadFrom: string | null;
+  ratedLoadTo: string | null;
+  intakeChecklistItems: string[];
   defaultIntakeChecklist: string;
   isActive: boolean;
   deactivatedAt: string | null;
@@ -81,17 +90,24 @@ export async function fetchAssetRegisterAssetClassApi(params: {
 
 export type CreateAssetRegisterAssetClassPayload = {
   organizationId: string;
-  name: string;
+  brand?: string;
+  modelName?: string;
+  manufacturingYear?: number;
+  engineDisplacementCc?: number;
+  fuelSystem?: string;
+  color?: string;
+  colorCode?: string;
   description?: string;
   vehicleType: AssetRegisterVehicleTypeApi;
   fuelType: string;
-  mileageFrom?: number;
-  mileageTo?: number;
-  mileageUnit?: string;
+  fuelCapacity?: number;
+  mileageFrom: number;
+  mileageTo: number;
+  mileageUnit: string;
   fuelTankCapacity: number;
   ratedLoadFrom: number;
   ratedLoadTo: number;
-  defaultIntakeChecklist?: string;
+  intakeChecklistItems: string[];
 };
 
 export async function createAssetRegisterAssetClassApi(params: {

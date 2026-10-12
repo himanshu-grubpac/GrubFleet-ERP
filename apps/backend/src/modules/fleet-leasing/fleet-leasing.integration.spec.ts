@@ -367,36 +367,36 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   async function seedAssetRegisterClassWithVehicle(
-    className: string,
+    modelName: string,
     unique: number,
-  ): Promise<void> {
+  ): Promise<string> {
     const classRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/asset-classes')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        name: className,
+        brand: 'Test',
+        modelName,
+        manufacturingYear: 2026,
+        engineDisplacementCc: 150,
+        fuelSystem: 'efi',
+        color: 'Black',
+        colorCode: 'bl',
         vehicleType: '4W',
         fuelType: 'Diesel',
-        fuelTankCapacity: 60,
+        mileageFrom: 40,
+        mileageTo: 50,
+        mileageUnit: 'km/L',
+        fuelTankCapacity: 10,
         ratedLoadFrom: 500,
         ratedLoadTo: 1500,
+        intakeChecklistItems: ['Registration papers'],
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
-    const classId = (classRes.body as { id: string }).id;
-
-    const masterRes = await request(app.getHttpServer())
-      .post('/api/v1/asset-register/asset-masters')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({
-        organizationId,
-        assetClassId: classId,
-        name: `Master ${unique}`,
-      })
-      .expect((res) => expect([200, 201]).toContain(res.status));
-    const masterId = (masterRes.body as { id: string }).id;
+    const classBody = classRes.body as { id: string; name: string };
+    const classId = classBody.id;
+    const assetClassName = classBody.name;
 
     await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicles')
@@ -405,7 +405,6 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         assetClassId: classId,
-        assetMasterId: masterId,
         registrationNumber: `AR-L05-${unique}`.slice(0, 32),
         chassisNumber: `CH-L05-${unique}`,
         modelYear: 2024,
@@ -419,13 +418,13 @@ describe('Fleet leasing lease contracts (integration)', () => {
         warrantyEndDate: '2027-01-01',
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
+
+    return assetClassName;
   }
 
   it('LEASE-05: stepwise draft confirm activates contract (MVP)', async () => {
     const unique = Date.now();
-    const assetClass = 'Sedan';
-
-    await seedAssetRegisterClassWithVehicle(assetClass, unique);
+    const assetClass = await seedAssetRegisterClassWithVehicle('Sedan', unique);
 
     await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/vehicles')
@@ -533,8 +532,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
 
   it('LEASE-05: confirm activates draft with non-standard rates (MVP)', async () => {
     const unique = Date.now();
-    const assetClass = 'Sedan';
-    await seedAssetRegisterClassWithVehicle(assetClass, unique);
+    const assetClass = await seedAssetRegisterClassWithVehicle('Sedan', unique);
 
     const clientRes = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/clients')
@@ -1006,8 +1004,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   async function createActiveLeaseContract(unique: number): Promise<string> {
-    const assetClass = 'Sedan';
-    await seedAssetRegisterClassWithVehicle(assetClass, unique);
+    const assetClass = await seedAssetRegisterClassWithVehicle('Sedan', unique);
 
     const clientRes = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/clients')
@@ -1166,21 +1163,26 @@ describe('Fleet leasing lease contracts (integration)', () => {
 
   it('lists distinct asset register class names for the organization', async () => {
     const unique = Date.now();
-    const className = `Register Class ${unique}`;
-    await request(app.getHttpServer())
+    const modelName = `Register Class ${unique}`;
+    const createRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/asset-classes')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        name: className,
+        modelName,
         vehicleType: '2W',
         fuelType: 'Petrol',
+        mileageFrom: 40,
+        mileageTo: 55,
+        mileageUnit: 'km/L',
         fuelTankCapacity: 10,
         ratedLoadFrom: 100,
         ratedLoadTo: 200,
+        intakeChecklistItems: ['Helmet'],
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
+    const createdName = (createRes.body as { name: string }).name;
 
     const res = await request(app.getHttpServer())
       .get('/api/v1/fleet-leasing/asset-classes')
@@ -1191,6 +1193,6 @@ describe('Fleet leasing lease contracts (integration)', () => {
 
     const body = res.body as FleetAssetClassListResponse;
     expect(Array.isArray(body.items)).toBe(true);
-    expect(body.items).toContain(className);
+    expect(body.items).toContain(createdName);
   });
 });

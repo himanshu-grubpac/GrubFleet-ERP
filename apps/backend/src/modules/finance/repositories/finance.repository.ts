@@ -117,15 +117,27 @@ export class FinanceRepository {
     invoice: typeof financeInvoices.$inferInsert,
     line: typeof financeInvoiceLines.$inferInsert,
   ): Promise<InvoiceRow> {
+    return this.insertInvoiceWithLines(tx, invoice, [line]);
+  }
+
+  async insertInvoiceWithLines(
+    tx: AppDatabase,
+    invoice: typeof financeInvoices.$inferInsert,
+    lines: Array<Omit<typeof financeInvoiceLines.$inferInsert, 'invoiceId'>>,
+  ): Promise<InvoiceRow> {
     const [created] = await tx
       .insert(financeInvoices)
       .values(invoice)
       .returning();
     if (!created) throw new Error('Invoice insert failed');
-    await tx.insert(financeInvoiceLines).values({
-      ...line,
-      invoiceId: created.id,
-    });
+    if (lines.length > 0) {
+      await tx.insert(financeInvoiceLines).values(
+        lines.map((line) => ({
+          ...line,
+          invoiceId: created.id,
+        })),
+      );
+    }
     return created;
   }
 

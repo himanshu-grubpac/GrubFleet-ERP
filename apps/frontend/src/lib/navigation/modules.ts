@@ -81,11 +81,6 @@ export const mainNavItems: NavItem[] = [
         icon: ClipboardList,
       },
       {
-        label: "Asset Master",
-        href: "/asset-register/asset-master/",
-        icon: Shield,
-      },
-      {
         label: "Fleet Register",
         href: "/asset-register/fleetregister/",
         icon: Car,

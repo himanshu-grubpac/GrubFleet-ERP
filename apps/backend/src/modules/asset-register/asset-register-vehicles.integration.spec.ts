@@ -33,9 +33,7 @@ type VehicleDetail = {
   fleetCode: string;
   registrationNumber: string;
   assetClassId: string;
-  assetMasterId: string;
   assetClassName: string;
-  assetMasterName: string;
   operationalStatus: string;
   isActive: boolean;
   status: string;
@@ -91,13 +89,22 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
     const unique = `${Date.now()}${Math.random().toString(36).slice(2, 10)}`;
     return {
       organizationId,
-      // Single-token name so auto class codes stay unique across repeated local runs.
-      name: `vlc${unique}`,
+      brand: 'Test',
+      modelName: `vlc${unique}`,
+      manufacturingYear: 2026,
+      engineDisplacementCc: 150,
+      fuelSystem: 'efi',
+      color: 'Black',
+      colorCode: 'bl',
       vehicleType: '4W',
       fuelType: 'Diesel',
-      fuelTankCapacity: 60,
-      ratedLoadFrom: 500,
-      ratedLoadTo: 1500,
+      mileageFrom: 40,
+      mileageTo: 50,
+      mileageUnit: 'km/L',
+      fuelTankCapacity: 5.5,
+      ratedLoadFrom: 150,
+      ratedLoadTo: 250,
+      intakeChecklistItems: ['Helmet'],
       ...overrides,
     };
   }
@@ -114,35 +121,14 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
     return (res.body as { id: string }).id;
   }
 
-  async function createMaster(
-    assetClassId: string,
-    overrides: Record<string, unknown> = {},
-  ): Promise<string> {
-    const unique = Date.now();
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/asset-register/asset-masters')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({
-        organizationId,
-        assetClassId,
-        name: `Master ${unique}`,
-        ...overrides,
-      })
-      .expect(201);
-    return (res.body as { id: string }).id;
-  }
-
   function buildVehiclePayload(
     assetClassId: string,
-    assetMasterId: string,
     overrides: Record<string, unknown> = {},
   ): Record<string, unknown> {
     const unique = Date.now();
     return {
       organizationId,
       assetClassId,
-      assetMasterId,
       registrationNumber: `REG-${unique}`.slice(0, 32),
       chassisNumber: `CH-${unique}`,
       modelYear: 2024,
@@ -160,14 +146,13 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
   async function createVehicleAsAdmin(
     assetClassId: string,
-    assetMasterId: string,
     overrides: Record<string, unknown> = {},
   ): Promise<VehicleDetail> {
     const res = await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicles')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
-      .send(buildVehiclePayload(assetClassId, assetMasterId, overrides))
+      .send(buildVehiclePayload(assetClassId, overrides))
       .expect(201);
     return res.body as VehicleDetail;
   }
@@ -175,7 +160,6 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
   describe('security lattice — fleet register vehicles', () => {
     it('returns 401 without JWT on list and create', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
       await request(app.getHttpServer())
         .get('/api/v1/asset-register/vehicles')
         .query({ organizationId })
@@ -183,7 +167,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       await request(app.getHttpServer())
         .post('/api/v1/asset-register/vehicles')
         .set('x-organization-id', organizationId)
-        .send(buildVehiclePayload(classId, masterId))
+        .send(buildVehiclePayload(classId))
         .expect(401);
     });
 
@@ -198,8 +182,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('allows asset_register.view list but returns 403 on create, patch, and status', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
 
       await request(app.getHttpServer())
         .get('/api/v1/asset-register/vehicles')
@@ -212,7 +195,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .post('/api/v1/asset-register/vehicles')
         .set('Authorization', `Bearer ${assetViewOnlyToken}`)
         .set('x-organization-id', organizationId)
-        .send(buildVehiclePayload(classId, masterId))
+        .send(buildVehiclePayload(classId))
         .expect(403);
 
       await request(app.getHttpServer())
@@ -242,8 +225,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('returns 403 or 404 on PATCH with another organisation id (IDOR)', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
       const fakeOrgId = '00000000-0000-4000-8000-000000000099';
       await request(app.getHttpServer())
         .patch(`/api/v1/asset-register/vehicles/${created.id}`)
@@ -256,8 +238,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('returns 403 or 404 on GET with another organisation id (IDOR)', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
       const fakeOrgId = '00000000-0000-4000-8000-000000000099';
       await request(app.getHttpServer())
         .get(`/api/v1/asset-register/vehicles/${created.id}`)
@@ -269,19 +250,17 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('returns 400 for unknown JSON key on create', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
       await request(app.getHttpServer())
         .post('/api/v1/asset-register/vehicles')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send(buildVehiclePayload(classId, masterId, { hackField: 'x' }))
+        .send(buildVehiclePayload(classId, { hackField: 'x' }))
         .expect(400);
     });
 
     it('returns 400 for unknown JSON key on PATCH', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
       await request(app.getHttpServer())
         .patch(`/api/v1/asset-register/vehicles/${created.id}`)
         .query({ organizationId })
@@ -302,8 +281,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('returns 400 when PATCH on inactive vehicle', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
       await request(app.getHttpServer())
         .patch(`/api/v1/asset-register/vehicles/${created.id}/status`)
         .query({ organizationId })
@@ -323,8 +301,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('returns 400 when deactivating inactive vehicle', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
       await request(app.getHttpServer())
         .patch(`/api/v1/asset-register/vehicles/${created.id}/status`)
         .query({ organizationId })
@@ -344,8 +321,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('writes an audit row on deactivate', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
       await request(app.getHttpServer())
         .patch(`/api/v1/asset-register/vehicles/${created.id}/status`)
         .query({ organizationId })
@@ -365,7 +341,6 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('returns 400 when creating vehicle for inactive asset class', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
       await request(app.getHttpServer())
         .patch(`/api/v1/asset-register/asset-classes/${classId}/status`)
         .query({ organizationId })
@@ -378,31 +353,18 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .post('/api/v1/asset-register/vehicles')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send(buildVehiclePayload(classId, masterId))
-        .expect(400);
-    });
-
-    it('returns 400 when master does not belong to class', async () => {
-      const classA = await createAssetClass();
-      const classB = await createAssetClass();
-      const masterB = await createMaster(classB);
-      await request(app.getHttpServer())
-        .post('/api/v1/asset-register/vehicles')
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send(buildVehiclePayload(classA, masterB))
+        .send(buildVehiclePayload(classId))
         .expect(400);
     });
 
     it('returns 400 when registration end is before start', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
       await request(app.getHttpServer())
         .post('/api/v1/asset-register/vehicles')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
         .send(
-          buildVehiclePayload(classId, masterId, {
+          buildVehiclePayload(classId, {
             registrationStartDate: '2025-01-01',
             registrationEndDate: '2024-01-01',
           }),
@@ -412,9 +374,8 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('assigns sequential fleet codes and defaults operationalStatus available', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const first = await createVehicleAsAdmin(classId, masterId);
-      const second = await createVehicleAsAdmin(classId, masterId);
+      const first = await createVehicleAsAdmin(classId);
+      const second = await createVehicleAsAdmin(classId);
       expect(first.fleetCode).toMatch(/^VH-\d+$/);
       expect(second.fleetCode).toMatch(/^VH-\d+$/);
       expect(Number(second.fleetCode.slice(3))).toBeGreaterThan(
@@ -423,10 +384,9 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       expect(first.operationalStatus).toBe('available');
     });
 
-    it('joins class and master names on detail', async () => {
-      const classId = await createAssetClass({ name: 'Detail Class Name' });
-      const masterId = await createMaster(classId, { name: 'Detail Master' });
-      const created = await createVehicleAsAdmin(classId, masterId);
+    it('joins asset class name on detail', async () => {
+      const classId = await createAssetClass({ brand: 'DetailBrand' });
+      const created = await createVehicleAsAdmin(classId);
       const detail = await request(app.getHttpServer())
         .get(`/api/v1/asset-register/vehicles/${created.id}`)
         .query({ organizationId })
@@ -434,17 +394,15 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .set('x-organization-id', organizationId)
         .expect(200);
       const body = detail.body as VehicleDetail;
-      expect(body.assetClassName).toContain('Detail Class Name');
-      expect(body.assetMasterName).toBe('Detail Master');
+      expect(body.assetClassName).toBeTruthy();
+      expect(body.assetClassId).toBe(classId);
     });
 
     it('filters list by assetClassId and operationalStatus', async () => {
       const classA = await createAssetClass();
       const classB = await createAssetClass();
-      const masterA = await createMaster(classA);
-      const masterB = await createMaster(classB);
-      const vehicleA = await createVehicleAsAdmin(classA, masterA);
-      await createVehicleAsAdmin(classB, masterB);
+      const vehicleA = await createVehicleAsAdmin(classA);
+      await createVehicleAsAdmin(classB);
 
       const byClass = await request(app.getHttpServer())
         .get('/api/v1/asset-register/vehicles')
@@ -481,8 +439,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('updates inFleetCount on asset class list for active vehicles', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      await createVehicleAsAdmin(classId, masterId);
+      await createVehicleAsAdmin(classId);
 
       const list = await request(app.getHttpServer())
         .get('/api/v1/asset-register/asset-classes')
@@ -499,9 +456,8 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('accepts purchaseInvoiceId UUID without Finance validation', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
       const invoiceId = '11111111-1111-4111-8111-111111111111';
-      const created = await createVehicleAsAdmin(classId, masterId, {
+      const created = await createVehicleAsAdmin(classId, {
         purchaseInvoiceId: invoiceId,
       });
       expect(created.id).toBeDefined();
@@ -518,8 +474,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
 
     it('returns 403 on GET detail without asset_register.view', async () => {
       const classId = await createAssetClass();
-      const masterId = await createMaster(classId);
-      const created = await createVehicleAsAdmin(classId, masterId);
+      const created = await createVehicleAsAdmin(classId);
       await request(app.getHttpServer())
         .get(`/api/v1/asset-register/vehicles/${created.id}`)
         .query({ organizationId })

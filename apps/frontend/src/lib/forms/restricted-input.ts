@@ -1,5 +1,7 @@
 import type { InputHTMLAttributes, KeyboardEvent } from "react";
 
+import { sanitizeRupeeInputValue } from "@/lib/format/money-format";
+
 /**
  * Shared input sanitization aligned with organisation backend DTO @MaxLength values.
  * Use via `RestrictedInput` or `sanitizeRestrictedInputValue` in controlled handlers.
@@ -63,6 +65,18 @@ export const ORGANISATION_CLIENT_INPUT_LIMITS = {
 } as const;
 
 /** Fleet client register — mirrors backend CreateFleetClientDto @MaxLength. */
+export const ASSET_REGISTER_CLASS_INPUT_LIMITS = {
+  brand: 255,
+  modelName: 255,
+  fuelType: 64,
+  fuelSystem: 64,
+  color: 128,
+  colorCode: 32,
+  mileageUnit: 32,
+  description: 2000,
+  intakeItem: 500,
+} as const;
+
 export const FLEET_CLIENT_INPUT_LIMITS = {
   companyName: 255,
   taxId: 32,
@@ -88,7 +102,8 @@ export type RestrictedInputKind =
   | "postalUs"
   | "postalGeneric"
   | "phone"
-  | "email";
+  | "email"
+  | "inrRupee";
 
 export type SanitizeRestrictedInputOptions = {
   maxLength?: number;
@@ -103,6 +118,7 @@ const DEFAULT_MAX: Record<RestrictedInputKind, number | undefined> = {
   postalGeneric: ORG_INPUT_LIMITS.postalGeneric,
   phone: ORG_INPUT_LIMITS.phone,
   email: ORG_INPUT_LIMITS.email,
+  inrRupee: 24,
 };
 
 function truncate(value: string, maxLength?: number): string {
@@ -267,6 +283,8 @@ export function sanitizeRestrictedInputValue(
         value,
         maxLength ?? ORG_INPUT_LIMITS.email,
       );
+    case "inrRupee":
+      return sanitizeRupeeInputValue(value);
     default: {
       const _exhaustive: never = kind;
       return _exhaustive;
@@ -364,6 +382,17 @@ export function shouldBlockKeyForRestrictedInput(
     }
     case "email":
       return !EMAIL_ALLOWED.test(char);
+    case "inrRupee": {
+      if (/^\d$/.test(char)) {
+        return false;
+      }
+      if (char === ".") {
+        const withoutSelection =
+          value.slice(0, start) + value.slice(end);
+        return withoutSelection.includes(".");
+      }
+      return true;
+    }
     case "text":
     case "name":
       return false;
@@ -417,6 +446,8 @@ export function restrictedInputHtmlProps(
       };
     case "name":
       return { type: "text", autoComplete: "name" };
+    case "inrRupee":
+      return { type: "text", inputMode: "decimal", autoComplete: "off" };
     case "text":
     default:
       return { type: "text" };
