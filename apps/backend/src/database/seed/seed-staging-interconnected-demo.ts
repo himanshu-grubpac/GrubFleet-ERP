@@ -12,11 +12,11 @@ import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { SYSTEM_LOCATION_TYPE_PRESETS } from '../../modules/organisation/constants/system-location-type-presets';
+import { buildAssetClassNameFromSpec } from '../../modules/asset-register/utils/asset-class-name.util';
 import { pgPoolOptions } from '../pg-pool-options';
 import * as schema from '../schema';
 import {
   assetRegisterAssetClasses,
-  assetRegisterAssetMasters,
   assetRegisterVehicleAssignments,
   assetRegisterVehicles,
 } from '../schema/asset-register.schema';
@@ -920,8 +920,13 @@ export async function seedStagingInterconnectedDemo(
   const assetClassSeeds = [
     {
       key: 'scooter-2w-a',
-      code: 'GF2WA',
-      name: 'Petrol Scooter — Standard',
+      brand: 'Honda',
+      modelName: 'Activa 6G',
+      manufacturingYear: 2026,
+      engineDisplacementCc: 110,
+      fuelSystem: 'EFI',
+      color: 'Pearl Spartan Blue',
+      colorCode: 'psb',
       vehicleType: '2W' as const,
       fuelType: 'Petrol',
       fuelTankCapacity: '5.5',
@@ -931,8 +936,13 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'scooter-2w-b',
-      code: 'GF2WE',
-      name: 'Electric Scooter — City',
+      brand: 'Ather',
+      modelName: '450X',
+      manufacturingYear: 2026,
+      engineDisplacementCc: 0,
+      fuelSystem: 'Motor',
+      color: 'Space Grey',
+      colorCode: 'sg',
       vehicleType: '2W' as const,
       fuelType: 'Electric',
       fuelTankCapacity: '0',
@@ -942,8 +952,13 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'auto-3w-a',
-      code: 'GF3WC',
-      name: 'CNG Passenger Auto',
+      brand: 'Bajaj',
+      modelName: 'RE CNG',
+      manufacturingYear: 2026,
+      engineDisplacementCc: 200,
+      fuelSystem: 'CNG',
+      color: 'Yellow Black',
+      colorCode: 'yb',
       vehicleType: '3W' as const,
       fuelType: 'CNG',
       fuelTankCapacity: '4',
@@ -953,8 +968,13 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'cargo-3w',
-      code: 'GF3WE',
-      name: 'Electric Cargo Loader',
+      brand: 'Euler',
+      modelName: 'HiLoad EV',
+      manufacturingYear: 2026,
+      engineDisplacementCc: 0,
+      fuelSystem: 'Motor',
+      color: 'White',
+      colorCode: 'wh',
       vehicleType: '3W' as const,
       fuelType: 'Electric',
       fuelTankCapacity: '0',
@@ -964,8 +984,13 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'auto-3w-b',
-      code: 'GF3WD',
-      name: 'Diesel Cargo Auto',
+      brand: 'Bajaj',
+      modelName: 'Maxima Cargo',
+      manufacturingYear: 2026,
+      engineDisplacementCc: 435,
+      fuelSystem: 'CRDi',
+      color: 'White Blue',
+      colorCode: 'wb',
       vehicleType: '3W' as const,
       fuelType: 'Diesel',
       fuelTankCapacity: '12',
@@ -975,8 +1000,13 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'lcv-4w-a',
-      code: 'GF4WD',
-      name: 'Diesel Light Commercial Van',
+      brand: 'Tata',
+      modelName: 'Ace Gold',
+      manufacturingYear: 2026,
+      engineDisplacementCc: 702,
+      fuelSystem: 'CRDi',
+      color: 'White',
+      colorCode: 'wh',
       vehicleType: '4W' as const,
       fuelType: 'Diesel',
       fuelTankCapacity: '45',
@@ -986,8 +1016,13 @@ export async function seedStagingInterconnectedDemo(
     },
     {
       key: 'lcv-4w-b',
-      code: 'GF4WC',
-      name: 'CNG Mini Truck',
+      brand: 'Mahindra',
+      modelName: 'Supro CNG',
+      manufacturingYear: 2026,
+      engineDisplacementCc: 909,
+      fuelSystem: 'CNG',
+      color: 'Silver',
+      colorCode: 'sv',
       vehicleType: '4W' as const,
       fuelType: 'CNG',
       fuelTankCapacity: '20',
@@ -999,6 +1034,14 @@ export async function seedStagingInterconnectedDemo(
 
   const assetClassIds = new Map<string, { id: string; name: string }>();
   for (const seed of assetClassSeeds) {
+    const className = buildAssetClassNameFromSpec({
+      manufacturingYear: seed.manufacturingYear,
+      modelName: seed.modelName,
+      engineDisplacementCc: seed.engineDisplacementCc,
+      fuelType: seed.fuelType,
+      fuelSystem: seed.fuelSystem,
+      colorCode: seed.colorCode,
+    });
     const [existing] = await db
       .select({
         id: assetRegisterAssetClasses.id,
@@ -1008,7 +1051,7 @@ export async function seedStagingInterconnectedDemo(
       .where(
         and(
           eq(assetRegisterAssetClasses.organizationId, organizationId),
-          eq(assetRegisterAssetClasses.code, seed.code),
+          eq(assetRegisterAssetClasses.name, className),
         ),
       )
       .limit(1);
@@ -1021,9 +1064,15 @@ export async function seedStagingInterconnectedDemo(
       .insert(assetRegisterAssetClasses)
       .values({
         organizationId,
-        name: seed.name,
+        name: className,
         description: STAGING_DEMO_SEED_SOURCE,
-        code: seed.code,
+        brand: seed.brand,
+        modelName: seed.modelName,
+        manufacturingYear: seed.manufacturingYear,
+        engineDisplacementCc: seed.engineDisplacementCc,
+        fuelSystem: seed.fuelSystem,
+        color: seed.color,
+        colorCode: seed.colorCode,
         vehicleType: seed.vehicleType,
         fuelType: seed.fuelType,
         fuelTankCapacity: seed.fuelTankCapacity,
@@ -1041,52 +1090,6 @@ export async function seedStagingInterconnectedDemo(
       });
     assetClassIds.set(seed.key, { id: row.id, name: row.name });
     bump('assetClasses', true);
-  }
-
-  const masterNameByClass: Record<string, string[]> = {
-    'scooter-2w-a': ['Honda Activa 6G', 'TVS Jupiter 125'],
-    'scooter-2w-b': ['Ather 450X'],
-    'auto-3w-a': ['Bajaj RE CNG', 'Piaggio Ape CNG'],
-    'cargo-3w': ['Euler HiLoad EV', 'Mahindra Treo Zor'],
-    'auto-3w-b': ['Bajaj Maxima Cargo'],
-    'lcv-4w-a': ['Tata Ace Gold', 'Ashok Leyland Dost'],
-    'lcv-4w-b': ['Mahindra Supro CNG'],
-  };
-
-  const masterIds = new Map<string, string>();
-  for (const [classKey, names] of Object.entries(masterNameByClass)) {
-    const classRef = assetClassIds.get(classKey);
-    if (!classRef) continue;
-    for (const [masterIdx, name] of names.entries()) {
-      const masterKey = `${classKey}-m${masterIdx + 1}`;
-      const [existing] = await db
-        .select({ id: assetRegisterAssetMasters.id })
-        .from(assetRegisterAssetMasters)
-        .where(
-          and(
-            eq(assetRegisterAssetMasters.organizationId, organizationId),
-            eq(assetRegisterAssetMasters.assetClassId, classRef.id),
-            eq(assetRegisterAssetMasters.name, name),
-          ),
-        )
-        .limit(1);
-      if (existing) {
-        masterIds.set(masterKey, existing.id);
-        bump('assetMasters', false);
-        continue;
-      }
-      const [row] = await db
-        .insert(assetRegisterAssetMasters)
-        .values({
-          organizationId,
-          assetClassId: classRef.id,
-          name,
-          isActive: masterIdx === 0,
-        })
-        .returning({ id: assetRegisterAssetMasters.id });
-      masterIds.set(masterKey, row.id);
-      bump('assetMasters', true);
-    }
   }
 
   const vehicleClassKeys = [
@@ -1113,7 +1116,6 @@ export async function seedStagingInterconnectedDemo(
     return {
       key: `v${n}`,
       classKey,
-      masterKey: `${classKey}-m1`,
       fleetCode: formatFleetCode(n),
       registrationNumber: formatIndianRegistration(n),
       chassisNumber: `MAT${String(12345678901234 + n).padStart(17, '0')}`,
@@ -1135,8 +1137,7 @@ export async function seedStagingInterconnectedDemo(
 
   for (const seed of vehicleSeeds) {
     const classRef = assetClassIds.get(seed.classKey);
-    const masterId = masterIds.get(seed.masterKey);
-    if (!classRef || !masterId) continue;
+    if (!classRef) continue;
 
     const [existing] = await db
       .select({ id: assetRegisterVehicles.id })
@@ -1158,7 +1159,7 @@ export async function seedStagingInterconnectedDemo(
       .values({
         organizationId,
         assetClassId: classRef.id,
-        assetMasterId: masterId,
+        assetMasterId: null,
         fleetCode: seed.fleetCode,
         registrationNumber: seed.registrationNumber,
         chassisNumber: seed.chassisNumber,

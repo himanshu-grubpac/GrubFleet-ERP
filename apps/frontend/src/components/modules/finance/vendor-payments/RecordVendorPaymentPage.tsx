@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/finance/vendor-payments";
 import {
   formatInrFromMinor,
+  INR_RUPEE_INPUT_PLACEHOLDER,
   parseRupeeInputToMinor,
 } from "@/lib/format/money-format";
 import { financeVendorPaymentsListHref } from "@/lib/navigation/finance-static-routes";
@@ -195,10 +196,10 @@ export default function RecordVendorPaymentPage() {
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Amount (INR) *
             <RestrictedInput
-              restrictedKind="text"
+              restrictedKind="inrRupee"
               value={amount}
               onChange={setAmount}
-              placeholder={`Max ${formatInrFromMinor(maxPaymentMinor)}`}
+              placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
               disabled={!purchaseInvoiceId || recordMutation.isPending}
             />
             {selectedInvoice && amountMinor != null && amountMinor > maxPaymentMinor ? (

@@ -7,6 +7,7 @@ import {
   ilike,
   inArray,
   isNull,
+  ne,
   or,
   sql,
 } from 'drizzle-orm';
@@ -31,28 +32,31 @@ import {
   formatFleetCode,
 } from '../utils/fleet-code.util';
 
-export type AssetMasterWithClassRow = AssetRegisterAssetMasterRow & {
-  assetClass: AssetRegisterAssetClassRow;
-};
-
 export type AssetRegisterVehicleWithRelations = AssetRegisterVehicleRow & {
   assetClass: AssetRegisterAssetClassRow;
-  assetMaster: AssetRegisterAssetMasterRow;
+  assetMaster: AssetRegisterAssetMasterRow | null;
 };
 
 export type AssetClassInsert = {
   organizationId: string;
   name: string;
   description: string | null;
-  code: string;
+  brand: string;
+  modelName: string;
+  manufacturingYear: number;
+  engineDisplacementCc: number;
+  fuelCapacity: string | null;
+  fuelSystem: string;
+  color: string;
+  colorCode: string;
   vehicleType: AssetRegisterAssetClassRow['vehicleType'];
   fuelType: string;
   mileageFrom: string | null;
   mileageTo: string | null;
   mileageUnit: string | null;
-  fuelTankCapacity: string;
-  ratedLoadFrom: string;
-  ratedLoadTo: string;
+  fuelTankCapacity: string | null;
+  ratedLoadFrom: string | null;
+  ratedLoadTo: string | null;
   defaultIntakeChecklist: string | null;
   isActive: boolean;
 };
@@ -61,19 +65,22 @@ export type AssetClassInsert = {
 export class AssetRegisterRepository {
   constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
 
-  async codeExistsInOrg(
+  async classNameExistsInOrg(
     organizationId: string,
-    code: string,
+    className: string,
+    excludeClassId?: string,
   ): Promise<boolean> {
+    const conditions = [
+      eq(assetRegisterAssetClasses.organizationId, organizationId),
+      eq(assetRegisterAssetClasses.name, className),
+    ];
+    if (excludeClassId) {
+      conditions.push(ne(assetRegisterAssetClasses.id, excludeClassId));
+    }
     const [row] = await this.db
       .select({ id: assetRegisterAssetClasses.id })
       .from(assetRegisterAssetClasses)
-      .where(
-        and(
-          eq(assetRegisterAssetClasses.organizationId, organizationId),
-          eq(assetRegisterAssetClasses.code, code),
-        ),
-      )
+      .where(and(...conditions))
       .limit(1);
     return Boolean(row);
   }
@@ -127,7 +134,8 @@ export class AssetRegisterRepository {
       conditions.push(
         or(
           ilike(assetRegisterAssetClasses.name, pattern),
-          ilike(assetRegisterAssetClasses.code, pattern),
+          ilike(assetRegisterAssetClasses.brand, pattern),
+          ilike(assetRegisterAssetClasses.modelName, pattern),
         )!,
       );
     }
@@ -160,6 +168,14 @@ export class AssetRegisterRepository {
         AssetRegisterAssetClassRow,
         | 'name'
         | 'description'
+        | 'brand'
+        | 'modelName'
+        | 'manufacturingYear'
+        | 'engineDisplacementCc'
+        | 'fuelCapacity'
+        | 'fuelSystem'
+        | 'color'
+        | 'colorCode'
         | 'vehicleType'
         | 'fuelType'
         | 'mileageFrom'
@@ -182,162 +198,6 @@ export class AssetRegisterRepository {
         and(
           eq(assetRegisterAssetClasses.organizationId, organizationId),
           eq(assetRegisterAssetClasses.id, id),
-        ),
-      );
-  }
-
-  async insertAssetMaster(
-    values: Pick<
-      AssetRegisterAssetMasterRow,
-      'organizationId' | 'assetClassId' | 'name' | 'isActive'
-    >,
-  ): Promise<AssetRegisterAssetMasterRow> {
-    const [row] = await this.db
-      .insert(assetRegisterAssetMasters)
-      .values({
-        ...values,
-        updatedAt: new Date(),
-      })
-      .returning();
-    if (!row) throw new Error('Failed to insert asset master');
-    return row;
-  }
-
-  async getAssetMasterInOrg(
-    organizationId: string,
-    id: string,
-  ): Promise<AssetRegisterAssetMasterRow | undefined> {
-    const [row] = await this.db
-      .select()
-      .from(assetRegisterAssetMasters)
-      .where(
-        and(
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.id, id),
-        ),
-      )
-      .limit(1);
-    return row;
-  }
-
-  async getAssetMasterWithClassInOrg(
-    organizationId: string,
-    id: string,
-  ): Promise<AssetMasterWithClassRow | undefined> {
-    const [row] = await this.db
-      .select({
-        master: assetRegisterAssetMasters,
-        assetClass: assetRegisterAssetClasses,
-      })
-      .from(assetRegisterAssetMasters)
-      .innerJoin(
-        assetRegisterAssetClasses,
-        eq(
-          assetRegisterAssetMasters.assetClassId,
-          assetRegisterAssetClasses.id,
-        ),
-      )
-      .where(
-        and(
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.id, id),
-          eq(assetRegisterAssetClasses.organizationId, organizationId),
-        ),
-      )
-      .limit(1);
-    if (!row) return undefined;
-    return { ...row.master, assetClass: row.assetClass };
-  }
-
-  async listAssetMasters(
-    organizationId: string,
-    page: number,
-    pageSize: number,
-    options: {
-      search?: string;
-      isActive?: boolean;
-      assetClassId?: string;
-    },
-  ): Promise<{ rows: AssetMasterWithClassRow[]; total: number }> {
-    const conditions = [
-      eq(assetRegisterAssetMasters.organizationId, organizationId),
-      eq(assetRegisterAssetClasses.organizationId, organizationId),
-    ];
-    if (options.isActive !== undefined) {
-      conditions.push(eq(assetRegisterAssetMasters.isActive, options.isActive));
-    }
-    if (options.assetClassId) {
-      conditions.push(
-        eq(assetRegisterAssetMasters.assetClassId, options.assetClassId),
-      );
-    }
-    const search = options.search?.trim();
-    if (search) {
-      conditions.push(ilike(assetRegisterAssetMasters.name, `%${search}%`));
-    }
-    const where = and(...conditions);
-    const offset = (page - 1) * pageSize;
-    const [joined, countRows] = await Promise.all([
-      this.db
-        .select({
-          master: assetRegisterAssetMasters,
-          assetClass: assetRegisterAssetClasses,
-        })
-        .from(assetRegisterAssetMasters)
-        .innerJoin(
-          assetRegisterAssetClasses,
-          eq(
-            assetRegisterAssetMasters.assetClassId,
-            assetRegisterAssetClasses.id,
-          ),
-        )
-        .where(where)
-        .orderBy(
-          desc(assetRegisterAssetMasters.createdAt),
-          desc(assetRegisterAssetMasters.id),
-        )
-        .limit(pageSize)
-        .offset(offset),
-      this.db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(assetRegisterAssetMasters)
-        .innerJoin(
-          assetRegisterAssetClasses,
-          eq(
-            assetRegisterAssetMasters.assetClassId,
-            assetRegisterAssetClasses.id,
-          ),
-        )
-        .where(where),
-    ]);
-    const rows = joined.map((row) => ({
-      ...row.master,
-      assetClass: row.assetClass,
-    }));
-    return { rows, total: countRows[0]?.count ?? 0 };
-  }
-
-  async updateAssetMaster(
-    organizationId: string,
-    id: string,
-    patch: Partial<
-      Pick<
-        AssetRegisterAssetMasterRow,
-        | 'name'
-        | 'assetClassId'
-        | 'isActive'
-        | 'deactivatedAt'
-        | 'deactivateReason'
-      >
-    >,
-  ): Promise<void> {
-    await this.db
-      .update(assetRegisterAssetMasters)
-      .set({ ...patch, updatedAt: new Date() })
-      .where(
-        and(
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.id, id),
         ),
       );
   }
@@ -410,6 +270,23 @@ export class AssetRegisterRepository {
       .orderBy(asc(assetRegisterAssetClasses.name));
 
     return rows.map((row) => row.name.trim()).filter((name) => name.length > 0);
+  }
+
+  async listActiveAssetClassesByIds(
+    organizationId: string,
+    assetClassIds: string[],
+  ): Promise<AssetRegisterAssetClassRow[]> {
+    if (assetClassIds.length === 0) return [];
+    return this.db
+      .select()
+      .from(assetRegisterAssetClasses)
+      .where(
+        and(
+          eq(assetRegisterAssetClasses.organizationId, organizationId),
+          eq(assetRegisterAssetClasses.isActive, true),
+          inArray(assetRegisterAssetClasses.id, assetClassIds),
+        ),
+      );
   }
 
   async getActiveAssetClassByName(
@@ -547,7 +424,7 @@ export class AssetRegisterRepository {
         assetRegisterAssetClasses,
         eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
       )
-      .innerJoin(
+      .leftJoin(
         assetRegisterAssetMasters,
         eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
       )
@@ -556,7 +433,6 @@ export class AssetRegisterRepository {
           eq(assetRegisterVehicles.organizationId, organizationId),
           eq(assetRegisterVehicles.id, id),
           eq(assetRegisterAssetClasses.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
         ),
       )
       .limit(1);
@@ -582,7 +458,6 @@ export class AssetRegisterRepository {
     const conditions = [
       eq(assetRegisterVehicles.organizationId, organizationId),
       eq(assetRegisterAssetClasses.organizationId, organizationId),
-      eq(assetRegisterAssetMasters.organizationId, organizationId),
     ];
     if (options.isActive !== undefined) {
       conditions.push(eq(assetRegisterVehicles.isActive, options.isActive));
@@ -621,7 +496,7 @@ export class AssetRegisterRepository {
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
         )
-        .innerJoin(
+        .leftJoin(
           assetRegisterAssetMasters,
           eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )
@@ -638,10 +513,6 @@ export class AssetRegisterRepository {
         .innerJoin(
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
-        )
-        .innerJoin(
-          assetRegisterAssetMasters,
-          eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )
         .where(where),
     ]);
@@ -725,13 +596,14 @@ export class AssetRegisterRepository {
         assetRegisterAssetClasses,
         eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
       )
-      .innerJoin(
+      .leftJoin(
         assetRegisterAssetMasters,
         eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
       )
       .where(
         and(
           eq(assetRegisterVehicles.organizationId, organizationId),
+          eq(assetRegisterAssetClasses.organizationId, organizationId),
           inArray(assetRegisterVehicles.id, vehicleIds),
         ),
       );
@@ -929,7 +801,6 @@ export class AssetRegisterRepository {
       eq(assetRegisterVehicles.organizationId, organizationId),
       eq(assetRegisterVehicles.isActive, true),
       eq(assetRegisterAssetClasses.organizationId, organizationId),
-      eq(assetRegisterAssetMasters.organizationId, organizationId),
     ];
     if (options.assetClassId) {
       conditions.push(
@@ -956,7 +827,7 @@ export class AssetRegisterRepository {
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
         )
-        .innerJoin(
+        .leftJoin(
           assetRegisterAssetMasters,
           eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )
@@ -974,7 +845,7 @@ export class AssetRegisterRepository {
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
         )
-        .innerJoin(
+        .leftJoin(
           assetRegisterAssetMasters,
           eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )

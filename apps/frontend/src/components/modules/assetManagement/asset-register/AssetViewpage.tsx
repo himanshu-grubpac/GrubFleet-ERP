@@ -10,12 +10,15 @@ import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
+import { ApiClientError } from "@/lib/api/client";
 import {
   fetchAssetRegisterAssetClassApi,
   updateAssetRegisterAssetClassStatusApi,
 } from "@/lib/api/asset-register/asset-classes";
 import {
-  assetClassDetailToFormData,
+  formatMileageRangeFromSpec,
+  formatRatedLoadRange,
+  intakeChecklistItemsForDisplay,
   mapAssetRegisterVehicleTypeToUiLabel,
 } from "@/lib/api/asset-register/mappers";
 import {
@@ -25,401 +28,285 @@ import {
   showErrorToast,
 } from "@/lib/toast/show-toast";
 
-/* -------------------------------------------------------------------------- */
-/* Types                                                                      */
-/* -------------------------------------------------------------------------- */
-
-type AssetClassStatus = "active" | "inactive";
-
-type AssetClass = {
-    id: string;
-    name: string;
-    classCode: string;
-    status: AssetClassStatus;
-    vehicleType: string;
-    fuelType: string;
-    mileageFrom: string;
-    mileageTo: string;
-    mileageUnit: string;
-    fuelTankCapacity: string;
-    ratedLoadCapacityFrom: string;
-    ratedLoadCapacityTo: string;
-    defaultIntakeChecklist: string;
-    notes: string;
-};
-
-/* -------------------------------------------------------------------------- */
-/* Page                                                                       */
-/* -------------------------------------------------------------------------- */
+const EMPTY = "—";
 
 export default function AssetClassViewPage() {
-    const router = useRouter();
-    const queryClient = useQueryClient();
-    const {
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const {
+    token,
+    organizationId,
+    isLoading: isAuthLoading,
+    permissions,
+  } = useAuth();
+
+  const canUpdate =
+    permissions.has("asset_register.update") ||
+    permissions.has("asset_register.manage");
+
+  const assetClassId = useAssetRegisterEntityId("assetClassId");
+
+  const detailQuery = useQuery({
+    queryKey: [
+      "asset-register",
+      "asset-class",
+      organizationId,
+      assetClassId,
+    ],
+    queryFn: () => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return fetchAssetRegisterAssetClassApi({
         token,
         organizationId,
-        isLoading: isAuthLoading,
-        permissions,
-    } = useAuth();
+        id: assetClassId,
+      });
+    },
+    enabled: !!token && !!organizationId && !isAuthLoading,
+  });
 
-    const canUpdate =
-        permissions.has("asset_register.update") ||
-        permissions.has("asset_register.manage");
+  const statusMutation = useMutation({
+    mutationFn: async (input: {
+      action: "activate" | "deactivate";
+      reason?: string;
+    }) => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return updateAssetRegisterAssetClassStatusApi({
+        token,
+        organizationId,
+        id: assetClassId,
+        action: input.action,
+        reason: input.reason,
+      });
+    },
+    onSuccess: (_data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["asset-register", "asset-class"],
+      });
+      void queryClient.invalidateQueries({
+        queryKey: ["asset-register", "asset-classes"],
+      });
+      setDeactivateOpen(false);
+      setActivateOpen(false);
+      const displayName = detailQuery.data?.name ?? "Asset class";
+      if (variables.action === "activate") {
+        showAssetClassActivatedToast(displayName);
+      } else {
+        showAssetClassDeactivatedToast(displayName);
+      }
+    },
+    onError: (error: Error) => {
+      showErrorToast(error.message || ASSET_CLASS_STATUS_UPDATE_ERROR);
+    },
+  });
 
-    const assetClassId = useAssetRegisterEntityId("assetClassId");
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [activateOpen, setActivateOpen] = useState(false);
 
-    const detailQuery = useQuery({
-        queryKey: [
-            "asset-register",
-            "asset-class",
-            organizationId,
-            assetClassId,
-        ],
-        queryFn: () => {
-            if (!token || !organizationId) {
-                throw new Error("Missing auth context");
-            }
-            return fetchAssetRegisterAssetClassApi({
-                token,
-                organizationId,
-                id: assetClassId,
-            });
-        },
-        enabled: !!token && !!organizationId && !isAuthLoading,
-    });
-
-    const statusMutation = useMutation({
-        mutationFn: async (input: {
-            action: "activate" | "deactivate";
-            reason?: string;
-        }) => {
-            if (!token || !organizationId) {
-                throw new Error("Missing auth context");
-            }
-            return updateAssetRegisterAssetClassStatusApi({
-                token,
-                organizationId,
-                id: assetClassId,
-                action: input.action,
-                reason: input.reason,
-            });
-        },
-        onSuccess: (_data, variables) => {
-            void queryClient.invalidateQueries({
-                queryKey: ["asset-register", "asset-class"],
-            });
-            void queryClient.invalidateQueries({
-                queryKey: ["asset-register", "asset-classes"],
-            });
-            setDeactivateOpen(false);
-            setActivateOpen(false);
-            const displayName =
-                detailQuery.data?.name ?? "Asset class";
-            if (variables.action === "activate") {
-                showAssetClassActivatedToast(displayName);
-            } else {
-                showAssetClassDeactivatedToast(displayName);
-            }
-        },
-        onError: (error: Error) => {
-            showErrorToast(
-                error.message || ASSET_CLASS_STATUS_UPDATE_ERROR,
-            );
-        },
-    });
-
+  const handleEdit = () => {
     const detail = detailQuery.data;
-    const formData = detail ? assetClassDetailToFormData(detail) : null;
-    const assetClass: AssetClass | null = detail
-        ? {
-              id: detail.id,
-              name: detail.name,
-              classCode: detail.code,
-              status: detail.status,
-              vehicleType: mapAssetRegisterVehicleTypeToUiLabel(
-                  detail.vehicleType,
-              ),
-              fuelType: detail.fuelType,
-              mileageFrom: formData?.mileageFrom ?? "",
-              mileageTo: formData?.mileageTo ?? "",
-              mileageUnit: formData?.mileageUnit ?? "",
-              fuelTankCapacity: detail.fuelTankCapacity,
-              ratedLoadCapacityFrom: detail.ratedLoadFrom,
-              ratedLoadCapacityTo: detail.ratedLoadTo,
-              defaultIntakeChecklist: detail.defaultIntakeChecklist,
-              notes: detail.description ?? "",
-          }
-        : null;
+    if (!detail || detail.status !== "active") return;
+    router.push(assetRegisterAssetClassEditHref(detail.id));
+  };
 
-    const [deactivateOpen, setDeactivateOpen] = useState(false);
-    const [activateOpen, setActivateOpen] = useState(false);
-
-    /* ---------------------------------------------------------------------- */
-    /* Edit                                                                   */
-    /* ---------------------------------------------------------------------- */
-
-    const handleEdit = () => {
-        if (!assetClass || assetClass.status !== "active") return;
-        router.push(assetRegisterAssetClassEditHref(assetClass.id));
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Deactivate                                                             */
-    /* ---------------------------------------------------------------------- */
-
-    if (isAuthLoading || detailQuery.isLoading) {
-        return (
-            <div className="p-6 text-sm text-gray-500">
-                Loading asset class…
-            </div>
-        );
-    }
-
-    if (detailQuery.isError || !assetClass) {
-        return (
-            <div className="p-6 text-sm text-gray-500">
-                Asset class not found.
-            </div>
-        );
-    }
-
-    /* ---------------------------------------------------------------------- */
-    /* Mileage                                                                */
-    /* ---------------------------------------------------------------------- */
-
-    const mileage =
-        assetClass.mileageFrom ===
-            assetClass.mileageTo
-            ? `${assetClass.mileageFrom} ${assetClass.mileageUnit}`
-            : `${assetClass.mileageFrom}–${assetClass.mileageTo} ${assetClass.mileageUnit}`;
-
-    /* ---------------------------------------------------------------------- */
-    /* UI                                                                     */
-    /* ---------------------------------------------------------------------- */
-
+  if (isAuthLoading || detailQuery.isLoading) {
     return (
-        <div className="min-h-full bg-gray-50">
-            <div className="px-5 py-4">
-                {/* ========================================================== */}
-                {/* Header                                                       */}
-                {/* ========================================================== */}
-
-                <div className="mb-4 flex items-start justify-between">
-                    {/* Asset Class Name + Status */}
-
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-xl font-semibold text-gray-900">
-                                {assetClass.name}
-                            </h1>
-
-                            {assetClass.status ===
-                                "active" ? (
-                                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
-                                    Active
-                                </span>
-                            ) : (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
-                                    Inactive
-                                </span>
-                            )}
-                        </div>
-
-                        <p className="mt-0.5 text-[10px] text-gray-500">
-                            Code: {assetClass.classCode}
-                        </p>
-                    </div>
-
-                    {/* ====================================================== */}
-                    {/* Actions                                                   */}
-                    {/* ====================================================== */}
-
-                    <div className="flex items-center gap-2">
-                        {canUpdate &&
-                        assetClass.status === "active" ? (
-                        <Button
-                            type="button"
-                            variant="neutral"
-                            onClick={handleEdit}
-                            className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
-                        >
-                            Edit
-                        </Button>
-                        ) : null}
-
-                        {canUpdate &&
-                        (assetClass.status ===
-                            "active" ? (
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={() => setDeactivateOpen(true)}
-                                className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
-                            >
-                                Deactivate
-                            </Button>
-                        ) : (
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={() => setActivateOpen(true)}
-                                className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
-                            >
-                                Activate
-                            </Button>
-                        ))}
-                    </div>
-                </div>
-
-                {/* ========================================================== */}
-                {/* Specifications                                               */}
-                {/* ========================================================== */}
-
-                <section>
-                    <h2 className="mb-3 text-sm font-semibold text-gray-900">
-                        Specifications
-                    </h2>
-
-                    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                        {/* Vehicle Type */}
-
-                        <InfoRow
-                            label="Vehicle type"
-                            value={
-                                assetClass.vehicleType
-                            }
-                        />
-
-                        {/* Fuel Type */}
-
-                        <InfoRow
-                            label="Fuel type"
-                            value={
-                                assetClass.fuelType
-                            }
-                        />
-
-                        {/* Mileage */}
-
-                        <InfoRow
-                            label="Mileage"
-                            value={mileage}
-                        />
-
-                        {/* Fuel Tank Capacity */}
-
-                        <InfoRow
-                            label="Fuel tank capacity"
-                            value={`${assetClass.fuelTankCapacity} L`}
-                        />
-
-                        {/* Rated Load Capacity */}
-                        <InfoRow
-                            label="Rated load capacity"
-                            value={
-                                assetClass.ratedLoadCapacityFrom ===
-                                    assetClass.ratedLoadCapacityTo
-                                    ? `${assetClass.ratedLoadCapacityFrom} kg`
-                                    : `${assetClass.ratedLoadCapacityFrom}–${assetClass.ratedLoadCapacityTo} kg`
-                            }
-                        />
-
-                        {/* Default Intake Checklist */}
-
-                        <InfoRow
-                            label="Default intake checklist"
-                            value={
-                                assetClass.defaultIntakeChecklist
-                            }
-                        />
-                    </div>
-                </section>
-
-                {/* ========================================================== */}
-                {/* Notes                                                        */}
-                {/* ========================================================== */}
-
-                {assetClass.notes && (
-                    <section className="mt-4">
-                        <h2 className="mb-3 text-sm font-semibold text-gray-900">
-                            Notes
-                        </h2>
-
-                        <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-                            <p className="text-xs leading-5 text-gray-600">
-                                {assetClass.notes}
-                            </p>
-                        </div>
-                    </section>
-                )}
-            </div>
-
-            <ReasonRequiredDialog
-                open={deactivateOpen}
-                title="Deactivate asset class?"
-                description={
-                    <>
-                        <span className="font-medium text-gray-900">
-                            {assetClass.name}
-                        </span>{" "}
-                        will no longer be used for new vehicles or lease lines.
-                    </>
-                }
-                reasonLabel="Reason for deactivation"
-                confirmLabel="Deactivate"
-                isPending={statusMutation.isPending}
-                onClose={() => {
-                    if (!statusMutation.isPending) {
-                        setDeactivateOpen(false);
-                    }
-                }}
-                onConfirm={(reason) => {
-                    statusMutation.mutate({
-                        action: "deactivate",
-                        reason,
-                    });
-                }}
-            />
-
-            <ConfirmDialog
-                open={activateOpen}
-                title="Activate asset class?"
-                message={`${assetClass.name} will be available for fleet register and lease lines.`}
-                confirmLabel="Activate"
-                isConfirmPending={statusMutation.isPending}
-                onClose={() => {
-                    if (!statusMutation.isPending) {
-                        setActivateOpen(false);
-                    }
-                }}
-                onConfirm={() => {
-                    statusMutation.mutate({ action: "activate" });
-                }}
-            />
-        </div>
+      <div className="p-6 text-sm text-gray-500">Loading asset class…</div>
     );
+  }
+
+  if (detailQuery.isError || !detailQuery.data) {
+    return (
+      <div className="p-6">
+        <p className="text-sm font-medium text-red-600">
+          {detailQuery.error instanceof ApiClientError
+            ? detailQuery.error.message
+            : "Asset class not found."}
+        </p>
+        <button
+          type="button"
+          onClick={() => void detailQuery.refetch()}
+          className="mt-2 text-sm text-gray-600 underline"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  const detail = detailQuery.data;
+  const isActive = detail.status === "active";
+  const intakeItems = intakeChecklistItemsForDisplay(detail);
+  const mileageDisplay = formatMileageRangeFromSpec(detail) || EMPTY;
+  const ratedLoadDisplay =
+    formatRatedLoadRange(detail.ratedLoadFrom, detail.ratedLoadTo) || EMPTY;
+  const fuelTankDisplay = detail.fuelTankCapacity?.trim()
+    ? `${detail.fuelTankCapacity} L`
+    : EMPTY;
+
+  return (
+    <div className="min-h-full bg-gray-50">
+      <div className="px-5 py-4">
+        <div className="mb-4 flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold text-gray-900">
+                {detail.name}
+              </h1>
+              {isActive ? (
+                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
+                  Active
+                </span>
+              ) : (
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                  Inactive
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {canUpdate && isActive ? (
+              <Button
+                type="button"
+                variant="neutral"
+                onClick={handleEdit}
+                className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
+              >
+                Edit
+              </Button>
+            ) : null}
+
+            {canUpdate ? (
+              isActive ? (
+                <Button
+                  type="button"
+                  variant="neutral"
+                  onClick={() => setDeactivateOpen(true)}
+                  className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
+                >
+                  Deactivate
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  variant="neutral"
+                  onClick={() => setActivateOpen(true)}
+                  className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
+                >
+                  Activate
+                </Button>
+              )
+            ) : null}
+          </div>
+        </div>
+
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">
+            Specifications
+          </h2>
+
+          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+            <InfoRow
+              label="Vehicle type"
+              value={mapAssetRegisterVehicleTypeToUiLabel(detail.vehicleType)}
+            />
+            <InfoRow label="Brand" value={detail.brand || EMPTY} />
+            <InfoRow label="Model name" value={detail.modelName || EMPTY} />
+            <InfoRow
+              label="Manufacturing year"
+              value={String(detail.manufacturingYear) || EMPTY}
+            />
+            <InfoRow label="Fuel type" value={detail.fuelType || EMPTY} />
+            <InfoRow label="Fuel system" value={detail.fuelSystem || EMPTY} />
+            <InfoRow label="Color" value={detail.color || EMPTY} />
+            <InfoRow label="Color code" value={detail.colorCode || EMPTY} />
+            <InfoRow
+              label="CC (displacement)"
+              value={
+                detail.engineDisplacementCc
+                  ? String(detail.engineDisplacementCc)
+                  : EMPTY
+              }
+            />
+            <InfoRow label="Mileage" value={mileageDisplay} />
+            <InfoRow label="Rated load capacity" value={ratedLoadDisplay} />
+            <InfoRow label="Fuel tank capacity" value={fuelTankDisplay} />
+          </div>
+        </section>
+
+        <section className="mt-4">
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">
+            Default intake checklist
+          </h2>
+          <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
+            {intakeItems.length > 0 ? (
+              <ol className="list-decimal space-y-1.5 pl-5 text-xs leading-5 text-gray-800">
+                {intakeItems.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-xs leading-5 text-gray-500">{EMPTY}</p>
+            )}
+          </div>
+        </section>
+      </div>
+
+      <ReasonRequiredDialog
+        open={deactivateOpen}
+        title="Deactivate asset class?"
+        description={
+          <>
+            <span className="font-medium text-gray-900">{detail.name}</span>{" "}
+            will no longer be used for new vehicles or lease lines.
+          </>
+        }
+        reasonLabel="Reason for deactivation"
+        confirmLabel="Deactivate"
+        isPending={statusMutation.isPending}
+        onClose={() => {
+          if (!statusMutation.isPending) {
+            setDeactivateOpen(false);
+          }
+        }}
+        onConfirm={(reason) => {
+          statusMutation.mutate({
+            action: "deactivate",
+            reason,
+          });
+        }}
+      />
+
+      <ConfirmDialog
+        open={activateOpen}
+        title="Activate asset class?"
+        message={`${detail.name} will be available for fleet register and lease lines.`}
+        confirmLabel="Activate"
+        isConfirmPending={statusMutation.isPending}
+        onClose={() => {
+          if (!statusMutation.isPending) {
+            setActivateOpen(false);
+          }
+        }}
+        onConfirm={() => {
+          statusMutation.mutate({ action: "activate" });
+        }}
+      />
+    </div>
+  );
 }
 
-/* -------------------------------------------------------------------------- */
-/* Info Row                                                                   */
-/* -------------------------------------------------------------------------- */
-
-function InfoRow({
-    label,
-    value,
-}: {
-    label: string;
-    value: string;
-}) {
-    return (
-        <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
-            <p className="w-1/2 text-[10px] font-medium text-gray-400">
-                {label}
-            </p>
-
-            <p className="w-1/2 text-right text-[10px] font-medium text-gray-800">
-                {value}
-            </p>
-        </div>
-    );
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
+      <p className="w-1/2 text-[10px] font-medium text-gray-400">{label}</p>
+      <p className="w-1/2 text-right text-[10px] font-medium text-gray-800">
+        {value}
+      </p>
+    </div>
+  );
 }

@@ -53,40 +53,39 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     await ctx?.close();
   });
 
-  async function createAssetClass(name: string): Promise<string> {
+  async function createAssetClass(
+    modelName: string,
+  ): Promise<{ id: string; name: string }> {
     const res = await request(app.getHttpServer())
       .post('/api/v1/asset-register/asset-classes')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        name,
+        brand: 'Test',
+        modelName,
+        manufacturingYear: 2026,
+        engineDisplacementCc: 150,
+        fuelSystem: 'efi',
+        color: 'Black',
+        colorCode: 'bl',
         vehicleType: '4W',
         fuelType: 'Diesel',
-        fuelTankCapacity: 60,
+        mileageFrom: 40,
+        mileageTo: 50,
+        mileageUnit: 'km/L',
+        fuelTankCapacity: 10,
         ratedLoadFrom: 500,
         ratedLoadTo: 1500,
+        intakeChecklistItems: ['Helmet'],
       })
       .expect(201);
-    return (res.body as { id: string }).id;
-  }
-
-  async function createMaster(
-    assetClassId: string,
-    name: string,
-  ): Promise<string> {
-    const res = await request(app.getHttpServer())
-      .post('/api/v1/asset-register/asset-masters')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({ organizationId, assetClassId, name })
-      .expect(201);
-    return (res.body as { id: string }).id;
+    const body = res.body as { id: string; name: string };
+    return { id: body.id, name: body.name };
   }
 
   async function createVehicle(
     assetClassId: string,
-    assetMasterId: string,
   ): Promise<{ id: string; fleetCode: string }> {
     const unique = Date.now();
     const res = await request(app.getHttpServer())
@@ -96,7 +95,6 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       .send({
         organizationId,
         assetClassId,
-        assetMasterId,
         registrationNumber: `AR-ASGN-${unique}`.slice(0, 32),
         chassisNumber: `CH-ASGN-${unique}`,
         modelYear: 2024,
@@ -254,12 +252,10 @@ describe('Asset Register — vehicle assignments (integration)', () => {
 
   it('assigns available vehicle to active lease and unassigns', async () => {
     const unique = Date.now();
-    const className = 'Sedan';
-    const classId = await createAssetClass(className);
-    const masterId = await createMaster(classId, `Master ${unique}`);
-    const vehicle = await createVehicle(classId, masterId);
+    const assetClass = await createAssetClass(`Sedan ${unique}`);
+    const vehicle = await createVehicle(assetClass.id);
     const { contractId, organisationClientId } =
-      await createActiveLeaseForClass(className, 1);
+      await createActiveLeaseForClass(assetClass.name, 1);
 
     const assignRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
@@ -317,10 +313,8 @@ describe('Asset Register — vehicle assignments (integration)', () => {
 
   it('returns NO_ACTIVE_LEASE_CONTRACT when contract is not active', async () => {
     const unique = Date.now();
-    const className = `Draft Assign ${unique}`;
-    const classId = await createAssetClass(className);
-    const masterId = await createMaster(classId, `M ${unique}`);
-    const vehicle = await createVehicle(classId, masterId);
+    const assetClass = await createAssetClass(`Draft Assign ${unique}`);
+    const vehicle = await createVehicle(assetClass.id);
 
     const { id: draftId } = await createDraftLeaseContract(app, {
       organizationId,
@@ -343,13 +337,11 @@ describe('Asset Register — vehicle assignments (integration)', () => {
 
   it('returns LEASE_CAPACITY_SHORTFALL when exceeding line capacity', async () => {
     const unique = Date.now();
-    const className = 'Sedan';
-    const classId = await createAssetClass(className);
-    const masterId = await createMaster(classId, `M ${unique}`);
-    const v1 = await createVehicle(classId, masterId);
-    const v2 = await createVehicle(classId, masterId);
+    const assetClass = await createAssetClass(`Sedan ${unique}`);
+    const v1 = await createVehicle(assetClass.id);
+    const v2 = await createVehicle(assetClass.id);
     const { contractId, organisationClientId } =
-      await createActiveLeaseForClass(className, 1);
+      await createActiveLeaseForClass(assetClass.name, 1);
 
     const res = await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
@@ -368,11 +360,9 @@ describe('Asset Register — vehicle assignments (integration)', () => {
 
   it('returns ORGANISATION_CLIENT_REQUIRED when lease has fleet client but body omits org client', async () => {
     const unique = Date.now();
-    const className = 'Sedan';
-    const classId = await createAssetClass(className);
-    const masterId = await createMaster(classId, `M ${unique}`);
-    const vehicle = await createVehicle(classId, masterId);
-    const { contractId } = await createActiveLeaseForClass(className, 1);
+    const assetClass = await createAssetClass(`Sedan ${unique}`);
+    const vehicle = await createVehicle(assetClass.id);
+    const { contractId } = await createActiveLeaseForClass(assetClass.name, 1);
 
     const res = await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
@@ -390,11 +380,9 @@ describe('Asset Register — vehicle assignments (integration)', () => {
 
   it('returns ORGANISATION_CLIENT_MISMATCH when org client name differs from fleet client', async () => {
     const unique = Date.now();
-    const className = 'Sedan';
-    const classId = await createAssetClass(className);
-    const masterId = await createMaster(classId, `M ${unique}`);
-    const vehicle = await createVehicle(classId, masterId);
-    const { contractId } = await createActiveLeaseForClass(className, 1);
+    const assetClass = await createAssetClass(`Sedan ${unique}`);
+    const vehicle = await createVehicle(assetClass.id);
+    const { contractId } = await createActiveLeaseForClass(assetClass.name, 1);
     const wrongOrgClientId = await createOrganisationClientMatchingName(
       `Different Name ${unique}`,
     );

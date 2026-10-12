@@ -21,7 +21,6 @@ export type AssetRegisterComplianceListItem = {
 
 export type AssetRegisterComplianceDetail =
   AssetRegisterComplianceListItem & {
-    assetMasterName: string;
     registrationStartDate: string;
     insuranceStartDate: string;
     warrantyStartDate: string;

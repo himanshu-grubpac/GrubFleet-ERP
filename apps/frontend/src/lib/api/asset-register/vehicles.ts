@@ -21,9 +21,6 @@ export type AssetRegisterVehicleListItem = {
 };
 
 export type AssetRegisterVehicleDetail = AssetRegisterVehicleListItem & {
-  assetMasterId: string;
-  assetMasterName: string;
-  assetClassCode: string;
   chassisNumber: string;
   modelYear: number;
   registrationStartDate: string;
@@ -121,7 +118,6 @@ export async function fetchAssetRegisterVehicleApi(params: {
 export type CreateAssetRegisterVehiclePayload = {
   organizationId: string;
   assetClassId: string;
-  assetMasterId: string;
   registrationNumber: string;
   chassisNumber: string;
   modelYear: number;

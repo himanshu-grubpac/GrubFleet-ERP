@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import DashboardPagination from "@/components/dashboard/DashboardPagination";
 import SelectClientStep from "./SelectClientStep";
 
 import AssetLinesStep, {

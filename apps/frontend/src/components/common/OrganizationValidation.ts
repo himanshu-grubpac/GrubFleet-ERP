@@ -2,18 +2,20 @@
 /* Organization Validation                                                   */
 /* -------------------------------------------------------------------------- */
 
-export type OrganizationValidationErrors = Record<
-    string,
-    string
->;
+import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
+import {
+    isValidPostalForCountry,
+    postalRequiredMessage,
+    postalValidationMessage,
+} from "@/lib/geo/postal";
+
+export type OrganizationValidationErrors = Record<string, string>;
 
 /* -------------------------------------------------------------------------- */
 /* Common Helpers                                                             */
 /* -------------------------------------------------------------------------- */
 
-export const isEmpty = (
-    value: unknown
-): boolean => {
+export const isEmpty = (value: unknown): boolean => {
     return (
         value === undefined ||
         value === null ||
@@ -27,7 +29,7 @@ export const isEmpty = (
 
 export const validateRequired = (
     value: unknown,
-    label: string
+    label: string,
 ): string | undefined => {
     if (isEmpty(value)) {
         return `${label} is required.`;
@@ -42,7 +44,7 @@ export const validateRequired = (
 
 export const validateEmail = (
     value: string,
-    label = "Email"
+    label = "Email",
 ): string | undefined => {
     if (isEmpty(value)) {
         return `${label} is required.`;
@@ -50,8 +52,7 @@ export const validateEmail = (
 
     const email = value.trim();
 
-    const emailPattern =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
     if (!emailPattern.test(email)) {
         return `Enter a valid ${label.toLowerCase()}.`;
@@ -66,7 +67,7 @@ export const validateEmail = (
 
 export const validatePhone = (
     value: string,
-    label = "Phone"
+    label = "Phone",
 ): string | undefined => {
     if (isEmpty(value)) {
         return `${label} is required.`;
@@ -76,24 +77,6 @@ export const validatePhone = (
 
     if (phone.length < 10) {
         return `${label} must contain at least 10 digits.`;
-    }
-
-    return undefined;
-};
-
-/* -------------------------------------------------------------------------- */
-/* Pincode                                                                    */
-/* -------------------------------------------------------------------------- */
-
-export const validatePincode = (
-    value: string
-): string | undefined => {
-    if (isEmpty(value)) {
-        return "Pincode is required.";
-    }
-
-    if (!/^\d{6}$/.test(value.trim())) {
-        return "Pincode must contain 6 digits.";
     }
 
     return undefined;
@@ -110,6 +93,7 @@ export type OrganizationAddressValidationValue = {
     state: string;
     district: string;
     pincode: string;
+    country: string;
 };
 
 type OrganizationAddressValidationOptions = {
@@ -118,53 +102,38 @@ type OrganizationAddressValidationOptions = {
 
 export const validateOrganizationAddress = (
     address: OrganizationAddressValidationValue,
-    options?: OrganizationAddressValidationOptions
+    options?: OrganizationAddressValidationOptions,
 ): OrganizationValidationErrors => {
     const errors: OrganizationValidationErrors = {};
 
-    /* Address Line 1 */
+    const countryCode = address.country?.trim() || DEFAULT_COUNTRY_CODE;
+    const countryDef = getCountryDefinition(countryCode);
 
     if (isEmpty(address.line1)) {
-        errors.line1 =
-            "Address Line 1 is required.";
+        errors.line1 = "Address Line 1 is required.";
     }
 
-    /* Address Line 2 */
-
-    if (
-        options?.requireLine2 &&
-        isEmpty(address.line2)
-    ) {
-        errors.line2 =
-            "Address Line 2 is required.";
+    if (options?.requireLine2 && isEmpty(address.line2)) {
+        errors.line2 = "Address Line 2 is required.";
     }
 
-    /* City */
+    if (isEmpty(address.state)) {
+        errors.state = `${countryDef.regionLabel} is required.`;
+    }
 
-    if (isEmpty(address.city)) {
+    if (countryDef.showDistrict) {
+        if (isEmpty(address.district)) {
+            errors.district = "District is required.";
+        }
+    } else if (isEmpty(address.city)) {
         errors.city = "City is required.";
     }
 
-    /* State */
-
-    if (isEmpty(address.state)) {
-        errors.state = "State is required.";
-    }
-
-    /* District */
-
-    if (isEmpty(address.district)) {
-        errors.district =
-            "District is required.";
-    }
-
-    /* Pincode */
-
-    const pincodeError =
-        validatePincode(address.pincode);
-
-    if (pincodeError) {
-        errors.pincode = pincodeError;
+    const pincode = address.pincode.trim();
+    if (!pincode) {
+        errors.pincode = postalRequiredMessage(countryCode);
+    } else if (!isValidPostalForCountry(countryCode, pincode)) {
+        errors.pincode = postalValidationMessage(countryCode);
     }
 
     return errors;
@@ -175,7 +144,7 @@ export const validateOrganizationAddress = (
 /* -------------------------------------------------------------------------- */
 
 export const hasValidationErrors = (
-    errors: OrganizationValidationErrors
+    errors: OrganizationValidationErrors,
 ): boolean => {
     return Object.keys(errors).length > 0;
 };
@@ -186,18 +155,15 @@ export const hasValidationErrors = (
 
 export const addAddressValidationErrors = (
     errors: OrganizationValidationErrors,
-    addressErrors: OrganizationValidationErrors
+    addressErrors: OrganizationValidationErrors,
 ): OrganizationValidationErrors => {
     const result = {
         ...errors,
     };
 
-    Object.entries(addressErrors).forEach(
-        ([field, message]) => {
-            result[`address.${field}`] =
-                message;
-        }
-    );
+    Object.entries(addressErrors).forEach(([field, message]) => {
+        result[`address.${field}`] = message;
+    });
 
     return result;
 };

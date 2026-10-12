@@ -16,9 +16,10 @@ import type { UpdateAssetClassStatusDto } from './dto/update-asset-class-status.
 import { AssetRegisterRepository } from './repositories/asset-register.repository';
 import type { AssetRegisterAssetClassRow } from '../../database/schema';
 import {
-  assetClassCodeCandidate,
-  deriveAssetClassCodeBase,
-} from './utils/asset-class-code.util';
+  assetClassNameCollisionCandidate,
+  buildAssetClassNameFromSpec,
+  buildAssetClassSpecLabel,
+} from './utils/asset-class-name.util';
 
 @Injectable()
 export class AssetClassesService {
@@ -77,24 +78,34 @@ export class AssetClassesService {
 
   async create(dto: CreateAssetClassDto) {
     this.assertNumericRanges(dto);
-    const code = await this.allocateUniqueCode(
+    const spec = this.specFromCreateDto(dto);
+    const className = await this.allocateUniqueClassName(
       dto.organizationId,
-      dto.name.trim(),
+      spec,
     );
+    const intakeStored = this.serializeIntakeChecklist(dto);
+
     const inserted = await this.repo.insertAssetClass({
       organizationId: dto.organizationId,
-      name: dto.name.trim(),
+      name: className,
       description: dto.description?.trim() ?? null,
-      code,
+      brand: spec.brand,
+      modelName: spec.modelName,
+      manufacturingYear: spec.manufacturingYear,
+      engineDisplacementCc: spec.engineDisplacementCc,
+      fuelCapacity: this.toNumericString(dto.fuelCapacity),
+      fuelSystem: spec.fuelSystem,
+      color: spec.color,
+      colorCode: spec.colorCode,
       vehicleType: dto.vehicleType,
       fuelType: dto.fuelType.trim(),
       mileageFrom: this.toNumericString(dto.mileageFrom),
       mileageTo: this.toNumericString(dto.mileageTo),
       mileageUnit: dto.mileageUnit?.trim() ?? null,
-      fuelTankCapacity: this.toNumericStringRequired(dto.fuelTankCapacity),
-      ratedLoadFrom: this.toNumericStringRequired(dto.ratedLoadFrom),
-      ratedLoadTo: this.toNumericStringRequired(dto.ratedLoadTo),
-      defaultIntakeChecklist: dto.defaultIntakeChecklist?.trim() ?? null,
+      fuelTankCapacity: this.toNumericString(dto.fuelTankCapacity),
+      ratedLoadFrom: this.toNumericString(dto.ratedLoadFrom),
+      ratedLoadTo: this.toNumericString(dto.ratedLoadTo),
+      defaultIntakeChecklist: intakeStored,
       isActive: true,
     });
     return this.toDetail(inserted, 0, 0);
@@ -120,11 +131,11 @@ export class AssetClassesService {
     const nextRatedFrom =
       dto.ratedLoadFrom !== undefined
         ? dto.ratedLoadFrom
-        : this.parseNumericRequired(existing.ratedLoadFrom);
+        : this.parseNumeric(existing.ratedLoadFrom);
     const nextRatedTo =
       dto.ratedLoadTo !== undefined
         ? dto.ratedLoadTo
-        : this.parseNumericRequired(existing.ratedLoadTo);
+        : this.parseNumeric(existing.ratedLoadTo);
     this.assertNumericRanges({
       mileageFrom: nextMileageFrom,
       mileageTo: nextMileageTo,
@@ -132,10 +143,29 @@ export class AssetClassesService {
       ratedLoadTo: nextRatedTo,
     });
 
-    await this.repo.updateAssetClass(organizationId, id, {
-      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
+    const patch: Parameters<AssetRegisterRepository['updateAssetClass']>[2] = {
       ...(dto.description !== undefined
         ? { description: dto.description?.trim() ?? null }
+        : {}),
+      ...(dto.brand !== undefined ? { brand: dto.brand.trim() } : {}),
+      ...(dto.modelName !== undefined
+        ? { modelName: dto.modelName.trim() }
+        : {}),
+      ...(dto.manufacturingYear !== undefined
+        ? { manufacturingYear: dto.manufacturingYear }
+        : {}),
+      ...(dto.engineDisplacementCc !== undefined
+        ? { engineDisplacementCc: dto.engineDisplacementCc }
+        : {}),
+      ...(dto.fuelCapacity !== undefined
+        ? { fuelCapacity: this.toNumericString(dto.fuelCapacity) }
+        : {}),
+      ...(dto.fuelSystem !== undefined
+        ? { fuelSystem: dto.fuelSystem.trim() }
+        : {}),
+      ...(dto.color !== undefined ? { color: dto.color.trim() } : {}),
+      ...(dto.colorCode !== undefined
+        ? { colorCode: dto.colorCode.trim() }
         : {}),
       ...(dto.vehicleType !== undefined
         ? { vehicleType: dto.vehicleType }
@@ -152,23 +182,28 @@ export class AssetClassesService {
         : {}),
       ...(dto.fuelTankCapacity !== undefined
         ? {
-            fuelTankCapacity: this.toNumericStringRequired(
-              dto.fuelTankCapacity,
-            ),
+            fuelTankCapacity: this.toNumericString(dto.fuelTankCapacity),
           }
         : {}),
       ...(dto.ratedLoadFrom !== undefined
-        ? { ratedLoadFrom: this.toNumericStringRequired(dto.ratedLoadFrom) }
+        ? { ratedLoadFrom: this.toNumericString(dto.ratedLoadFrom) }
         : {}),
       ...(dto.ratedLoadTo !== undefined
-        ? { ratedLoadTo: this.toNumericStringRequired(dto.ratedLoadTo) }
+        ? { ratedLoadTo: this.toNumericString(dto.ratedLoadTo) }
         : {}),
-      ...(dto.defaultIntakeChecklist !== undefined
-        ? {
-            defaultIntakeChecklist: dto.defaultIntakeChecklist?.trim() ?? null,
-          }
-        : {}),
-    });
+    };
+
+    if (
+      dto.intakeChecklistItems !== undefined ||
+      dto.defaultIntakeChecklist !== undefined
+    ) {
+      patch.defaultIntakeChecklist = this.serializeIntakeChecklist({
+        intakeChecklistItems: dto.intakeChecklistItems,
+        defaultIntakeChecklist: dto.defaultIntakeChecklist,
+      });
+    }
+
+    await this.repo.updateAssetClass(organizationId, id, patch);
     return this.getById(organizationId, id);
   }
 
@@ -226,19 +261,76 @@ export class AssetClassesService {
     return this.getById(organizationId, id);
   }
 
-  private async allocateUniqueCode(
+  private specFromCreateDto(dto: CreateAssetClassDto) {
+    return {
+      brand: dto.brand?.trim() ?? '',
+      modelName: dto.modelName?.trim() ?? '',
+      manufacturingYear: dto.manufacturingYear ?? 0,
+      engineDisplacementCc: dto.engineDisplacementCc ?? 0,
+      fuelType: dto.fuelType.trim(),
+      fuelSystem: dto.fuelSystem?.trim() ?? '',
+      color: dto.color?.trim() ?? '',
+      colorCode: dto.colorCode?.trim() ?? '',
+    };
+  }
+
+  private async allocateUniqueClassName(
     organizationId: string,
-    name: string,
+    spec: ReturnType<AssetClassesService['specFromCreateDto']>,
+    excludeClassId?: string,
   ): Promise<string> {
-    const base = deriveAssetClassCodeBase(name);
+    const base = buildAssetClassNameFromSpec(spec);
     for (let attempt = 1; attempt <= 999; attempt++) {
-      const candidate = assetClassCodeCandidate(base, attempt);
-      const taken = await this.repo.codeExistsInOrg(organizationId, candidate);
+      const candidate = assetClassNameCollisionCandidate(base, attempt);
+      const taken = await this.repo.classNameExistsInOrg(
+        organizationId,
+        candidate,
+        excludeClassId,
+      );
       if (!taken) return candidate;
     }
     throw new BadRequestException(
-      'Unable to generate a unique asset class code',
+      'Unable to generate a unique asset class name',
     );
+  }
+
+  private serializeIntakeChecklist(input: {
+    intakeChecklistItems?: string[];
+    defaultIntakeChecklist?: string;
+  }): string | null {
+    if (input.intakeChecklistItems !== undefined) {
+      const items = input.intakeChecklistItems
+        .map((line) => line.trim())
+        .filter(Boolean);
+      return items.length > 0 ? JSON.stringify(items) : null;
+    }
+    if (input.defaultIntakeChecklist !== undefined) {
+      const trimmed = input.defaultIntakeChecklist.trim();
+      return trimmed || null;
+    }
+    return null;
+  }
+
+  private parseIntakeChecklistItems(stored: string | null): string[] {
+    if (!stored?.trim()) return [];
+    const trimmed = stored.trim();
+    if (trimmed.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(trimmed) as unknown;
+        if (Array.isArray(parsed)) {
+          return parsed
+            .filter((item): item is string => typeof item === 'string')
+            .map((item) => item.trim())
+            .filter(Boolean);
+        }
+      } catch {
+        return [trimmed];
+      }
+    }
+    return trimmed
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean);
   }
 
   private assertNumericRanges(input: {
@@ -272,16 +364,8 @@ export class AssetClassesService {
     return String(value);
   }
 
-  private toNumericStringRequired(value: number): string {
-    return String(value);
-  }
-
   private parseNumeric(value: string | null): number | undefined {
     if (value === null || value === '') return undefined;
-    return Number(value);
-  }
-
-  private parseNumericRequired(value: string): number {
     return Number(value);
   }
 
@@ -290,10 +374,20 @@ export class AssetClassesService {
     inFleetCount: number,
     availableCount: number,
   ) {
+    const specLabel = buildAssetClassSpecLabel({
+      brand: row.brand,
+      modelName: row.modelName,
+      manufacturingYear: row.manufacturingYear,
+      engineDisplacementCc: row.engineDisplacementCc,
+      fuelType: row.fuelType,
+      fuelSystem: row.fuelSystem,
+      color: row.color,
+      colorCode: row.colorCode,
+    });
     return {
       id: row.id,
       name: row.name,
-      code: row.code,
+      specLabel,
       vehicleType: row.vehicleType,
       fuelType: row.fuelType,
       inFleetCount,
@@ -307,15 +401,27 @@ export class AssetClassesService {
     inFleetCount: number,
     availableCount: number,
   ) {
+    const intakeChecklistItems = this.parseIntakeChecklistItems(
+      row.defaultIntakeChecklist,
+    );
     return {
       ...this.toListItem(row, inFleetCount, availableCount),
+      brand: row.brand,
+      modelName: row.modelName,
+      manufacturingYear: row.manufacturingYear,
+      engineDisplacementCc: row.engineDisplacementCc,
+      fuelCapacity: row.fuelCapacity ?? null,
+      fuelSystem: row.fuelSystem,
+      color: row.color,
+      colorCode: row.colorCode,
       description: row.description ?? '',
       mileageFrom: row.mileageFrom ?? null,
       mileageTo: row.mileageTo ?? null,
       mileageUnit: row.mileageUnit ?? null,
-      fuelTankCapacity: row.fuelTankCapacity,
-      ratedLoadFrom: row.ratedLoadFrom,
-      ratedLoadTo: row.ratedLoadTo,
+      fuelTankCapacity: row.fuelTankCapacity ?? null,
+      ratedLoadFrom: row.ratedLoadFrom ?? null,
+      ratedLoadTo: row.ratedLoadTo ?? null,
+      intakeChecklistItems,
       defaultIntakeChecklist: row.defaultIntakeChecklist ?? '',
       isActive: row.isActive,
       deactivatedAt: row.deactivatedAt?.toISOString() ?? null,

@@ -18,7 +18,11 @@ import {
   fetchFinanceInvoiceDetailApi,
   updateFinanceInvoiceApi,
 } from "@/lib/api/finance/invoices";
-import { parseRupeeInputToMinor } from "@/lib/format/money-format";
+import {
+  formatRupeeInputDisplay,
+  INR_RUPEE_INPUT_PLACEHOLDER,
+  parseRupeeInputToMinor,
+} from "@/lib/format/money-format";
 import {
   financeInvoiceDetailHref,
   financeInvoiceNewTypeHref,
@@ -75,7 +79,7 @@ export default function NewBillingInvoicePage() {
     if (data.clientId) setClientId(data.clientId);
     if (data.leaseContractId) setLeaseContractId(data.leaseContractId);
     setBillingPeriod(data.billingPeriod ?? "");
-    setAmount(String(data.totalAmountMinor / 100));
+    setAmount(formatRupeeInputDisplay(String(data.totalAmountMinor / 100)));
     setInvoiceDate(data.invoiceDate);
     setNotes(data.notes ?? "");
   }, [editQuery.data]);
@@ -302,10 +306,10 @@ export default function NewBillingInvoicePage() {
               Amount (₹) *
             </label>
             <RestrictedInput
-              restrictedKind="text"
+              restrictedKind="inrRupee"
               value={amount}
               onChange={setAmount}
-              placeholder="e.g. 50000"
+              placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
             />
           </div>
 

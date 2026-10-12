@@ -74,3 +74,105 @@ export function assertStagingDemoSeedAllowed(): void {
     );
   }
 }
+
+const STAGING_NONPROD_DB_NAME = 'grubfleet_erp_nonprod';
+
+function assertStagingNonprodDatabaseUrl(connectionString: string): void {
+  let dbName: string | undefined;
+  try {
+    dbName = new URL(connectionString).pathname
+      .replace(/^\//, '')
+      .split('?')[0];
+  } catch {
+    throw new Error('DATABASE_URL is not a valid URL.');
+  }
+  if (dbName !== STAGING_NONPROD_DB_NAME) {
+    throw new Error(
+      `Refusing asset register clean: expected database "${STAGING_NONPROD_DB_NAME}", got "${dbName ?? '(unknown)'}".`,
+    );
+  }
+  if (/grubfleet_erp_production/i.test(connectionString)) {
+    throw new Error(
+      'Refusing asset register clean against production database.',
+    );
+  }
+}
+
+/**
+ * Full Asset Register purge on staging nonprod RDS only.
+ * Requires CLEAN_ASSET_REGISTER_STAGING=1 and APP_ENV=staging.
+ */
+const LOCAL_DEV_DB_NAMES = new Set(['grubpac_erp', 'grubfleet_erp_dev']);
+
+function assertLocalDevelopmentDatabaseUrl(connectionString: string): void {
+  let dbName: string | undefined;
+  try {
+    dbName = new URL(connectionString).pathname
+      .replace(/^\//, '')
+      .split('?')[0];
+  } catch {
+    throw new Error('DATABASE_URL is not a valid URL.');
+  }
+  if (!dbName || !LOCAL_DEV_DB_NAMES.has(dbName)) {
+    throw new Error(
+      `Refusing local asset register demo seed: expected local dev database (${[...LOCAL_DEV_DB_NAMES].join(' or ')}), got "${dbName ?? '(unknown)'}".`,
+    );
+  }
+  if (
+    /grubfleet_erp_nonprod|grubfleet_erp_production|rds\.amazonaws\.com/i.test(
+      connectionString,
+    )
+  ) {
+    throw new Error(
+      'Refusing local asset register demo seed against non-local or RDS URL.',
+    );
+  }
+}
+
+/** Marker on seeded asset-register rows (description / notes). */
+export const LOCAL_ASSET_REGISTER_DEMO_SEED_SOURCE =
+  'local-asset-register-demo-v1';
+
+/**
+ * Local Docker Postgres only — full Asset Register demo rows for dev org.
+ * Requires SEED_LOCAL_ASSET_REGISTER_DEMO=1 and APP_ENV=development.
+ */
+export function assertLocalAssetRegisterDemoSeedAllowed(): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (appEnv === 'production' || appEnv === 'pre-production') {
+    throw new Error(
+      `Refusing local asset register demo seed when APP_ENV=${appEnv ?? '(unset)'}.`,
+    );
+  }
+  if (process.env.SEED_LOCAL_ASSET_REGISTER_DEMO !== '1') {
+    throw new Error(
+      'Refusing local asset register demo seed: set SEED_LOCAL_ASSET_REGISTER_DEMO=1 explicitly.',
+    );
+  }
+  if (appEnv !== 'development') {
+    throw new Error(
+      `Refusing local asset register demo seed: APP_ENV must be development (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertLocalDevelopmentDatabaseUrl(resolveStagingDatabaseUrl());
+}
+
+export function assertStagingAssetRegisterCleanAllowed(): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (appEnv === 'production' || appEnv === 'pre-production') {
+    throw new Error(
+      `Refusing asset register clean when APP_ENV=${appEnv ?? '(unset)'}.`,
+    );
+  }
+  if (process.env.CLEAN_ASSET_REGISTER_STAGING !== '1') {
+    throw new Error(
+      'Refusing asset register clean: set CLEAN_ASSET_REGISTER_STAGING=1 explicitly.',
+    );
+  }
+  if (appEnv !== 'staging') {
+    throw new Error(
+      `Refusing asset register clean: APP_ENV must be staging (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertStagingNonprodDatabaseUrl(resolveStagingDatabaseUrl());
+}

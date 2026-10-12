@@ -30,7 +30,7 @@ const ASSET_VIEW_ONLY_USER = {
 
 type AssetClassDetail = {
   id: string;
-  code: string;
+  name: string;
   isActive: boolean;
   status: string;
 };
@@ -85,12 +85,22 @@ describe('Asset Register — asset classes (integration)', () => {
     const unique = Date.now();
     return {
       organizationId,
-      name: `Lattice Class ${unique}`,
+      brand: 'Honda',
+      modelName: `Lattice ${unique}`,
+      manufacturingYear: 2026,
+      engineDisplacementCc: 150,
+      fuelSystem: 'efi',
+      color: 'Black',
+      colorCode: 'bl',
       vehicleType: '4W',
       fuelType: 'Diesel',
-      fuelTankCapacity: 60,
-      ratedLoadFrom: 500,
-      ratedLoadTo: 1500,
+      mileageFrom: 40,
+      mileageTo: 50,
+      mileageUnit: 'km/L',
+      fuelTankCapacity: 5.5,
+      ratedLoadFrom: 150,
+      ratedLoadTo: 250,
+      intakeChecklistItems: ['Helmet'],
       ...overrides,
     };
   }
@@ -151,7 +161,7 @@ describe('Asset Register — asset classes (integration)', () => {
         .query({ organizationId })
         .set('Authorization', `Bearer ${assetViewOnlyToken}`)
         .set('x-organization-id', organizationId)
-        .send({ name: 'View Only Cannot Rename' })
+        .send({ brand: 'View Only Cannot Rename' })
         .expect(403);
 
       await request(app.getHttpServer())
@@ -179,7 +189,7 @@ describe('Asset Register — asset classes (integration)', () => {
         .query({ organizationId: fakeOrgId })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', fakeOrgId)
-        .send({ name: 'Cross Org Rename' })
+        .send({ brand: 'Cross Org Rename' })
         .expect((res) => expect([403, 404]).toContain(res.status));
     });
 
@@ -203,12 +213,21 @@ describe('Asset Register — asset classes (integration)', () => {
         .expect(400);
     });
 
-    it('returns 400 when client supplies code on create', async () => {
+    it('returns 400 when client supplies deprecated code on create', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/asset-register/asset-classes')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
         .send(buildAssetClassCreatePayload({ code: 'HACK' }))
+        .expect(400);
+    });
+
+    it('returns 400 when client supplies name on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildAssetClassCreatePayload({ name: 'HACK' }))
         .expect(400);
     });
 
@@ -228,7 +247,6 @@ describe('Asset Register — asset classes (integration)', () => {
         .set('x-organization-id', organizationId)
         .send(
           buildAssetClassCreatePayload({
-            name: `Four Wheeler Class ${Date.now()}`,
             vehicleType: '4W',
           }),
         )
@@ -243,7 +261,7 @@ describe('Asset Register — asset classes (integration)', () => {
         .query({ organizationId })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send({ name: 'Valid Name', hackField: 'x' })
+        .send({ brand: 'Valid Brand', hackField: 'x' })
         .expect(400);
     });
 
@@ -282,7 +300,7 @@ describe('Asset Register — asset classes (integration)', () => {
         .query({ organizationId })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send({ name: 'Cannot Edit Inactive' })
+        .send({ brand: 'Cannot Edit Inactive' })
         .expect(400);
     });
 
@@ -324,16 +342,16 @@ describe('Asset Register — asset classes (integration)', () => {
       expect(row.metadata).toEqual({ reason: 'Audit lattice closure' });
     });
 
-    it('returns 400 when name exceeds max length', async () => {
+    it('returns 400 when brand exceeds max length', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/asset-register/asset-classes')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send(buildAssetClassCreatePayload({ name: 'x'.repeat(256) }))
+        .send(buildAssetClassCreatePayload({ brand: 'x'.repeat(256) }))
         .expect(400);
     });
 
-    it('generates class code from name initials on create', async () => {
+    it('creates with partial optional spec and placeholder name segments', async () => {
       const unique = Date.now();
       const res = await request(app.getHttpServer())
         .post('/api/v1/asset-register/asset-classes')
@@ -341,11 +359,43 @@ describe('Asset Register — asset classes (integration)', () => {
         .set('x-organization-id', organizationId)
         .send(
           buildAssetClassCreatePayload({
-            name: `Pickup Small Heavy Duty ${unique}`,
+            brand: undefined,
+            modelName: undefined,
+            manufacturingYear: undefined,
+            engineDisplacementCc: undefined,
+            fuelSystem: undefined,
+            color: undefined,
+            colorCode: undefined,
+            fuelType: `Petrol${unique}`,
           }),
         )
         .expect(201);
-      expect((res.body as AssetClassDetail).code).toMatch(/^PSHD(-\d+)?$/);
+      expect((res.body as AssetClassDetail).name).toMatch(
+        /^0_na_0_petrol\d+_na_na$/,
+      );
+    });
+
+    it('generates meeting class name from spec fields on create', async () => {
+      const unique = Date.now();
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildAssetClassCreatePayload({
+            brand: 'Honda',
+            modelName: `Activa ${unique}`,
+            manufacturingYear: 2026,
+            engineDisplacementCc: 150,
+            fuelType: 'Petrol',
+            fuelSystem: 'efi',
+            colorCode: 'bl',
+          }),
+        )
+        .expect(201);
+      expect((res.body as AssetClassDetail).name).toMatch(
+        /^2026_activa-\d+_150_petrol_efi_bl$/,
+      );
     });
 
     it('lists only inactive classes when status=inactive', async () => {
@@ -381,6 +431,43 @@ describe('Asset Register — asset classes (integration)', () => {
         .set('Authorization', `Bearer ${viewerToken}`)
         .set('x-organization-id', organizationId)
         .expect(403);
+    });
+
+    it('returns global intake catalog with org context and asset_register.view', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/asset-register/catalog/intake-checklist-items')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(403);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/asset-register/catalog/intake-checklist-items')
+        .set('Authorization', `Bearer ${assetViewOnlyToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+
+      const body = res.body as { items: string[] };
+      expect(Array.isArray(body.items)).toBe(true);
+      expect(body.items.length).toBeGreaterThan(0);
+      expect(body.items).toContain('Registration documents verified');
+    });
+
+    it('returns intakeChecklistItems on GET detail after create', async () => {
+      const id = await createAssetClassAsAdmin({
+        intakeChecklistItems: ['Helmet', 'Insurance policy copy'],
+      });
+
+      const res = await request(app.getHttpServer())
+        .get(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+
+      const body = res.body as { intakeChecklistItems: string[] };
+      expect(body.intakeChecklistItems).toEqual([
+        'Helmet',
+        'Insurance policy copy',
+      ]);
     });
   });
 });
