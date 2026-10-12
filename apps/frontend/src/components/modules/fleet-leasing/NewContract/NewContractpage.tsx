@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-
+import DashboardPagination from "@/components/dashboard/DashboardPagination";
 import SelectClientStep from "./SelectClientStep";
 
 import AssetLinesStep, {
@@ -254,8 +254,8 @@ export default function NewLeaseContractPage() {
                 error instanceof ApiClientError
                     ? error.message
                     : error instanceof Error
-                      ? error.message
-                      : "Could not save client.";
+                        ? error.message
+                        : "Could not save client.";
             showErrorToast(message);
             throw error;
         }
@@ -456,21 +456,6 @@ export default function NewLeaseContractPage() {
         );
     }
 
-    const listBackLink = {
-        label: "Back to lease contracts",
-        href: "/fleet-leasing/lease-contracts",
-    } as const;
-
-    const backLink =
-        screen === "register-client"
-            ? {
-                  label: "Back to client selection",
-                  onClick: () => {
-                      setRegisterClientDraftName("");
-                      setScreen("select-client");
-                  },
-              }
-            : listBackLink;
 
     return (
         <OrganizationFormLayout
@@ -480,7 +465,7 @@ export default function NewLeaseContractPage() {
             beforeHeader={
                 <LeaseContractStepper currentStep={SCREEN_STEP[screen]} />
             }
-            backLink={backLink}
+
             headerAction={
                 screen === "select-client" ? (
                     <Button

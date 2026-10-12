@@ -322,61 +322,23 @@ export const breadcrumbConfig: Record<
         },
     ],
 
-    "/fleet-leasing/lease-contracts": [
+    // ============================================================
+    // CUSTOMERS
+    // ============================================================
+
+    "/customers": [
         {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
-        },
-        {
-            label: "Lease Contracts",
+            label: "Customers",
         },
     ],
 
-    "/fleet-leasing/lease-contracts/detail/change-history": [
+    "/customers/corporate": [
         {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
+            label: "Customers",
+            href: "/customers",
         },
         {
-            label: "Lease Contracts",
-            href: "/fleet-leasing/lease-contracts",
-        },
-        {
-            label: "Change history",
-        },
-    ],
-
-    "/fleet-leasing/renewals-extensions": [
-        {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
-        },
-        {
-            label: "Renewals & Extensions",
-        },
-    ],
-
-    "/fleet-leasing/renewals-extensions/renew": [
-        {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
-        },
-        {
-            label: "Renewals & Extensions",
-            href: "/fleet-leasing/renewals-extensions",
-        },
-        {
-            label: "Renew contract",
-        },
-    ],
-
-    "/fleet-leasing/returns-inspections": [
-        {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
-        },
-        {
-            label: "Returns & Inspections",
+            label: "Corporate Customers",
         },
     ],
 
@@ -419,68 +381,6 @@ export const breadcrumbConfig: Record<
     ],
 
     // ============================================================
-    // FINANCE
+    // CUSTOMERS
     // ============================================================
-
-    "/finance/vendor-payments": [
-        {
-            label: "Finance",
-            href: "/finance/invoices",
-        },
-        {
-            label: "Vendor Payments",
-        },
-    ],
-
-    "/finance/vendor-payments/record": [
-        {
-            label: "Finance",
-            href: "/finance/invoices",
-        },
-        {
-            label: "Vendor Payments",
-            href: "/finance/vendor-payments",
-        },
-        {
-            label: "Record Payment",
-        },
-    ],
-
-    "/finance/vendor-payments/detail": [
-        {
-            label: "Finance",
-            href: "/finance/invoices",
-        },
-        {
-            label: "Vendor Payments",
-            href: "/finance/vendor-payments",
-        },
-        {
-            label: "Payment detail",
-        },
-    ],
-
-    "/finance/client-statements": [
-        {
-            label: "Finance",
-            href: "/finance/invoices",
-        },
-        {
-            label: "Client Statements",
-        },
-    ],
-
-    "/finance/client-statements/detail": [
-        {
-            label: "Finance",
-            href: "/finance/invoices",
-        },
-        {
-            label: "Client Statements",
-            href: "/finance/client-statements",
-        },
-        {
-            label: "Client detail",
-        },
-    ],
 };
