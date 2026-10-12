@@ -30,8 +30,8 @@ import {
 
 /** Wizard inline create — full class details can be edited later in Asset Register. */
 const WIZARD_QUICK_ASSET_CLASS_DEFAULTS: Omit<
-  import("@/lib/api/asset-register/asset-classes").CreateAssetRegisterAssetClassPayload,
-  "organizationId" | "brand" | "modelName"
+    import("@/lib/api/asset-register/asset-classes").CreateAssetRegisterAssetClassPayload,
+    "organizationId" | "brand" | "modelName"
 > = {
     manufacturingYear: new Date().getFullYear(),
     engineDisplacementCc: 150,

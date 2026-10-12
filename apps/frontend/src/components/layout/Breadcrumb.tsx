@@ -3,24 +3,17 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 
-import type { DashboardBreadcrumbItem } from "@/lib/navigation/dashboard-breadcrumbs";
-import {
-    internalHref,
-    normalizeNavPath,
-} from "@/lib/navigation/nav-path-match";
+import type { BreadcrumbItem } from "@/config/breadcrumb-config";
 
 interface BreadcrumbProps {
-    items: DashboardBreadcrumbItem[];
+    items: BreadcrumbItem[];
 }
 
 export default function Breadcrumb({
     items,
 }: BreadcrumbProps) {
-    const pathname = normalizeNavPath(usePathname() ?? "/");
-
     if (!items.length) {
         return null;
     }
@@ -33,24 +26,15 @@ export default function Breadcrumb({
             <ol className="flex items-center gap-1.5 text-xs">
                 {items.map((item, index) => {
                     const isLast = index === items.length - 1;
-                    const linkTarget = item.href
-                        ? internalHref(item.href)
-                        : undefined;
-                    const normalizedTarget = linkTarget
-                        ? normalizeNavPath(linkTarget)
-                        : null;
-                    const showLink =
-                        normalizedTarget != null &&
-                        normalizedTarget !== pathname;
 
                     return (
                         <li
                             key={`${item.label}-${index}`}
                             className="flex min-w-0 items-center gap-1.5"
                         >
-                            {showLink && linkTarget ? (
+                            {item.href && !isLast ? (
                                 <Link
-                                    href={linkTarget}
+                                    href={item.href}
                                     className="truncate text-slate-400 transition-colors hover:text-slate-700"
                                 >
                                     {item.label}
