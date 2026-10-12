@@ -220,12 +220,6 @@ export default function ClientDashboardPage() {
       <DashboardLayout
         title="Clients"
         description="Client register — companies, primary points of contact, contact details, and active contracts."
-        tabs={[
-          {
-            label: "Clients",
-            href: "/customer",
-          },
-        ]}
         activeTab="/customer"
         action={addClientAction}
       >
@@ -281,12 +275,12 @@ export default function ClientDashboardPage() {
       pagination={
         clientsTotal > CLIENTS_PAGE_SIZE
           ? {
-              currentPage: page,
-              totalPages,
-              totalItems: clientsTotal,
-              pageSize: CLIENTS_PAGE_SIZE,
-              onPageChange: setPage,
-            }
+            currentPage: page,
+            totalPages,
+            totalItems: clientsTotal,
+            pageSize: CLIENTS_PAGE_SIZE,
+            onPageChange: setPage,
+          }
           : undefined
       }
     >
@@ -394,9 +388,9 @@ export default function ClientDashboardPage() {
               onToggleStatus={
                 canUpdate
                   ? () =>
-                      client.status === "active"
-                        ? handleDeactivate(client)
-                        : handleActivate(client)
+                    client.status === "active"
+                      ? handleDeactivate(client)
+                      : handleActivate(client)
                   : undefined
               }
             />

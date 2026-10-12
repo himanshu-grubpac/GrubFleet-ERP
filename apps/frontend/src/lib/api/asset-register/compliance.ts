@@ -1,3 +1,4 @@
+
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
 
@@ -18,13 +19,14 @@ export type AssetRegisterComplianceListItem = {
   warrantyEndDate: string;
 };
 
-export type AssetRegisterComplianceDetail = AssetRegisterComplianceListItem & {
-  assetMasterName: string;
-  registrationStartDate: string;
-  insuranceStartDate: string;
-  warrantyStartDate: string;
-  insurancePremium: string;
-};
+export type AssetRegisterComplianceDetail =
+  AssetRegisterComplianceListItem & {
+    assetMasterName: string;
+    registrationStartDate: string;
+    insuranceStartDate: string;
+    warrantyStartDate: string;
+    insurancePremium: string;
+  };
 
 function orgHeaders(organizationId: string): HeadersInit {
   return { "x-organization-id": organizationId };
@@ -36,15 +38,16 @@ export async function fetchAssetRegisterComplianceListApi(params: {
   page?: number;
   pageSize?: number;
   search?: string;
-  status?: AssetRegisterComplianceFilterStatus;
 }): Promise<PaginatedResponse<AssetRegisterComplianceListItem>> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
     page: String(params.page ?? 1),
     pageSize: String(params.pageSize ?? 50),
   });
-  if (params.search?.trim()) q.set("search", params.search.trim());
-  if (params.status) q.set("status", params.status);
+
+  if (params.search?.trim()) {
+    q.set("search", params.search.trim());
+  }
 
   return apiFetch<PaginatedResponse<AssetRegisterComplianceListItem>>(
     `/asset-register/compliance?${q.toString()}`,
@@ -60,7 +63,10 @@ export async function fetchAssetRegisterComplianceDetailApi(params: {
   token: string;
   vehicleId: string;
 }): Promise<AssetRegisterComplianceDetail> {
-  const q = new URLSearchParams({ organizationId: params.organizationId });
+  const q = new URLSearchParams({
+    organizationId: params.organizationId,
+  });
+
   return apiFetch<AssetRegisterComplianceDetail>(
     `/asset-register/compliance/${params.vehicleId}?${q.toString()}`,
     {
@@ -79,7 +85,10 @@ export async function renewAssetRegisterComplianceApi(params: {
   endDate: string;
   insurancePremium?: number;
 }): Promise<AssetRegisterComplianceDetail> {
-  const q = new URLSearchParams({ organizationId: params.organizationId });
+  const q = new URLSearchParams({
+    organizationId: params.organizationId,
+  });
+
   return apiFetch<AssetRegisterComplianceDetail>(
     `/asset-register/compliance/${params.vehicleId}/renew?${q.toString()}`,
     {

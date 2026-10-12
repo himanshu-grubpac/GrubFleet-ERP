@@ -71,7 +71,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Asset Management",
-    href: "/asset-management/",
+    href: "/asset-register/",
     icon: ClipboardList,
     requiredPermission: "asset_register.view",
     children: [
