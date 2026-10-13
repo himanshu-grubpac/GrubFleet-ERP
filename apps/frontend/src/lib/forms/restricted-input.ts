@@ -91,6 +91,12 @@ export const FLEET_LEASE_TERMS_INPUT_LIMITS = {
   moneyMaxDigits: 12,
 } as const;
 
+/** Fleet Support vehicle replacement — mirrors LookupOnLeaseVehicleQueryDto + list client search. */
+export const FLEET_SUPPORT_REPLACEMENT_INPUT_LIMITS = {
+  vehicleIdentifier: 64,
+  clientSearch: 120,
+} as const;
+
 /** ITU E.164 maximum significant digits (excludes leading +). */
 export const ORG_PHONE_MAX_DIGITS = 15;
 

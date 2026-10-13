@@ -815,6 +815,76 @@
           "response": []
         },
         {
+          "name": "Support — lookup on-lease vehicle",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/support/on-lease-vehicle-lookup?organizationId={{organizationId}}&q=MH-REG-001",
+            "description": "GET /fleet-leasing/support/on-lease-vehicle-lookup — fleet register registration, VIN/chassis, or fleet code on an eligible active lease."
+          },
+          "response": []
+        },
+        {
+          "name": "Support — list replacement candidates",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/support/replacement-candidates?organizationId={{organizationId}}&page=1&pageSize=50",
+            "description": "GET /fleet-leasing/support/replacement-candidates — available compliant vehicles (optional vehicleType, brand, modelName, assetClass, excludeVehicleIds)."
+          },
+          "response": []
+        },
+        {
+          "name": "Support — lookup available replacement",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/support/available-replacement-lookup?organizationId={{organizationId}}&q=MH-REG-001",
+            "description": "GET /fleet-leasing/support/available-replacement-lookup — registration, VIN/chassis, or fleet code for an available replacement (not on another active contract)."
+          },
+          "response": []
+        },
+        {
+          "name": "Support — replacement filter options",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/support/replacement-filter-options?organizationId={{organizationId}}&vehicleType=4W",
+            "description": "GET /fleet-leasing/support/replacement-filter-options — distinct brands for vehicleType, or models when brand is also set."
+          },
+          "response": []
+        },
+        {
+          "name": "Support — execute vehicle replacements",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"replacements\": [\n    {\n      \"contractId\": \"{{leaseContractId}}\",\n      \"fromVehicleId\": \"{{fromVehicleId}}\",\n      \"toVehicleId\": \"{{toVehicleId}}\"\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/support/vehicle-replacements",
+            "description": "POST /fleet-leasing/support/vehicle-replacements — batch pairwise swap (requires fleet_leasing.update)."
+          },
+          "response": []
+        },
+        {
           "name": "List renewals and extensions (eligible active)",
           "request": {
             "method": "GET",

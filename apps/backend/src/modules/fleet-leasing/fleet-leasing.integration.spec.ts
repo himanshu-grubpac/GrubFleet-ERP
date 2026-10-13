@@ -1161,6 +1161,636 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .expect(400);
   });
 
+  describe('Support — vehicle replacement', () => {
+    async function seedActiveContractWithTwoFleetVehicles(unique: number) {
+      const assetClass = await seedAssetRegisterClassWithVehicle(
+        'SupportReplace',
+        unique,
+      );
+      const onLeaseReg = `MH-SUP-ON-${unique}`;
+      const replacementReg = `MH-SUP-REP-${unique}`;
+      const onLeaseRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vin: `VIN-SUP-ON-${unique}`,
+          registrationNo: onLeaseReg,
+          registrationExpiry: '2030-12-31',
+          insuranceExpiry: '2030-12-31',
+          assetClass,
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const onLeaseVehicle = onLeaseRes.body as { id: string };
+
+      const replacementRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vin: `VIN-SUP-REP-${unique}`,
+          registrationNo: replacementReg,
+          registrationExpiry: '2030-12-31',
+          insuranceExpiry: '2030-12-31',
+          assetClass,
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const replacementVehicle = replacementRes.body as { id: string };
+
+      const clientRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/clients')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          companyName: `SUP-REP Client ${unique}`,
+          pointsOfContact: [
+            {
+              name: 'SUP POC',
+              contactNumber: '+919999999995',
+              email: `sup-rep-${unique}@example.com`,
+              isPrimary: true,
+            },
+          ],
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const clientId = (clientRes.body as FleetClientResponse).id;
+
+      const draft = await createDraftLeaseContract(app, {
+        organizationId,
+        token: accessToken,
+        clientId,
+      });
+
+      await request(app.getHttpServer())
+        .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/asset-lines`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          assetLines: [
+            {
+              assetClass,
+              committedQuantity: 1,
+              ratePerVehicleMonth: '25000.00',
+            },
+          ],
+        })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/terms`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          startDate: '2026-03-01',
+          termMonths: 12,
+          securityDeposit: '40000.00',
+          billingFrequency: 'monthly',
+        })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .post(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/confirm`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect((res) => expect([200, 201]).toContain(res.status));
+
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/fleet-leasing/lease-contracts/${draft.id}/vehicle-allocations`,
+        )
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          vehicleId: onLeaseVehicle.id,
+          notifiedStakeholders: [DEV_ADMIN_EMAIL],
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+
+      return {
+        contractId: draft.id,
+        onLeaseVehicleId: onLeaseVehicle.id,
+        replacementVehicleId: replacementVehicle.id,
+        onLeaseReg,
+        replacementReg,
+        assetClass,
+      };
+    }
+
+    it('returns 401 without token on vehicle replacement POST', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .send({
+          organizationId,
+          replacements: [],
+        })
+        .expect(401);
+    });
+
+    it('returns 401 without token on on-lease vehicle lookup GET', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/on-lease-vehicle-lookup')
+        .query({ organizationId, q: 'MH-TEST' })
+        .expect(401);
+    });
+
+    it('allows view-only user on on-lease vehicle lookup GET (read permission)', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+      await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/on-lease-vehicle-lookup')
+        .query({ organizationId, q: seeded.onLeaseReg })
+        .set('Authorization', `Bearer ${fleetViewOnlyToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+    });
+
+    it('resolves fleet register vehicle by registration but rejects when not on lease', async () => {
+      const unique = Date.now();
+      await seedAssetRegisterClassWithVehicle('SupportAvail', unique);
+      const registrationNumber = `AR-L05-${unique}`.slice(0, 32);
+
+      const notOnLease = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/on-lease-vehicle-lookup')
+        .query({ organizationId, q: registrationNumber })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(404);
+      expect(String(notOnLease.body.message)).toContain(
+        'not on an eligible active lease contract',
+      );
+    });
+
+    it('returns 403 for view-only user on vehicle replacement POST', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${fleetViewOnlyToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: randomUUID(),
+              fromVehicleId: randomUUID(),
+              toVehicleId: randomUUID(),
+            },
+          ],
+        })
+        .expect(403);
+    });
+
+    it('returns 403 on lookup for foreign organisation context', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+      const otherOrgId = randomUUID();
+      await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/on-lease-vehicle-lookup')
+        .query({
+          organizationId: otherOrgId,
+          q: seeded.onLeaseReg,
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', otherOrgId)
+        .expect((res) => expect([403, 404]).toContain(res.status));
+    });
+
+    it('returns 403 or 404 for allocated vehicles with foreign organisation', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+      const otherOrgId = randomUUID();
+      await request(app.getHttpServer())
+        .get(
+          `/api/v1/fleet-leasing/support/lease-contracts/${seeded.contractId}/allocated-vehicles`,
+        )
+        .query({ organizationId: otherOrgId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', otherOrgId)
+        .expect((res) => expect([403, 404]).toContain(res.status));
+    });
+
+    it('lists active contracts and replacement candidates for seeded contract', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const clientRes = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/clients')
+        .query({ organizationId, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const clientsBody = clientRes.body as {
+        items: Array<{ id: string; companyName: string }>;
+      };
+      const client = clientsBody.items.find((c) =>
+        c.companyName.includes(`SUP-REP Client ${unique}`),
+      );
+      expect(client).toBeTruthy();
+
+      const contractsRes = await request(app.getHttpServer())
+        .get(
+          `/api/v1/fleet-leasing/support/clients/${client!.id}/active-contracts`,
+        )
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const contractsBody = contractsRes.body as {
+        items: Array<{ id: string }>;
+      };
+      expect(contractsBody.items.map((c) => c.id)).toContain(seeded.contractId);
+
+      const candidatesRes = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/replacement-candidates')
+        .query({
+          organizationId,
+          assetClass: seeded.assetClass,
+          pageSize: 50,
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const candidatesBody = candidatesRes.body as {
+        items: Array<{ id: string }>;
+      };
+      expect(candidatesBody.items.map((v) => v.id)).toContain(
+        seeded.replacementVehicleId,
+      );
+    });
+
+    it('filters replacement candidates by sourceKind (legacy vs register)', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const registerListRes = await request(app.getHttpServer())
+        .get('/api/v1/asset-register/vehicles')
+        .query({ organizationId, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const registerBody = registerListRes.body as {
+        items: Array<{ id: string; registrationNumber: string }>;
+      };
+      const registerVehicle = registerBody.items.find((v) =>
+        v.registrationNumber.startsWith(`AR-L05-${unique}`),
+      );
+      expect(registerVehicle).toBeTruthy();
+
+      const legacyCandidates = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/replacement-candidates')
+        .query({
+          organizationId,
+          sourceKind: 'legacy',
+          assetClass: seeded.assetClass,
+          pageSize: 50,
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const legacyIds = (
+        legacyCandidates.body as { items: Array<{ id: string }> }
+      ).items.map((v) => v.id);
+      expect(legacyIds).toContain(seeded.replacementVehicleId);
+      expect(legacyIds).not.toContain(registerVehicle!.id);
+
+      const registerCandidates = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/replacement-candidates')
+        .query({
+          organizationId,
+          sourceKind: 'register',
+          assetClass: seeded.assetClass,
+          pageSize: 50,
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const registerIds = (
+        registerCandidates.body as { items: Array<{ id: string }> }
+      ).items.map((v) => v.id);
+      expect(registerIds).toContain(registerVehicle!.id);
+      expect(registerIds).not.toContain(seeded.replacementVehicleId);
+    });
+
+    it('rejects unknown keys on vehicle replacement POST body', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          unexpectedField: true,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.onLeaseVehicleId,
+              toVehicleId: seeded.replacementVehicleId,
+            },
+          ],
+        })
+        .expect(400);
+    });
+
+    it('happy path: lookup, swap, and audit', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const lookupRes = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/on-lease-vehicle-lookup')
+        .query({ organizationId, q: seeded.onLeaseReg })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const lookupBody = lookupRes.body as {
+        vehicle: { id: string; registrationNo: string };
+        contract: { id: string };
+      };
+      expect(lookupBody.vehicle.id).toBe(seeded.onLeaseVehicleId);
+      expect(lookupBody.contract.id).toBe(seeded.contractId);
+
+      const swapRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.onLeaseVehicleId,
+              toVehicleId: seeded.replacementVehicleId,
+            },
+          ],
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+
+      const swapBody = swapRes.body as { replacedCount: number };
+      expect(swapBody.replacedCount).toBe(1);
+
+      await expectAuditLog(db, {
+        organizationId,
+        action: 'fleet_leasing.vehicle_replacement',
+        resourceId: seeded.contractId,
+      });
+
+      const allocatedRes = await request(app.getHttpServer())
+        .get(
+          `/api/v1/fleet-leasing/support/lease-contracts/${seeded.contractId}/allocated-vehicles`,
+        )
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const allocatedBody = allocatedRes.body as {
+        items: Array<{ id: string }>;
+      };
+      expect(allocatedBody.items.map((v) => v.id)).toContain(
+        seeded.replacementVehicleId,
+      );
+      expect(allocatedBody.items.map((v) => v.id)).not.toContain(
+        seeded.onLeaseVehicleId,
+      );
+    });
+
+    it('rejects replacement when target vehicle is not available', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const expiredRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vin: `VIN-SUP-EXP-${unique}`,
+          registrationNo: `MH-SUP-EXP-${unique}`,
+          registrationExpiry: '2020-01-01',
+          insuranceExpiry: '2020-01-01',
+          assetClass: seeded.assetClass,
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const expiredVehicle = expiredRes.body as { id: string };
+
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.onLeaseVehicleId,
+              toVehicleId: expiredVehicle.id,
+            },
+          ],
+        })
+        .expect(400);
+    });
+
+    it('allows cross-class replacement on legacy fleet vehicles', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const otherClassRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vin: `VIN-SUP-OTHER-${unique}`,
+          registrationNo: `MH-SUP-OTHER-${unique}`,
+          registrationExpiry: '2030-12-31',
+          insuranceExpiry: '2030-12-31',
+          assetClass: `Different Class ${unique}`,
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const otherClassVehicle = otherClassRes.body as { id: string };
+
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.onLeaseVehicleId,
+              toVehicleId: otherClassVehicle.id,
+            },
+          ],
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+    });
+
+    it('resolves available replacement lookup for legacy available vehicle', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const lookupRes = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/available-replacement-lookup')
+        .query({ organizationId, q: seeded.replacementReg })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const body = lookupRes.body as {
+        vehicle: { id: string; registrationNo: string };
+      };
+      expect(body.vehicle.id).toBe(seeded.replacementVehicleId);
+      expect(body.vehicle.registrationNo).toBe(seeded.replacementReg);
+    });
+
+    it('returns brands for replacement filter options when register vehicle exists', async () => {
+      const unique = Date.now();
+      await seedAssetRegisterClassWithVehicle('FilterOpts', unique);
+
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/support/replacement-filter-options')
+        .query({ organizationId, vehicleType: '4W' })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const body = res.body as { brands: string[] };
+      expect(body.brands).toContain('Test');
+    });
+
+    it('rejects mixed legacy/register catalog in one replacement pair', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const registerListRes = await request(app.getHttpServer())
+        .get('/api/v1/asset-register/vehicles')
+        .query({ organizationId, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const registerBody = registerListRes.body as {
+        items: Array<{ id: string; registrationNumber: string }>;
+      };
+      const registerVehicle = registerBody.items.find((v) =>
+        v.registrationNumber.startsWith(`AR-L05-${unique}`),
+      );
+      expect(registerVehicle).toBeTruthy();
+
+      const mismatchRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.onLeaseVehicleId,
+              toVehicleId: registerVehicle!.id,
+            },
+          ],
+        })
+        .expect(400);
+      const mismatchBody = mismatchRes.body as { message?: string };
+      expect(String(mismatchBody.message)).toContain('same catalog');
+    });
+
+    it('rejects duplicate replacement vehicle in one request', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      const extraRes = await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vin: `VIN-SUP-DUP-FROM-${unique}`,
+          registrationNo: `MH-SUP-DUP-FROM-${unique}`,
+          registrationExpiry: '2030-12-31',
+          insuranceExpiry: '2030-12-31',
+          assetClass: seeded.assetClass,
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+      const extraOnLease = extraRes.body as { id: string };
+
+      await request(app.getHttpServer())
+        .post(
+          `/api/v1/fleet-leasing/lease-contracts/${seeded.contractId}/vehicle-allocations`,
+        )
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          vehicleId: extraOnLease.id,
+          notifiedStakeholders: [DEV_ADMIN_EMAIL],
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status));
+
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.onLeaseVehicleId,
+              toVehicleId: seeded.replacementVehicleId,
+            },
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: extraOnLease.id,
+              toVehicleId: seeded.replacementVehicleId,
+            },
+          ],
+        })
+        .expect(400);
+    });
+
+    it('rejects when from vehicle is not on the contract', async () => {
+      const unique = Date.now();
+      const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.replacementVehicleId,
+              toVehicleId: seeded.replacementVehicleId,
+            },
+          ],
+        })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/fleet-leasing/support/vehicle-replacements')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          replacements: [
+            {
+              contractId: seeded.contractId,
+              fromVehicleId: seeded.replacementVehicleId,
+              toVehicleId: seeded.onLeaseVehicleId,
+            },
+          ],
+        })
+        .expect(400);
+    });
+  });
+
   it('lists distinct asset register class names for the organization', async () => {
     const unique = Date.now();
     const modelName = `Register Class ${unique}`;

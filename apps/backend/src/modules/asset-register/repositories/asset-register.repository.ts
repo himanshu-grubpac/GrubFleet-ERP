@@ -8,6 +8,7 @@ import {
   inArray,
   isNull,
   ne,
+  notInArray,
   or,
   sql,
 } from 'drizzle-orm';
@@ -19,12 +20,15 @@ import {
   assetRegisterFleetCodeCounters,
   assetRegisterVehicleAssignments,
   assetRegisterVehicles,
+  fleetClients,
+  leaseContracts,
   organisationClients,
   type AssetRegisterAssetClassRow,
   type AssetRegisterAssetMasterRow,
   type AssetRegisterVehicleAssignmentRow,
   type AssetRegisterVehicleRow,
 } from '../../../database/schema';
+import type { LeaseContractStatus } from '../../fleet-leasing/constants/lease-contract-status';
 import { COMPLIANCE_EXPIRING_SOON_DAYS } from '../utils/compliance-status.util';
 import { AssetRegisterComplianceFilterStatus } from '../dto/list-asset-register-compliance-query.dto';
 import {
@@ -612,6 +616,367 @@ export class AssetRegisterRepository {
       assetClass: row.assetClass,
       assetMaster: row.assetMaster,
     }));
+  }
+
+  async findVehicleByRegistrationVinOrFleetCode(
+    organizationId: string,
+    query: string,
+  ): Promise<AssetRegisterVehicleWithRelations | null> {
+    const trimmed = query.trim();
+    if (!trimmed) return null;
+    const [row] = await this.db
+      .select({
+        vehicle: assetRegisterVehicles,
+        assetClass: assetRegisterAssetClasses,
+        assetMaster: assetRegisterAssetMasters,
+      })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .leftJoin(
+        assetRegisterAssetMasters,
+        eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicles.organizationId, organizationId),
+          or(
+            ilike(assetRegisterVehicles.registrationNumber, trimmed),
+            ilike(assetRegisterVehicles.chassisNumber, trimmed),
+            ilike(assetRegisterVehicles.fleetCode, trimmed),
+          ),
+        ),
+      )
+      .limit(1);
+    if (!row) return null;
+    return {
+      ...row.vehicle,
+      assetClass: row.assetClass,
+      assetMaster: row.assetMaster,
+    };
+  }
+
+  async findOnLeaseAssignmentForRegisterVehicle(
+    organizationId: string,
+    vehicleId: string,
+    eligibleStatuses: LeaseContractStatus[],
+  ) {
+    if (eligibleStatuses.length === 0) return null;
+    const [row] = await this.db
+      .select({
+        contract: leaseContracts,
+        clientCompanyName: sql<
+          string | null
+        >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        leaseContracts,
+        eq(
+          assetRegisterVehicleAssignments.leaseContractId,
+          leaseContracts.id,
+        ),
+      )
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.vehicleId, vehicleId),
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+          inArray(leaseContracts.status, eligibleStatuses),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listAllocatedRegisterVehiclesOnContract(
+    organizationId: string,
+    contractId: string,
+  ) {
+    return this.db
+      .select({
+        id: assetRegisterVehicles.id,
+        registrationNo: assetRegisterVehicles.registrationNumber,
+        vin: assetRegisterVehicles.chassisNumber,
+        assetClass: assetRegisterAssetClasses.name,
+        status: assetRegisterVehicles.operationalStatus,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        assetRegisterVehicles,
+        eq(assetRegisterVehicleAssignments.vehicleId, assetRegisterVehicles.id),
+      )
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.leaseContractId, contractId),
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+        ),
+      )
+      .orderBy(asc(assetRegisterVehicles.registrationNumber));
+  }
+
+  private availableRegisterReplacementConditions(params: {
+    organizationId: string;
+    assetClass?: string;
+    vehicleType?: string;
+    brand?: string;
+    modelName?: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const {
+      organizationId,
+      assetClass,
+      vehicleType,
+      brand,
+      modelName,
+      excludeVehicleIds,
+    } = params;
+    const today = sql`CURRENT_DATE`;
+    const conditions = [
+      eq(assetRegisterVehicles.organizationId, organizationId),
+      eq(assetRegisterVehicles.isActive, true),
+      eq(assetRegisterVehicles.operationalStatus, 'available'),
+      sql`${assetRegisterVehicles.registrationEndDate} >= ${today}`,
+      sql`${assetRegisterVehicles.insuranceEndDate} >= ${today}`,
+    ];
+    if (assetClass?.trim()) {
+      conditions.push(
+        eq(assetRegisterAssetClasses.name, assetClass.trim()),
+      );
+    }
+    if (vehicleType?.trim()) {
+      conditions.push(
+        eq(
+          assetRegisterAssetClasses.vehicleType,
+          vehicleType.trim() as AssetRegisterAssetClassRow['vehicleType'],
+        ),
+      );
+    }
+    if (brand?.trim()) {
+      conditions.push(eq(assetRegisterAssetClasses.brand, brand.trim()));
+    }
+    if (modelName?.trim()) {
+      conditions.push(
+        eq(assetRegisterAssetClasses.modelName, modelName.trim()),
+      );
+    }
+    if (excludeVehicleIds && excludeVehicleIds.length > 0) {
+      conditions.push(notInArray(assetRegisterVehicles.id, excludeVehicleIds));
+    }
+    return and(...conditions);
+  }
+
+  async listDistinctBrandsForAvailableReplacements(params: {
+    organizationId: string;
+    vehicleType: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const where = this.availableRegisterReplacementConditions({
+      organizationId: params.organizationId,
+      vehicleType: params.vehicleType,
+      excludeVehicleIds: params.excludeVehicleIds,
+    });
+    const rows = await this.db
+      .selectDistinct({ brand: assetRegisterAssetClasses.brand })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(where)
+      .orderBy(asc(assetRegisterAssetClasses.brand));
+    return rows.map((r) => r.brand).filter((b) => b.trim().length > 0);
+  }
+
+  async listDistinctModelsForAvailableReplacements(params: {
+    organizationId: string;
+    vehicleType: string;
+    brand: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const where = this.availableRegisterReplacementConditions({
+      organizationId: params.organizationId,
+      vehicleType: params.vehicleType,
+      brand: params.brand,
+      excludeVehicleIds: params.excludeVehicleIds,
+    });
+    const rows = await this.db
+      .selectDistinct({ modelName: assetRegisterAssetClasses.modelName })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(where)
+      .orderBy(asc(assetRegisterAssetClasses.modelName));
+    return rows.map((r) => r.modelName).filter((m) => m.trim().length > 0);
+  }
+
+  async listAvailableRegisterReplacementVehicles(params: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    assetClass?: string;
+    vehicleType?: string;
+    brand?: string;
+    modelName?: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const {
+      organizationId,
+      page,
+      pageSize,
+      assetClass,
+      vehicleType,
+      brand,
+      modelName,
+      excludeVehicleIds,
+    } = params;
+    const offset = (page - 1) * pageSize;
+    const where = this.availableRegisterReplacementConditions({
+      organizationId,
+      assetClass,
+      vehicleType,
+      brand,
+      modelName,
+      excludeVehicleIds,
+    });
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          id: assetRegisterVehicles.id,
+          registrationNo: assetRegisterVehicles.registrationNumber,
+          vin: assetRegisterVehicles.chassisNumber,
+          assetClass: assetRegisterAssetClasses.name,
+          status: assetRegisterVehicles.operationalStatus,
+        })
+        .from(assetRegisterVehicles)
+        .innerJoin(
+          assetRegisterAssetClasses,
+          eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+        )
+        .where(where)
+        .orderBy(asc(assetRegisterVehicles.registrationNumber))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(assetRegisterVehicles)
+        .innerJoin(
+          assetRegisterAssetClasses,
+          eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+        )
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async findOtherActiveAssignmentForRegisterVehicle(
+    organizationId: string,
+    vehicleId: string,
+    excludeContractId: string,
+  ) {
+    const [row] = await this.db
+      .select({
+        contractId: assetRegisterVehicleAssignments.leaseContractId,
+        contractNumber: leaseContracts.contractNumber,
+        status: leaseContracts.status,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        leaseContracts,
+        eq(
+          assetRegisterVehicleAssignments.leaseContractId,
+          leaseContracts.id,
+        ),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.vehicleId, vehicleId),
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+          ne(assetRegisterVehicleAssignments.leaseContractId, excludeContractId),
+          notInArray(leaseContracts.status, ['closed', 'concluded']),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async executeRegisterVehicleReplacementOnContract(input: {
+    organizationId: string;
+    contractId: string;
+    fromVehicleId: string;
+    toVehicleId: string;
+    fleetClientId: string | null;
+    organisationClientId: string | null;
+  }) {
+    await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [active] = await tx
+        .select()
+        .from(assetRegisterVehicleAssignments)
+        .where(
+          and(
+            eq(
+              assetRegisterVehicleAssignments.organizationId,
+              input.organizationId,
+            ),
+            eq(assetRegisterVehicleAssignments.vehicleId, input.fromVehicleId),
+            eq(
+              assetRegisterVehicleAssignments.leaseContractId,
+              input.contractId,
+            ),
+            isNull(assetRegisterVehicleAssignments.unassignedAt),
+          ),
+        )
+        .limit(1);
+      if (!active) {
+        throw new Error('Active assignment not found for replacement source');
+      }
+      await tx
+        .update(assetRegisterVehicleAssignments)
+        .set({ unassignedAt: now })
+        .where(eq(assetRegisterVehicleAssignments.id, active.id));
+      await tx
+        .update(assetRegisterVehicles)
+        .set({ operationalStatus: 'available', updatedAt: now })
+        .where(
+          and(
+            eq(assetRegisterVehicles.organizationId, input.organizationId),
+            eq(assetRegisterVehicles.id, input.fromVehicleId),
+          ),
+        );
+      await tx.insert(assetRegisterVehicleAssignments).values({
+        organizationId: input.organizationId,
+        vehicleId: input.toVehicleId,
+        leaseContractId: input.contractId,
+        fleetClientId: input.fleetClientId,
+        organisationClientId: input.organisationClientId,
+        assignedAt: now,
+      });
+      await tx
+        .update(assetRegisterVehicles)
+        .set({ operationalStatus: 'leased', updatedAt: now })
+        .where(
+          and(
+            eq(assetRegisterVehicles.organizationId, input.organizationId),
+            eq(assetRegisterVehicles.id, input.toVehicleId),
+          ),
+        );
+    });
   }
 
   async listAssignmentHistoryForVehicle(
