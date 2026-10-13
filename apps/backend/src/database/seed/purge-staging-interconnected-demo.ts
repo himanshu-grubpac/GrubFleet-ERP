@@ -522,10 +522,10 @@ export async function purgeStagingInterconnectedDemo(
         eq(assetRegisterAssetClasses.organizationId, organizationId),
         or(
           notesMatchSeedMarker(assetRegisterAssetClasses.description),
-          sql`${assetRegisterAssetClasses.code} LIKE 'SD%'`,
-          sql`${assetRegisterAssetClasses.code} LIKE 'GF2W%'`,
-          sql`${assetRegisterAssetClasses.code} LIKE 'GF3W%'`,
-          sql`${assetRegisterAssetClasses.code} LIKE 'GF4W%'`,
+          sql`${assetRegisterAssetClasses.name} LIKE 'SD%'`,
+          sql`${assetRegisterAssetClasses.name} LIKE 'GF2W%'`,
+          sql`${assetRegisterAssetClasses.name} LIKE 'GF3W%'`,
+          sql`${assetRegisterAssetClasses.name} LIKE 'GF4W%'`,
         ),
       ),
     );

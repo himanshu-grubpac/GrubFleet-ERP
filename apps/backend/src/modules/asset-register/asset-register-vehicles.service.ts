@@ -64,11 +64,7 @@ export class AssetRegisterVehiclesService {
   }
 
   async create(dto: CreateAssetRegisterVehicleDto) {
-    await this.assertActiveClassAndMaster(
-      dto.organizationId,
-      dto.assetClassId,
-      dto.assetMasterId,
-    );
+    await this.assertActiveClass(dto.organizationId, dto.assetClassId);
     this.assertDateRanges({
       registrationStartDate: dto.registrationStartDate,
       registrationEndDate: dto.registrationEndDate,
@@ -84,7 +80,7 @@ export class AssetRegisterVehiclesService {
     const inserted = await this.repo.insertVehicle({
       organizationId: dto.organizationId,
       assetClassId: dto.assetClassId,
-      assetMasterId: dto.assetMasterId,
+      assetMasterId: null,
       fleetCode,
       registrationNumber: dto.registrationNumber.trim(),
       chassisNumber: dto.chassisNumber.trim(),
@@ -129,13 +125,8 @@ export class AssetRegisterVehiclesService {
     }
 
     const nextClassId = dto.assetClassId ?? existing.assetClassId;
-    const nextMasterId = dto.assetMasterId ?? existing.assetMasterId;
-    if (dto.assetClassId !== undefined || dto.assetMasterId !== undefined) {
-      await this.assertActiveClassAndMaster(
-        organizationId,
-        nextClassId,
-        nextMasterId,
-      );
+    if (dto.assetClassId !== undefined) {
+      await this.assertActiveClass(organizationId, nextClassId);
     }
 
     const registrationStartDate =
@@ -159,10 +150,7 @@ export class AssetRegisterVehiclesService {
 
     await this.repo.updateVehicle(organizationId, id, {
       ...(dto.assetClassId !== undefined
-        ? { assetClassId: dto.assetClassId }
-        : {}),
-      ...(dto.assetMasterId !== undefined
-        ? { assetMasterId: dto.assetMasterId }
+        ? { assetClassId: dto.assetClassId, assetMasterId: null }
         : {}),
       ...(dto.registrationNumber !== undefined
         ? { registrationNumber: dto.registrationNumber.trim() }
@@ -263,10 +251,9 @@ export class AssetRegisterVehiclesService {
     return this.getById(organizationId, id);
   }
 
-  private async assertActiveClassAndMaster(
+  private async assertActiveClass(
     organizationId: string,
     assetClassId: string,
-    assetMasterId: string,
   ) {
     const assetClass = await this.repo.getAssetClassInOrg(
       organizationId,
@@ -278,23 +265,6 @@ export class AssetRegisterVehiclesService {
     if (!assetClass.isActive) {
       throw new BadRequestException(
         'Asset class must be active to register a vehicle',
-      );
-    }
-    const master = await this.repo.getAssetMasterInOrg(
-      organizationId,
-      assetMasterId,
-    );
-    if (!master) {
-      throw new NotFoundException('Asset master not found');
-    }
-    if (!master.isActive) {
-      throw new BadRequestException(
-        'Asset master must be active to register a vehicle',
-      );
-    }
-    if (master.assetClassId !== assetClassId) {
-      throw new BadRequestException(
-        'Asset master does not belong to the selected asset class',
       );
     }
   }
@@ -404,9 +374,6 @@ export class AssetRegisterVehiclesService {
   private toDetail(row: AssetRegisterVehicleWithRelations) {
     return {
       ...this.toListItem(row),
-      assetMasterId: row.assetMasterId,
-      assetMasterName: row.assetMaster.name,
-      assetClassCode: row.assetClass.code,
       chassisNumber: row.chassisNumber,
       modelYear: row.modelYear,
       registrationStartDate: row.registrationStartDate,

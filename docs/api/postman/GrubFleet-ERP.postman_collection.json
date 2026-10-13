@@ -351,8 +351,21 @@
     },
     {
       "name": "Asset Register",
-      "description": "Asset classes (Phase 2a) and asset masters (Phase 2b). Set assetClassId from Create asset class; assetMasterId from Create asset master.",
+      "description": "Asset classes (2026-10-12 meeting spec). Masters retired in UI; class-only fleet register. Set assetClassId from Create asset class.",
       "item": [
+        {
+          "name": "List intake checklist catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/asset-register/catalog/intake-checklist-items",
+            "description": "GET /asset-register/catalog/intake-checklist-items — seed labels for asset class create form."
+          },
+          "response": []
+        },
         {
           "name": "List asset classes",
           "request": {
@@ -377,10 +390,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Pickup Small Heavy Duty\",\n  \"vehicleType\": \"4W\",\n  \"fuelType\": \"Diesel\",\n  \"mileageFrom\": 8,\n  \"mileageTo\": 12,\n  \"mileageUnit\": \"km/l\",\n  \"fuelTankCapacity\": 60,\n  \"ratedLoadFrom\": 500,\n  \"ratedLoadTo\": 1500,\n  \"description\": \"Optional class description\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"vehicleType\": \"2W\",\n  \"fuelType\": \"Petrol\",\n  \"mileageFrom\": 40,\n  \"mileageTo\": 50,\n  \"mileageUnit\": \"km/L\",\n  \"fuelTankCapacity\": 5.3,\n  \"ratedLoadFrom\": 150,\n  \"ratedLoadTo\": 250,\n  \"intakeChecklistItems\": [\"Registration documents verified\"],\n  \"brand\": \"Honda\",\n  \"modelName\": \"Activa\",\n  \"manufacturingYear\": 2026,\n  \"engineDisplacementCc\": 150,\n  \"fuelSystem\": \"EFI\",\n  \"color\": \"Black\",\n  \"colorCode\": \"bl\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/asset-classes",
-            "description": "POST /asset-register/asset-classes — code generated (e.g. PSHD). Do not send code."
+            "description": "POST /asset-register/asset-classes — required: vehicleType, fuelType, mileage, fuelTankCapacity, ratedLoadFrom/To, intakeChecklistItems (min 1). Spec fields optional; name/code generated server-side."
           },
           "response": []
         },
@@ -434,99 +447,6 @@
           "response": []
         },
         {
-          "name": "List asset masters",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "url": "{{baseUrl}}/asset-register/asset-masters?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /asset-register/asset-masters — optional assetClassId, search, status."
-          },
-          "response": []
-        },
-        {
-          "name": "Catalog masters by class",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "url": "{{baseUrl}}/asset-register/asset-classes/{{assetClassId}}/masters?organizationId={{organizationId}}&page=1&pageSize=50",
-            "description": "GET /asset-register/asset-classes/{classId}/masters — active masters for active class only."
-          },
-          "response": []
-        },
-        {
-          "name": "Create asset master",
-          "request": {
-            "method": "POST",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"name\": \"Splendor\"\n}"
-            },
-            "url": "{{baseUrl}}/asset-register/asset-masters",
-            "description": "POST /asset-register/asset-masters — asset class must be active."
-          },
-          "response": []
-        },
-        {
-          "name": "Get asset master",
-          "request": {
-            "method": "GET",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "url": "{{baseUrl}}/asset-register/asset-masters/{{assetMasterId}}?organizationId={{organizationId}}",
-            "description": "GET /asset-register/asset-masters/{id} — includes joined class spec."
-          },
-          "response": []
-        },
-        {
-          "name": "Update asset master",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"name\": \"Splendor Plus\"\n}"
-            },
-            "url": "{{baseUrl}}/asset-register/asset-masters/{{assetMasterId}}?organizationId={{organizationId}}",
-            "description": "PATCH /asset-register/asset-masters/{id} — name and/or assetClassId only."
-          },
-          "response": []
-        },
-        {
-          "name": "Update asset master status",
-          "request": {
-            "method": "PATCH",
-            "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired model\"\n}"
-            },
-            "url": "{{baseUrl}}/asset-register/asset-masters/{{assetMasterId}}/status?organizationId={{organizationId}}",
-            "description": "PATCH /asset-register/asset-masters/{id}/status — reason required for deactivate."
-          },
-          "response": []
-        },
-        {
           "name": "List fleet register vehicles",
           "request": {
             "method": "GET",
@@ -550,10 +470,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"assetMasterId\": \"{{assetMasterId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": 15000,\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": 15000,\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/vehicles",
-            "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; class and master must be active."
+            "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; active asset class only (class-only register; asset master layer retired)."
           },
           "response": []
         },
@@ -1548,6 +1468,19 @@
           "response": []
         },
         {
+          "name": "Purchase asset classes catalog",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/finance/invoices/asset-classes/catalog?organizationId={{organizationId}}&page=1&pageSize=50&status=active",
+            "description": "GET /finance/invoices/asset-classes/catalog — vehicle purchase invoice asset class picker (finance.view)."
+          },
+          "response": []
+        },
+        {
           "name": "Create purchase vehicle invoice",
           "request": {
             "method": "POST",
@@ -1558,7 +1491,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"assetClassName\": \"Sedan\",\n  \"totalAmountMinor\": 2500000,\n  \"invoiceDate\": \"2026-04-01\",\n  \"notes\": \"Optional notes\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"invoiceDate\": \"2026-04-01\",\n  \"grandTotalMinor\": 2500000,\n  \"lines\": [\n    {\n      \"assetClassId\": \"{{assetRegisterClassId}}\",\n      \"quantity\": 1,\n      \"rateMinor\": 2500000,\n      \"taxMode\": \"INCLUSIVE\",\n      \"vatPercent\": 18\n    }\n  ]\n}"
             },
             "url": "{{baseUrl}}/finance/invoices/purchase/vehicle",
             "description": "POST /finance/invoices/purchase/vehicle — PINV-{year}-{seq} assigned server-side."

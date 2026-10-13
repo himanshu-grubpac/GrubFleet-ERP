@@ -8,8 +8,15 @@ import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
-import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
-import { fetchAssetRegisterMastersForClassApi } from "@/lib/api/asset-register/asset-masters";
+import {
+  fetchAssetRegisterAssetClassApi,
+  fetchAssetRegisterAssetClassesApi,
+} from "@/lib/api/asset-register/asset-classes";
+import {
+  formatMileageRangeFromSpec,
+  formatRatedLoadRange,
+  mapAssetRegisterVehicleTypeToUiLabel,
+} from "@/lib/api/asset-register/mappers";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -17,9 +24,6 @@ import { fetchAssetRegisterMastersForClassApi } from "@/lib/api/asset-register/a
 
 export type FleetVehicleFormData = {
     assetClassId: string;
-
-    // Asset Master reference
-    assetMasterId: string;
     vehicleName: string;
 
     purchaseInvoiceId: string;
@@ -46,7 +50,6 @@ export type FleetVehicleFormData = {
 type AssetClass = {
     id: string;
     name: string;
-    classCode: string;
 
     vehicleType: string;
     fuelType: string;
@@ -61,22 +64,6 @@ type AssetClass = {
     defaultIntakeChecklist: string;
 };
 
-type AssetMasterVehicle = {
-    id: string;
-    assetCode: string;
-    vehicleName: string;
-    assetClass: string;
-    vehicleType: string;
-    fuelType: string;
-    status: "Active" | "Inactive";
-};
-
-type PurchaseInvoice = {
-    id: string;
-    invoiceNumber: string;
-    supplierName: string;
-};
-
 type InsuranceSupplier = {
     id: string;
     name: string;
@@ -85,8 +72,6 @@ type InsuranceSupplier = {
 /* -------------------------------------------------------------------------- */
 /* Mock data                                                                  */
 /* -------------------------------------------------------------------------- */
-
-const PURCHASE_INVOICES: PurchaseInvoice[] = [];
 
 /* -------------------------------------------------------------------------- */
 /* Insurance suppliers                                                        */
@@ -158,8 +143,7 @@ export default function CreateFleetVehicleForm({
     const assetClassOptions = useMemo((): AssetClass[] => {
         return (classesQuery.data?.items ?? []).map((row) => ({
             id: row.id,
-            name: row.name,
-            classCode: row.code,
+            name: row.specLabel || row.name,
             vehicleType: row.vehicleType === "2W" ? "2-Wheeler" : row.vehicleType === "3W" ? "3-Wheeler" : "4-Wheeler",
             fuelType: row.fuelType,
             mileageFrom: "",
@@ -177,8 +161,6 @@ export default function CreateFleetVehicleForm({
 
     const [form, setForm] = useState<FleetVehicleFormData>({
         assetClassId: initialData?.assetClassId ?? "",
-
-        assetMasterId: initialData?.assetMasterId ?? "",
         vehicleName: initialData?.vehicleName ?? "",
 
         purchaseInvoiceId:
@@ -227,11 +209,14 @@ export default function CreateFleetVehicleForm({
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
 
-    const mastersQuery = useQuery({
+    const selectedAssetClass = assetClassOptions.find(
+        (item) => item.id === form.assetClassId,
+    );
+
+    const classDetailQuery = useQuery({
         queryKey: [
             "asset-register",
-            "asset-masters",
-            "for-class",
+            "asset-class",
             organizationId,
             form.assetClassId,
         ],
@@ -239,43 +224,21 @@ export default function CreateFleetVehicleForm({
             if (!token || !organizationId || !form.assetClassId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssetRegisterMastersForClassApi({
+            return fetchAssetRegisterAssetClassApi({
                 token,
                 organizationId,
-                classId: form.assetClassId,
-                page: 1,
-                pageSize: 50,
+                id: form.assetClassId,
             });
         },
         enabled:
             !!token &&
             !!organizationId &&
             !isAuthLoading &&
-            !!form.assetClassId,
-        ...dashboardListQueryOptions,
+            !!form.assetClassId.trim(),
+        staleTime: 30_000,
     });
 
-    /* ---------------------------------------------------------------------- */
-    /* Selected Asset Class                                                   */
-    /* ---------------------------------------------------------------------- */
-
-    const selectedAssetClass = assetClassOptions.find(
-        (item) => item.id === form.assetClassId,
-    );
-
-    const availableVehicles: AssetMasterVehicle[] = useMemo(
-        () =>
-            (mastersQuery.data?.items ?? []).map((master) => ({
-                id: master.id,
-                assetCode: master.assetClassCode,
-                vehicleName: master.name,
-                assetClass: master.assetClassName,
-                vehicleType: "2-Wheeler",
-                fuelType: "—",
-                status: "Active" as const,
-            })),
-        [mastersQuery.data?.items],
-    );
+    const classDetail = classDetailQuery.data;
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -317,19 +280,6 @@ export default function CreateFleetVehicleForm({
 
         if (!form.assetClassId) {
             setError("Asset class is required.");
-            return;
-        }
-
-        if (!form.assetMasterId) {
-            setError("Vehicle name is required.");
-            return;
-        }
-
-        if (
-            PURCHASE_INVOICES.length > 0 &&
-            !form.purchaseInvoiceId
-        ) {
-            setError("Purchase invoice is required.");
             return;
         }
 
@@ -435,10 +385,6 @@ export default function CreateFleetVehicleForm({
             const vehicle: FleetVehicleFormData = {
                 assetClassId:
                     form.assetClassId.trim(),
-
-                assetMasterId:
-                    form.assetMasterId.trim(),
-
                 vehicleName:
                     form.vehicleName.trim(),
 
@@ -519,8 +465,6 @@ export default function CreateFleetVehicleForm({
         }
         if (
             !form.assetClassId ||
-            !form.assetMasterId ||
-            (PURCHASE_INVOICES.length > 0 && !form.purchaseInvoiceId) ||
             !form.registrationNumber.trim() ||
             !form.chassisNumber.trim() ||
             !form.modelYear.trim() ||
@@ -556,7 +500,7 @@ export default function CreateFleetVehicleForm({
             description={
                 isEditMode
                     ? "Update the vehicle details in the Fleet Register."
-                    : "Add a vehicle directly to the Fleet Register, referencing an existing Purchase invoice."
+                    : "Add a vehicle to the Fleet Register by selecting an asset class (spec is loaded from the class)."
             }
             actions={
                 <>
@@ -588,161 +532,38 @@ export default function CreateFleetVehicleForm({
             {/* ASSET CLASS + VEHICLE NAME                                   */}
             {/* ============================================================ */}
 
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                {/* Asset Class */}
-
-                <div>
-                    <label
-                        htmlFor="asset-class"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
-                        Asset class
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
-                    </label>
-
-                    <select
-                        id="asset-class"
-                        value={form.assetClassId}
-                        onChange={(event) => {
-                            const assetClassId =
-                                event.target.value;
-
-                            setForm((previous) => ({
-                                ...previous,
-                                assetClassId,
-                                assetMasterId: "",
-                                vehicleName: "",
-                            }));
-
-                            setError("");
-                        }}
-                        className={selectClassName}
-                    >
-                        <option value="">
-                            Select asset class
-                        </option>
-
-                        {assetClassOptions.map(
-                            (assetClass) => (
-                                <option
-                                    key={assetClass.id}
-                                    value={assetClass.id}
-                                >
-                                    {assetClass.name}
-                                </option>
-                            ),
-                        )}
-                    </select>
-                </div>
-
-                {/* Vehicle Name */}
-
-                <div>
-                    <label
-                        htmlFor="vehicle-name"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
-                        Vehicle name
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
-                    </label>
-
-                    <select
-                        id="vehicle-name"
-                        value={form.assetMasterId}
-                        disabled={!form.assetClassId}
-                        onChange={(event) => {
-                            const assetMasterId =
-                                event.target.value;
-
-                            const selectedVehicle =
-                                availableVehicles.find(
-                                    (vehicle) =>
-                                        vehicle.id ===
-                                        assetMasterId,
-                                );
-
-                            setForm((previous) => ({
-                                ...previous,
-                                assetMasterId,
-                                vehicleName:
-                                    selectedVehicle?.vehicleName ??
-                                    "",
-                            }));
-
-                            setError("");
-                        }}
-                        className={`${selectClassName} disabled:cursor-not-allowed disabled:bg-gray-100 disabled:text-gray-400`}
-                    >
-                        <option value="">
-                            {!form.assetClassId
-                                ? "Select asset class first"
-                                : availableVehicles.length ===
-                                    0
-                                    ? "No vehicles available"
-                                    : "Select vehicle"}
-                        </option>
-
-                        {availableVehicles.map(
-                            (vehicle) => (
-                                <option
-                                    key={vehicle.id}
-                                    value={vehicle.id}
-                                >
-                                    {vehicle.vehicleName} —{" "}
-                                    {vehicle.assetCode}
-                                </option>
-                            ),
-                        )}
-                    </select>
-                </div>
-            </div>
-
-            {/* ============================================================ */}
-            {/* PURCHASE INVOICE                                             */}
-            {/* ============================================================ */}
-
-            <div className="mt-3">
+            <div>
                 <label
-                    htmlFor="purchase-invoice"
+                    htmlFor="asset-class"
                     className="mb-1 block text-xs font-semibold text-gray-700"
                 >
-                    Purchase invoice
-                    <span className="ml-1 text-red-500">
-                        *
-                    </span>
+                    Asset class
+                    <span className="ml-1 text-red-500">*</span>
                 </label>
 
                 <select
-                    id="purchase-invoice"
-                    value={form.purchaseInvoiceId}
-                    onChange={(event) =>
-                        updateForm(
-                            "purchaseInvoiceId",
-                            event.target.value,
-                        )
-                    }
+                    id="asset-class"
+                    value={form.assetClassId}
+                    onChange={(event) => {
+                        const assetClassId = event.target.value;
+                        const selected = assetClassOptions.find(
+                            (row) => row.id === assetClassId,
+                        );
+                        setForm((previous) => ({
+                            ...previous,
+                            assetClassId,
+                            vehicleName: selected?.name ?? "",
+                        }));
+                        setError("");
+                    }}
                     className={selectClassName}
                 >
-                    <option value="">
-                        Select purchase invoice
-                    </option>
-
-                    {PURCHASE_INVOICES.map(
-                        (invoice) => (
-                            <option
-                                key={invoice.id}
-                                value={invoice.id}
-                            >
-                                {invoice.invoiceNumber} —{" "}
-                                {invoice.supplierName}
-                            </option>
-                        ),
-                    )}
+                    <option value="">Select asset class</option>
+                    {assetClassOptions.map((assetClass) => (
+                        <option key={assetClass.id} value={assetClass.id}>
+                            {assetClass.name}
+                        </option>
+                    ))}
                 </select>
             </div>
 
@@ -759,66 +580,63 @@ export default function CreateFleetVehicleForm({
                         </p>
 
                         <p className="mt-0.5 text-xs text-gray-500">
-                            {selectedAssetClass.classCode}
+                            {classDetail?.name ?? "—"}
                         </p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5">
-
-                        <div>
-                            <p className="text-[11px] text-gray-500">
-                                Vehicle type
-                            </p>
-
-                            <p className="text-sm font-medium text-gray-900">
-                                {selectedAssetClass.vehicleType}
-                            </p>
+                    {classDetailQuery.isLoading ? (
+                        <p className="text-xs text-gray-500">Loading class spec…</p>
+                    ) : classDetail ? (
+                        <div className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-5">
+                            <div>
+                                <p className="text-[11px] text-gray-500">
+                                    Vehicle type
+                                </p>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {mapAssetRegisterVehicleTypeToUiLabel(
+                                        classDetail.vehicleType,
+                                    )}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[11px] text-gray-500">
+                                    Fuel type
+                                </p>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {classDetail.fuelType}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[11px] text-gray-500">
+                                    Mileage
+                                </p>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {formatMileageRangeFromSpec(classDetail)}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[11px] text-gray-500">
+                                    Fuel tank
+                                </p>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {classDetail.fuelTankCapacity?.trim()
+                                        ? `${classDetail.fuelTankCapacity} L`
+                                        : "—"}
+                                </p>
+                            </div>
+                            <div>
+                                <p className="text-[11px] text-gray-500">
+                                    Rated load
+                                </p>
+                                <p className="text-sm font-medium text-gray-900">
+                                    {formatRatedLoadRange(
+                                        classDetail.ratedLoadFrom,
+                                        classDetail.ratedLoadTo,
+                                    )}
+                                </p>
+                            </div>
                         </div>
-
-                        <div>
-                            <p className="text-[11px] text-gray-500">
-                                Fuel type
-                            </p>
-
-                            <p className="text-sm font-medium text-gray-900">
-                                {selectedAssetClass.fuelType}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-[11px] text-gray-500">
-                                Mileage
-                            </p>
-
-                            <p className="text-sm font-medium text-gray-900">
-                                {selectedAssetClass.mileageFrom ===
-                                    selectedAssetClass.mileageTo
-                                    ? `${selectedAssetClass.mileageFrom} ${selectedAssetClass.mileageUnit}`
-                                    : `${selectedAssetClass.mileageFrom}–${selectedAssetClass.mileageTo} ${selectedAssetClass.mileageUnit}`}
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-[11px] text-gray-500">
-                                Fuel tank
-                            </p>
-
-                            <p className="text-sm font-medium text-gray-900">
-                                {selectedAssetClass.fuelTankCapacity} L
-                            </p>
-                        </div>
-
-                        <div>
-                            <p className="text-[11px] text-gray-500">
-                                Rated load
-                            </p>
-
-                            <p className="text-sm font-medium text-gray-900">
-                                {selectedAssetClass.ratedLoadCapacity} kg
-                            </p>
-                        </div>
-
-                    </div>
+                    ) : null}
                 </div>
             )}
 

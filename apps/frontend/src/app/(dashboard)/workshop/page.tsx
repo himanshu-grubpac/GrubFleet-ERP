@@ -1,5 +1,5 @@
-import { WorkshopModule } from '@/components/modules/workshop';
+import WorkshopPage from "@/components/modules/workshop/workshopPage";
 
-export default function WorkshopPage() {
-  return <WorkshopModule />;
+export default function Page() {
+  return <WorkshopPage />
 }

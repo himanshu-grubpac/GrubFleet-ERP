@@ -149,8 +149,8 @@ export default function DriverRegisterPage() {
         search: debouncedSearch.trim() || undefined,
         status:
           filters.status === "active" ||
-          filters.status === "inactive" ||
-          filters.status === "license-expired"
+            filters.status === "inactive" ||
+            filters.status === "license-expired"
             ? filters.status
             : undefined,
       });
@@ -364,23 +364,17 @@ export default function DriverRegisterPage() {
       <DashboardLayout
         title="Driver Register"
         description="Manage drivers, licenses, suppliers, assignments, and driver status."
-        tabs={[
-          {
-            label: "Drivers",
-            href: "/organization/driver-register",
-          },
-        ]}
         activeTab="/organization/driver-register"
         action={addDriverAction}
         pagination={
           driversTotal > DRIVERS_PAGE_SIZE
             ? {
-                currentPage: page,
-                totalPages,
-                totalItems: driversTotal,
-                pageSize: DRIVERS_PAGE_SIZE,
-                onPageChange: setPage,
-              }
+              currentPage: page,
+              totalPages,
+              totalItems: driversTotal,
+              pageSize: DRIVERS_PAGE_SIZE,
+              onPageChange: setPage,
+            }
             : undefined
         }
       >
@@ -471,9 +465,9 @@ export default function DriverRegisterPage() {
                 onToggleStatus={
                   canUpdate
                     ? () =>
-                        driver.apiStatus === "active"
-                          ? handleDeactivate(driver)
-                          : handleActivate(driver)
+                      driver.apiStatus === "active"
+                        ? handleDeactivate(driver)
+                        : handleActivate(driver)
                     : undefined
                 }
               />

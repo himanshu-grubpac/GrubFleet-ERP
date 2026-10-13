@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Search, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -11,6 +11,8 @@ import {
     fetchFleetClients,
     type FleetClientListItem,
 } from "@/lib/api/lease-contracts";
+
+const PAGE_SIZE = 10;
 
 interface SelectClientStepProps {
     onClientSelected: (client: FleetClientListItem) => void;
@@ -24,7 +26,13 @@ export default function SelectClientStep({
     const { token, organizationId } = useGrubpacAuth();
 
     const [search, setSearch] = useState("");
+    const [currentPage, setCurrentPage] = useState(1);
+
     const debouncedSearch = useDebouncedValue(search.trim(), 300);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [debouncedSearch]);
 
     const clientsQuery = useQuery({
         queryKey: [
@@ -50,16 +58,28 @@ export default function SelectClientStep({
 
     const clients = clientsQuery.data?.items ?? [];
     const trimmedSearch = search.trim();
+
     const showNoResultsEmpty =
         !clientsQuery.isLoading &&
         !clientsQuery.isError &&
         clients.length === 0 &&
         trimmedSearch.length > 0;
 
+    const totalItems = clients.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+
+    const safeCurrentPage = Math.min(currentPage, totalPages);
+
+    const startIndex = (safeCurrentPage - 1) * PAGE_SIZE;
+    const endIndex = Math.min(startIndex + PAGE_SIZE, totalItems);
+
+    const paginatedClients = clients.slice(startIndex, endIndex);
+
     return (
         <>
             <div className="relative mb-4">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+
                 <input
                     type="text"
                     value={search}
@@ -71,7 +91,10 @@ export default function SelectClientStep({
 
             <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 {clientsQuery.isLoading && (
-                    <div className="flex h-32 items-center justify-center gap-2 text-sm text-slate-500">
+                    <div
+                        className="flex h-32 items-center justify-center gap-2 text-sm text-slate-500"
+                        aria-busy="true"
+                    >
                         <Loader2 className="h-4 w-4 animate-spin text-[#FE5720]" />
                         Loading clients...
                     </div>
@@ -82,14 +105,16 @@ export default function SelectClientStep({
                         <p className="text-sm font-medium text-red-600">
                             Failed to load clients.
                         </p>
+
                         <p className="mt-1.5 text-xs text-slate-500">
                             {clientsQuery.error instanceof Error
                                 ? clientsQuery.error.message
                                 : "Please try again."}
                         </p>
+
                         <button
                             type="button"
-                            onClick={() => clientsQuery.refetch()}
+                            onClick={() => void clientsQuery.refetch()}
                             className="mt-3 text-xs font-semibold text-[#FE5720] hover:underline"
                         >
                             Try again
@@ -98,20 +123,19 @@ export default function SelectClientStep({
                 )}
 
                 {showNoResultsEmpty && (
-                        <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-5 text-center">
-                            <p className="text-sm font-semibold text-slate-700">
-                                {`No results match "${trimmedSearch}".`}
-                            </p>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    onAddNewClient(trimmedSearch)
-                                }
-                                className="text-sm font-medium text-[#FE5720] hover:underline"
-                            >
-                                Add new client
-                            </button>
-                        </div>
+                    <div className="flex min-h-[160px] flex-col items-center justify-center gap-2 px-5 text-center">
+                        <p className="text-sm font-semibold text-slate-700">
+                            {`No results match "${trimmedSearch}".`}
+                        </p>
+
+                        <button
+                            type="button"
+                            onClick={() => onAddNewClient(trimmedSearch)}
+                            className="text-sm font-medium text-[#FE5720] hover:underline"
+                        >
+                            Add new client
+                        </button>
+                    </div>
                 )}
 
                 {!clientsQuery.isLoading &&
@@ -122,6 +146,7 @@ export default function SelectClientStep({
                             <p className="text-sm font-semibold text-slate-700">
                                 No clients found.
                             </p>
+
                             <button
                                 type="button"
                                 onClick={() => onAddNewClient()}
@@ -135,60 +160,112 @@ export default function SelectClientStep({
                 {!clientsQuery.isLoading &&
                     !clientsQuery.isError &&
                     clients.length > 0 && (
-                        <div className="w-full">
-                            <div className="hidden grid-cols-[1.45fr_1fr_0.55fr] border-b border-slate-100 bg-slate-50 px-4 py-3 sm:grid">
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                    Client
-                                </span>
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                    Primary POC
-                                </span>
-                                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                                    Contracts
-                                </span>
+                        <>
+                            <div className="w-full">
+                                <div className="hidden grid-cols-[1.45fr_1fr_0.55fr] border-b border-slate-100 bg-slate-50 px-4 py-3 sm:grid">
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                        Client
+                                    </span>
+
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                        Primary POC
+                                    </span>
+
+                                    <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                                        Contracts
+                                    </span>
+                                </div>
+
+                                {paginatedClients.map((client) => (
+                                    <button
+                                        key={client.id}
+                                        type="button"
+                                        onClick={() => onClientSelected(client)}
+                                        className="grid w-full grid-cols-1 gap-3 border-b border-slate-100 px-4 py-4 text-left transition last:border-b-0 hover:bg-orange-50/40 focus:bg-orange-50/40 focus:outline-none sm:grid-cols-[1.45fr_1fr_0.55fr] sm:items-center sm:gap-0 sm:py-3.5"
+                                    >
+                                        <div className="min-w-0">
+                                            <span className="block text-sm font-semibold text-slate-800 sm:truncate">
+                                                {client.companyName}
+                                            </span>
+
+                                            {client.clientCode && (
+                                                <span className="mt-0.5 block text-xs text-slate-400">
+                                                    {client.clientCode}
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center justify-between sm:block">
+                                            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:hidden">
+                                                Primary POC
+                                            </span>
+
+                                            <span className="truncate text-sm text-slate-600">
+                                                {client.primaryPoc?.name ?? "—"}
+                                            </span>
+                                        </div>
+
+                                        <div className="flex items-center justify-between sm:block">
+                                            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:hidden">
+                                                Contracts
+                                            </span>
+
+                                            <span className="text-sm font-semibold tabular-nums text-slate-700">
+                                                {client.contractCount ?? 0}
+                                            </span>
+                                        </div>
+                                    </button>
+                                ))}
                             </div>
 
-                            {clients.map((client) => (
-                                <button
-                                    key={client.id}
-                                    type="button"
-                                    onClick={() =>
-                                        onClientSelected(client)
-                                    }
-                                    className="grid w-full grid-cols-1 gap-3 border-b border-slate-100 px-4 py-4 text-left transition last:border-b-0 hover:bg-orange-50/40 focus:bg-orange-50/40 focus:outline-none sm:grid-cols-[1.45fr_1fr_0.55fr] sm:items-center sm:gap-0 sm:py-3.5"
-                                >
-                                    <div className="min-w-0">
-                                        <span className="block text-sm font-semibold text-slate-800 sm:truncate">
-                                            {client.companyName}
-                                        </span>
-                                        {client.clientCode && (
-                                            <span className="mt-0.5 block text-xs text-slate-400">
-                                                {client.clientCode}
-                                            </span>
-                                        )}
-                                    </div>
+                            {/* Pagination */}
+                            {totalItems > 0 && (
+                                <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3">
+                                    <p className="text-xs text-slate-500">
+                                        Showing {startIndex + 1}–{endIndex} of{" "}
+                                        {totalItems}
+                                    </p>
 
-                                    <div className="flex items-center justify-between sm:block">
-                                        <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:hidden">
-                                            Primary POC
-                                        </span>
-                                        <span className="truncate text-sm text-slate-600">
-                                            {client.primaryPoc?.name ??
-                                                "—"}
-                                        </span>
-                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            disabled={safeCurrentPage <= 1}
+                                            onClick={() =>
+                                                setCurrentPage((previous) =>
+                                                    Math.max(1, previous - 1),
+                                                )
+                                            }
+                                            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            Prev
+                                        </button>
 
-                                    <div className="flex items-center justify-between sm:block">
-                                        <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400 sm:hidden">
-                                            Contracts
+                                        <span
+                                            aria-current="page"
+                                            className="flex h-9 min-w-9 items-center justify-center rounded-lg bg-[#FE5720] px-3 text-sm font-semibold text-white"
+                                        >
+                                            {safeCurrentPage}
                                         </span>
-                                        <span className="text-sm font-semibold tabular-nums text-slate-700">
-                                            {client.contractCount ?? 0}
-                                        </span>
+
+                                        <button
+                                            type="button"
+                                            disabled={safeCurrentPage >= totalPages}
+                                            onClick={() =>
+                                                setCurrentPage((previous) =>
+                                                    Math.min(
+                                                        totalPages,
+                                                        previous + 1,
+                                                    ),
+                                                )
+                                            }
+                                            className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            Next
+                                        </button>
                                     </div>
-                                </button>
-                            ))}
-                        </div>
+                                </div>
+                            )}
+                        </>
                     )}
             </div>
         </>

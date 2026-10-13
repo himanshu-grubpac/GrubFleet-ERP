@@ -9,6 +9,25 @@ function nonEmptyLines(lines: Array<string | null | undefined>): string {
     .join("\n");
 }
 
+/** Max visible characters for asset class name/code in list cells (full value on copy + tooltip). */
+export const ASSET_CLASS_NAME_DISPLAY_MAX = 6;
+
+/**
+ * Asset class names are system-generated codes (e.g. `2026_activa_150_petrol_efi_bl`).
+ * Display uses the first six characters of the trimmed string — not letter-only stripping,
+ * so digits and underscores in the prefix remain visible.
+ */
+export function formatAssetClassNameForDisplay(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.length <= ASSET_CLASS_NAME_DISPLAY_MAX) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, ASSET_CLASS_NAME_DISPLAY_MAX)}…`;
+}
+
 export function formatEmployeeRowCopyText(
   employee: OrganisationEmployeeListItem,
 ): string {

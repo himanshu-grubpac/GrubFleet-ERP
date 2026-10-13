@@ -65,26 +65,25 @@ describe('Asset Register — compliance and renewals (integration)', () => {
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        name: `Compliance Class ${unique}`,
+        brand: 'Test',
+        modelName: `Compliance Class ${unique}`,
+        manufacturingYear: 2026,
+        engineDisplacementCc: 150,
+        fuelSystem: 'efi',
+        color: 'Black',
+        colorCode: 'bl',
         vehicleType: '4W',
         fuelType: 'Diesel',
-        fuelTankCapacity: 60,
+        mileageFrom: 40,
+        mileageTo: 50,
+        mileageUnit: 'km/L',
+        fuelTankCapacity: 10,
         ratedLoadFrom: 500,
         ratedLoadTo: 1500,
+        intakeChecklistItems: ['Registration papers'],
       })
       .expect(201);
     const classId = (classRes.body as { id: string }).id;
-    const masterRes = await request(app.getHttpServer())
-      .post('/api/v1/asset-register/asset-masters')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({
-        organizationId,
-        assetClassId: classId,
-        name: `Compliance Master ${unique}`,
-      })
-      .expect(201);
-    const masterId = (masterRes.body as { id: string }).id;
 
     const vehicleRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicles')
@@ -93,7 +92,6 @@ describe('Asset Register — compliance and renewals (integration)', () => {
       .send({
         organizationId,
         assetClassId: classId,
-        assetMasterId: masterId,
         registrationNumber: `CMP-${unique}`.slice(0, 32),
         chassisNumber: `CH-CMP-${unique}`,
         modelYear: 2024,

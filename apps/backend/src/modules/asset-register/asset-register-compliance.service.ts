@@ -153,8 +153,6 @@ export class AssetRegisterComplianceService {
       odometer: row.odometer,
       assetClassId: row.assetClassId,
       assetClassName: row.assetClass.name,
-      assetMasterId: row.assetMasterId,
-      assetMasterName: row.assetMaster.name,
       operationalStatus: row.operationalStatus,
       isActive: row.isActive,
       overallComplianceStatus: compliance.overallStatus,

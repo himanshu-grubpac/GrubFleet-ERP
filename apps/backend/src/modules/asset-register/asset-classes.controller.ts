@@ -17,8 +17,6 @@ import { RequireAnyPermissions } from '../auth/authorization/decorators/require-
 import { RequireOrganizationContext } from '../auth/authorization/decorators/require-organization-context.decorator';
 import { RequirePermissions } from '../auth/authorization/decorators/require-permissions.decorator';
 import { AssetClassesService } from './asset-classes.service';
-import { AssetMastersService } from './asset-masters.service';
-import { ListAssetMastersQueryDto } from './dto/list-asset-masters-query.dto';
 import {
   AssetRegisterPermissionKeys,
   AssetRegisterWriteAny,
@@ -32,10 +30,7 @@ import { UpdateAssetClassStatusDto } from './dto/update-asset-class-status.dto';
 @ApiBearerAuth()
 @Controller('asset-register/asset-classes')
 export class AssetClassesController {
-  constructor(
-    private readonly assetClasses: AssetClassesService,
-    private readonly assetMasters: AssetMastersService,
-  ) {}
+  constructor(private readonly assetClasses: AssetClassesService) {}
 
   @Get()
   @RequireOrganizationContext()
@@ -43,29 +38,10 @@ export class AssetClassesController {
   @ApiOperation({
     summary: 'List asset classes (paginated)',
     description:
-      'Default sort: createdAt descending (newest first), then id descending. Search matches class name or code.',
+      'Default sort: createdAt descending (newest first), then id descending. Search matches class name and spec fields.',
   })
   list(@Query() query: ListAssetClassesQueryDto) {
     return this.assetClasses.list(query);
-  }
-
-  @Get(':classId/masters')
-  @RequireOrganizationContext()
-  @RequirePermissions(AssetRegisterPermissionKeys.VIEW)
-  @ApiOperation({
-    summary: 'Catalog: active asset masters for an active asset class',
-    description:
-      'Fleet register dropdown source. Returns only active masters; asset class must be active. Same pagination as asset masters list.',
-  })
-  listMastersForClass(
-    @Param('classId', ParseUUIDPipe) classId: string,
-    @Query() query: ListAssetMastersQueryDto,
-  ) {
-    return this.assetMasters.listCatalogForClass(
-      query.organizationId,
-      classId,
-      query,
-    );
   }
 
   @Get(':id')
@@ -84,7 +60,7 @@ export class AssetClassesController {
   @RequireOrganizationContext()
   @RequireAnyPermissions(...AssetRegisterWriteAny.CREATE)
   @ApiOperation({
-    summary: 'Create asset class (class code generated server-side)',
+    summary: 'Create asset class (class name generated server-side from spec)',
   })
   create(@Body() dto: CreateAssetClassDto) {
     return this.assetClasses.create(dto);

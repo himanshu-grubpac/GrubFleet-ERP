@@ -3,14 +3,10 @@
  * @see docs/deployment/s3-cloudfront-portal.md
  */
 
-export type AssetRegisterEntityQueryKey =
-  | "assetClassId"
-  | "assetMasterId"
-  | "vehicleId";
+export type AssetRegisterEntityQueryKey = "assetClassId" | "vehicleId";
 
 const MODULE_BASE = {
   assetClass: "/asset-register/assestclass",
-  assetMaster: "/asset-register/asset-master",
   fleetRegister: "/asset-register/fleetregister",
   assetAssign: "/asset-register/asset-assign",
   complianceRenewals: "/asset-register/compliance-renewals",
@@ -47,12 +43,6 @@ export const assetRegisterAssetClassDetailHref = (assetClassId: string) =>
 
 export const assetRegisterAssetClassEditHref = (assetClassId: string) =>
   editHref(MODULE_BASE.assetClass, "assetClassId", assetClassId);
-
-export const assetRegisterAssetMasterDetailHref = (assetMasterId: string) =>
-  detailHref(MODULE_BASE.assetMaster, "assetMasterId", assetMasterId);
-
-export const assetRegisterAssetMasterEditHref = (assetMasterId: string) =>
-  editHref(MODULE_BASE.assetMaster, "assetMasterId", assetMasterId);
 
 export const assetRegisterFleetDetailHref = (vehicleId: string) =>
   detailHref(MODULE_BASE.fleetRegister, "vehicleId", vehicleId);
