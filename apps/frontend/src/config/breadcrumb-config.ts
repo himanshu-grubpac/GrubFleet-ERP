@@ -322,6 +322,30 @@ export const breadcrumbConfig: Record<
         },
     ],
 
+    "/fleet-leasing/support": [
+        {
+            label: "Fleet Leasing",
+            href: "/fleet-leasing",
+        },
+        {
+            label: "Support",
+        },
+    ],
+
+    "/fleet-leasing/support/vehicle-replacement": [
+        {
+            label: "Fleet Leasing",
+            href: "/fleet-leasing",
+        },
+        {
+            label: "Support",
+            href: "/fleet-leasing/support",
+        },
+        {
+            label: "Vehicle replacement",
+        },
+    ],
+
     // ============================================================
     // CUSTOMERS
     // ============================================================

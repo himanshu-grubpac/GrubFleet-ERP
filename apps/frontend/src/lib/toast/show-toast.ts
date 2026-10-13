@@ -147,6 +147,14 @@ export const LEASE_CONTRACT_STATUS_UPDATE_ERROR =
 export const LEASE_CONTRACT_RENEW_ERROR =
   "Could not renew contract. Try again.";
 
+export function showVehicleReplacementCompletedToast(count: number): void {
+  showSuccessToast(
+    count === 1
+      ? "Vehicle replacement completed."
+      : `${count} vehicle replacements completed.`,
+  );
+}
+
 export function showLeaseContractUpdatedToast(): void {
   showSuccessToast("Lease contract was updated");
 }

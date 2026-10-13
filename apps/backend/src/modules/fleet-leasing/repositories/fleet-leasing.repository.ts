@@ -1278,4 +1278,213 @@ export class FleetLeasingRepository {
     }
     return out;
   }
+
+  async findVehicleByRegistrationOrVin(organizationId: string, query: string) {
+    const trimmed = query.trim();
+    if (!trimmed) return null;
+    const [row] = await this.db
+      .select()
+      .from(fleetVehicles)
+      .where(
+        and(
+          eq(fleetVehicles.organizationId, organizationId),
+          or(
+            ilike(fleetVehicles.registrationNo, trimmed),
+            ilike(fleetVehicles.vin, trimmed),
+          ),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async findOnLeaseAssignmentForVehicle(
+    organizationId: string,
+    vehicleId: string,
+    eligibleStatuses: LeaseContractStatus[],
+  ) {
+    if (eligibleStatuses.length === 0) return null;
+    const [row] = await this.db
+      .select({
+        contract: leaseContracts,
+        clientCompanyName: sql<
+          string | null
+        >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+      })
+      .from(leaseContractVehicles)
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractVehicles.contractId, leaseContracts.id),
+      )
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(
+        and(
+          eq(leaseContractVehicles.vehicleId, vehicleId),
+          eq(leaseContracts.organizationId, organizationId),
+          inArray(leaseContracts.status, eligibleStatuses),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listAllocatedVehiclesOnContract(
+    organizationId: string,
+    contractId: string,
+  ) {
+    return this.db
+      .select({
+        id: fleetVehicles.id,
+        registrationNo: fleetVehicles.registrationNo,
+        vin: fleetVehicles.vin,
+        assetClass: fleetVehicles.assetClass,
+        status: fleetVehicles.status,
+      })
+      .from(leaseContractVehicles)
+      .innerJoin(
+        fleetVehicles,
+        eq(leaseContractVehicles.vehicleId, fleetVehicles.id),
+      )
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractVehicles.contractId, leaseContracts.id),
+      )
+      .where(
+        and(
+          eq(leaseContractVehicles.contractId, contractId),
+          eq(leaseContracts.organizationId, organizationId),
+        ),
+      )
+      .orderBy(asc(fleetVehicles.registrationNo));
+  }
+
+  async listContractsForFleetClient(
+    organizationId: string,
+    fleetClientId: string,
+    eligibleStatuses: LeaseContractStatus[],
+  ) {
+    const conditions = [
+      eq(leaseContracts.organizationId, organizationId),
+      eq(leaseContracts.clientId, fleetClientId),
+    ];
+    if (eligibleStatuses.length > 0) {
+      conditions.push(inArray(leaseContracts.status, eligibleStatuses));
+    }
+    return this.db
+      .select({
+        id: leaseContracts.id,
+        contractNumber: leaseContracts.contractNumber,
+        status: leaseContracts.status,
+        startDate: leaseContracts.startDate,
+        endDate: leaseContracts.endDate,
+      })
+      .from(leaseContracts)
+      .where(and(...conditions))
+      .orderBy(desc(leaseContracts.createdAt));
+  }
+
+  async listAvailableReplacementVehicles(params: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    assetClass?: string;
+    vehicleType?: string;
+    brand?: string;
+    modelName?: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const {
+      organizationId,
+      page,
+      pageSize,
+      assetClass,
+      vehicleType,
+      brand,
+      modelName,
+      excludeVehicleIds,
+    } = params;
+    if (vehicleType?.trim() || brand?.trim() || modelName?.trim()) {
+      return { rows: [], total: 0 };
+    }
+    const offset = (page - 1) * pageSize;
+    const now = new Date();
+    const conditions = [
+      eq(fleetVehicles.organizationId, organizationId),
+      eq(fleetVehicles.status, 'available'),
+      sql`${fleetVehicles.registrationExpiry} >= ${now}`,
+      sql`${fleetVehicles.insuranceExpiry} >= ${now}`,
+    ];
+    if (assetClass?.trim()) {
+      conditions.push(eq(fleetVehicles.assetClass, assetClass.trim()));
+    }
+    if (excludeVehicleIds && excludeVehicleIds.length > 0) {
+      conditions.push(notInArray(fleetVehicles.id, excludeVehicleIds));
+    }
+    const where = and(...conditions);
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          id: fleetVehicles.id,
+          registrationNo: fleetVehicles.registrationNo,
+          vin: fleetVehicles.vin,
+          assetClass: fleetVehicles.assetClass,
+          status: fleetVehicles.status,
+          registrationExpiry: fleetVehicles.registrationExpiry,
+          insuranceExpiry: fleetVehicles.insuranceExpiry,
+        })
+        .from(fleetVehicles)
+        .where(where)
+        .orderBy(asc(fleetVehicles.registrationNo))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(fleetVehicles)
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async executeVehicleReplacementSwapsInTransaction(
+    pairs: {
+      contractId: string;
+      fromVehicleId: string;
+      toVehicleId: string;
+    }[],
+  ) {
+    if (pairs.length === 0) return;
+    await this.db.transaction(async (tx) => {
+      for (const { contractId, fromVehicleId, toVehicleId } of pairs) {
+        await tx
+          .delete(leaseContractVehicles)
+          .where(
+            and(
+              eq(leaseContractVehicles.contractId, contractId),
+              eq(leaseContractVehicles.vehicleId, fromVehicleId),
+            ),
+          );
+        await tx
+          .insert(leaseContractVehicles)
+          .values({ contractId, vehicleId: toVehicleId })
+          .onConflictDoNothing({
+            target: [
+              leaseContractVehicles.contractId,
+              leaseContractVehicles.vehicleId,
+            ],
+          });
+        await tx
+          .update(fleetVehicles)
+          .set({ status: 'available', updatedAt: new Date() })
+          .where(eq(fleetVehicles.id, fromVehicleId));
+        await tx
+          .update(fleetVehicles)
+          .set({ status: 'leased', updatedAt: new Date() })
+          .where(eq(fleetVehicles.id, toVehicleId));
+      }
+    });
+  }
 }

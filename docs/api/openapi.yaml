@@ -1407,6 +1407,196 @@ paths:
       responses:
         '200':
           description: Created allocation record
+  /fleet-leasing/support/on-lease-vehicle-lookup:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — resolve fleet register registration, VIN, or fleet code to on-lease vehicle context
+      operationId: lookupOnLeaseVehicleForSupport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: Vehicle, contract, and client summary
+        '404':
+          description: Not found or not on an eligible lease
+  /fleet-leasing/support/replacement-candidates:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — paginated available replacement vehicles
+      operationId: listSupportReplacementCandidates
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: assetClass
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: vehicleType
+          in: query
+          schema:
+            type: string
+            enum: [2W, 3W, 4W]
+        - name: brand
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+        - name: modelName
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+        - name: excludeVehicleIds
+          in: query
+          schema:
+            type: string
+            maxLength: 2000
+        - name: sourceKind
+          in: query
+          schema:
+            type: string
+            enum: [legacy, register]
+          description: Limit candidates to legacy fleet vehicles or asset register vehicles (match on-lease unit catalog)
+      responses:
+        '200':
+          description: Paginated replacement candidates
+  /fleet-leasing/support/available-replacement-lookup:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — resolve registration, VIN, or fleet code to available replacement
+      operationId: lookupAvailableReplacementForSupport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+        - name: sourceKind
+          in: query
+          schema:
+            type: string
+            enum: [legacy, register]
+          description: Restrict lookup to the same catalog as the on-lease unit being replaced
+      responses:
+        '200':
+          description: Available replacement vehicle summary
+        '404':
+          description: Not found, not available, or on another contract
+  /fleet-leasing/support/replacement-filter-options:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — brands or models for replacement filter (available pool)
+      operationId: listSupportReplacementFilterOptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: vehicleType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [2W, 3W, 4W]
+        - name: brand
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Distinct brands or model names
+  /fleet-leasing/support/clients/{clientId}/active-contracts:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — eligible contracts for a fleet client
+      operationId: listSupportActiveContractsForClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: clientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract list
+  /fleet-leasing/support/lease-contracts/{contractId}/allocated-vehicles:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — vehicles allocated to a contract
+      operationId: listSupportAllocatedVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Allocated vehicles
+  /fleet-leasing/support/vehicle-replacements:
+    post:
+      tags: [fleet-leasing]
+      summary: Support — execute pairwise vehicle replacements
+      operationId: executeSupportVehicleReplacements
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, replacements]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                replacements:
+                  type: array
+                  minItems: 1
+                  maxItems: 25
+                  items:
+                    type: object
+                    required: [contractId, fromVehicleId, toVehicleId]
+                    properties:
+                      contractId:
+                        type: string
+                        format: uuid
+                      fromVehicleId:
+                        type: string
+                        format: uuid
+                      toVehicleId:
+                        type: string
+                        format: uuid
+      responses:
+        '200':
+          description: Replacement results
+        '400':
+          description: Validation or business rule failure
   /fleet-leasing/vehicle-allocations:
     get:
       tags: [fleet-leasing]
