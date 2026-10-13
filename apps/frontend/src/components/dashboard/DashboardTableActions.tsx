@@ -1,7 +1,9 @@
+
 "use client";
 
-import React, { type ReactNode } from "react";
-import { Copy, Edit, Power } from "lucide-react";
+import React, { useState, type ReactNode } from "react";
+import { FaCopy } from "react-icons/fa";
+import { Edit, Power } from "lucide-react";
 import Link from "next/link";
 
 import {
@@ -46,37 +48,14 @@ function reactNodeHasRenderableContent(node: ReactNode): boolean {
 
 type DashboardTableActionsProps = {
     status: "active" | "inactive";
-
-    /**
-     * Existing Location ID.
-     * Kept for backward compatibility with Location pages.
-     */
     locationId?: string;
-
-    /** Row copy payload. Falls back to locationId when omitted. */
     copyText?: string;
-
-    /**
-     * Optional custom View URL.
-     * Use this for Suppliers, Employees, Lease Contracts, etc.
-     */
     viewHref?: string;
-
-    /** Allow editing inactive records. */
     allowEditWhenInactive?: boolean;
-
-    /** Hide the Edit action from the overflow menu. */
     hideEdit?: boolean;
-
-    /**
-     * Keep the three-dot menu visible even when there are no actions.
-     */
     alwaysShowOverflowMenu?: boolean;
-
     onEdit?: () => void;
     onToggleStatus?: () => void;
-
-    /** Module-specific overflow entries. */
     renderAdditionalMenuItems?: () => ReactNode;
 };
 
@@ -94,6 +73,8 @@ export default function DashboardTableActions({
 }: DashboardTableActionsProps) {
     const isActive = status === "active";
 
+    const [copied, setCopied] = useState(false);
+
     const showEdit =
         !hideEdit &&
         !!onEdit &&
@@ -104,9 +85,6 @@ export default function DashboardTableActions({
     const hasAdditionalMenuItems =
         reactNodeHasRenderableContent(additionalMenuItems);
 
-    /**
-     * View URL
-     */
     const resolvedViewHref =
         viewHref ??
         (locationId
@@ -114,7 +92,7 @@ export default function DashboardTableActions({
             : "#");
 
     /**
-     * Copy row data
+     * Copy row data and display success feedback.
      */
     const handleCopy = async () => {
         const text = copyText?.trim() || locationId;
@@ -125,15 +103,16 @@ export default function DashboardTableActions({
 
         try {
             await navigator.clipboard.writeText(text);
+            setCopied(true);
+
+            window.setTimeout(() => {
+                setCopied(false);
+            }, 2000);
         } catch {
-            // Clipboard unavailable or permission denied.
+            setCopied(false);
         }
     };
 
-    /**
-     * Show the three-dot menu when it contains actions,
-     * or when alwaysShowOverflowMenu is enabled.
-     */
     const hasOverflowMenu =
         alwaysShowOverflowMenu ||
         showEdit ||
@@ -150,39 +129,36 @@ export default function DashboardTableActions({
                 View
             </Link>
 
-            {/* Copy */}
+            {/* Copy text and icon */}
             <button
                 type="button"
                 onClick={handleCopy}
                 disabled={!copyText?.trim() && !locationId}
-                aria-label="Copy row"
-                title="Copy row"
+                aria-label={copied ? "Copied!" : "Copy row"}
+                title={copied ? "Copied!" : "Copy row"}
                 className="
-                    flex h-8 w-8 items-center justify-center
-                    rounded-md text-gray-500 transition-colors
+                    inline-flex h-8 items-center justify-center gap-1.5
+                    rounded-md px-1.5 text-sm font-medium
+                    text-gray-500 transition-colors
                     hover:bg-gray-100 hover:text-gray-900
                     disabled:cursor-not-allowed disabled:opacity-40
                 "
             >
-                <Copy
-                    className="h-4 w-4"
-                    strokeWidth={1.7}
-                />
+                <span>{copied ? "Copied!" : "Copy"}</span>
+                <span className="text-[#FE5720]/40 text-base leading-none">
+                    <FaCopy />
+                </span>
             </button>
 
             {/* Three-dot actions menu */}
             {hasOverflowMenu ? (
-                <DashboardRowActionsMenu
-                    ariaLabel="Row actions"
-                >
+                <DashboardRowActionsMenu ariaLabel="Row actions">
                     {({ close }) => (
                         <>
                             {/* Edit */}
                             {showEdit ? (
                                 <DashboardRowActionsMenuItem
-                                    icon={
-                                        <Edit className="h-4 w-4" />
-                                    }
+                                    icon={<Edit className="h-4 w-4" />}
                                     label="Edit"
                                     onSelect={() => {
                                         close();
@@ -199,9 +175,7 @@ export default function DashboardTableActions({
                             {/* Activate / Deactivate */}
                             {onToggleStatus ? (
                                 <DashboardRowActionsMenuItem
-                                    icon={
-                                        <Power className="h-4 w-4" />
-                                    }
+                                    icon={<Power className="h-4 w-4" />}
                                     label={
                                         isActive
                                             ? "Deactivate"
