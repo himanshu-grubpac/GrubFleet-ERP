@@ -1322,7 +1322,8 @@ describe('Fleet leasing lease contracts (integration)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
         .expect(404);
-      expect(String(notOnLease.body.message)).toContain(
+      const notOnLeaseBody = notOnLease.body as { message?: string };
+      expect(String(notOnLeaseBody.message ?? '')).toContain(
         'not on an eligible active lease contract',
       );
     });

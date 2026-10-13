@@ -674,10 +674,7 @@ export class AssetRegisterRepository {
       .from(assetRegisterVehicleAssignments)
       .innerJoin(
         leaseContracts,
-        eq(
-          assetRegisterVehicleAssignments.leaseContractId,
-          leaseContracts.id,
-        ),
+        eq(assetRegisterVehicleAssignments.leaseContractId, leaseContracts.id),
       )
       .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
       .leftJoin(
@@ -752,9 +749,7 @@ export class AssetRegisterRepository {
       sql`${assetRegisterVehicles.insuranceEndDate} >= ${today}`,
     ];
     if (assetClass?.trim()) {
-      conditions.push(
-        eq(assetRegisterAssetClasses.name, assetClass.trim()),
-      );
+      conditions.push(eq(assetRegisterAssetClasses.name, assetClass.trim()));
     }
     if (vehicleType?.trim()) {
       conditions.push(
@@ -897,17 +892,17 @@ export class AssetRegisterRepository {
       .from(assetRegisterVehicleAssignments)
       .innerJoin(
         leaseContracts,
-        eq(
-          assetRegisterVehicleAssignments.leaseContractId,
-          leaseContracts.id,
-        ),
+        eq(assetRegisterVehicleAssignments.leaseContractId, leaseContracts.id),
       )
       .where(
         and(
           eq(assetRegisterVehicleAssignments.vehicleId, vehicleId),
           eq(assetRegisterVehicleAssignments.organizationId, organizationId),
           isNull(assetRegisterVehicleAssignments.unassignedAt),
-          ne(assetRegisterVehicleAssignments.leaseContractId, excludeContractId),
+          ne(
+            assetRegisterVehicleAssignments.leaseContractId,
+            excludeContractId,
+          ),
           notInArray(leaseContracts.status, ['closed', 'concluded']),
         ),
       )
