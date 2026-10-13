@@ -218,6 +218,34 @@
       "when": 1793200000000,
       "tag": "0030_finance_vendor_payment_numbers",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0031_asset_class_meeting_spec",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793400000000,
+      "tag": "0032_asset_class_name_canonical",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0033_asset_class_drop_code_column",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793600000000,
+      "tag": "0034_finance_purchase_vehicle_line_tax",
+      "breakpoints": true
     }
   ]
 }

@@ -29,10 +29,6 @@ export class CreateAssetRegisterVehicleDto {
   @IsUUID()
   assetClassId!: string;
 
-  @ApiProperty()
-  @IsUUID()
-  assetMasterId!: string;
-
   @ApiProperty({ maxLength: ASSET_REGISTER_VEHICLE_REGISTRATION_MAX_LENGTH })
   @IsString()
   @MinLength(1)

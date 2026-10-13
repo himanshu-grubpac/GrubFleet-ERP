@@ -7,7 +7,11 @@ import * as schema from '../schema';
 import { permissions } from '../schema';
 import { buildPhase1PermissionCatalog } from './permission-catalog';
 import { seedDevAdminBootstrap } from './dev-admin-bootstrap';
-import { assertStagingDemoSeedAllowed } from './staging-demo-guards';
+import {
+  assertLocalAssetRegisterDemoSeedAllowed,
+  assertStagingDemoSeedAllowed,
+} from './staging-demo-guards';
+import { seedLocalAssetRegisterDemo } from './seed-local-asset-register-demo';
 import { seedStagingInterconnectedDemo } from './seed-staging-interconnected-demo';
 
 dotenv.config({ path: path.resolve(__dirname, '../../../.env.development') });
@@ -59,6 +63,13 @@ async function main(): Promise<void> {
     assertStagingDemoSeedAllowed();
     const summary = await seedStagingInterconnectedDemo(db);
     console.log('Staging interconnected demo seed complete.');
+    console.log(JSON.stringify(summary, null, 2));
+  }
+
+  if (process.env.SEED_LOCAL_ASSET_REGISTER_DEMO === '1') {
+    assertLocalAssetRegisterDemoSeedAllowed();
+    const summary = await seedLocalAssetRegisterDemo(db);
+    console.log('Local Asset Register demo seed complete.');
     console.log(JSON.stringify(summary, null, 2));
   }
 

@@ -12,7 +12,10 @@ import {
 } from '../../common/dto/pagination-query.dto';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import type { AppDatabase } from '../../database/database.module';
+import { financeInvoiceLines } from '../../database/schema/finance.schema';
 import { AuditService } from '../audit/audit.service';
+import { AssetClassesService } from '../asset-register/asset-classes.service';
+import type { ListAssetClassesQueryDto } from '../asset-register/dto/list-asset-classes-query.dto';
 import { AssetRegisterCatalogService } from '../asset-register/asset-register-catalog.service';
 import { AssetRegisterVehiclesService } from '../asset-register/asset-register-vehicles.service';
 import { FleetClientsService } from '../fleet-leasing/fleet-clients.service';
@@ -36,6 +39,7 @@ import type { ListInvoicesQueryDto } from './dto/list-invoices-query.dto';
 import type { RecordInvoicePaymentDto } from './dto/record-invoice-payment.dto';
 import type { UpdateInvoiceDto } from './dto/update-invoice.dto';
 import { FinanceRepository } from './repositories/finance.repository';
+import { computePurchaseVehicleLineTax } from './utils/purchase-vehicle-line-tax.util';
 
 @Injectable()
 export class InvoicesService {
@@ -44,6 +48,7 @@ export class InvoicesService {
     private readonly repo: FinanceRepository,
     private readonly audit: AuditService,
     private readonly assetCatalog: AssetRegisterCatalogService,
+    private readonly assetClasses: AssetClassesService,
     private readonly assetVehicles: AssetRegisterVehiclesService,
     @Inject(forwardRef(() => ClientsService))
     private readonly clients: ClientsService,
@@ -66,6 +71,14 @@ export class InvoicesService {
     );
     const items = rows.map((row) => this.toListItem(row));
     return toPaginatedResult(items, page, pageSize, total);
+  }
+
+  /** Purchase invoice vehicle tab — finance permission; no asset-register.view required. */
+  listPurchaseAssetClassesCatalog(query: ListAssetClassesQueryDto) {
+    return this.assetClasses.list({
+      ...query,
+      status: query.status ?? 'active',
+    });
   }
 
   listPaymentMethods() {
@@ -149,7 +162,12 @@ export class InvoicesService {
       lines: detail.lines.map((line) => ({
         id: line.id,
         lineKind: line.lineKind,
+        assetClassId: line.assetClassId,
         assetClassName: line.assetClassName,
+        taxMode: line.taxMode,
+        vatPercent: line.vatPercent,
+        baseAmountMinor: line.baseAmountMinor,
+        taxAmountMinor: line.taxAmountMinor,
         inventoryPartId: line.inventoryPartId,
         inventoryPartName: line.inventoryPartId
           ? (partNames.get(line.inventoryPartId) ?? null)
@@ -157,6 +175,7 @@ export class InvoicesService {
         vehicleId: line.vehicleId,
         quantity: line.quantity,
         unitCostMinor: line.unitCostMinor,
+        rateMinor: line.unitCostMinor,
         lineAmountMinor: line.lineAmountMinor,
         batchLot: line.batchLot,
       })),
@@ -186,14 +205,15 @@ export class InvoicesService {
       );
     }
 
-    const classNames =
-      await this.assetCatalog.listDistinctActiveAssetClassNames(
-        dto.organizationId,
-      );
-    const assetClass = dto.assetClassName.trim();
-    if (!classNames.includes(assetClass)) {
+    const classIds = [...new Set(dto.lines.map((l) => l.assetClassId))];
+    const classes = await this.assetCatalog.listActiveAssetClassesByIds(
+      dto.organizationId,
+      classIds,
+    );
+    const classById = new Map(classes.map((c) => [c.id, c]));
+    if (classById.size !== classIds.length) {
       throw new BadRequestException(
-        'Asset class must be an active asset register class name',
+        'Each asset class must be an active asset register class in this organization',
       );
     }
 
@@ -203,7 +223,54 @@ export class InvoicesService {
       throw new BadRequestException('Invalid invoice date');
     }
 
-    const description = `Vehicle purchase — ${assetClass}`;
+    const lineRows: Array<
+      Omit<typeof financeInvoiceLines.$inferInsert, 'invoiceId'>
+    > = [];
+    let computedGrandTotal = 0;
+
+    for (const line of dto.lines) {
+      const assetClass = classById.get(line.assetClassId)!;
+      let breakdown;
+      try {
+        breakdown = computePurchaseVehicleLineTax(
+          line.quantity,
+          line.rateMinor,
+          line.taxMode,
+          line.vatPercent,
+        );
+      } catch {
+        throw new BadRequestException('Invalid purchase line amount');
+      }
+      computedGrandTotal += breakdown.lineTotalMinor;
+      if (!Number.isSafeInteger(computedGrandTotal)) {
+        throw new BadRequestException(
+          'Invoice total exceeds safe integer range',
+        );
+      }
+      lineRows.push({
+        lineKind: 'vehicle',
+        assetClassId: assetClass.id,
+        assetClassName: assetClass.name.trim(),
+        quantity: line.quantity,
+        unitCostMinor: line.rateMinor,
+        taxMode: line.taxMode,
+        vatPercent: line.vatPercent,
+        baseAmountMinor: breakdown.baseAmountMinor,
+        taxAmountMinor: breakdown.taxAmountMinor,
+        lineAmountMinor: breakdown.lineTotalMinor,
+      });
+    }
+
+    if (dto.grandTotalMinor !== computedGrandTotal) {
+      throw new BadRequestException(
+        'Grand total does not match sum of asset line totals',
+      );
+    }
+
+    const description =
+      lineRows.length === 1
+        ? `Vehicle purchase — ${lineRows[0].assetClassName}`
+        : `Vehicle purchase — ${lineRows.length} asset lines`;
 
     const created = await this.db.transaction(async (tx) => {
       const invoiceNumber = await this.repo.allocatePurchaseInvoiceNumber(
@@ -211,7 +278,7 @@ export class InvoicesService {
         dto.organizationId,
         year,
       );
-      return this.repo.insertInvoiceWithLine(
+      return this.repo.insertInvoiceWithLines(
         tx,
         {
           organizationId: dto.organizationId,
@@ -221,18 +288,12 @@ export class InvoicesService {
           supplierId: dto.supplierId,
           partyName: supplier.name,
           description,
-          totalAmountMinor: dto.totalAmountMinor,
+          totalAmountMinor: computedGrandTotal,
           invoiceDate,
-          notes: dto.notes?.trim() || null,
+          notes: null,
           purchaseLineKind: 'vehicle',
         },
-        {
-          invoiceId: '',
-          lineKind: 'vehicle',
-          assetClassName: assetClass,
-          quantity: 1,
-          lineAmountMinor: dto.totalAmountMinor,
-        },
+        lineRows,
       );
     });
 
@@ -246,6 +307,7 @@ export class InvoicesService {
         invoiceNumber: created.invoiceNumber,
         invoiceType: 'purchase',
         purchaseLineKind: 'vehicle',
+        lineCount: lineRows.length,
       },
     });
 

@@ -1,6 +1,8 @@
+
 "use client";
 
 import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { Plus, Trash2, Loader2 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -12,9 +14,7 @@ import {
 } from "@/lib/api/lease-contracts";
 import { FLEET_CLIENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
-import {
-    normalizePhoneForApi,
-} from "@/lib/format/phone-format";
+import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { ORG_EMAIL_PATTERN } from "@/lib/validation/org-input-constraints";
 import { showErrorToast } from "@/lib/toast/show-toast";
 
@@ -28,16 +28,22 @@ interface PointOfContact {
 
 interface CustomerRegistrationFormProps {
     initialCompanyName?: string;
-    /** May perform async wizard steps (e.g. draft contract); stay pending until settled. */
-    onSuccess?: (
-        customer: FleetClientDetail,
-    ) => void | Promise<void>;
+    /** May perform async wizard steps; stay pending until settled. */
+    onSuccess?: (customer: FleetClientDetail) => void | Promise<void>;
     onCancel?: () => void;
+}
+
+function createContactId(): string {
+    if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+        return crypto.randomUUID();
+    }
+
+    return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function emptyPoc(isPrimary: boolean): PointOfContact {
     return {
-        id: crypto.randomUUID(),
+        id: createContactId(),
         name: "",
         contactNumber: "",
         email: "",
@@ -66,37 +72,33 @@ export default function CustomerRegistrationForm({
     const phonePlaceholder = getInternationalPhonePlaceholder();
 
     const isSaveDisabled = useMemo(() => {
-        if (!companyName.trim()) {
+        if (!companyName.trim() || pointsOfContact.length === 0) {
             return true;
         }
-        if (pointsOfContact.length === 0) {
-            return true;
-        }
+
         const primaryCount = pointsOfContact.filter(
-            (p) => p.isPrimary,
+            (contact) => contact.isPrimary,
         ).length;
+
         if (primaryCount !== 1) {
             return true;
         }
-        for (const contact of pointsOfContact) {
-            if (!contact.name.trim()) {
-                return true;
-            }
-            if (!contact.contactNumber.trim()) {
-                return true;
-            }
-            if (
-                !contact.email.trim() ||
-                !ORG_EMAIL_PATTERN.test(contact.email.trim())
-            ) {
-                return true;
-            }
-        }
-        return false;
+
+        return pointsOfContact.some((contact) => {
+            const email = contact.email.trim();
+
+            return (
+                !contact.name.trim() ||
+                !contact.contactNumber.trim() ||
+                !email ||
+                !ORG_EMAIL_PATTERN.test(email)
+            );
+        });
     }, [companyName, pointsOfContact]);
 
     const addContact = () => {
         setFormError(null);
+
         setPointsOfContact((previous) => [
             ...previous,
             emptyPoc(false),
@@ -105,21 +107,19 @@ export default function CustomerRegistrationForm({
 
     const removeContact = (id: string) => {
         if (pointsOfContact.length === 1) {
-            setFormError(
-                "At least one point of contact is required.",
-            );
+            setFormError("At least one point of contact is required.");
             return;
         }
 
         const contactToRemove = pointsOfContact.find(
             (contact) => contact.id === id,
         );
-        const wasPrimary = contactToRemove?.isPrimary;
+
         const remainingContacts = pointsOfContact.filter(
             (contact) => contact.id !== id,
         );
 
-        if (wasPrimary && remainingContacts.length > 0) {
+        if (contactToRemove?.isPrimary && remainingContacts.length > 0) {
             remainingContacts[0] = {
                 ...remainingContacts[0],
                 isPrimary: true,
@@ -135,16 +135,17 @@ export default function CustomerRegistrationForm({
         patch: Partial<PointOfContact>,
     ) => {
         setFormError(null);
+
         setPointsOfContact((previous) =>
             previous.map((contact) =>
-                contact.id === id
-                    ? { ...contact, ...patch }
-                    : contact,
+                contact.id === id ? { ...contact, ...patch } : contact,
             ),
         );
     };
 
     const setPrimaryContact = (id: string) => {
+        setFormError(null);
+
         setPointsOfContact((previous) =>
             previous.map((contact) => ({
                 ...contact,
@@ -154,9 +155,12 @@ export default function CustomerRegistrationForm({
     };
 
     const handleSubmit = async (
-        event: React.FormEvent<HTMLFormElement>,
+        event: FormEvent<HTMLFormElement>,
     ) => {
         event.preventDefault();
+
+        if (isSubmitting) return;
+
         setFormError(null);
 
         if (!token || !organizationId) {
@@ -182,30 +186,28 @@ export default function CustomerRegistrationForm({
                 {
                     companyName: companyName.trim(),
                     taxId: taxId.trim() || undefined,
-                    pointsOfContact: pointsOfContact.map(
-                        (contact) => ({
-                            name: contact.name.trim(),
-                            contactNumber: normalizePhoneForApi(
-                                contact.contactNumber,
-                            ),
-                            email: contact.email
-                                .trim()
-                                .toLowerCase(),
-                            isPrimary: contact.isPrimary,
-                        }),
-                    ),
+                    pointsOfContact: pointsOfContact.map((contact) => ({
+                        name: contact.name.trim(),
+                        contactNumber: normalizePhoneForApi(
+                            contact.contactNumber,
+                        ),
+                        email: contact.email.trim().toLowerCase(),
+                        isPrimary: contact.isPrimary,
+                    })),
                 },
             );
 
             await onSuccess?.(created);
         } catch (error) {
-            setIsSubmitting(false);
             const message =
                 error instanceof Error
                     ? error.message
                     : "Failed to create client.";
+
             setFormError(message);
             showErrorToast(message);
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -221,12 +223,11 @@ export default function CustomerRegistrationForm({
                             >
                                 Client name *
                             </label>
+
                             <RestrictedInput
                                 id="lease-client-company-name"
                                 restrictedKind="name"
-                                maxLength={
-                                    FLEET_CLIENT_INPUT_LIMITS.companyName
-                                }
+                                maxLength={FLEET_CLIENT_INPUT_LIMITS.companyName}
                                 value={companyName}
                                 onChange={setCompanyName}
                                 placeholder="Sunrise Freight Co"
@@ -244,12 +245,11 @@ export default function CustomerRegistrationForm({
                                     (optional)
                                 </span>
                             </label>
+
                             <RestrictedInput
                                 id="lease-client-tax-id"
                                 restrictedKind="text"
-                                maxLength={
-                                    FLEET_CLIENT_INPUT_LIMITS.taxId
-                                }
+                                maxLength={FLEET_CLIENT_INPUT_LIMITS.taxId}
                                 value={taxId}
                                 onChange={setTaxId}
                                 placeholder="Optional"
@@ -282,23 +282,18 @@ export default function CustomerRegistrationForm({
 
                         <div className="divide-y divide-slate-100">
                             {pointsOfContact.map((contact, index) => (
-                                <div
-                                    key={contact.id}
-                                    className="px-3 py-3"
-                                >
+                                <div key={contact.id} className="px-3 py-3">
                                     <div className="mb-2 flex items-center justify-between md:hidden">
                                         <span className="text-xs font-semibold text-slate-700">
                                             Point of contact {index + 1}
                                         </span>
+
                                         {pointsOfContact.length > 1 && (
                                             <button
                                                 type="button"
-                                                onClick={() =>
-                                                    removeContact(
-                                                        contact.id,
-                                                    )
-                                                }
+                                                onClick={() => removeContact(contact.id)}
                                                 className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-500"
+                                                aria-label={`Remove point of contact ${index + 1}`}
                                             >
                                                 <Trash2 className="h-3.5 w-3.5" />
                                             </button>
@@ -310,17 +305,13 @@ export default function CustomerRegistrationForm({
                                             <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
                                                 Name
                                             </label>
+
                                             <RestrictedInput
                                                 restrictedKind="name"
-                                                maxLength={
-                                                    FLEET_CLIENT_INPUT_LIMITS.pocName
-                                                }
+                                                maxLength={FLEET_CLIENT_INPUT_LIMITS.pocName}
                                                 value={contact.name}
                                                 onChange={(name) =>
-                                                    updateContact(
-                                                        contact.id,
-                                                        { name },
-                                                    )
+                                                    updateContact(contact.id, { name })
                                                 }
                                                 placeholder="Arjun Mehta"
                                                 className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
@@ -331,27 +322,15 @@ export default function CustomerRegistrationForm({
                                             <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
                                                 Contact number
                                             </label>
+
                                             <RestrictedInput
                                                 restrictedKind="phone"
-                                                maxLength={
-                                                    FLEET_CLIENT_INPUT_LIMITS.pocPhone
+                                                maxLength={FLEET_CLIENT_INPUT_LIMITS.pocPhone}
+                                                value={contact.contactNumber}
+                                                onChange={(contactNumber) =>
+                                                    updateContact(contact.id, { contactNumber })
                                                 }
-                                                value={
-                                                    contact.contactNumber
-                                                }
-                                                onChange={(
-                                                    contactNumber,
-                                                ) =>
-                                                    updateContact(
-                                                        contact.id,
-                                                        {
-                                                            contactNumber,
-                                                        },
-                                                    )
-                                                }
-                                                placeholder={
-                                                    phonePlaceholder
-                                                }
+                                                placeholder={phonePlaceholder}
                                                 className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
                                             />
                                         </div>
@@ -360,17 +339,13 @@ export default function CustomerRegistrationForm({
                                             <label className="mb-1 block text-[10px] font-medium text-slate-500 md:hidden">
                                                 Email
                                             </label>
+
                                             <RestrictedInput
                                                 restrictedKind="email"
-                                                maxLength={
-                                                    FLEET_CLIENT_INPUT_LIMITS.pocEmail
-                                                }
+                                                maxLength={FLEET_CLIENT_INPUT_LIMITS.pocEmail}
                                                 value={contact.email}
                                                 onChange={(email) =>
-                                                    updateContact(
-                                                        contact.id,
-                                                        { email },
-                                                    )
+                                                    updateContact(contact.id, { email })
                                                 }
                                                 placeholder="name@company.com"
                                                 className="h-9 w-full rounded-md border border-slate-300 bg-white px-2.5 text-xs text-slate-800 outline-none placeholder:text-slate-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/15 sm:text-sm"
@@ -379,40 +354,31 @@ export default function CustomerRegistrationForm({
 
                                         <button
                                             type="button"
-                                            onClick={() =>
-                                                removeContact(
-                                                    contact.id,
-                                                )
-                                            }
-                                            disabled={
-                                                pointsOfContact.length ===
-                                                1
-                                            }
+                                            onClick={() => removeContact(contact.id)}
+                                            disabled={pointsOfContact.length === 1}
                                             className="hidden h-8 w-7 items-center justify-center self-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30 md:flex"
                                             title="Remove contact"
+                                            aria-label={`Remove point of contact ${index + 1}`}
                                         >
                                             <Trash2 className="h-3.5 w-3.5" />
                                         </button>
                                     </div>
 
-                                    {pointsOfContact.length > 1 ? (
+                                    {pointsOfContact.length > 1 && (
                                         <label className="mt-2.5 inline-flex cursor-pointer items-center gap-2">
                                             <input
                                                 type="radio"
                                                 name="primaryContact"
                                                 checked={contact.isPrimary}
-                                                onChange={() =>
-                                                    setPrimaryContact(
-                                                        contact.id,
-                                                    )
-                                                }
+                                                onChange={() => setPrimaryContact(contact.id)}
                                                 className="h-3.5 w-3.5 accent-[#FE5720]"
                                             />
+
                                             <span className="text-[11px] font-medium text-slate-600">
                                                 Primary POC
                                             </span>
                                         </label>
-                                    ) : null}
+                                    )}
                                 </div>
                             ))}
                         </div>
@@ -458,19 +424,17 @@ export default function CustomerRegistrationForm({
                         {isSubmitting && (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
                         )}
-                        {isSubmitting
-                            ? "Saving..."
-                            : "Save & continue"}
+
+                        {isSubmitting ? "Saving..." : "Save & continue"}
                     </Button>
                 </div>
             </section>
 
             <div className="mt-4 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:px-5">
                 <p className="text-[11px] leading-5 text-slate-500 sm:text-xs">
-                    A client can carry several POCs, each with their
-                    own name, contact number and email; exactly one is
-                    marked Primary. This is the same shared
-                    Customer/Client Register used across Organisation
+                    A client can carry several POCs, each with their own name,
+                    contact number and email; exactly one is marked Primary. This is
+                    the same shared Customer/Client Register used across Organisation
                     and every lease contract.
                 </p>
             </div>

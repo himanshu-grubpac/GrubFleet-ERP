@@ -17,6 +17,13 @@ export class AssetRegisterCatalogService {
   }
 
   /** True when an active class with this exact trimmed name exists in the org. */
+  async listActiveAssetClassesByIds(
+    organizationId: string,
+    assetClassIds: string[],
+  ) {
+    return this.repo.listActiveAssetClassesByIds(organizationId, assetClassIds);
+  }
+
   async activeAssetClassNameExists(
     organizationId: string,
     assetClassName: string,

@@ -29,6 +29,7 @@ import { CreateSaleInvoiceDto } from './dto/create-sale-invoice.dto';
 import { ListInvoicesQueryDto } from './dto/list-invoices-query.dto';
 import { RecordInvoicePaymentDto } from './dto/record-invoice-payment.dto';
 import { UpdateInvoiceDto } from './dto/update-invoice.dto';
+import { ListAssetClassesQueryDto } from '../asset-register/dto/list-asset-classes-query.dto';
 import { InvoicesService } from './invoices.service';
 
 @ApiTags('finance')
@@ -57,6 +58,17 @@ export class InvoicesController {
   })
   listPaymentMethods() {
     return this.invoices.listPaymentMethods();
+  }
+
+  @Get('asset-classes/catalog')
+  @RequireOrganizationContext()
+  @RequirePermissions(FinancePermissionKeys.VIEW)
+  @ApiOperation({
+    summary:
+      'Active asset classes for purchase vehicle invoice (id + spec label)',
+  })
+  listPurchaseAssetClassesCatalog(@Query() query: ListAssetClassesQueryDto) {
+    return this.invoices.listPurchaseAssetClassesCatalog(query);
   }
 
   @Get(':id')

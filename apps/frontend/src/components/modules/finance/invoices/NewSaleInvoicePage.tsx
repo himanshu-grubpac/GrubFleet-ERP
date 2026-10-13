@@ -14,7 +14,11 @@ import {
   fetchFinanceInvoiceDetailApi,
   updateFinanceInvoiceApi,
 } from "@/lib/api/finance/invoices";
-import { parseRupeeInputToMinor } from "@/lib/format/money-format";
+import {
+  formatRupeeInputDisplay,
+  INR_RUPEE_INPUT_PLACEHOLDER,
+  parseRupeeInputToMinor,
+} from "@/lib/format/money-format";
 import {
   financeInvoiceDetailHref,
   financeInvoiceNewTypeHref,
@@ -65,7 +69,9 @@ export default function NewSaleInvoicePage() {
     if (!data || data.invoiceType !== "sale") return;
     setBuyerName(data.partyName);
     setBuyerEmail(data.partyEmail ?? "");
-    setSaleAmount(String(data.totalAmountMinor / 100));
+    setSaleAmount(
+      formatRupeeInputDisplay(String(data.totalAmountMinor / 100)),
+    );
     setInvoiceDate(data.invoiceDate);
     setNotes(data.notes ?? "");
     if (data.vehicleId) setVehicleId(data.vehicleId);
@@ -264,10 +270,10 @@ export default function NewSaleInvoicePage() {
               Sale amount (₹) *
             </label>
             <RestrictedInput
-              restrictedKind="text"
+              restrictedKind="inrRupee"
               value={saleAmount}
               onChange={setSaleAmount}
-              placeholder="e.g. 150000"
+              placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
             />
           </div>
 

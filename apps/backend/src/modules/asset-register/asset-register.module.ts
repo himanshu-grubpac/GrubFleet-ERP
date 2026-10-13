@@ -4,12 +4,11 @@ import { FleetLeasingModule } from '../fleet-leasing/fleet-leasing.module';
 import { AssetRegisterCatalogService } from './asset-register-catalog.service';
 import { AssetRegisterAssignmentsController } from './asset-register-assignments.controller';
 import { AssetRegisterAssignmentsService } from './asset-register-assignments.service';
+import { AssetRegisterCatalogController } from './asset-register-catalog.controller';
 import { AssetRegisterComplianceController } from './asset-register-compliance.controller';
 import { AssetRegisterComplianceService } from './asset-register-compliance.service';
 import { AssetClassesController } from './asset-classes.controller';
 import { AssetClassesService } from './asset-classes.service';
-import { AssetMastersController } from './asset-masters.controller';
-import { AssetMastersService } from './asset-masters.service';
 import { AssetRegisterVehiclesController } from './asset-register-vehicles.controller';
 import { AssetRegisterVehiclesService } from './asset-register-vehicles.service';
 import { AssetRegisterRepository } from './repositories/asset-register.repository';
@@ -18,15 +17,14 @@ import { AssetRegisterRepository } from './repositories/asset-register.repositor
   imports: [AuditModule, forwardRef(() => FleetLeasingModule)],
   controllers: [
     AssetClassesController,
-    AssetMastersController,
     AssetRegisterVehiclesController,
     AssetRegisterAssignmentsController,
     AssetRegisterComplianceController,
+    AssetRegisterCatalogController,
   ],
   providers: [
     AssetRegisterRepository,
     AssetClassesService,
-    AssetMastersService,
     AssetRegisterVehiclesService,
     AssetRegisterAssignmentsService,
     AssetRegisterComplianceService,
@@ -35,7 +33,6 @@ import { AssetRegisterRepository } from './repositories/asset-register.repositor
   exports: [
     AssetRegisterRepository,
     AssetClassesService,
-    AssetMastersService,
     AssetRegisterVehiclesService,
     AssetRegisterAssignmentsService,
     AssetRegisterComplianceService,

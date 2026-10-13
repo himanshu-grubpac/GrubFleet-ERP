@@ -15,6 +15,7 @@ import {
 } from "@/lib/api/finance/invoices";
 import {
   formatInrFromMinor,
+  INR_RUPEE_INPUT_PLACEHOLDER,
   parseRupeeInputToMinor,
 } from "@/lib/format/money-format";
 import {
@@ -211,10 +212,10 @@ export default function RecordPaymentPage() {
             Amount (₹) *
           </label>
           <RestrictedInput
-            restrictedKind="text"
+            restrictedKind="inrRupee"
             value={amount}
             onChange={setAmount}
-            placeholder={`Max ${formatInrFromMinor(maxPaymentMinor)}`}
+            placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
           />
         </div>
         <div>
