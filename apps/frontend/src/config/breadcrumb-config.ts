@@ -380,6 +380,184 @@ export const breadcrumbConfig: Record<
         },
     ],
 
+
+
+    // ============================================================
+    // FINANCE
+    // ============================================================
+
+    "/finance": [
+        {
+            label: "Finance",
+        },
+    ],
+
+    // ----------------------------
+    // Invoices
+    // ----------------------------
+
+    "/finance/invoices": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+        },
+    ],
+
+    "/finance/invoices/new": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+        },
+    ],
+
+    "/finance/invoices/new/purchase": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+            href: "/finance/invoices/new",
+        },
+        {
+            label: "Purchase",
+        },
+    ],
+
+    "/finance/invoices/new/sale": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+            href: "/finance/invoices/new",
+        },
+        {
+            label: "Sale",
+        },
+    ],
+
+    "/finance/invoices/new/billing": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+            href: "/finance/invoices/new",
+        },
+        {
+            label: "Billing",
+        },
+    ],
+
+    "/finance/invoices/detail": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "Invoice Details",
+        },
+    ],
+
+    // ----------------------------
+    // Client Statements
+    // ----------------------------
+
+    "/finance/client-statements": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Client Statements",
+        },
+    ],
+
+    "/finance/client-statements/detail": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Client Statements",
+            href: "/finance/client-statements",
+        },
+        {
+            label: "Statement Details",
+        },
+    ],
+
+    // ----------------------------
+    // Vendor Payments
+    // ----------------------------
+
+    "/finance/vendor-payments": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Vendor Payments",
+        },
+    ],
+
+    "/finance/vendor-payments/record": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Vendor Payments",
+            href: "/finance/vendor-payments",
+        },
+        {
+            label: "Record Payment",
+        },
+    ],
+
+    "/finance/vendor-payments/detail": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Vendor Payments",
+            href: "/finance/vendor-payments",
+        },
+        {
+            label: "Payment Details",
+        },
+    ],
+
     // ============================================================
     // CUSTOMERS
     // ============================================================
