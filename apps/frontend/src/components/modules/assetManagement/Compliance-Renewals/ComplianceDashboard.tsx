@@ -87,12 +87,14 @@ export default function ComplianceDashboardPage() {
                 throw new Error("Missing auth context");
             }
 
+            const complianceStatus = mapComplianceFilterToApi(activeFilter);
+
             return fetchAssetRegisterComplianceListApi({
                 token,
                 organizationId,
                 page: currentPage,
                 pageSize: PAGE_SIZE,
-
+                complianceStatus,
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,

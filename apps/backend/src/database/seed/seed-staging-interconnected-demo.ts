@@ -1126,13 +1126,15 @@ export async function seedStagingInterconnectedDemo(
   });
 
   const vehicleIds = new Map<string, string>();
+  /** Must stay >= CURRENT_DATE on staging so replacement/candidate APIs return brands. */
+  const complianceEndYear = SEED_DOC_YEAR + 2;
   const dateSpan = {
     registrationStartDate: '2025-01-01',
-    registrationEndDate: '2030-01-01',
+    registrationEndDate: '2030-12-31',
     insuranceStartDate: '2025-01-01',
-    insuranceEndDate: '2026-01-01',
+    insuranceEndDate: `${complianceEndYear}-12-31`,
     warrantyStartDate: '2025-01-01',
-    warrantyEndDate: '2027-01-01',
+    warrantyEndDate: `${complianceEndYear}-12-31`,
   };
 
   for (const seed of vehicleSeeds) {
@@ -1150,6 +1152,15 @@ export async function seedStagingInterconnectedDemo(
       )
       .limit(1);
     if (existing) {
+      await db
+        .update(assetRegisterVehicles)
+        .set({
+          registrationEndDate: dateSpan.registrationEndDate,
+          insuranceEndDate: dateSpan.insuranceEndDate,
+          insuranceStartDate: dateSpan.insuranceStartDate,
+          registrationStartDate: dateSpan.registrationStartDate,
+        })
+        .where(eq(assetRegisterVehicles.id, existing.id));
       vehicleIds.set(seed.key, existing.id);
       bump('vehicles', false);
       continue;
@@ -1372,6 +1383,74 @@ export async function seedStagingInterconnectedDemo(
     } else {
       bump('leaseAssignments', false);
     }
+  }
+
+  /** Spare units for Support → replacement filter (available + compliant, never assigned). */
+  const replacementPoolSeeds = [
+    {
+      fleetCode: 'GF-STG-RPL-2W',
+      classKey: 'scooter-2w-a',
+      registrationNumber: 'KA01ST2001',
+    },
+    {
+      fleetCode: 'GF-STG-RPL-3W',
+      classKey: 'auto-3w-a',
+      registrationNumber: 'MH12ST3001',
+    },
+    {
+      fleetCode: 'GF-STG-RPL-4W',
+      classKey: 'lcv-4w-a',
+      registrationNumber: 'DL01ST4001',
+    },
+  ] as const;
+  for (const pool of replacementPoolSeeds) {
+    const classRef = assetClassIds.get(pool.classKey);
+    if (!classRef) continue;
+    const [existingPool] = await db
+      .select({ id: assetRegisterVehicles.id })
+      .from(assetRegisterVehicles)
+      .where(
+        and(
+          eq(assetRegisterVehicles.organizationId, organizationId),
+          eq(assetRegisterVehicles.fleetCode, pool.fleetCode),
+        ),
+      )
+      .limit(1);
+    let poolVehicleId = existingPool?.id;
+    if (!poolVehicleId) {
+      const [inserted] = await db
+        .insert(assetRegisterVehicles)
+        .values({
+          organizationId,
+          assetClassId: classRef.id,
+          assetMasterId: null,
+          fleetCode: pool.fleetCode,
+          registrationNumber: pool.registrationNumber,
+          chassisNumber: `MAT${pool.fleetCode.replace(/-/g, '')}0000001`,
+          modelYear: 2024,
+          odometer: 8000,
+          ...dateSpan,
+          insurancePremium: '9200.00',
+          specialNotes: `${STAGING_DEMO_SEED_SOURCE} support-replacement-pool`,
+          operationalStatus: 'available',
+          isActive: true,
+        })
+        .returning({ id: assetRegisterVehicles.id });
+      poolVehicleId = inserted.id;
+      bump('vehicles', true);
+    } else {
+      await db
+        .update(assetRegisterVehicles)
+        .set({
+          operationalStatus: 'available',
+          isActive: true,
+          assetClassId: classRef.id,
+          ...dateSpan,
+        })
+        .where(eq(assetRegisterVehicles.id, poolVehicleId));
+      bump('vehicles', false);
+    }
+    vehicleIds.set(`pool-${pool.fleetCode}`, poolVehicleId);
   }
 
   for (const seed of driverSeeds) {

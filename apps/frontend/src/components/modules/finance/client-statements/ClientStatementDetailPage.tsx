@@ -130,10 +130,7 @@ export default function ClientStatementDetailPage() {
   if (!clientId) {
     return (
       <OrganizationViewLayout>
-        <SubPageBackLink
-          href={financeClientStatementsListHref}
-          label="Back to client statements"
-        />
+
         <p className="text-sm text-slate-600">Missing client id.</p>
       </OrganizationViewLayout>
     );
@@ -150,10 +147,7 @@ export default function ClientStatementDetailPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <OrganizationViewLayout>
-        <SubPageBackLink
-          href={financeClientStatementsListHref}
-          label="Back to client statements"
-        />
+
         <p className="text-sm text-red-700">Client statement not found.</p>
       </OrganizationViewLayout>
     );
@@ -166,10 +160,7 @@ export default function ClientStatementDetailPage() {
 
   return (
     <OrganizationViewLayout>
-      <SubPageBackLink
-        href={financeClientStatementsListHref}
-        label="Back to client statements"
-      />
+
 
       <div className="mb-4 flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -239,11 +230,10 @@ export default function ClientStatementDetailPage() {
           <div>
             <dt className="text-xs font-medium text-slate-500">Balance due</dt>
             <dd
-              className={`mt-1 text-sm font-semibold ${
-                summary.balanceDueMinor > 0
+              className={`mt-1 text-sm font-semibold ${summary.balanceDueMinor > 0
                   ? "text-[#FE5720]"
                   : "text-slate-900"
-              }`}
+                }`}
             >
               {formatInrFromMinor(summary.balanceDueMinor)}
             </dd>
