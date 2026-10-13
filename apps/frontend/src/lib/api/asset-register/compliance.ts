@@ -37,6 +37,7 @@ export async function fetchAssetRegisterComplianceListApi(params: {
   page?: number;
   pageSize?: number;
   search?: string;
+  complianceStatus?: AssetRegisterComplianceFilterStatus;
 }): Promise<PaginatedResponse<AssetRegisterComplianceListItem>> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
@@ -46,6 +47,10 @@ export async function fetchAssetRegisterComplianceListApi(params: {
 
   if (params.search?.trim()) {
     q.set("search", params.search.trim());
+  }
+
+  if (params.complianceStatus) {
+    q.set("complianceStatus", params.complianceStatus);
   }
 
   return apiFetch<PaginatedResponse<AssetRegisterComplianceListItem>>(
