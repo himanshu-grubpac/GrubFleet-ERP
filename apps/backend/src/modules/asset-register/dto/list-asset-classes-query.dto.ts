@@ -41,7 +41,7 @@ export class ListAssetClassesQueryDto {
   pageSize?: number = DEFAULT_PAGE_SIZE;
 
   @ApiPropertyOptional({
-    description: 'Search by class name or class code',
+    description: 'Search by class name or spec fields (brand, model)',
   })
   @IsOptional()
   @IsString()

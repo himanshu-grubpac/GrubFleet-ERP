@@ -322,61 +322,47 @@ export const breadcrumbConfig: Record<
         },
     ],
 
-    "/fleet-leasing/lease-contracts": [
+    "/fleet-leasing/support": [
         {
             label: "Fleet Leasing",
             href: "/fleet-leasing",
         },
         {
-            label: "Lease Contracts",
+            label: "Support",
         },
     ],
 
-    "/fleet-leasing/lease-contracts/detail/change-history": [
+    "/fleet-leasing/support/vehicle-replacement": [
         {
             label: "Fleet Leasing",
             href: "/fleet-leasing",
         },
         {
-            label: "Lease Contracts",
-            href: "/fleet-leasing/lease-contracts",
+            label: "Support",
+            href: "/fleet-leasing/support",
         },
         {
-            label: "Change history",
+            label: "Vehicle replacement",
         },
     ],
 
-    "/fleet-leasing/renewals-extensions": [
+    // ============================================================
+    // CUSTOMERS
+    // ============================================================
+
+    "/customers": [
         {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
-        },
-        {
-            label: "Renewals & Extensions",
+            label: "Customers",
         },
     ],
 
-    "/fleet-leasing/renewals-extensions/renew": [
+    "/customers/corporate": [
         {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
+            label: "Customers",
+            href: "/customers",
         },
         {
-            label: "Renewals & Extensions",
-            href: "/fleet-leasing/renewals-extensions",
-        },
-        {
-            label: "Renew contract",
-        },
-    ],
-
-    "/fleet-leasing/returns-inspections": [
-        {
-            label: "Fleet Leasing",
-            href: "/fleet-leasing",
-        },
-        {
-            label: "Returns & Inspections",
+            label: "Corporate Customers",
         },
     ],
 
@@ -418,14 +404,150 @@ export const breadcrumbConfig: Record<
         },
     ],
 
+
+
     // ============================================================
     // FINANCE
     // ============================================================
 
+    "/finance": [
+        {
+            label: "Finance",
+        },
+    ],
+
+    // ----------------------------
+    // Invoices
+    // ----------------------------
+
+    "/finance/invoices": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+        },
+    ],
+
+    "/finance/invoices/new": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+        },
+    ],
+
+    "/finance/invoices/new/purchase": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+            href: "/finance/invoices/new",
+        },
+        {
+            label: "Purchase",
+        },
+    ],
+
+    "/finance/invoices/new/sale": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+            href: "/finance/invoices/new",
+        },
+        {
+            label: "Sale",
+        },
+    ],
+
+    "/finance/invoices/new/billing": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "New Invoice",
+            href: "/finance/invoices/new",
+        },
+        {
+            label: "Billing",
+        },
+    ],
+
+    "/finance/invoices/detail": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Invoices",
+            href: "/finance/invoices",
+        },
+        {
+            label: "Invoice Details",
+        },
+    ],
+
+    // ----------------------------
+    // Client Statements
+    // ----------------------------
+
+    "/finance/client-statements": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Client Statements",
+        },
+    ],
+
+    "/finance/client-statements/detail": [
+        {
+            label: "Finance",
+            href: "/finance",
+        },
+        {
+            label: "Client Statements",
+            href: "/finance/client-statements",
+        },
+        {
+            label: "Statement Details",
+        },
+    ],
+
+    // ----------------------------
+    // Vendor Payments
+    // ----------------------------
+
     "/finance/vendor-payments": [
         {
             label: "Finance",
-            href: "/finance/invoices",
+            href: "/finance",
         },
         {
             label: "Vendor Payments",
@@ -435,7 +557,7 @@ export const breadcrumbConfig: Record<
     "/finance/vendor-payments/record": [
         {
             label: "Finance",
-            href: "/finance/invoices",
+            href: "/finance",
         },
         {
             label: "Vendor Payments",
@@ -449,38 +571,18 @@ export const breadcrumbConfig: Record<
     "/finance/vendor-payments/detail": [
         {
             label: "Finance",
-            href: "/finance/invoices",
+            href: "/finance",
         },
         {
             label: "Vendor Payments",
             href: "/finance/vendor-payments",
         },
         {
-            label: "Payment detail",
+            label: "Payment Details",
         },
     ],
 
-    "/finance/client-statements": [
-        {
-            label: "Finance",
-            href: "/finance/invoices",
-        },
-        {
-            label: "Client Statements",
-        },
-    ],
-
-    "/finance/client-statements/detail": [
-        {
-            label: "Finance",
-            href: "/finance/invoices",
-        },
-        {
-            label: "Client Statements",
-            href: "/finance/client-statements",
-        },
-        {
-            label: "Client detail",
-        },
-    ],
+    // ============================================================
+    // CUSTOMERS
+    // ============================================================
 };

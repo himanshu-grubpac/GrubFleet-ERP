@@ -14,5 +14,6 @@ npx playwright test
 | `asset-register-asset-classes-smoke.spec.ts` | Login → asset class list |
 | `lease-contracts-smoke.spec.ts` | Login → lease contracts list |
 | `administration-roles-hierarchy-smoke.spec.ts` | Login → roles hierarchy |
+| `finance-invoices-smoke.spec.ts` | Login → invoices list → new purchase (vehicle tab + summary) |
 
 Manual QA sign-off remains user-owned (see `.project-tracking/TASKS.local.md`).

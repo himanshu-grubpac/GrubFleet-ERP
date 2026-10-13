@@ -2,12 +2,9 @@ import type {
   AssetRegisterAssetClassDetail,
   AssetRegisterVehicleTypeApi,
 } from "./asset-classes";
-import type { AssetRegisterAssetMasterDetail } from "./asset-masters";
 import type { AssetRegisterComplianceFilterStatus } from "./compliance";
 import type { AssetRegisterVehicleDetail } from "./vehicles";
 import type { AssetClassFormData } from "@/components/modules/assetManagement/asset-register/AssetFormPage";
-import type { AssetClassOption } from "@/components/modules/assetManagement/asset-Master/CreateAssetMasterForm";
-import type { AssetMasterFormData } from "@/components/modules/assetManagement/asset-Master/CreateAssetMasterForm";
 import type { FleetVehicleFormData } from "@/components/modules/assetManagement/fleet-management/FleetFormPage";
 
 /** Maps API vehicle type to existing list UI labels (no layout change). */
@@ -41,20 +38,249 @@ export function uiVehicleTypeLabelToApi(
   return "3W";
 }
 
+/** Prefer structured API list; fall back to legacy paragraph storage. */
+export function intakeChecklistItemsForDisplay(detail: {
+  intakeChecklistItems?: string[];
+  defaultIntakeChecklist?: string | null;
+}): string[] {
+  const items = detail.intakeChecklistItems?.filter((line) => line.trim()) ?? [];
+  if (items.length > 0) {
+    return items;
+  }
+  const legacy = detail.defaultIntakeChecklist?.trim();
+  if (!legacy) {
+    return [];
+  }
+  if (legacy.startsWith("[")) {
+    try {
+      const parsed = JSON.parse(legacy) as unknown;
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+    } catch {
+      /* fall through to line split */
+    }
+  }
+  return legacy
+    .split(/\n+/)
+    .map((line) => line.replace(/^[\d.)]+\s*/, "").trim())
+    .filter(Boolean);
+}
+
+function optionalTrimmed(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function optionalIntFromForm(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  return Number(trimmed);
+}
+
+function numericFieldToFormString(
+  value: string | number | null | undefined,
+): string {
+  if (value == null) return "";
+  const asString = String(value).trim();
+  return asString;
+}
+
+function trimAssetClassFormField(
+  value: string | number | null | undefined,
+): string {
+  if (value == null) return "";
+  return String(value).trim();
+}
+
+function parseNonNegativeFormNumber(value: string): number | null {
+  const trimmed = trimAssetClassFormField(value);
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return parsed;
+}
+
+/** Optional spec fields — mirrors create/update DTO bounds. */
+export function validateAssetClassOptionalSpecFields(
+  form: AssetClassFormData,
+): string | null {
+  const yearStr = form.manufacturingYear.trim();
+  if (yearStr) {
+    const year = Number(yearStr);
+    if (!Number.isInteger(year) || year < 1980 || year > 2100) {
+      return "Manufacturing year must be between 1980 and 2100, or leave it empty.";
+    }
+  }
+  const ccStr = form.engineDisplacementCc.trim();
+  if (ccStr) {
+    const cc = Number(ccStr);
+    if (!Number.isInteger(cc) || cc < 1) {
+      return "CC must be a whole number of at least 1, or leave it empty.";
+    }
+  }
+  return null;
+}
+
+export type AssetClassFormFieldKey =
+  | "vehicleType"
+  | "fuelType"
+  | "manufacturingYear"
+  | "engineDisplacementCc"
+  | "mileageFrom"
+  | "mileageTo"
+  | "mileageUnit"
+  | "fuelTankCapacity"
+  | "ratedLoadCapacityFrom"
+  | "ratedLoadCapacityTo"
+  | "intakeChecklistItems";
+
+export type AssetClassFormFieldErrors = Partial<
+  Record<AssetClassFormFieldKey, string>
+>;
+
+const ASSET_CLASS_FIELD_ERROR_ORDER: AssetClassFormFieldKey[] = [
+  "vehicleType",
+  "fuelType",
+  "manufacturingYear",
+  "engineDisplacementCc",
+  "mileageFrom",
+  "mileageTo",
+  "mileageUnit",
+  "fuelTankCapacity",
+  "ratedLoadCapacityFrom",
+  "ratedLoadCapacityTo",
+  "intakeChecklistItems",
+];
+
+/** Per-field client validation aligned with CreateAssetClassDto. */
+export function validateAssetClassFormFields(
+  form: AssetClassFormData,
+  options?: { isSaving?: boolean },
+): AssetClassFormFieldErrors {
+  if (options?.isSaving) {
+    return {};
+  }
+
+  const errors: AssetClassFormFieldErrors = {};
+
+  const optionalSpecError = validateAssetClassOptionalSpecFields(form);
+  if (optionalSpecError) {
+    if (optionalSpecError.includes("Manufacturing year")) {
+      errors.manufacturingYear = optionalSpecError;
+    } else if (optionalSpecError.includes("CC")) {
+      errors.engineDisplacementCc = optionalSpecError;
+    }
+  }
+
+  if (!trimAssetClassFormField(form.vehicleType)) {
+    errors.vehicleType = "Vehicle type is required.";
+  }
+  if (!trimAssetClassFormField(form.fuelType)) {
+    errors.fuelType = "Fuel type is required.";
+  }
+
+  const mileageFrom = parseNonNegativeFormNumber(form.mileageFrom);
+  const mileageTo = parseNonNegativeFormNumber(form.mileageTo);
+  const fuelTankCapacity = parseNonNegativeFormNumber(form.fuelTankCapacity);
+  const ratedLoadFrom = parseNonNegativeFormNumber(form.ratedLoadCapacityFrom);
+  const ratedLoadTo = parseNonNegativeFormNumber(form.ratedLoadCapacityTo);
+
+  if (mileageFrom === null) {
+    errors.mileageFrom = "Mileage from is required.";
+  }
+  if (mileageTo === null) {
+    errors.mileageTo = "Mileage to is required.";
+  }
+  if (!trimAssetClassFormField(form.mileageUnit)) {
+    errors.mileageUnit = "Mileage unit is required.";
+  }
+  if (fuelTankCapacity === null) {
+    errors.fuelTankCapacity = "Fuel tank capacity is required.";
+  }
+  if (ratedLoadFrom === null) {
+    errors.ratedLoadCapacityFrom = "Rated load capacity (From) is required.";
+  }
+  if (ratedLoadTo === null) {
+    errors.ratedLoadCapacityTo = "Rated load capacity (To) is required.";
+  }
+  if (form.intakeChecklistItems.length === 0) {
+    errors.intakeChecklistItems =
+      "Select at least one default intake checklist item.";
+  }
+  if (
+    mileageFrom !== null &&
+    mileageTo !== null &&
+    mileageFrom > mileageTo
+  ) {
+    errors.mileageTo = "Mileage from cannot be greater than mileage to.";
+  }
+  if (
+    ratedLoadFrom !== null &&
+    ratedLoadTo !== null &&
+    ratedLoadFrom > ratedLoadTo
+  ) {
+    errors.ratedLoadCapacityTo =
+      "Rated load capacity from cannot be greater than rated load capacity to.";
+  }
+
+  return errors;
+}
+
+export type AssetClassFormSubmitValidation = {
+  canSubmit: boolean;
+  /** First blocking reason (legacy / tests). */
+  blockReason: string | null;
+};
+
+/** Client gate aligned with CreateAssetClassDto required fields. */
+export function validateAssetClassFormForSubmit(
+  form: AssetClassFormData,
+  options?: { isSaving?: boolean },
+): AssetClassFormSubmitValidation {
+  if (options?.isSaving) {
+    return { canSubmit: false, blockReason: null };
+  }
+
+  const fieldErrors = validateAssetClassFormFields(form);
+  for (const key of ASSET_CLASS_FIELD_ERROR_ORDER) {
+    const message = fieldErrors[key];
+    if (message) {
+      return { canSubmit: false, blockReason: message };
+    }
+  }
+
+  return { canSubmit: true, blockReason: null };
+}
+
 export function assetClassDetailToFormData(
   detail: AssetRegisterAssetClassDetail,
 ): AssetClassFormData {
   return {
     name: detail.name,
-    classCode: detail.code,
+    brand: detail.brand,
+    modelName: detail.modelName,
+    manufacturingYear:
+      detail.manufacturingYear > 0 ? String(detail.manufacturingYear) : "",
+    engineDisplacementCc:
+      detail.engineDisplacementCc > 0
+        ? String(detail.engineDisplacementCc)
+        : "",
+    fuelSystem: detail.fuelSystem,
+    color: detail.color,
+    colorCode: detail.colorCode,
     vehicleType: mapAssetRegisterVehicleTypeToUiLabel(detail.vehicleType),
     fuelType: detail.fuelType,
-    mileageFrom: detail.mileageFrom ?? "",
-    mileageTo: detail.mileageTo ?? "",
-    mileageUnit: detail.mileageUnit ?? "",
-    fuelTankCapacity: detail.fuelTankCapacity,
-    ratedLoadCapacityFrom: detail.ratedLoadFrom,
-    ratedLoadCapacityTo: detail.ratedLoadTo,
+    mileageFrom: numericFieldToFormString(detail.mileageFrom),
+    mileageTo: numericFieldToFormString(detail.mileageTo),
+    mileageUnit: detail.mileageUnit?.trim() || "km/L",
+    fuelTankCapacity: numericFieldToFormString(detail.fuelTankCapacity),
+    ratedLoadCapacityFrom: numericFieldToFormString(detail.ratedLoadFrom),
+    ratedLoadCapacityTo: numericFieldToFormString(detail.ratedLoadTo),
+    intakeChecklistItems: intakeChecklistItemsForDisplay(detail),
     defaultIntakeChecklist: detail.defaultIntakeChecklist || "",
     notes: detail.description ?? "",
   };
@@ -64,20 +290,40 @@ export function assetClassFormToCreatePayload(
   organizationId: string,
   data: AssetClassFormData,
 ) {
-  return {
-    organizationId,
-    name: data.name.trim(),
-    description: data.notes.trim() || undefined,
-    vehicleType: uiVehicleTypeLabelToApi(data.vehicleType),
-    fuelType: data.fuelType.trim(),
-    mileageFrom: data.mileageFrom ? Number(data.mileageFrom) : undefined,
-    mileageTo: data.mileageTo ? Number(data.mileageTo) : undefined,
-    mileageUnit: data.mileageUnit.trim() || undefined,
-    fuelTankCapacity: Number(data.fuelTankCapacity),
-    ratedLoadFrom: Number(data.ratedLoadCapacityFrom),
-    ratedLoadTo: Number(data.ratedLoadCapacityTo),
-    defaultIntakeChecklist: data.defaultIntakeChecklist.trim() || undefined,
-  };
+  const payload: import("./asset-classes").CreateAssetRegisterAssetClassPayload =
+    {
+      organizationId,
+      vehicleType: uiVehicleTypeLabelToApi(data.vehicleType),
+      fuelType: data.fuelType.trim(),
+      mileageFrom: Number(data.mileageFrom),
+      mileageTo: Number(data.mileageTo),
+      mileageUnit: data.mileageUnit.trim(),
+      fuelTankCapacity: Number(data.fuelTankCapacity),
+      ratedLoadFrom: Number(data.ratedLoadCapacityFrom),
+      ratedLoadTo: Number(data.ratedLoadCapacityTo),
+      intakeChecklistItems: data.intakeChecklistItems,
+    };
+  const brand = optionalTrimmed(data.brand);
+  if (brand) payload.brand = brand;
+  const modelName = optionalTrimmed(data.modelName);
+  if (modelName) payload.modelName = modelName;
+  const manufacturingYear = optionalIntFromForm(data.manufacturingYear);
+  if (manufacturingYear !== undefined) {
+    payload.manufacturingYear = manufacturingYear;
+  }
+  const engineDisplacementCc = optionalIntFromForm(data.engineDisplacementCc);
+  if (engineDisplacementCc !== undefined) {
+    payload.engineDisplacementCc = engineDisplacementCc;
+  }
+  const fuelSystem = optionalTrimmed(data.fuelSystem);
+  if (fuelSystem) payload.fuelSystem = fuelSystem;
+  const color = optionalTrimmed(data.color);
+  if (color) payload.color = color;
+  const colorCode = optionalTrimmed(data.colorCode);
+  if (colorCode) payload.colorCode = colorCode;
+  const description = optionalTrimmed(data.notes);
+  if (description) payload.description = description;
+  return payload;
 }
 
 export function formatAssetRegisterIsoDate(iso: string | null | undefined): string {
@@ -131,59 +377,12 @@ export function formatRatedLoadRange(from: string | null, to: string | null): st
   return "—";
 }
 
-export function assetClassDetailToMasterOption(
-  detail: AssetRegisterAssetClassDetail,
-): AssetClassOption {
-  return {
-    id: detail.id,
-    name: detail.name,
-    classCode: detail.code,
-    vehicleType: mapAssetRegisterVehicleTypeToUiLabel(detail.vehicleType),
-    fuelType: detail.fuelType,
-    mileageFrom: detail.mileageFrom ?? "",
-    mileageTo: detail.mileageTo ?? "",
-    mileageUnit: detail.mileageUnit ?? "",
-    fuelTankCapacity: detail.fuelTankCapacity,
-    ratedLoadCapacityFrom: detail.ratedLoadFrom,
-    ratedLoadCapacityTo: detail.ratedLoadTo,
-    defaultIntakeChecklist: detail.defaultIntakeChecklist || "",
-    notes: detail.description ?? "",
-  };
-}
-
-export function assetMasterDetailToFormData(
-  detail: AssetRegisterAssetMasterDetail,
-): AssetMasterFormData {
-  const spec = detail.classSpec;
-  return {
-    id: detail.id,
-    assetClassId: detail.assetClassId,
-    assetClassName: detail.assetClassName,
-    vehicleName: detail.name,
-    vehicleType: spec
-      ? mapAssetRegisterVehicleTypeToUiLabel(
-            spec.vehicleType as AssetRegisterVehicleTypeApi,
-        )
-      : "",
-    fuelType: spec?.fuelType ?? "",
-    mileageFrom: spec?.mileageFrom ?? "",
-    mileageTo: spec?.mileageTo ?? "",
-    mileageUnit: spec?.mileageUnit ?? "",
-    fuelTankCapacity: spec?.fuelTankCapacity ?? "",
-    ratedLoadCapacityFrom: spec?.ratedLoadFrom ?? "",
-    ratedLoadCapacityTo: spec?.ratedLoadTo ?? "",
-    defaultIntakeChecklist: "",
-    notes: "",
-  };
-}
-
 export function vehicleDetailToFleetFormData(
   detail: AssetRegisterVehicleDetail,
 ): FleetVehicleFormData {
   return {
     assetClassId: detail.assetClassId,
-    assetMasterId: detail.assetMasterId,
-    vehicleName: detail.assetMasterName,
+    vehicleName: detail.assetClassName,
     purchaseInvoiceId: detail.purchaseInvoiceId ?? "",
     registrationNumber: detail.registrationNumber,
     chassisNumber: detail.chassisNumber,
@@ -208,7 +407,6 @@ export function fleetFormToCreateVehiclePayload(
   return {
     organizationId,
     assetClassId: form.assetClassId,
-    assetMasterId: form.assetMasterId,
     registrationNumber: form.registrationNumber.trim(),
     chassisNumber: form.chassisNumber.trim(),
     modelYear: Number(form.modelYear),
@@ -227,7 +425,6 @@ export function fleetFormToCreateVehiclePayload(
 
 export function fleetFormToUpdateVehiclePayload(form: FleetVehicleFormData) {
   return {
-    assetMasterId: form.assetMasterId,
     registrationNumber: form.registrationNumber.trim(),
     chassisNumber: form.chassisNumber.trim(),
     modelYear: Number(form.modelYear),
@@ -245,17 +442,41 @@ export function fleetFormToUpdateVehiclePayload(form: FleetVehicleFormData) {
 }
 
 export function assetClassFormToUpdatePayload(data: AssetClassFormData) {
-  return {
-    name: data.name.trim(),
-    description: data.notes.trim() || undefined,
+  const payload: Partial<
+    Omit<
+      import("./asset-classes").CreateAssetRegisterAssetClassPayload,
+      "organizationId"
+    >
+  > = {
     vehicleType: uiVehicleTypeLabelToApi(data.vehicleType),
     fuelType: data.fuelType.trim(),
-    mileageFrom: data.mileageFrom ? Number(data.mileageFrom) : undefined,
-    mileageTo: data.mileageTo ? Number(data.mileageTo) : undefined,
-    mileageUnit: data.mileageUnit.trim() || undefined,
+    mileageFrom: Number(data.mileageFrom),
+    mileageTo: Number(data.mileageTo),
+    mileageUnit: data.mileageUnit.trim(),
     fuelTankCapacity: Number(data.fuelTankCapacity),
     ratedLoadFrom: Number(data.ratedLoadCapacityFrom),
     ratedLoadTo: Number(data.ratedLoadCapacityTo),
-    defaultIntakeChecklist: data.defaultIntakeChecklist.trim() || undefined,
+    intakeChecklistItems: data.intakeChecklistItems,
   };
+  const brand = optionalTrimmed(data.brand);
+  if (brand) payload.brand = brand;
+  const modelName = optionalTrimmed(data.modelName);
+  if (modelName) payload.modelName = modelName;
+  const manufacturingYear = optionalIntFromForm(data.manufacturingYear);
+  if (manufacturingYear !== undefined) {
+    payload.manufacturingYear = manufacturingYear;
+  }
+  const engineDisplacementCc = optionalIntFromForm(data.engineDisplacementCc);
+  if (engineDisplacementCc !== undefined) {
+    payload.engineDisplacementCc = engineDisplacementCc;
+  }
+  const fuelSystem = optionalTrimmed(data.fuelSystem);
+  if (fuelSystem) payload.fuelSystem = fuelSystem;
+  const color = optionalTrimmed(data.color);
+  if (color) payload.color = color;
+  const colorCode = optionalTrimmed(data.colorCode);
+  if (colorCode) payload.colorCode = colorCode;
+  const description = optionalTrimmed(data.notes);
+  if (description) payload.description = description;
+  return payload;
 }

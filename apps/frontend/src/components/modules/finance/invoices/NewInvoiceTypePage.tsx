@@ -49,7 +49,6 @@ export default function NewInvoiceTypePage() {
     <OrganizationFormLayout
       title="Add invoice"
       description="Choose the invoice type to continue."
-      backLink={{ label: "Back to invoices", href: financeInvoicesListHref }}
       contentVariant="plain"
       actions={
         <Button
@@ -68,11 +67,10 @@ export default function NewInvoiceTypePage() {
             type="button"
             disabled={!card.available}
             onClick={() => router.push(card.href)}
-            className={`flex flex-col rounded-xl border p-5 text-left shadow-sm transition ${
-              card.available
+            className={`flex flex-col rounded-xl border p-5 text-left shadow-sm transition ${card.available
                 ? "border-slate-200 bg-white hover:border-[#FE5720]/40 hover:shadow-md"
                 : "cursor-not-allowed border-dashed border-slate-200 bg-slate-50 opacity-70"
-            }`}
+              }`}
           >
             <card.icon className="mb-3 h-6 w-6 text-[#FE5720]" />
             <h2 className="text-base font-semibold text-slate-900">

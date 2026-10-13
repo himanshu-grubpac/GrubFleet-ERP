@@ -1,5 +1,5 @@
-import AssetMasterDashboardPage from "@/components/modules/assetManagement/asset-Master/MasterDashboardPage";
+import AssetMasterRetiredRedirect from "@/components/modules/assetManagement/asset-register/AssetMasterRetiredRedirect";
 
 export default function Page() {
-    return <AssetMasterDashboardPage />;
+  return <AssetMasterRetiredRedirect />;
 }

@@ -35,6 +35,7 @@ import {
   assetRegisterAssetClassDetailHref,
   assetRegisterAssetClassEditHref,
 } from "@/lib/navigation/asset-register-static-routes";
+import AssetClassNameCell from "@/components/modules/assetManagement/asset-register/AssetClassNameCell";
 
 type AssetStatus = "active" | "inactive";
 
@@ -43,7 +44,6 @@ type VehicleType = "2-Wheeler" | "3-Wheeler" | "4-Wheeler";
 type AssetClass = {
   id: string;
   name: string;
-  code: string;
   vehicleType: VehicleType;
   fuelType: string;
   inFleet: number;
@@ -77,7 +77,6 @@ function mapListItem(row: AssetRegisterAssetClassListItem): AssetClass {
   return {
     id: row.id,
     name: row.name,
-    code: row.code,
     vehicleType: mapAssetRegisterVehicleTypeToUiLabel(row.vehicleType),
     fuelType: row.fuelType,
     inFleet: row.inFleetCount,
@@ -226,8 +225,13 @@ export default function AssetClassesPage() {
   };
 
   const assetClassColumns = [
-    { key: "name", label: "CLASS" },
-    { key: "code", label: "CODE" },
+    {
+      key: "name",
+      label: "Class name",
+      render: (assetClass: AssetClass) => (
+        <AssetClassNameCell name={assetClass.name} />
+      ),
+    },
     { key: "vehicleType", label: "VEHICLE TYPE" },
     { key: "fuelType", label: "FUEL TYPE" },
     { key: "inFleet", label: "IN FLEET" },
@@ -269,7 +273,7 @@ export default function AssetClassesPage() {
             type="text"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by class name or code"
+            placeholder="Search by class name"
             className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
           />
         </div>

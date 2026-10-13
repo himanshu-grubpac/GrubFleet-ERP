@@ -1407,6 +1407,196 @@ paths:
       responses:
         '200':
           description: Created allocation record
+  /fleet-leasing/support/on-lease-vehicle-lookup:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — resolve fleet register registration, VIN, or fleet code to on-lease vehicle context
+      operationId: lookupOnLeaseVehicleForSupport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: Vehicle, contract, and client summary
+        '404':
+          description: Not found or not on an eligible lease
+  /fleet-leasing/support/replacement-candidates:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — paginated available replacement vehicles
+      operationId: listSupportReplacementCandidates
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: assetClass
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: vehicleType
+          in: query
+          schema:
+            type: string
+            enum: [2W, 3W, 4W]
+        - name: brand
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+        - name: modelName
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+        - name: excludeVehicleIds
+          in: query
+          schema:
+            type: string
+            maxLength: 2000
+        - name: sourceKind
+          in: query
+          schema:
+            type: string
+            enum: [legacy, register]
+          description: Limit candidates to legacy fleet vehicles or asset register vehicles (match on-lease unit catalog)
+      responses:
+        '200':
+          description: Paginated replacement candidates
+  /fleet-leasing/support/available-replacement-lookup:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — resolve registration, VIN, or fleet code to available replacement
+      operationId: lookupAvailableReplacementForSupport
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+        - name: sourceKind
+          in: query
+          schema:
+            type: string
+            enum: [legacy, register]
+          description: Restrict lookup to the same catalog as the on-lease unit being replaced
+      responses:
+        '200':
+          description: Available replacement vehicle summary
+        '404':
+          description: Not found, not available, or on another contract
+  /fleet-leasing/support/replacement-filter-options:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — brands or models for replacement filter (available pool)
+      operationId: listSupportReplacementFilterOptions
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: vehicleType
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [2W, 3W, 4W]
+        - name: brand
+          in: query
+          schema:
+            type: string
+            maxLength: 255
+      responses:
+        '200':
+          description: Distinct brands or model names
+  /fleet-leasing/support/clients/{clientId}/active-contracts:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — eligible contracts for a fleet client
+      operationId: listSupportActiveContractsForClient
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: clientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Contract list
+  /fleet-leasing/support/lease-contracts/{contractId}/allocated-vehicles:
+    get:
+      tags: [fleet-leasing]
+      summary: Support — vehicles allocated to a contract
+      operationId: listSupportAllocatedVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: contractId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Allocated vehicles
+  /fleet-leasing/support/vehicle-replacements:
+    post:
+      tags: [fleet-leasing]
+      summary: Support — execute pairwise vehicle replacements
+      operationId: executeSupportVehicleReplacements
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, replacements]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                replacements:
+                  type: array
+                  minItems: 1
+                  maxItems: 25
+                  items:
+                    type: object
+                    required: [contractId, fromVehicleId, toVehicleId]
+                    properties:
+                      contractId:
+                        type: string
+                        format: uuid
+                      fromVehicleId:
+                        type: string
+                        format: uuid
+                      toVehicleId:
+                        type: string
+                        format: uuid
+      responses:
+        '200':
+          description: Replacement results
+        '400':
+          description: Validation or business rule failure
   /fleet-leasing/vehicle-allocations:
     get:
       tags: [fleet-leasing]
@@ -2502,6 +2692,35 @@ paths:
       responses:
         '200':
           description: Catalog of payment method values and labels
+  /finance/invoices/asset-classes/catalog:
+    get:
+      tags: [finance]
+      summary: Active asset classes for purchase vehicle invoice lines
+      operationId: listFinancePurchaseAssetClassesCatalog
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageQuery'
+        - $ref: '#/components/parameters/PageSizeQuery'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated asset class list (same shape as asset-register list)
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
   /finance/invoices/{id}:
     patch:
       tags: [finance]
@@ -3244,13 +3463,38 @@ paths:
           description: Status updated
         '400':
           description: Missing deactivate reason type or invalid transition
+  /asset-register/catalog/intake-checklist-items:
+    get:
+      tags: [asset-register]
+      summary: Global intake checklist catalog (asset class create)
+      description: Seed checklist labels for the create form dropdown; persisted selections are stored on the class as intakeChecklistItems.
+      operationId: listAssetRegisterIntakeChecklistCatalog
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Catalog item labels
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: string
+        '401':
+          description: Unauthorized
+        '403':
+          description: Forbidden
   /asset-register/asset-classes:
     get:
       tags: [asset-register]
       summary: List asset classes (paginated)
       description: >-
         Default sort: createdAt descending (newest first), then id descending.
-        Search matches class name or generated code. inFleetCount is active fleet register vehicles per class; availableCount is active vehicles with operationalStatus available (batched on list page).
+        Search matches class name (generated identifier) and spec fields. inFleetCount is active fleet register vehicles per class; availableCount is active vehicles with operationalStatus available (batched on list page).
       operationId: listAssetRegisterAssetClasses
       security:
         - bearerAuth: []
@@ -3276,7 +3520,7 @@ paths:
           description: Forbidden
     post:
       tags: [asset-register]
-      summary: Create asset class (code generated server-side)
+      summary: Create asset class (class name generated from spec fields)
       operationId: createAssetRegisterAssetClass
       security:
         - bearerAuth: []
@@ -3288,9 +3532,9 @@ paths:
               $ref: '#/components/schemas/CreateAssetRegisterAssetClassRequest'
       responses:
         '201':
-          description: Asset class created with generated code
+          description: Asset class created with generated class name
         '400':
-          description: Validation error or client-supplied code rejected
+          description: Validation error or client-supplied class name rejected
         '403':
           description: Forbidden
   /asset-register/asset-classes/{id}:
@@ -3310,7 +3554,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Asset class detail (code read-only)
+          description: Asset class detail (class name is system-generated, read-only)
         '404':
           description: Not found
     patch:
@@ -3343,167 +3587,6 @@ paths:
       tags: [asset-register]
       summary: Activate or deactivate asset class (deactivate requires reason)
       operationId: updateAssetRegisterAssetClassStatus
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/OrganizationIdQuery'
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [action]
-              properties:
-                action:
-                  type: string
-                  enum: [activate, deactivate]
-                reason:
-                  type: string
-                  maxLength: 500
-                  description: Required when action is deactivate
-      responses:
-        '200':
-          description: Status updated
-        '400':
-          description: Missing deactivate reason or invalid transition
-  /asset-register/asset-classes/{classId}/masters:
-    get:
-      tags: [asset-register]
-      summary: Catalog — active asset masters for an active asset class
-      operationId: listAssetRegisterAssetMastersByClass
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/OrganizationIdQuery'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageSizeParam'
-        - name: classId
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-        - name: search
-          in: query
-          schema:
-            type: string
-      responses:
-        '200':
-          description: Paginated active masters for fleet register dropdown
-        '400':
-          description: Asset class is inactive
-        '404':
-          description: Asset class not found
-  /asset-register/asset-masters:
-    get:
-      tags: [asset-register]
-      summary: List asset masters (paginated)
-      operationId: listAssetRegisterAssetMasters
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/OrganizationIdQuery'
-        - $ref: '#/components/parameters/PageParam'
-        - $ref: '#/components/parameters/PageSizeParam'
-        - name: assetClassId
-          in: query
-          schema:
-            type: string
-            format: uuid
-        - name: search
-          in: query
-          schema:
-            type: string
-        - name: status
-          in: query
-          schema:
-            type: string
-            enum: [active, inactive]
-      responses:
-        '200':
-          description: Paginated asset master rows with asset class name/code
-        '401':
-          description: Unauthorized
-        '403':
-          description: Forbidden
-    post:
-      tags: [asset-register]
-      summary: Create asset master
-      operationId: createAssetRegisterAssetMaster
-      security:
-        - bearerAuth: []
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CreateAssetRegisterAssetMasterRequest'
-      responses:
-        '201':
-          description: Asset master created (class spec joined on response)
-        '400':
-          description: Validation error or inactive asset class
-        '409':
-          description: Duplicate master name for class in org
-  /asset-register/asset-masters/{id}:
-    get:
-      tags: [asset-register]
-      summary: Asset master detail with class spec snapshot
-      operationId: getAssetRegisterAssetMaster
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/OrganizationIdQuery'
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      responses:
-        '200':
-          description: Detail including read-only class fields
-        '404':
-          description: Not found
-    patch:
-      tags: [asset-register]
-      summary: Update asset master (name and/or asset class)
-      operationId: updateAssetRegisterAssetMaster
-      security:
-        - bearerAuth: []
-      parameters:
-        - $ref: '#/components/parameters/OrganizationIdQuery'
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: string
-            format: uuid
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/UpdateAssetRegisterAssetMasterRequest'
-      responses:
-        '200':
-          description: Updated asset master
-        '400':
-          description: Inactive master/class or validation error
-        '409':
-          description: Duplicate master name for class
-  /asset-register/asset-masters/{id}/status:
-    patch:
-      tags: [asset-register]
-      summary: Activate or deactivate asset master (deactivate requires reason)
-      operationId: updateAssetRegisterAssetMasterStatus
       security:
         - bearerAuth: []
       parameters:
@@ -4138,19 +4221,45 @@ components:
       type: object
       required:
         - organizationId
-        - name
         - vehicleType
         - fuelType
+        - mileageFrom
+        - mileageTo
+        - mileageUnit
         - fuelTankCapacity
         - ratedLoadFrom
         - ratedLoadTo
+        - intakeChecklistItems
       properties:
         organizationId:
           type: string
           format: uuid
-        name:
+        brand:
           type: string
           maxLength: 255
+        modelName:
+          type: string
+          maxLength: 255
+        manufacturingYear:
+          type: integer
+          minimum: 1980
+          maximum: 2100
+        engineDisplacementCc:
+          type: integer
+          minimum: 1
+          maximum: 99999
+        fuelCapacity:
+          type: number
+          minimum: 0
+        fuelSystem:
+          type: string
+          maxLength: 64
+        color:
+          type: string
+          maxLength: 128
+        colorCode:
+          type: string
+          maxLength: 32
         description:
           type: string
           maxLength: 2000
@@ -4178,17 +4287,52 @@ components:
         ratedLoadTo:
           type: number
           minimum: 0
+        intakeChecklistItems:
+          type: array
+          minItems: 1
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 500
         defaultIntakeChecklist:
           type: string
-          maxLength: 2000
+          maxLength: 8000
+          description: Deprecated — prefer intakeChecklistItems
       additionalProperties: false
-      description: Class code is generated server-side; do not send code on create.
+      description: >-
+        Class name is generated server-side from spec fields (e.g.
+        2026_activa_150_petrol_efi_bl). Do not send name on create.
+        Brand, model, year, CC, fuel system, and color fields are optional; omitted
+        values use empty or placeholder segments in the generated name.
     UpdateAssetRegisterAssetClassRequest:
       type: object
       properties:
-        name:
+        brand:
           type: string
           maxLength: 255
+        modelName:
+          type: string
+          maxLength: 255
+        manufacturingYear:
+          type: integer
+          minimum: 1980
+          maximum: 2100
+        engineDisplacementCc:
+          type: integer
+          minimum: 1
+          maximum: 99999
+        fuelCapacity:
+          type: number
+          minimum: 0
+        fuelSystem:
+          type: string
+          maxLength: 64
+        color:
+          type: string
+          maxLength: 128
+        colorCode:
+          type: string
+          maxLength: 32
         description:
           type: string
           maxLength: 2000
@@ -4216,44 +4360,22 @@ components:
         ratedLoadTo:
           type: number
           minimum: 0
+        intakeChecklistItems:
+          type: array
+          maxItems: 100
+          items:
+            type: string
+            maxLength: 500
         defaultIntakeChecklist:
           type: string
-          maxLength: 2000
-      additionalProperties: false
-    CreateAssetRegisterAssetMasterRequest:
-      type: object
-      required:
-        - organizationId
-        - assetClassId
-        - name
-      properties:
-        organizationId:
-          type: string
-          format: uuid
-        assetClassId:
-          type: string
-          format: uuid
-        name:
-          type: string
-          maxLength: 255
-      additionalProperties: false
-      description: Class specification fields are read-only from joined asset class on responses.
-    UpdateAssetRegisterAssetMasterRequest:
-      type: object
-      properties:
-        assetClassId:
-          type: string
-          format: uuid
-        name:
-          type: string
-          maxLength: 255
+          maxLength: 8000
+          description: Deprecated — prefer intakeChecklistItems
       additionalProperties: false
     CreateAssetRegisterVehicleRequest:
       type: object
       required:
         - organizationId
         - assetClassId
-        - assetMasterId
         - registrationNumber
         - chassisNumber
         - modelYear
@@ -4270,9 +4392,6 @@ components:
           type: string
           format: uuid
         assetClassId:
-          type: string
-          format: uuid
-        assetMasterId:
           type: string
           format: uuid
         registrationNumber:
@@ -4325,9 +4444,6 @@ components:
       type: object
       properties:
         assetClassId:
-          type: string
-          format: uuid
-        assetMasterId:
           type: string
           format: uuid
         registrationNumber:
@@ -5519,14 +5635,41 @@ components:
         hasFieldChangeHistory:
           type: boolean
           description: True when at least one lease_contract_edit_logs row exists for this contract (field-level PATCH diffs). Use GET change-history for rows.
+    FinancePurchaseVehicleInvoiceLineRequest:
+      type: object
+      required:
+        - assetClassId
+        - quantity
+        - rateMinor
+        - taxMode
+        - vatPercent
+      properties:
+        assetClassId:
+          type: string
+          format: uuid
+        quantity:
+          type: integer
+          minimum: 1
+          maximum: 1000000
+        rateMinor:
+          type: integer
+          minimum: 1
+          description: Per-unit rate in minor currency units (paise for INR)
+        taxMode:
+          type: string
+          enum: [INCLUSIVE, EXCLUSIVE]
+        vatPercent:
+          type: integer
+          minimum: 0
+          maximum: 100
     CreateFinancePurchaseVehicleInvoiceRequest:
       type: object
       required:
         - organizationId
         - supplierId
-        - assetClassName
-        - totalAmountMinor
         - invoiceDate
+        - lines
+        - grandTotalMinor
       properties:
         organizationId:
           type: string
@@ -5534,19 +5677,19 @@ components:
         supplierId:
           type: string
           format: uuid
-        assetClassName:
-          type: string
-          maxLength: 120
-        totalAmountMinor:
-          type: integer
-          minimum: 1
-          description: Amount in minor currency units (paise for INR)
         invoiceDate:
           type: string
           format: date
-        notes:
-          type: string
-          maxLength: 2000
+        lines:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/FinancePurchaseVehicleInvoiceLineRequest'
+        grandTotalMinor:
+          type: integer
+          minimum: 1
+          description: Must equal sum of server-computed line totals (minor units)
     CreateFinancePurchaseSparePartsInvoiceRequest:
       type: object
       required:

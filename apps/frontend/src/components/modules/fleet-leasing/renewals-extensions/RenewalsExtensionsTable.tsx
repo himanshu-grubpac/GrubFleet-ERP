@@ -4,13 +4,16 @@ import { useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
+
+import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable, {
   type DashboardColumn,
 } from "@/components/dashboard/DashboardTable";
-import DashboardTablePagination from "@/components/dashboard/DashboardTablePagination";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { DashboardRowActionsMenuItem } from "@/components/dashboard/DashboardRowActionsMenu";
+import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
+
 import { formatLeaseContractRowCopyText } from "@/components/dashboard/dashboard-row-copy-text";
 import { formatCalendarDateEnIn } from "@/lib/format/date-format";
 import { useLeaseApi } from "@/lib/api/lease-contracts-context";
@@ -26,11 +29,11 @@ import {
   fleetLeaseContractDetailHref,
   fleetRenewLeaseContractHref,
 } from "@/lib/navigation/fleet-static-routes";
-import DashboardFilters from "@/components/dashboard/DashboardFilters";
 
 function formatTermMonths(termMonths: number | null): string {
   if (termMonths == null || termMonths <= 0) return "—";
-  return `${termMonths} month${termMonths === 1 ? "" : "s"}`;
+
+  return `${termMonths} month${termMonths === 1 ? "" : "s"} `;
 }
 
 export default function RenewalsExtensionsTable() {
@@ -44,6 +47,7 @@ export default function RenewalsExtensionsTable() {
 
   const { searchInput, setSearchInput, debouncedSearch } =
     useDashboardListSearch();
+
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -73,6 +77,11 @@ export default function RenewalsExtensionsTable() {
   const listTotal = listQuery.data?.total ?? 0;
   const listPage = listQuery.data?.page ?? page;
 
+  const totalPages = Math.max(
+    1,
+    Math.ceil(listTotal / DASHBOARD_DEFAULT_PAGE_SIZE),
+  );
+
   const isInitialLoading =
     isAuthLoading || (listQuery.isLoading && !listQuery.data);
 
@@ -94,8 +103,14 @@ export default function RenewalsExtensionsTable() {
   });
 
   const columns: DashboardColumn<LeaseContractListItem>[] = [
-    { key: "contractNumber", label: "Contract" },
-    { key: "clientName", label: "Client" },
+    {
+      key: "contractNumber",
+      label: "Contract",
+    },
+    {
+      key: "clientName",
+      label: "Client",
+    },
     {
       key: "startDate",
       label: "Start date",
@@ -117,7 +132,24 @@ export default function RenewalsExtensionsTable() {
   };
 
   return (
-    <>
+    <DashboardLayout
+      title="Renewals & Extensions"
+      description="Active contracts eligible for renewal or term extension."
+      pagination={
+        !isInitialLoading &&
+          !listQuery.isError &&
+          !isEmptyCatalog &&
+          contracts.length > 0
+          ? {
+            currentPage: listPage,
+            totalPages,
+            totalItems: listTotal,
+            pageSize: DASHBOARD_DEFAULT_PAGE_SIZE,
+            onPageChange: setPage,
+          }
+          : undefined
+      }
+    >
       {isInitialLoading && (
         <div
           className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white"
@@ -133,6 +165,7 @@ export default function RenewalsExtensionsTable() {
           <p className="text-sm font-medium text-red-600">
             Failed to load contracts.
           </p>
+
           <button
             type="button"
             onClick={() => void listQuery.refetch()}
@@ -163,9 +196,11 @@ export default function RenewalsExtensionsTable() {
               <h3 className="text-sm font-semibold text-gray-900">
                 No contracts found
               </h3>
+
               <p className="mt-1 text-xs text-gray-500">
                 Try a different search term.
               </p>
+
               <button
                 type="button"
                 onClick={handleClearSearch}
@@ -175,44 +210,37 @@ export default function RenewalsExtensionsTable() {
               </button>
             </div>
           ) : (
-            <>
-              <div
-                className={showFilters ? "mt-4" : undefined}
-                aria-busy={listQuery.isFetching && listQuery.isPlaceholderData}
-              >
-                <DashboardTable
-                  columns={columns}
-                  data={contracts}
-                  getRowKey={(row) => row.id}
-                  renderActions={(row) => (
-                    <DashboardTableActions
-                      status="active"
-                      viewHref={fleetLeaseContractDetailHref(row.id)}
-                      copyText={formatLeaseContractRowCopyText(row)}
-                      renderAdditionalMenuItems={() =>
-                        canRenew ? (
-                          <DashboardRowActionsMenuItem
-                            icon={<RefreshCw className="h-4 w-4" />}
-                            label="Renew"
-                            onSelect={() => handleRenew(row)}
-                          />
-                        ) : null
-                      }
-                    />
-                  )}
-                />
-              </div>
-
-              <DashboardTablePagination
-                page={listPage}
-                pageSize={DASHBOARD_DEFAULT_PAGE_SIZE}
-                total={listTotal}
-                onPageChange={setPage}
+            <div
+              className={showFilters ? "mt-4" : undefined}
+              aria-busy={
+                listQuery.isFetching && listQuery.isPlaceholderData
+              }
+            >
+              <DashboardTable
+                columns={columns}
+                data={contracts}
+                getRowKey={(row) => row.id}
+                renderActions={(row) => (
+                  <DashboardTableActions
+                    status="active"
+                    viewHref={fleetLeaseContractDetailHref(row.id)}
+                    copyText={formatLeaseContractRowCopyText(row)}
+                    renderAdditionalMenuItems={() =>
+                      canRenew ? (
+                        <DashboardRowActionsMenuItem
+                          icon={<RefreshCw className="h-4 w-4" />}
+                          label="Renew"
+                          onSelect={() => handleRenew(row)}
+                        />
+                      ) : null
+                    }
+                  />
+                )}
               />
-            </>
+            </div>
           )}
         </>
       )}
-    </>
+    </DashboardLayout>
   );
 }

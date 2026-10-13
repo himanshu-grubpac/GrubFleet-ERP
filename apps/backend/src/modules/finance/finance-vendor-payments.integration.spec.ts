@@ -11,6 +11,7 @@ import {
   type IntegrationAuthContext,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import { computePurchaseVehicleLineTax } from './utils/purchase-vehicle-line-tax.util';
 
 const FINANCE_VIEW_ONLY_USER = {
   email: 'finance.vp.viewonly@grubpac.local',
@@ -44,7 +45,7 @@ describe('Finance vendor payments (integration)', () => {
   let financeViewToken: string;
   let deniedToken: string;
   let supplierId: string;
-  let assetClassName: string;
+  let assetClassId: string;
 
   beforeAll(async () => {
     ctx = await bootstrapIntegrationAuth();
@@ -86,24 +87,36 @@ describe('Finance vendor payments (integration)', () => {
       .expect(201);
     supplierId = (supplierRes.body as { id: string }).id;
 
-    assetClassName = `VP Class ${unique}`;
-    await request(app.getHttpServer())
+    const modelName = `VP Class ${unique}`;
+    const classRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/asset-classes')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        name: assetClassName,
+        modelName,
         vehicleType: '2W',
         fuelType: 'Petrol',
+        mileageFrom: 40,
+        mileageTo: 55,
+        mileageUnit: 'km/L',
         fuelTankCapacity: 10,
         ratedLoadFrom: 100,
         ratedLoadTo: 200,
+        intakeChecklistItems: ['Helmet'],
       })
       .expect(201);
+    assetClassId = (classRes.body as { id: string }).id;
   });
 
-  async function createPurchaseInvoice(totalAmountMinor: number) {
+  async function createPurchaseInvoice(grandTotalMinor: number) {
+    const rateMinor = grandTotalMinor;
+    const breakdown = computePurchaseVehicleLineTax(
+      1,
+      rateMinor,
+      'INCLUSIVE',
+      18,
+    );
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/finance/invoices/purchase/vehicle')
       .set('Authorization', `Bearer ${accessToken}`)
@@ -111,9 +124,17 @@ describe('Finance vendor payments (integration)', () => {
       .send({
         organizationId,
         supplierId,
-        assetClassName,
-        totalAmountMinor,
         invoiceDate: '2026-06-01',
+        grandTotalMinor: breakdown.lineTotalMinor,
+        lines: [
+          {
+            assetClassId,
+            quantity: 1,
+            rateMinor,
+            taxMode: 'INCLUSIVE',
+            vatPercent: 18,
+          },
+        ],
       })
       .expect(201);
     return createRes.body as { id: string; invoiceNumber: string };

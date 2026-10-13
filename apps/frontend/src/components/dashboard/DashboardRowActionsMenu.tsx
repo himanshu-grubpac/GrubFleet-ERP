@@ -16,8 +16,9 @@ import { dashboardRowMenuTriggerClassName } from "./dashboard-row-icon-button";
 
 const MENU_GAP = 4;
 const VIEWPORT_PADDING = 8;
+
 export const DASHBOARD_ROW_MENU_MIN_WIDTH = 160;
-/** Minimum height assumed for flip math before menu children are measured. */
+
 const DASHBOARD_ROW_MENU_MIN_HEIGHT_ESTIMATE = 36;
 
 export type FixedMenuPosition = {
@@ -30,16 +31,22 @@ export function computeFixedMenuPosition(
   menuWidth: number,
   menuHeight: number,
 ): FixedMenuPosition {
+  const maxLeft = Math.max(
+    VIEWPORT_PADDING,
+    window.innerWidth - menuWidth - VIEWPORT_PADDING,
+  );
+
   const left = Math.max(
     VIEWPORT_PADDING,
-    triggerRect.right - menuWidth,
+    Math.min(triggerRect.right - menuWidth, maxLeft),
   );
 
   let top = triggerRect.bottom + MENU_GAP;
 
   if (menuHeight > 0) {
-    const bottomEdge = top + menuHeight + VIEWPORT_PADDING;
-    const overflowsBottom = bottomEdge > window.innerHeight;
+    const overflowsBottom =
+      top + menuHeight + VIEWPORT_PADDING > window.innerHeight;
+
     const topPlacement = triggerRect.top - MENU_GAP - menuHeight;
 
     if (overflowsBottom && topPlacement >= VIEWPORT_PADDING) {
@@ -70,25 +77,31 @@ export function useFixedDropdownMenuPosition(options: {
     deps = [],
   } = options;
 
-  const [menuPosition, setMenuPosition] = useState<FixedMenuPosition | null>(
-    null,
-  );
+  const [menuPosition, setMenuPosition] =
+    useState<FixedMenuPosition | null>(null);
 
   const updateMenuPosition = useCallback(() => {
     const trigger = triggerRef.current;
+
     if (!trigger) {
       return;
     }
+
     const rect = trigger.getBoundingClientRect();
     const menuEl = menuRef.current;
+
     const measuredWidth = menuEl?.offsetWidth ?? 0;
     const measuredHeight = menuEl?.offsetHeight ?? 0;
+
     const menuWidth = Math.max(measuredWidth, menuMinWidth);
     const menuHeight =
       measuredHeight > 0
         ? measuredHeight
         : DASHBOARD_ROW_MENU_MIN_HEIGHT_ESTIMATE;
-    setMenuPosition(computeFixedMenuPosition(rect, menuWidth, menuHeight));
+
+    setMenuPosition(
+      computeFixedMenuPosition(rect, menuWidth, menuHeight),
+    );
   }, [menuMinWidth, menuRef, triggerRef]);
 
   useLayoutEffect(() => {
@@ -96,27 +109,36 @@ export function useFixedDropdownMenuPosition(options: {
       setMenuPosition(null);
       return;
     }
+
     updateMenuPosition();
+
     const menuEl = menuRef.current;
     let resizeObserver: ResizeObserver | null = null;
+
     if (menuEl && typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(() => updateMenuPosition());
+      resizeObserver = new ResizeObserver(updateMenuPosition);
       resizeObserver.observe(menuEl);
     }
-    const frame = requestAnimationFrame(() => updateMenuPosition());
+
+    const frame = requestAnimationFrame(updateMenuPosition);
+
     return () => {
       cancelAnimationFrame(frame);
       resizeObserver?.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-measure when menu content changes
+
+    // Re-measure when menu content changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, updateMenuPosition, ...deps]);
 
   useEffect(() => {
     if (!open) {
       return;
     }
+
     window.addEventListener("scroll", updateMenuPosition, true);
     window.addEventListener("resize", updateMenuPosition);
+
     return () => {
       window.removeEventListener("scroll", updateMenuPosition, true);
       window.removeEventListener("resize", updateMenuPosition);
@@ -138,36 +160,49 @@ export function useCloseDropdownOnOutsideAndEscape(options: {
     if (!open) {
       return;
     }
+
     const onDocClick = (event: MouseEvent) => {
-      const target = event.target as Node;
+      const target = event.target;
+
+      if (!(target instanceof Node)) {
+        return;
+      }
+
       if (
         triggerRef.current?.contains(target) ||
         menuRef.current?.contains(target)
       ) {
         return;
       }
+
       onClose();
     };
+
     document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
+
+    return () => {
+      document.removeEventListener("mousedown", onDocClick);
+    };
   }, [open, menuRef, onClose, triggerRef]);
 
   useEffect(() => {
     if (!open) {
       return;
     }
+
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onClose();
       }
     };
+
     document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+    };
   }, [open, onClose]);
 }
-
-const menuItemClassName =
-  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50";
 
 type DashboardRowActionsMenuProps = {
   ariaLabel?: string;
@@ -179,6 +214,7 @@ export function DashboardRowActionsMenu({
   children,
 }: DashboardRowActionsMenuProps) {
   const [open, setOpen] = useState(false);
+
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -202,12 +238,15 @@ export function DashboardRowActionsMenu({
       ref={menuRef}
       role="menu"
       className={cn(
-        "fixed z-50 min-w-[160px] w-40 rounded-md border border-gray-200 bg-white py-1 shadow-lg",
+        "fixed z-50 w-40 min-w-[160px] rounded-md border border-gray-200 bg-white py-1 shadow-lg",
         !menuPosition && "pointer-events-none invisible",
       )}
       style={
         menuPosition
-          ? { top: menuPosition.top, left: menuPosition.left }
+          ? {
+            top: menuPosition.top,
+            left: menuPosition.left,
+          }
           : undefined
       }
     >
@@ -223,11 +262,15 @@ export function DashboardRowActionsMenu({
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-haspopup="menu"
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={() => setOpen((previous) => !previous)}
         className={dashboardRowMenuTriggerClassName}
       >
-        <MoreVertical className="h-4 w-4" strokeWidth={1.75} />
+        <MoreVertical
+          className="h-4 w-4"
+          strokeWidth={1.75}
+        />
       </button>
+
       {menuPanel && typeof document !== "undefined"
         ? createPortal(menuPanel, document.body)
         : null}
@@ -235,23 +278,36 @@ export function DashboardRowActionsMenu({
   );
 }
 
+type DashboardRowActionsMenuItemProps = {
+  icon?: ReactNode;
+  label: string;
+  onSelect: () => void;
+  className?: string;
+  disabled?: boolean;
+};
+
+const menuItemClassName =
+  "flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50";
+
 export function DashboardRowActionsMenuItem({
   icon,
   label,
   onSelect,
   className,
-}: {
-  icon?: ReactNode;
-  label: string;
-  onSelect: () => void;
-  className?: string;
-}) {
+  disabled = false,
+}: DashboardRowActionsMenuItemProps) {
   return (
     <button
       type="button"
       role="menuitem"
+      disabled={disabled}
+      aria-disabled={disabled}
       onClick={onSelect}
-      className={cn(menuItemClassName, className)}
+      className={cn(
+        menuItemClassName,
+        "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white",
+        className,
+      )}
     >
       {icon}
       {label}

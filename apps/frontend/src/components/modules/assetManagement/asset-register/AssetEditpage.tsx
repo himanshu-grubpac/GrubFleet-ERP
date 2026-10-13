@@ -72,7 +72,9 @@ export default function EditAssetClassPage() {
   };
 
   const handleSaved = async (data: AssetClassFormData) => {
-    if (!token || !organizationId) return;
+    if (!token || !organizationId) {
+      throw new Error("Missing auth context. Sign in again and retry.");
+    }
     try {
       const updated = await updateAssetRegisterAssetClassApi({
         token,
@@ -86,6 +88,7 @@ export default function EditAssetClassPage() {
       showErrorToast(
         error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,
       );
+      throw error;
     }
   };
 

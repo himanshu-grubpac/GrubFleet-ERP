@@ -14,6 +14,8 @@ import { LeaseContractsService } from './lease-contracts.service';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 import { VehicleAllocationsController } from './vehicle-allocations.controller';
 import { VehicleAllocationsService } from './vehicle-allocations.service';
+import { FleetSupportController } from './support.controller';
+import { SupportVehicleReplacementService } from './support-vehicle-replacement.service';
 
 @Module({
   imports: [
@@ -29,6 +31,7 @@ import { VehicleAllocationsService } from './vehicle-allocations.service';
     AssetClassesController,
     FleetClientsController,
     FleetVehiclesController,
+    FleetSupportController,
   ],
   providers: [
     FleetLeasingRepository,
@@ -36,6 +39,7 @@ import { VehicleAllocationsService } from './vehicle-allocations.service';
     FleetClientsService,
     VehicleAllocationsService,
     FleetReturnsService,
+    SupportVehicleReplacementService,
   ],
   exports: [
     LeaseContractsService,

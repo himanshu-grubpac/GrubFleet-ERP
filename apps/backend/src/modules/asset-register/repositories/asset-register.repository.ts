@@ -7,6 +7,8 @@ import {
   ilike,
   inArray,
   isNull,
+  ne,
+  notInArray,
   or,
   sql,
 } from 'drizzle-orm';
@@ -18,12 +20,15 @@ import {
   assetRegisterFleetCodeCounters,
   assetRegisterVehicleAssignments,
   assetRegisterVehicles,
+  fleetClients,
+  leaseContracts,
   organisationClients,
   type AssetRegisterAssetClassRow,
   type AssetRegisterAssetMasterRow,
   type AssetRegisterVehicleAssignmentRow,
   type AssetRegisterVehicleRow,
 } from '../../../database/schema';
+import type { LeaseContractStatus } from '../../fleet-leasing/constants/lease-contract-status';
 import { COMPLIANCE_EXPIRING_SOON_DAYS } from '../utils/compliance-status.util';
 import { AssetRegisterComplianceFilterStatus } from '../dto/list-asset-register-compliance-query.dto';
 import {
@@ -31,28 +36,31 @@ import {
   formatFleetCode,
 } from '../utils/fleet-code.util';
 
-export type AssetMasterWithClassRow = AssetRegisterAssetMasterRow & {
-  assetClass: AssetRegisterAssetClassRow;
-};
-
 export type AssetRegisterVehicleWithRelations = AssetRegisterVehicleRow & {
   assetClass: AssetRegisterAssetClassRow;
-  assetMaster: AssetRegisterAssetMasterRow;
+  assetMaster: AssetRegisterAssetMasterRow | null;
 };
 
 export type AssetClassInsert = {
   organizationId: string;
   name: string;
   description: string | null;
-  code: string;
+  brand: string;
+  modelName: string;
+  manufacturingYear: number;
+  engineDisplacementCc: number;
+  fuelCapacity: string | null;
+  fuelSystem: string;
+  color: string;
+  colorCode: string;
   vehicleType: AssetRegisterAssetClassRow['vehicleType'];
   fuelType: string;
   mileageFrom: string | null;
   mileageTo: string | null;
   mileageUnit: string | null;
-  fuelTankCapacity: string;
-  ratedLoadFrom: string;
-  ratedLoadTo: string;
+  fuelTankCapacity: string | null;
+  ratedLoadFrom: string | null;
+  ratedLoadTo: string | null;
   defaultIntakeChecklist: string | null;
   isActive: boolean;
 };
@@ -61,19 +69,22 @@ export type AssetClassInsert = {
 export class AssetRegisterRepository {
   constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
 
-  async codeExistsInOrg(
+  async classNameExistsInOrg(
     organizationId: string,
-    code: string,
+    className: string,
+    excludeClassId?: string,
   ): Promise<boolean> {
+    const conditions = [
+      eq(assetRegisterAssetClasses.organizationId, organizationId),
+      eq(assetRegisterAssetClasses.name, className),
+    ];
+    if (excludeClassId) {
+      conditions.push(ne(assetRegisterAssetClasses.id, excludeClassId));
+    }
     const [row] = await this.db
       .select({ id: assetRegisterAssetClasses.id })
       .from(assetRegisterAssetClasses)
-      .where(
-        and(
-          eq(assetRegisterAssetClasses.organizationId, organizationId),
-          eq(assetRegisterAssetClasses.code, code),
-        ),
-      )
+      .where(and(...conditions))
       .limit(1);
     return Boolean(row);
   }
@@ -127,7 +138,8 @@ export class AssetRegisterRepository {
       conditions.push(
         or(
           ilike(assetRegisterAssetClasses.name, pattern),
-          ilike(assetRegisterAssetClasses.code, pattern),
+          ilike(assetRegisterAssetClasses.brand, pattern),
+          ilike(assetRegisterAssetClasses.modelName, pattern),
         )!,
       );
     }
@@ -160,6 +172,14 @@ export class AssetRegisterRepository {
         AssetRegisterAssetClassRow,
         | 'name'
         | 'description'
+        | 'brand'
+        | 'modelName'
+        | 'manufacturingYear'
+        | 'engineDisplacementCc'
+        | 'fuelCapacity'
+        | 'fuelSystem'
+        | 'color'
+        | 'colorCode'
         | 'vehicleType'
         | 'fuelType'
         | 'mileageFrom'
@@ -182,162 +202,6 @@ export class AssetRegisterRepository {
         and(
           eq(assetRegisterAssetClasses.organizationId, organizationId),
           eq(assetRegisterAssetClasses.id, id),
-        ),
-      );
-  }
-
-  async insertAssetMaster(
-    values: Pick<
-      AssetRegisterAssetMasterRow,
-      'organizationId' | 'assetClassId' | 'name' | 'isActive'
-    >,
-  ): Promise<AssetRegisterAssetMasterRow> {
-    const [row] = await this.db
-      .insert(assetRegisterAssetMasters)
-      .values({
-        ...values,
-        updatedAt: new Date(),
-      })
-      .returning();
-    if (!row) throw new Error('Failed to insert asset master');
-    return row;
-  }
-
-  async getAssetMasterInOrg(
-    organizationId: string,
-    id: string,
-  ): Promise<AssetRegisterAssetMasterRow | undefined> {
-    const [row] = await this.db
-      .select()
-      .from(assetRegisterAssetMasters)
-      .where(
-        and(
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.id, id),
-        ),
-      )
-      .limit(1);
-    return row;
-  }
-
-  async getAssetMasterWithClassInOrg(
-    organizationId: string,
-    id: string,
-  ): Promise<AssetMasterWithClassRow | undefined> {
-    const [row] = await this.db
-      .select({
-        master: assetRegisterAssetMasters,
-        assetClass: assetRegisterAssetClasses,
-      })
-      .from(assetRegisterAssetMasters)
-      .innerJoin(
-        assetRegisterAssetClasses,
-        eq(
-          assetRegisterAssetMasters.assetClassId,
-          assetRegisterAssetClasses.id,
-        ),
-      )
-      .where(
-        and(
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.id, id),
-          eq(assetRegisterAssetClasses.organizationId, organizationId),
-        ),
-      )
-      .limit(1);
-    if (!row) return undefined;
-    return { ...row.master, assetClass: row.assetClass };
-  }
-
-  async listAssetMasters(
-    organizationId: string,
-    page: number,
-    pageSize: number,
-    options: {
-      search?: string;
-      isActive?: boolean;
-      assetClassId?: string;
-    },
-  ): Promise<{ rows: AssetMasterWithClassRow[]; total: number }> {
-    const conditions = [
-      eq(assetRegisterAssetMasters.organizationId, organizationId),
-      eq(assetRegisterAssetClasses.organizationId, organizationId),
-    ];
-    if (options.isActive !== undefined) {
-      conditions.push(eq(assetRegisterAssetMasters.isActive, options.isActive));
-    }
-    if (options.assetClassId) {
-      conditions.push(
-        eq(assetRegisterAssetMasters.assetClassId, options.assetClassId),
-      );
-    }
-    const search = options.search?.trim();
-    if (search) {
-      conditions.push(ilike(assetRegisterAssetMasters.name, `%${search}%`));
-    }
-    const where = and(...conditions);
-    const offset = (page - 1) * pageSize;
-    const [joined, countRows] = await Promise.all([
-      this.db
-        .select({
-          master: assetRegisterAssetMasters,
-          assetClass: assetRegisterAssetClasses,
-        })
-        .from(assetRegisterAssetMasters)
-        .innerJoin(
-          assetRegisterAssetClasses,
-          eq(
-            assetRegisterAssetMasters.assetClassId,
-            assetRegisterAssetClasses.id,
-          ),
-        )
-        .where(where)
-        .orderBy(
-          desc(assetRegisterAssetMasters.createdAt),
-          desc(assetRegisterAssetMasters.id),
-        )
-        .limit(pageSize)
-        .offset(offset),
-      this.db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(assetRegisterAssetMasters)
-        .innerJoin(
-          assetRegisterAssetClasses,
-          eq(
-            assetRegisterAssetMasters.assetClassId,
-            assetRegisterAssetClasses.id,
-          ),
-        )
-        .where(where),
-    ]);
-    const rows = joined.map((row) => ({
-      ...row.master,
-      assetClass: row.assetClass,
-    }));
-    return { rows, total: countRows[0]?.count ?? 0 };
-  }
-
-  async updateAssetMaster(
-    organizationId: string,
-    id: string,
-    patch: Partial<
-      Pick<
-        AssetRegisterAssetMasterRow,
-        | 'name'
-        | 'assetClassId'
-        | 'isActive'
-        | 'deactivatedAt'
-        | 'deactivateReason'
-      >
-    >,
-  ): Promise<void> {
-    await this.db
-      .update(assetRegisterAssetMasters)
-      .set({ ...patch, updatedAt: new Date() })
-      .where(
-        and(
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.id, id),
         ),
       );
   }
@@ -410,6 +274,23 @@ export class AssetRegisterRepository {
       .orderBy(asc(assetRegisterAssetClasses.name));
 
     return rows.map((row) => row.name.trim()).filter((name) => name.length > 0);
+  }
+
+  async listActiveAssetClassesByIds(
+    organizationId: string,
+    assetClassIds: string[],
+  ): Promise<AssetRegisterAssetClassRow[]> {
+    if (assetClassIds.length === 0) return [];
+    return this.db
+      .select()
+      .from(assetRegisterAssetClasses)
+      .where(
+        and(
+          eq(assetRegisterAssetClasses.organizationId, organizationId),
+          eq(assetRegisterAssetClasses.isActive, true),
+          inArray(assetRegisterAssetClasses.id, assetClassIds),
+        ),
+      );
   }
 
   async getActiveAssetClassByName(
@@ -547,7 +428,7 @@ export class AssetRegisterRepository {
         assetRegisterAssetClasses,
         eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
       )
-      .innerJoin(
+      .leftJoin(
         assetRegisterAssetMasters,
         eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
       )
@@ -556,7 +437,6 @@ export class AssetRegisterRepository {
           eq(assetRegisterVehicles.organizationId, organizationId),
           eq(assetRegisterVehicles.id, id),
           eq(assetRegisterAssetClasses.organizationId, organizationId),
-          eq(assetRegisterAssetMasters.organizationId, organizationId),
         ),
       )
       .limit(1);
@@ -582,7 +462,6 @@ export class AssetRegisterRepository {
     const conditions = [
       eq(assetRegisterVehicles.organizationId, organizationId),
       eq(assetRegisterAssetClasses.organizationId, organizationId),
-      eq(assetRegisterAssetMasters.organizationId, organizationId),
     ];
     if (options.isActive !== undefined) {
       conditions.push(eq(assetRegisterVehicles.isActive, options.isActive));
@@ -621,7 +500,7 @@ export class AssetRegisterRepository {
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
         )
-        .innerJoin(
+        .leftJoin(
           assetRegisterAssetMasters,
           eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )
@@ -638,10 +517,6 @@ export class AssetRegisterRepository {
         .innerJoin(
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
-        )
-        .innerJoin(
-          assetRegisterAssetMasters,
-          eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )
         .where(where),
     ]);
@@ -725,13 +600,14 @@ export class AssetRegisterRepository {
         assetRegisterAssetClasses,
         eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
       )
-      .innerJoin(
+      .leftJoin(
         assetRegisterAssetMasters,
         eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
       )
       .where(
         and(
           eq(assetRegisterVehicles.organizationId, organizationId),
+          eq(assetRegisterAssetClasses.organizationId, organizationId),
           inArray(assetRegisterVehicles.id, vehicleIds),
         ),
       );
@@ -740,6 +616,362 @@ export class AssetRegisterRepository {
       assetClass: row.assetClass,
       assetMaster: row.assetMaster,
     }));
+  }
+
+  async findVehicleByRegistrationVinOrFleetCode(
+    organizationId: string,
+    query: string,
+  ): Promise<AssetRegisterVehicleWithRelations | null> {
+    const trimmed = query.trim();
+    if (!trimmed) return null;
+    const [row] = await this.db
+      .select({
+        vehicle: assetRegisterVehicles,
+        assetClass: assetRegisterAssetClasses,
+        assetMaster: assetRegisterAssetMasters,
+      })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .leftJoin(
+        assetRegisterAssetMasters,
+        eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicles.organizationId, organizationId),
+          or(
+            ilike(assetRegisterVehicles.registrationNumber, trimmed),
+            ilike(assetRegisterVehicles.chassisNumber, trimmed),
+            ilike(assetRegisterVehicles.fleetCode, trimmed),
+          ),
+        ),
+      )
+      .limit(1);
+    if (!row) return null;
+    return {
+      ...row.vehicle,
+      assetClass: row.assetClass,
+      assetMaster: row.assetMaster,
+    };
+  }
+
+  async findOnLeaseAssignmentForRegisterVehicle(
+    organizationId: string,
+    vehicleId: string,
+    eligibleStatuses: LeaseContractStatus[],
+  ) {
+    if (eligibleStatuses.length === 0) return null;
+    const [row] = await this.db
+      .select({
+        contract: leaseContracts,
+        clientCompanyName: sql<
+          string | null
+        >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        leaseContracts,
+        eq(assetRegisterVehicleAssignments.leaseContractId, leaseContracts.id),
+      )
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.vehicleId, vehicleId),
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+          inArray(leaseContracts.status, eligibleStatuses),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async listAllocatedRegisterVehiclesOnContract(
+    organizationId: string,
+    contractId: string,
+  ) {
+    return this.db
+      .select({
+        id: assetRegisterVehicles.id,
+        registrationNo: assetRegisterVehicles.registrationNumber,
+        vin: assetRegisterVehicles.chassisNumber,
+        assetClass: assetRegisterAssetClasses.name,
+        status: assetRegisterVehicles.operationalStatus,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        assetRegisterVehicles,
+        eq(assetRegisterVehicleAssignments.vehicleId, assetRegisterVehicles.id),
+      )
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.leaseContractId, contractId),
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+        ),
+      )
+      .orderBy(asc(assetRegisterVehicles.registrationNumber));
+  }
+
+  private availableRegisterReplacementConditions(params: {
+    organizationId: string;
+    assetClass?: string;
+    vehicleType?: string;
+    brand?: string;
+    modelName?: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const {
+      organizationId,
+      assetClass,
+      vehicleType,
+      brand,
+      modelName,
+      excludeVehicleIds,
+    } = params;
+    const today = sql`CURRENT_DATE`;
+    const conditions = [
+      eq(assetRegisterVehicles.organizationId, organizationId),
+      eq(assetRegisterVehicles.isActive, true),
+      eq(assetRegisterVehicles.operationalStatus, 'available'),
+      sql`${assetRegisterVehicles.registrationEndDate} >= ${today}`,
+      sql`${assetRegisterVehicles.insuranceEndDate} >= ${today}`,
+    ];
+    if (assetClass?.trim()) {
+      conditions.push(eq(assetRegisterAssetClasses.name, assetClass.trim()));
+    }
+    if (vehicleType?.trim()) {
+      conditions.push(
+        eq(
+          assetRegisterAssetClasses.vehicleType,
+          vehicleType.trim() as AssetRegisterAssetClassRow['vehicleType'],
+        ),
+      );
+    }
+    if (brand?.trim()) {
+      conditions.push(eq(assetRegisterAssetClasses.brand, brand.trim()));
+    }
+    if (modelName?.trim()) {
+      conditions.push(
+        eq(assetRegisterAssetClasses.modelName, modelName.trim()),
+      );
+    }
+    if (excludeVehicleIds && excludeVehicleIds.length > 0) {
+      conditions.push(notInArray(assetRegisterVehicles.id, excludeVehicleIds));
+    }
+    return and(...conditions);
+  }
+
+  async listDistinctBrandsForAvailableReplacements(params: {
+    organizationId: string;
+    vehicleType: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const where = this.availableRegisterReplacementConditions({
+      organizationId: params.organizationId,
+      vehicleType: params.vehicleType,
+      excludeVehicleIds: params.excludeVehicleIds,
+    });
+    const rows = await this.db
+      .selectDistinct({ brand: assetRegisterAssetClasses.brand })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(where)
+      .orderBy(asc(assetRegisterAssetClasses.brand));
+    return rows.map((r) => r.brand).filter((b) => b.trim().length > 0);
+  }
+
+  async listDistinctModelsForAvailableReplacements(params: {
+    organizationId: string;
+    vehicleType: string;
+    brand: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const where = this.availableRegisterReplacementConditions({
+      organizationId: params.organizationId,
+      vehicleType: params.vehicleType,
+      brand: params.brand,
+      excludeVehicleIds: params.excludeVehicleIds,
+    });
+    const rows = await this.db
+      .selectDistinct({ modelName: assetRegisterAssetClasses.modelName })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(where)
+      .orderBy(asc(assetRegisterAssetClasses.modelName));
+    return rows.map((r) => r.modelName).filter((m) => m.trim().length > 0);
+  }
+
+  async listAvailableRegisterReplacementVehicles(params: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    assetClass?: string;
+    vehicleType?: string;
+    brand?: string;
+    modelName?: string;
+    excludeVehicleIds?: string[];
+  }) {
+    const {
+      organizationId,
+      page,
+      pageSize,
+      assetClass,
+      vehicleType,
+      brand,
+      modelName,
+      excludeVehicleIds,
+    } = params;
+    const offset = (page - 1) * pageSize;
+    const where = this.availableRegisterReplacementConditions({
+      organizationId,
+      assetClass,
+      vehicleType,
+      brand,
+      modelName,
+      excludeVehicleIds,
+    });
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          id: assetRegisterVehicles.id,
+          registrationNo: assetRegisterVehicles.registrationNumber,
+          vin: assetRegisterVehicles.chassisNumber,
+          assetClass: assetRegisterAssetClasses.name,
+          status: assetRegisterVehicles.operationalStatus,
+        })
+        .from(assetRegisterVehicles)
+        .innerJoin(
+          assetRegisterAssetClasses,
+          eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+        )
+        .where(where)
+        .orderBy(asc(assetRegisterVehicles.registrationNumber))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(assetRegisterVehicles)
+        .innerJoin(
+          assetRegisterAssetClasses,
+          eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+        )
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async findOtherActiveAssignmentForRegisterVehicle(
+    organizationId: string,
+    vehicleId: string,
+    excludeContractId: string,
+  ) {
+    const [row] = await this.db
+      .select({
+        contractId: assetRegisterVehicleAssignments.leaseContractId,
+        contractNumber: leaseContracts.contractNumber,
+        status: leaseContracts.status,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        leaseContracts,
+        eq(assetRegisterVehicleAssignments.leaseContractId, leaseContracts.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.vehicleId, vehicleId),
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+          ne(
+            assetRegisterVehicleAssignments.leaseContractId,
+            excludeContractId,
+          ),
+          notInArray(leaseContracts.status, ['closed', 'concluded']),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  }
+
+  async executeRegisterVehicleReplacementOnContract(input: {
+    organizationId: string;
+    contractId: string;
+    fromVehicleId: string;
+    toVehicleId: string;
+    fleetClientId: string | null;
+    organisationClientId: string | null;
+  }) {
+    await this.db.transaction(async (tx) => {
+      const now = new Date();
+      const [active] = await tx
+        .select()
+        .from(assetRegisterVehicleAssignments)
+        .where(
+          and(
+            eq(
+              assetRegisterVehicleAssignments.organizationId,
+              input.organizationId,
+            ),
+            eq(assetRegisterVehicleAssignments.vehicleId, input.fromVehicleId),
+            eq(
+              assetRegisterVehicleAssignments.leaseContractId,
+              input.contractId,
+            ),
+            isNull(assetRegisterVehicleAssignments.unassignedAt),
+          ),
+        )
+        .limit(1);
+      if (!active) {
+        throw new Error('Active assignment not found for replacement source');
+      }
+      await tx
+        .update(assetRegisterVehicleAssignments)
+        .set({ unassignedAt: now })
+        .where(eq(assetRegisterVehicleAssignments.id, active.id));
+      await tx
+        .update(assetRegisterVehicles)
+        .set({ operationalStatus: 'available', updatedAt: now })
+        .where(
+          and(
+            eq(assetRegisterVehicles.organizationId, input.organizationId),
+            eq(assetRegisterVehicles.id, input.fromVehicleId),
+          ),
+        );
+      await tx.insert(assetRegisterVehicleAssignments).values({
+        organizationId: input.organizationId,
+        vehicleId: input.toVehicleId,
+        leaseContractId: input.contractId,
+        fleetClientId: input.fleetClientId,
+        organisationClientId: input.organisationClientId,
+        assignedAt: now,
+      });
+      await tx
+        .update(assetRegisterVehicles)
+        .set({ operationalStatus: 'leased', updatedAt: now })
+        .where(
+          and(
+            eq(assetRegisterVehicles.organizationId, input.organizationId),
+            eq(assetRegisterVehicles.id, input.toVehicleId),
+          ),
+        );
+    });
   }
 
   async listAssignmentHistoryForVehicle(
@@ -929,7 +1161,6 @@ export class AssetRegisterRepository {
       eq(assetRegisterVehicles.organizationId, organizationId),
       eq(assetRegisterVehicles.isActive, true),
       eq(assetRegisterAssetClasses.organizationId, organizationId),
-      eq(assetRegisterAssetMasters.organizationId, organizationId),
     ];
     if (options.assetClassId) {
       conditions.push(
@@ -956,7 +1187,7 @@ export class AssetRegisterRepository {
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
         )
-        .innerJoin(
+        .leftJoin(
           assetRegisterAssetMasters,
           eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )
@@ -974,7 +1205,7 @@ export class AssetRegisterRepository {
           assetRegisterAssetClasses,
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
         )
-        .innerJoin(
+        .leftJoin(
           assetRegisterAssetMasters,
           eq(assetRegisterVehicles.assetMasterId, assetRegisterAssetMasters.id),
         )

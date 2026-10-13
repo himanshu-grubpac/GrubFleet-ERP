@@ -196,7 +196,7 @@ export default function FleetViewPage() {
               id: detailQuery.data.id,
               fleetCode: detailQuery.data.fleetCode,
               assetClass: detailQuery.data.assetClassName,
-              vehicleName: detailQuery.data.assetMasterName,
+              vehicleName: detailQuery.data.assetClassName,
               registrationNumber: detailQuery.data.registrationNumber,
               odometerReading: `${detailQuery.data.odometer.toLocaleString("en-IN")} km`,
               registrationStartDate: formatAssetRegisterIsoDate(

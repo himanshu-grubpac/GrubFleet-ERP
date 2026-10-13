@@ -68,10 +68,7 @@ export default function VendorPaymentDetailPage() {
   if (!paymentId) {
     return (
       <OrganizationViewLayout>
-        <SubPageBackLink
-          href={financeVendorPaymentsListHref}
-          label="Vendor payments"
-        />
+      
         <p className="text-sm text-slate-600">Missing payment id.</p>
       </OrganizationViewLayout>
     );
@@ -88,10 +85,7 @@ export default function VendorPaymentDetailPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <OrganizationViewLayout>
-        <SubPageBackLink
-          href={financeVendorPaymentsListHref}
-          label="Vendor payments"
-        />
+      
         <p className="text-sm text-red-700">Vendor payment not found.</p>
       </OrganizationViewLayout>
     );
@@ -101,10 +95,7 @@ export default function VendorPaymentDetailPage() {
 
   return (
     <OrganizationViewLayout>
-      <SubPageBackLink
-        href={financeVendorPaymentsListHref}
-        label="Vendor payments"
-      />
+    
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>

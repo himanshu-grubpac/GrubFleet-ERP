@@ -15,6 +15,7 @@ import {
   ArrowLeftRight,
   RefreshCw,
   ClipboardCheck,
+  LifeBuoy,
   MapPin,
   Truck,
   UserRound,
@@ -64,6 +65,11 @@ export const mainNavItems: NavItem[] = [
         href: "/fleet-leasing/returns-inspections/",
         icon: ClipboardCheck,
       },
+      {
+        label: "Support",
+        href: "/fleet-leasing/support/",
+        icon: LifeBuoy,
+      },
     ],
   },
   // ============================================================
@@ -71,7 +77,7 @@ export const mainNavItems: NavItem[] = [
   // ============================================================
   {
     label: "Asset Management",
-    href: "/asset-management/",
+    href: "/asset-register/",
     icon: ClipboardList,
     requiredPermission: "asset_register.view",
     children: [
@@ -79,11 +85,6 @@ export const mainNavItems: NavItem[] = [
         label: "Asset Class",
         href: "/asset-register/assestclass/",
         icon: ClipboardList,
-      },
-      {
-        label: "Asset Master",
-        href: "/asset-register/asset-master/",
-        icon: Shield,
       },
       {
         label: "Fleet Register",
@@ -112,6 +113,24 @@ export const mainNavItems: NavItem[] = [
     href: "/workshop/",
     icon: Wrench,
     requiredPermission: "workshop.view",
+
+    children: [
+      {
+        label: "Work Orders",
+        href: "/workshop/work-order/",
+        icon: ClipboardList,
+      },
+      {
+        label: "Labour Rate Cards",
+        href: "/workshop/labour-rate-cards/",
+        icon: FileText,
+      },
+      {
+        label: "AMC & Maintenance",
+        href: "/workshop/amc-maintenance/",
+        icon: Settings,
+      },
+    ],
   },
 
   // ============================================================
