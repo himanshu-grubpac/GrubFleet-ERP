@@ -88,10 +88,7 @@ export default function InvoiceDetailPage() {
   if (!invoiceId) {
     return (
       <OrganizationViewLayout>
-        <SubPageBackLink
-          href={financeInvoicesListHref}
-          label="Back to invoices"
-        />
+
         <p className="text-sm text-slate-600">Missing invoice id.</p>
       </OrganizationViewLayout>
     );
@@ -108,10 +105,6 @@ export default function InvoiceDetailPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <OrganizationViewLayout>
-        <SubPageBackLink
-          href={financeInvoicesListHref}
-          label="Back to invoices"
-        />
         <p className="text-sm text-red-700">Invoice not found.</p>
       </OrganizationViewLayout>
     );

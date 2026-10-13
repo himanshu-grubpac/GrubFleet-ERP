@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
@@ -9,18 +10,25 @@ import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
+
 import { useAuth } from "@/providers/auth-provider";
 import { fetchClientStatementsApi } from "@/lib/api/finance/client-statements";
 import { formatInrFromMinor } from "@/lib/format/money-format";
+
 import {
   findPeriodPresetByRange,
   getClientStatementPeriodPresets,
 } from "@/lib/finance/client-statement-periods";
+
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { financeClientStatementDetailHref } from "@/lib/navigation/finance-static-routes";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 
-const PAGE_SIZE = 10;
+import {
+  isDashboardCatalogEmptyState,
+  shouldShowDashboardListFilters,
+} from "@/lib/hooks/dashboard-list-search-ui";
 
 function moneyCell(
   minor: number,
@@ -28,23 +36,41 @@ function moneyCell(
   emphasizeBalance?: boolean,
 ): ReactNode {
   const base = muted ? "text-slate-700" : "text-gray-900";
+
   const balanceClass =
     emphasizeBalance && minor > 0 && !muted
       ? "font-medium text-[#FE5720]"
       : base;
+
   return (
-    <span className={balanceClass}>{formatInrFromMinor(minor)}</span>
+    <span className={balanceClass}>
+      {formatInrFromMinor(minor)}
+    </span>
   );
 }
 
 export default function ClientStatementsPage() {
-  const { token, organizationId, isLoading: authLoading, getApiError } =
-    useAuth();
-  const periodPresets = useMemo(() => getClientStatementPeriodPresets(), []);
+  const {
+    token,
+    organizationId,
+    isLoading: authLoading,
+    getApiError,
+  } = useAuth();
+
+  const periodPresets = useMemo(
+    () => getClientStatementPeriodPresets(),
+    [],
+  );
+
   const defaultPeriod = periodPresets[0]!;
 
-  const [periodStart, setPeriodStart] = useState(defaultPeriod.periodStart);
-  const [periodEnd, setPeriodEnd] = useState(defaultPeriod.periodEnd);
+  const [periodStart, setPeriodStart] = useState(
+    defaultPeriod.periodStart,
+  );
+  const [periodEnd, setPeriodEnd] = useState(
+    defaultPeriod.periodEnd,
+  );
+
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
@@ -53,16 +79,17 @@ export default function ClientStatementsPage() {
     setPage(1);
   }, [debouncedSearch, periodStart, periodEnd]);
 
-  const listEnabled = !!token && !!organizationId && !authLoading;
+  const listEnabled =
+    Boolean(token) && Boolean(organizationId) && !authLoading;
 
   const listQuery = useQuery({
     queryKey: [
       "finance-client-statements",
       organizationId,
-      page,
       debouncedSearch,
       periodStart,
       periodEnd,
+      page,
     ],
     queryFn: () =>
       fetchClientStatementsApi(token!, {
@@ -70,8 +97,8 @@ export default function ClientStatementsPage() {
         periodStart,
         periodEnd,
         page,
-        pageSize: PAGE_SIZE,
-        search: debouncedSearch || undefined,
+        pageSize: DASHBOARD_DEFAULT_PAGE_SIZE,
+        search: debouncedSearch.trim() || undefined,
       }),
     enabled: listEnabled,
     ...dashboardListQueryOptions,
@@ -80,46 +107,153 @@ export default function ClientStatementsPage() {
   const items = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
   const totalPages = listQuery.data?.totalPages ?? 0;
+
   const hasAnyBillingInvoicesEver =
     listQuery.data?.hasAnyBillingInvoicesEver ?? false;
 
+  const isInitialLoading =
+    authLoading || (listQuery.isLoading && !listQuery.data);
+
   const showOrgEmpty =
-    !listQuery.isLoading &&
+    !isInitialLoading &&
     !listQuery.isError &&
-    listQuery.data &&
+    listQuery.data !== undefined &&
     !hasAnyBillingInvoicesEver;
 
+  const showFilters = shouldShowDashboardListFilters({
+    total,
+    searchInput: search,
+    debouncedSearch,
+    hasActiveSelectFilters: false,
+    isFetchingWithPlaceholder:
+      listQuery.isFetching && listQuery.isPlaceholderData,
+  });
+
+  const isEmptyCatalog = isDashboardCatalogEmptyState({
+    total,
+    searchInput: search,
+    debouncedSearch,
+    hasActiveFilters: false,
+    isFetching: listQuery.isFetching,
+  });
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setPage(1);
+  };
+
+  const selectedPreset = findPeriodPresetByRange(
+    periodStart,
+    periodEnd,
+    periodPresets,
+  );
+
   const periodSelect = (
-    <label className="flex flex-col gap-1 text-xs font-medium text-slate-600">
-      Period
+    <div className="w-full shrink-0 sm:w-[250px]">
       <select
-        className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900"
+        aria-label="Select statement period"
+        className="h-9 w-full rounded-md border border-[#FE5720]/30 bg-[#FE5720]/5 px-3 text-sm font-medium text-[#FE5720] outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
         value={
-          findPeriodPresetByRange(periodStart, periodEnd, periodPresets)?.id ??
-          `${periodStart}_${periodEnd}`
+          selectedPreset?.id ?? `${periodStart}_${periodEnd} `
         }
-        onChange={(e) => {
-          const preset = periodPresets.find((p) => p.id === e.target.value);
+        onChange={(event) => {
+          const preset = periodPresets.find(
+            (item) => item.id === event.target.value,
+          );
+
           if (preset) {
             setPeriodStart(preset.periodStart);
             setPeriodEnd(preset.periodEnd);
           }
         }}
       >
-        {periodPresets.map((p) => (
-          <option key={p.id} value={p.id}>
-            {p.label}
-          </option>
-        ))}
+        <option
+          value={selectedPreset?.id ?? `${periodStart}_${periodEnd} `}
+          disabled
+        >
+          {`Period: ${selectedPreset?.label ??
+            `${periodStart} – ${periodEnd}`
+            } `}
+        </option>
+
+        {periodPresets
+          .filter((preset) => preset.id !== selectedPreset?.id)
+          .map((preset) => (
+            <option key={preset.id} value={preset.id}>
+              {`Period: ${preset.label} `}
+            </option>
+          ))}
       </select>
-    </label>
+    </div>
   );
 
+  const columns = [
+    {
+      key: "clientName",
+      label: "CLIENT",
+      render: (row: (typeof items)[number]) => (
+        <span
+          className={
+            row.hasBillingActivityInPeriod
+              ? "font-medium text-gray-900"
+              : "text-slate-700"
+          }
+        >
+          {row.clientName}
+        </span>
+      ),
+    },
+    {
+      key: "invoiceCount",
+      label: "INVOICES",
+      render: (row: (typeof items)[number]) => (
+        <span
+          className={
+            row.hasBillingActivityInPeriod
+              ? "text-gray-900"
+              : "text-slate-700"
+          }
+        >
+          {row.invoiceCount}
+        </span>
+      ),
+    },
+    {
+      key: "totalBilledMinor",
+      label: "TOTAL BILLED",
+      render: (row: (typeof items)[number]) =>
+        moneyCell(
+          row.totalBilledMinor,
+          !row.hasBillingActivityInPeriod,
+        ),
+    },
+    {
+      key: "totalPaidMinor",
+      label: "TOTAL PAID",
+      render: (row: (typeof items)[number]) =>
+        moneyCell(
+          row.totalPaidMinor,
+          !row.hasBillingActivityInPeriod,
+        ),
+    },
+    {
+      key: "balanceDueMinor",
+      label: "BALANCE DUE",
+      render: (row: (typeof items)[number]) =>
+        moneyCell(
+          row.balanceDueMinor,
+          !row.hasBillingActivityInPeriod,
+          true,
+        ),
+    },
+  ];
+
   const infoBanner = (
-    <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-      Cancelled billing invoices are listed on client detail but excluded from
-      Total Billed, Total Paid, and Balance Due. Sale and purchase invoices are
-      not included — billing invoices only.
+    <div className="mb-4 rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-800">
+      Cancelled billing invoices are listed on client detail but
+      excluded from Total Billed, Total Paid, and Balance Due.
+      Sale and purchase invoices are not included — billing
+      invoices only.
     </div>
   );
 
@@ -130,135 +264,127 @@ export default function ClientStatementsPage() {
       pagination={
         !showOrgEmpty && totalPages > 1
           ? {
-              currentPage: page,
-              totalPages,
-              totalItems: total,
-              pageSize: PAGE_SIZE,
-              onPageChange: setPage,
-            }
+            currentPage: page,
+            totalPages,
+            totalItems: total,
+            pageSize: DASHBOARD_DEFAULT_PAGE_SIZE,
+            onPageChange: setPage,
+          }
           : undefined
       }
     >
-      <div className="px-6 pb-6">
-        {showOrgEmpty ? (
+      <>
+        {isInitialLoading ? (
+          <div
+            className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white"
+            aria-busy="true"
+            aria-label="Loading client statements"
+          >
+            <p className="text-sm text-gray-500">
+              Loading client statements...
+            </p>
+          </div>
+        ) : listQuery.isError ? (
+          <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white p-6">
+            <p className="text-sm font-medium text-red-600">
+              Failed to load client statements.
+            </p>
+
+            <p className="mt-1 text-sm text-gray-600">
+              {getApiError?.(listQuery.error) ?? "Request failed."}
+            </p>
+
+            <button
+              type="button"
+              onClick={() => void listQuery.refetch()}
+              className="mt-2 text-sm text-gray-600 underline"
+            >
+              Try again
+            </button>
+          </div>
+        ) : showOrgEmpty ? (
           <DashboardEmptyState
-            title="No billing invoices recorded yet"
-            description="Client statements roll up once Billing invoices exist in Invoices."
-            icon={<FileText className="h-7 w-7" strokeWidth={1.4} />}
+            icon={
+              <FileText
+                className="h-7 w-7"
+                strokeWidth={1.4}
+              />
+            }
+            title="No billing invoices yet"
+            description="Client statements will appear once Billing invoices have been recorded."
           />
         ) : (
           <>
+            {/* Neutral gray information banner */}
             {infoBanner}
-            <div className="mb-4 flex flex-wrap items-end justify-between gap-4">
-              {periodSelect}
+
+            {/* Search and period selector */}
+            <div className="mb-4">
+              <DashboardFilters
+                searchValue={search}
+                searchPlaceholder="Search by client name"
+                onSearchChange={setSearch}
+                onClear={handleClearFilters}
+                showClearButton={false}
+              >
+                {periodSelect}
+              </DashboardFilters>
             </div>
 
-            <DashboardFilters
-              searchValue={search}
-              searchPlaceholder="Search by client name"
-              onSearchChange={setSearch}
-              onClear={() => setSearch("")}
-            />
-
-            {listQuery.isLoading ? (
-              <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-                Loading client statements…
-              </div>
-            ) : listQuery.isError ? (
-              <div className="mt-6 rounded-lg border border-red-100 bg-red-50 p-6 text-sm text-red-800">
-                <p>
-                  Could not load client statements.
-                  {listQuery.error
-                    ? ` ${getApiError?.(listQuery.error) ?? "Request failed."}`
-                    : null}
-                </p>
-                <button
-                  type="button"
-                  className="mt-2 font-medium underline"
-                  onClick={() => void listQuery.refetch()}
-                >
-                  Retry
-                </button>
-              </div>
+            {/* Empty states and table */}
+            {isEmptyCatalog ? (
+              <DashboardEmptyState
+                icon={
+                  <FileText
+                    className="h-7 w-7"
+                    strokeWidth={1.4}
+                  />
+                }
+                title="No client statements yet"
+                description="Client statements will appear here when billing invoices are available."
+              />
             ) : items.length === 0 ? (
-              <div className="mt-6 rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-                No clients match your search for this period.
-              </div>
+              <DashboardEmptyState
+                icon={
+                  <FileText
+                    className="h-7 w-7"
+                    strokeWidth={1.4}
+                  />
+                }
+                title="No client statements found"
+                description="Try changing your search for this period."
+                buttonLabel="Clear search"
+                onButtonClick={handleClearFilters}
+              />
             ) : (
-              <div className="mt-4">
+              <div
+                className={showFilters ? "mt-4" : undefined}
+                aria-busy={
+                  listQuery.isFetching &&
+                  listQuery.isPlaceholderData
+                }
+              >
                 <DashboardTable
-                  columns={[
-                    {
-                      key: "clientName",
-                      label: "CLIENT",
-                      render: (row) => (
-                        <span
-                          className={
-                            row.hasBillingActivityInPeriod
-                              ? "font-medium text-gray-900"
-                              : "text-slate-700"
-                          }
-                        >
-                          {row.clientName}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "invoiceCount",
-                      label: "INVOICES",
-                      render: (row) => (
-                        <span
-                          className={
-                            row.hasBillingActivityInPeriod
-                              ? "text-gray-900"
-                              : "text-slate-700"
-                          }
-                        >
-                          {row.invoiceCount}
-                        </span>
-                      ),
-                    },
-                    {
-                      key: "totalBilledMinor",
-                      label: "TOTAL BILLED",
-                      render: (row) =>
-                        moneyCell(
-                          row.totalBilledMinor,
-                          !row.hasBillingActivityInPeriod,
-                        ),
-                    },
-                    {
-                      key: "totalPaidMinor",
-                      label: "TOTAL PAID",
-                      render: (row) =>
-                        moneyCell(
-                          row.totalPaidMinor,
-                          !row.hasBillingActivityInPeriod,
-                        ),
-                    },
-                    {
-                      key: "balanceDueMinor",
-                      label: "BALANCE DUE",
-                      render: (row) =>
-                        moneyCell(
-                          row.balanceDueMinor,
-                          !row.hasBillingActivityInPeriod,
-                          true,
-                        ),
-                    },
-                  ]}
+                  columns={columns}
                   data={items}
                   getRowKey={(row) => row.clientId}
                   renderActions={(row) => (
                     <DashboardTableActions
                       status="active"
                       hideEdit
+                      alwaysShowOverflowMenu
                       viewHref={financeClientStatementDetailHref(
                         row.clientId,
                         periodStart,
                         periodEnd,
                       )}
-                      copyText={`${row.clientName}\t${row.invoiceCount}\t${formatInrFromMinor(row.totalBilledMinor)}\t${formatInrFromMinor(row.totalPaidMinor)}\t${formatInrFromMinor(row.balanceDueMinor)}`}
+                      copyText={[
+                        row.clientName,
+                        String(row.invoiceCount),
+                        formatInrFromMinor(row.totalBilledMinor),
+                        formatInrFromMinor(row.totalPaidMinor),
+                        formatInrFromMinor(row.balanceDueMinor),
+                      ].join("\t")}
                     />
                   )}
                 />
@@ -266,7 +392,7 @@ export default function ClientStatementsPage() {
             )}
           </>
         )}
-      </div>
+      </>
     </DashboardLayout>
   );
 }
