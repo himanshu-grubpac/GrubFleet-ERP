@@ -18,11 +18,10 @@ export const STATUS_OPTIONS: {
   label: string;
   value: "" | FinanceInvoiceStatus;
 }[] = [
-  { label: "All statuses", value: "" },
-  { label: "Unpaid", value: "unpaid" },
-  { label: "Partially paid", value: "partially_paid" },
-  { label: "Paid", value: "paid" },
-];
+    { label: "Unpaid", value: "unpaid" },
+    { label: "Partially paid", value: "partially_paid" },
+    { label: "Paid", value: "paid" },
+  ];
 
 /** Product copy: server-assigned purchase invoice number shape. */
 export const PURCHASE_INVOICE_NUMBER_FORMAT_HINT = "PINV-YYYY-####";

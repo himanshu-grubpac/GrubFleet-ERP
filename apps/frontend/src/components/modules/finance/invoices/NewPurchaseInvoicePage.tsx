@@ -374,11 +374,10 @@ export default function NewPurchaseInvoicePage() {
             key={value}
             type="button"
             onClick={() => setTab(value)}
-            className={`rounded-md px-3 py-1.5 text-sm font-medium ${
-              tab === value
-                ? "bg-[#FE5720] text-white"
-                : "text-slate-600 hover:bg-slate-100"
-            }`}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === value
+              ? "bg-[#FE5720] text-white"
+              : "text-slate-600 hover:bg-slate-100"
+              }`}
           >
             {label}
           </button>
@@ -408,7 +407,7 @@ export default function NewPurchaseInvoicePage() {
     return (
       <OrganizationFormLayout
         title="Add purchase invoice"
-        backLink={{ label: "Back", href: financeInvoiceNewTypeHref }}
+
       >
         <p className="text-sm text-slate-600">
           You do not have permission to create invoices.
@@ -421,7 +420,6 @@ export default function NewPurchaseInvoicePage() {
     <OrganizationFormLayout
       title="Add purchase invoice"
       description="Record a vendor bill for vehicles or spare parts."
-      backLink={{ label: "Back", href: financeInvoiceNewTypeHref }}
       infoText={infoBanner}
       contentVariant="form-card"
       actions={
@@ -634,8 +632,8 @@ export default function NewPurchaseInvoicePage() {
             </p>
           ) : null}
           {!assetClassesQuery.isLoading &&
-          !assetClassesQuery.isError &&
-          assetClasses.length === 0 ? (
+            !assetClassesQuery.isError &&
+            assetClasses.length === 0 ? (
             <p className="text-xs text-slate-500">
               No active asset classes. Define asset classes in Asset Register
               before recording a vehicle purchase invoice.
@@ -703,8 +701,8 @@ export default function NewPurchaseInvoicePage() {
                     <span className="font-medium tabular-nums">
                       {vehicleInvoiceSummary.totalBaseMinor != null
                         ? formatInrFromMinor(
-                            vehicleInvoiceSummary.totalBaseMinor,
-                          )
+                          vehicleInvoiceSummary.totalBaseMinor,
+                        )
                         : "—"}
                     </span>
                   </div>
@@ -732,8 +730,8 @@ export default function NewPurchaseInvoicePage() {
                     <span className="text-lg font-semibold tabular-nums text-slate-900">
                       {vehicleInvoiceSummary.totalGrandMinor != null
                         ? formatInrFromMinor(
-                            vehicleInvoiceSummary.totalGrandMinor,
-                          )
+                          vehicleInvoiceSummary.totalGrandMinor,
+                        )
                         : "—"}
                     </span>
                   </div>
@@ -797,8 +795,8 @@ export default function NewPurchaseInvoicePage() {
               </p>
             ) : null}
             {!partsQuery.isLoading &&
-            !partsQuery.isError &&
-            parts.length === 0 ? (
+              !partsQuery.isError &&
+              parts.length === 0 ? (
               <p className="mt-1 text-xs text-slate-500">
                 No parts in the catalog yet. Parts must exist in the finance
                 parts catalog before you can record a spare parts purchase

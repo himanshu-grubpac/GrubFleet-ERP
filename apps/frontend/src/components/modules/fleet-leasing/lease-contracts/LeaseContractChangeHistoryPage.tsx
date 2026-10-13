@@ -66,11 +66,7 @@ export default function LeaseContractChangeHistoryPage() {
 
     return (
         <OrganizationViewLayout>
-            <SubPageBackLink
-                href={backHref}
-                label="Back to contract"
-                className="mb-4"
-            />
+        
 
             <div className="mb-4">
                 <h1 className="text-[15px] font-semibold text-gray-900">

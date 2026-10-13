@@ -117,7 +117,7 @@ export default function CreateAssetClassForm({
   initialData,
   onCancel,
   onSaved,
-}: CreateAssetClassFormProps) { 
+}: CreateAssetClassFormProps) {
   const router = useRouter();
   const { token, organizationId, isLoading: authLoading } = useAuth();
   const isEditMode = mode === "edit";
@@ -536,8 +536,8 @@ export default function CreateAssetClassForm({
             className={mergeCompositeShellBorderClass(
               Boolean(
                 validationErrors.mileageFrom ||
-                  validationErrors.mileageTo ||
-                  validationErrors.mileageUnit,
+                validationErrors.mileageTo ||
+                validationErrors.mileageUnit,
               ),
               compositeShellClass,
             )}
@@ -613,7 +613,7 @@ export default function CreateAssetClassForm({
             className={mergeCompositeShellBorderClass(
               Boolean(
                 validationErrors.ratedLoadCapacityFrom ||
-                  validationErrors.ratedLoadCapacityTo,
+                validationErrors.ratedLoadCapacityTo,
               ),
               compositeShellClass,
             )}
@@ -733,7 +733,7 @@ export default function CreateAssetClassForm({
               <span
                 className={
                   catalogQuery.isLoading ||
-                  form.intakeChecklistItems.length > 0
+                    form.intakeChecklistItems.length > 0
                     ? "text-gray-900"
                     : "text-gray-500"
                 }
@@ -752,67 +752,67 @@ export default function CreateAssetClassForm({
             />
           </div>
 
-        {intakePanelExpanded ? (
-          <div
-            id="default-intake-checklist-panel"
-            role="listbox"
-            aria-labelledby="default-intake-checklist-label"
-            className="-mt-px overflow-hidden rounded-b-md border border-gray-300 border-t-0 bg-white shadow-sm"
-          >
-            {catalogQuery.isError ? (
-              <p className="px-3 py-2 text-sm text-red-600" role="alert">
-                Could not load checklist catalog.
-              </p>
-            ) : null}
-            {intakeCheckboxRows.length > 0 ? (
-              <ul className="max-h-56 overflow-y-auto py-1">
-                {intakeCheckboxRows.map((item) => {
-                  const isSelected = selectedIntakeSet.has(item);
-                  return (
-                    <li key={item}>
-                      <button
-                        type="button"
-                        aria-pressed={isSelected}
-                        onClick={() => setIntakeItemChecked(item, !isSelected)}
-                        className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
-                      >
-                        <span className="min-w-0 flex-1">{item}</span>
-                        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                          {isSelected ? (
-                            <Check
-                              className="h-4 w-4 text-[#FE5720]"
-                              aria-hidden
-                            />
-                          ) : null}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
-            <div className="border-t border-gray-200 px-3 py-2">
-              {intakeCustomAddOpen ? (
-                <InlineAddField
-                  placeholder="Custom checklist item"
-                  maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.intakeItem}
-                  buttonLabel="Add"
-                  disabled={isSaving}
-                  onAdd={submitIntakeCustomAdd}
-                />
-              ) : (
-                <Button
-                  type="button"
-                  variant="secondary"
-                  disabled={isSaving}
-                  onClick={() => setIntakeCustomAddOpen(true)}
-                >
-                  {intakeCustomAddTriggerLabel}
-                </Button>
-              )}
+          {intakePanelExpanded ? (
+            <div
+              id="default-intake-checklist-panel"
+              role="listbox"
+              aria-labelledby="default-intake-checklist-label"
+              className="-mt-px overflow-hidden rounded-b-md border border-gray-300 border-t-0 bg-white shadow-sm"
+            >
+              {catalogQuery.isError ? (
+                <p className="px-3 py-2 text-sm text-red-600" role="alert">
+                  Could not load checklist catalog.
+                </p>
+              ) : null}
+              {intakeCheckboxRows.length > 0 ? (
+                <ul className="max-h-56 overflow-y-auto py-1">
+                  {intakeCheckboxRows.map((item) => {
+                    const isSelected = selectedIntakeSet.has(item);
+                    return (
+                      <li key={item}>
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => setIntakeItemChecked(item, !isSelected)}
+                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+                        >
+                          <span className="min-w-0 flex-1">{item}</span>
+                          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                            {isSelected ? (
+                              <Check
+                                className="h-4 w-4 text-[#FE5720]"
+                                aria-hidden
+                              />
+                            ) : null}
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+              <div className="border-t border-gray-200 px-3 py-2">
+                {intakeCustomAddOpen ? (
+                  <InlineAddField
+                    placeholder="Custom checklist item"
+                    maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.intakeItem}
+                    buttonLabel="Add"
+                    disabled={isSaving}
+                    onAdd={submitIntakeCustomAdd}
+                  />
+                ) : (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    disabled={isSaving}
+                    onClick={() => setIntakeCustomAddOpen(true)}
+                  >
+                    {intakeCustomAddTriggerLabel}
+                  </Button>
+                )}
+              </div>
             </div>
-          </div>
-        ) : null}
+          ) : null}
         </div>
         <FormFieldInlineError message={validationErrors.intakeChecklistItems} />
 
