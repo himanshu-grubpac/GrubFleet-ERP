@@ -404,6 +404,77 @@ export const breadcrumbConfig: Record<
         },
     ],
 
+    // ----------------------------
+    // Stock Receipt
+    // ----------------------------
+
+    "/inventory/stock-receipt/detail": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Receipt", href: "/inventory/stock-receipt" },
+        { label: "View Details" },
+    ],
+
+    "/inventory/stock-receipt/edit": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Receipt", href: "/inventory/stock-receipt" },
+        { label: "Edit" },
+    ],
+
+    // ----------------------------
+    // Stock Register
+    // ----------------------------
+
+    "/inventory/Stock-register": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Register" },
+    ],
+
+    "/inventory/Stock-register/create": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Register", href: "/inventory/Stock-register" },
+        { label: "Create Stock" },
+    ],
+
+    "/inventory/Stock-register/detail": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Register", href: "/inventory/Stock-register" },
+        { label: "View Details" },
+    ],
+
+    "/inventory/Stock-register/edit": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Register", href: "/inventory/Stock-register" },
+        { label: "Edit" },
+    ],
+
+    // ----------------------------
+    // Stock Balance
+    // ----------------------------
+
+    "/inventory/stock-balance": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Balance" },
+    ],
+
+    "/inventory/stock-balance/detail": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Stock Balance", href: "/inventory/stock-balance" },
+        { label: "View Details" },
+    ],
+
+    // ----------------------------
+    // Parts Requests
+    // ----------------------------
+
+    "/inventory/parts-requests": [
+        { label: "Inventory", href: "/inventory" },
+    ],
+
+    "/inventory/parts-requests/detail": [
+        { label: "Inventory", href: "/inventory" },
+        { label: "Parts Requests", href: "/inventory/parts-requests" },
+        { label: "View Details" },
+    ],
 
 
     // ============================================================
@@ -583,6 +654,201 @@ export const breadcrumbConfig: Record<
     ],
 
     // ============================================================
-    // CUSTOMERS
+    // WORKSHOP
     // ============================================================
+
+    "/workshop": [
+        {
+            label: "Workshop",
+        },
+    ],
+
+    // ----------------------------
+    // AMC Maintenance
+    // ----------------------------
+
+    "/workshop/amc-maintenance": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "AMC Maintenance",
+        },
+    ],
+
+    // ----------------------------
+    // AMC Schedule
+    // ----------------------------
+
+    "/workshop/amc-maintenance/schedule": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "AMC Maintenance",
+            href: "/workshop/amc-maintenance",
+        },
+        {
+            label: "Schedule",
+        },
+    ],
+
+    "/workshop/amc-maintenance/schedule/create": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "AMC Maintenance",
+            href: "/workshop/amc-maintenance",
+        },
+        {
+            label: "Schedule",
+            href: "/workshop/amc-maintenance/schedule",
+        },
+        {
+            label: "Create Schedule",
+        },
+    ],
+
+    // ----------------------------
+    // AMC Tier
+    // ----------------------------
+
+    "/workshop/amc-maintenance/tier": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "AMC Maintenance",
+            href: "/workshop/amc-maintenance",
+        },
+        {
+            label: "Tier",
+        },
+    ],
+
+    // ----------------------------
+    // Work Orders
+    // ----------------------------
+
+    "/workshop/work-order": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "Work Order",
+        },
+    ],
+
+    "/workshop/work-order/create": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "Work Order",
+            href: "/workshop/work-order",
+        },
+        {
+            label: "Create Work Order",
+        },
+    ],
+
+    // Work Order Details (dynamic [id] route)
+    "/workshop/work-order/[id]": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "Work Order",
+            href: "/workshop/work-order",
+        },
+        {
+            label: "Work Order Details",
+        },
+    ],
+
+    // Asset Class View
+    "/asset-register/assestclass/detail": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Asset Class",
+            href: "/asset-register/assestclass",
+        },
+        {
+            label: "View Asset Class",
+        },
+    ],
+
+    // Asset Class Edit
+    "/asset-register/assestclass/edit": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Asset Class",
+            href: "/asset-register/assestclass",
+        },
+        {
+            label: "Edit Asset Class",
+        },
+    ],
+
+    // Fleet Register View
+    "/asset-register/fleetregister/detail": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Fleet Register",
+            href: "/asset-register/fleetregister",
+        },
+        {
+            label: "View Vehicle",
+        },
+    ],
+
+    // Fleet Register Edit
+    "/asset-register/fleetregister/edit": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Fleet Register",
+            href: "/asset-register/fleetregister",
+        },
+        {
+            label: "Edit Vehicle",
+        },
+    ],
+
+    // Fleet Register Lease History
+    "/asset-register/fleetregister/detail/lease-history": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Fleet Register",
+            href: "/asset-register/fleetregister",
+        },
+        {
+            label: "Lease History",
+        },
+    ],
+
+
 };
+

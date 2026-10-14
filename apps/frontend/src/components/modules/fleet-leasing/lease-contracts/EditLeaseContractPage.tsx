@@ -320,20 +320,14 @@ export default function EditLeaseContractPage({
                 error instanceof ApiClientError
                     ? error.message
                     : error instanceof Error
-                      ? error.message
-                      : "Could not save client.";
+                        ? error.message
+                        : "Could not save client.";
             showErrorToast(message);
             throw error;
         }
     };
 
-    const listBackLink = useMemo(
-        () => ({
-            label: "Back to contract",
-            href: detailHref,
-        }),
-        [detailHref],
-    );
+
 
     if (contractQuery.isLoading || !initialized) {
         return (
@@ -341,7 +335,7 @@ export default function EditLeaseContractPage({
                 title="Edit lease contract"
                 description="Loading contract…"
                 contentVariant="plain"
-                backLink={listBackLink}
+
             >
                 <div
                     className="rounded-lg border border-gray-200 bg-white p-5 text-sm text-gray-600"
@@ -358,7 +352,6 @@ export default function EditLeaseContractPage({
             <OrganizationFormLayout
                 title="Edit lease contract"
                 contentVariant="plain"
-                backLink={listBackLink}
             >
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     Could not load this contract. Return to the detail view and
@@ -566,16 +559,6 @@ export default function EditLeaseContractPage({
         );
     }
 
-    const backLink =
-        screen === "register-client"
-            ? {
-                  label: "Back to client selection",
-                  onClick: () => {
-                      setRegisterClientDraftName("");
-                      setScreen("select-client");
-                  },
-              }
-            : listBackLink;
 
     return (
         <OrganizationFormLayout
@@ -585,7 +568,7 @@ export default function EditLeaseContractPage({
             beforeHeader={
                 <LeaseContractStepper currentStep={SCREEN_STEP[screen]} />
             }
-            backLink={backLink}
+
             headerAction={
                 screen === "select-client" ? (
                     <Button
