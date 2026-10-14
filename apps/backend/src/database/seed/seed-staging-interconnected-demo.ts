@@ -691,6 +691,7 @@ export async function seedStagingInterconnectedDemo(
         designation: seed.designation,
         department: seed.department,
         locationId: locationIds.get(seed.locationKey) ?? null,
+        employmentType: 'full_time',
         companyEmail: seed.companyEmail,
         mobile: seed.mobile,
         dateOfJoining: '2024-04-01',
@@ -1116,14 +1117,14 @@ export async function seedStagingInterconnectedDemo(
     return {
       key: `v${n}`,
       classKey,
-      fleetCode: formatFleetCode(n),
+      fleetCode: formatFleetCode(n),  
       registrationNumber: formatIndianRegistration(n),
       chassisNumber: `MAT${String(12345678901234 + n).padStart(17, '0')}`,
       operationalStatus:
         VEHICLE_OPERATIONAL_STATUSES[i % VEHICLE_OPERATIONAL_STATUSES.length],
       isActive: i !== 14,
     };
-  });
+  }); 
 
   const vehicleIds = new Map<string, string>();
   /** Must stay >= CURRENT_DATE on staging so replacement/candidate APIs return brands. */

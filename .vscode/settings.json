@@ -1,0 +1,8 @@
+{
+  "eslint.workingDirectories": [
+    { "directory": "apps/backend", "changeProcessCWD": true },
+    { "directory": "apps/frontend", "changeProcessCWD": true }
+  ],
+  "typescript.tsdk": "node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}
