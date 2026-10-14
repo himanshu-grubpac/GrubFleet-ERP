@@ -4,6 +4,12 @@
 import { useRouter } from "next/navigation";
 import { Eye, Info } from "lucide-react";
 
+import {
+  workshopAmcScheduleCreateHref,
+  workshopAmcScheduleDetailHref,
+  workshopAmcTierDetailHref,
+} from "@/lib/navigation/workshop-static-routes";
+
 const tiers = [
     {
         id: "gold",
@@ -57,9 +63,7 @@ export default function AmcMaintenancePage() {
                 </div>
 
                 <button
-                    onClick={() =>
-                        router.push("/workshop/amc-maintenance/schedule/create")
-                    }
+                    onClick={() => router.push(workshopAmcScheduleCreateHref)}
                     className="h-8 shrink-0 rounded-md bg-[#FE5720] px-4 text-xs font-medium text-white hover:bg-[#E94B18]"
                 >
                     + Create schedule
@@ -138,7 +142,9 @@ export default function AmcMaintenancePage() {
                                             aria-label={`View ${tier.name} tier`}
                                             onClick={() =>
                                                 router.push(
-                                                    `/workshop/amc-maintenance/tiers/${tier.id}`
+                                                    workshopAmcTierDetailHref(
+                                                        tier.id,
+                                                    ),
                                                 )
                                             }
                                             className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
@@ -167,7 +173,7 @@ export default function AmcMaintenancePage() {
 
                     <button
                         onClick={() =>
-                            router.push("/workshop/amc-maintenance/schedule/create")
+                            router.push(workshopAmcScheduleCreateHref)
                         }
                         className="h-8 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium hover:bg-gray-50"
                     >
@@ -228,7 +234,9 @@ export default function AmcMaintenancePage() {
                                             aria-label={`View ${schedule.name}`}
                                             onClick={() =>
                                                 router.push(
-                                                    `/workshop/amc-maintenance/schedules/${schedule.id}`
+                                                    workshopAmcScheduleDetailHref(
+                                                        schedule.id,
+                                                    ),
                                                 )
                                             }
                                             className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100"

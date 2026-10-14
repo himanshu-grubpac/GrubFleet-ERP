@@ -26,6 +26,11 @@ import {
   type StockRegisterListItem,
 } from "@/lib/api/inventory/stock-register";
 import {
+  inventoryStockRegisterCreateHref,
+  inventoryStockRegisterDetailHref,
+  inventoryStockRegisterEditHref,
+} from "@/lib/navigation/inventory-static-routes";
+import {
   showErrorToast,
   showSparePartActivatedToast,
   showSparePartDeactivatedToast,
@@ -187,7 +192,7 @@ export default function StockDashboardPage() {
             <Button
               type="button"
               onClick={() =>
-                router.push("/inventory/Stock-register/create")
+                router.push(inventoryStockRegisterCreateHref)
               }
             >
               + Add Part
@@ -263,7 +268,7 @@ export default function StockDashboardPage() {
             }
             onButtonClick={() => {
               if (totalItems === 0 && canCreate) {
-                router.push("/inventory/Stock-register/create");
+                router.push(inventoryStockRegisterCreateHref);
                 return;
               }
               setSearch("");
@@ -279,13 +284,11 @@ export default function StockDashboardPage() {
               <DashboardTableActions
                 status={part.status}
                 locationId={part.id}
-                viewHref={`/inventory/Stock-register/${part.id}`}
+                viewHref={inventoryStockRegisterDetailHref(part.id)}
                 onEdit={
                   part.availableActions.edit
                     ? () =>
-                        router.push(
-                          `/inventory/Stock-register/${part.id}/edit`,
-                        )
+                        router.push(inventoryStockRegisterEditHref(part.id))
                     : undefined
                 }
                 onToggleStatus={() => {

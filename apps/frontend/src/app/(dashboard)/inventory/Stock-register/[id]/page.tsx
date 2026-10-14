@@ -1,7 +1,27 @@
-import StockViewPage from "@/components/modules/inventory/StockRegister/StockViewPage";
+"use client";
 
-export default function Page() {
-    return (
-        <StockViewPage />
-    )
+import { useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+
+import { inventoryStockRegisterDetailHref } from "@/lib/navigation/inventory-static-routes";
+
+/** Legacy dynamic segment — redirect to static-export detail shell (?partId=). */
+export default function StockRegisterLegacyDetailRedirectPage() {
+  const params = useParams();
+  const router = useRouter();
+  const partId = String(params.id ?? "").trim();
+
+  useEffect(() => {
+    if (!partId) {
+      router.replace("/inventory/Stock-register/");
+      return;
+    }
+    router.replace(inventoryStockRegisterDetailHref(partId));
+  }, [partId, router]);
+
+  return (
+    <div className="flex min-h-[40vh] items-center justify-center text-sm font-medium text-slate-500">
+      Redirecting…
+    </div>
+  );
 }
