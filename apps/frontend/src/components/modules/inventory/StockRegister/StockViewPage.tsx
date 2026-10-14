@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { inventoryStockRegisterEditHref } from "@/lib/navigation/inventory-static-routes";
+import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -65,19 +67,18 @@ type StockRecord = {
 /* -------------------------------------------------------------------------- */
 
 export default function StockViewPage() {
-    const params = useParams();
     const router = useRouter();
     const queryClient = useQueryClient();
     const { token, organizationId, isLoading: isAuthLoading, permissions } =
         useAuth();
 
-    const stockId = String(params.id);
+    const stockId = useInventoryEntityId("partId");
 
     const detailQuery = useQuery({
         queryKey: ["inventory", "stock-register", organizationId, stockId],
         queryFn: () =>
             fetchStockRegisterDetailApi(organizationId!, stockId, token!),
-        enabled: !!token && !!organizationId && !isAuthLoading,
+        enabled: !!token && !!organizationId && !isAuthLoading && !!stockId,
     });
 
     const statusMutation = useMutation({
@@ -148,9 +149,7 @@ export default function StockViewPage() {
 
     const handleEdit = () => {
         if (!canUpdate || stock.status !== "active") return;
-        router.push(
-            `/inventory/Stock-register/${stock.id}/edit`,
-        );
+        router.push(inventoryStockRegisterEditHref(stock.id));
     };
 
     /* ---------------------------------------------------------------------- */

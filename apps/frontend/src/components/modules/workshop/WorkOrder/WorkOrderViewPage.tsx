@@ -4,6 +4,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, X } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
+import {
+  workshopWorkOrderAddHref,
+  workshopWorkOrderEditHref,
+} from "@/lib/navigation/workshop-static-routes";
 
 type WorkOrderStatus = "Not Started" | "In Progress" | "Completed" | "Cancelled";
 
@@ -57,8 +61,10 @@ export default function WorkOrderViewPage() {
     const isCompleted = status === "Completed";
     const isNotStarted = status === "Not Started";
 
-    const handleEdit = () => router.push(`/workshop/work-orders/${workOrder.id}/edit`);
-    const handleAddToWorkOrder = () => router.push(`/workshop/work-orders/${workOrder.id}/add`);
+    const handleEdit = () =>
+        router.push(workshopWorkOrderEditHref(workOrder.id));
+    const handleAddToWorkOrder = () =>
+        router.push(workshopWorkOrderAddHref(workOrder.id));
     const handleStart = () => setStatus("In Progress");
     const handleConfirmComplete = () => {
         // Replace this local state update with the completion API when it is available.

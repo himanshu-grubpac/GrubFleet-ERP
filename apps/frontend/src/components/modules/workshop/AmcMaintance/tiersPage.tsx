@@ -1,7 +1,14 @@
 "use client";
 
-import { useRouter, useParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, Info } from "lucide-react";
+
+import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
+import {
+  workshopAmcMaintenanceListHref,
+  workshopAmcSubscriberDetailHref,
+  workshopAmcTierEditHref,
+} from "@/lib/navigation/workshop-static-routes";
 
 const subscribers = [
     {
@@ -20,9 +27,8 @@ const subscribers = [
 
 export default function AmcTierDetailsPage() {
     const router = useRouter();
-    const params = useParams();
-
-    const tierId = String(params.id ?? "gold");
+    const resolvedTierId = useWorkshopEntityId("tierId");
+    const tierId = resolvedTierId.trim() || "gold";
     const tierName =
         tierId.toLowerCase() === "gold"
             ? "Gold"
@@ -33,7 +39,7 @@ export default function AmcTierDetailsPage() {
             {/* Breadcrumb */}
             <div className="mb-5 flex items-center gap-2 text-xs text-gray-500">
                 <button
-                    onClick={() => router.push("/workshop/amc-maintenance")}
+                    onClick={() => router.push(workshopAmcMaintenanceListHref)}
                     className="hover:text-[#FE5720]"
                 >
                     AMC &amp; Maintenance
@@ -62,9 +68,7 @@ export default function AmcTierDetailsPage() {
 
                 <button
                     onClick={() =>
-                        router.push(
-                            `/workshop/amc-maintenance/tiers/${tierId}/edit`
-                        )
+                        router.push(workshopAmcTierEditHref(tierId))
                     }
                     className="h-8 shrink-0 rounded-md border border-gray-200 bg-white px-4 text-xs font-medium hover:bg-gray-50"
                 >
@@ -154,7 +158,9 @@ export default function AmcTierDetailsPage() {
                                             aria-label={`View ${subscriber.code}`}
                                             onClick={() =>
                                                 router.push(
-                                                    `/workshop/amc-maintenance/subscribers/${subscriber.code}`
+                                                    workshopAmcSubscriberDetailHref(
+                                                        subscriber.code,
+                                                    ),
                                                 )
                                             }
                                             className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
@@ -180,7 +186,7 @@ export default function AmcTierDetailsPage() {
 
             {/* Back */}
             <button
-                onClick={() => router.push("/workshop/amc-maintenance")}
+                onClick={() => router.push(workshopAmcMaintenanceListHref)}
                 className="mt-5 inline-flex h-8 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium hover:bg-gray-50"
             >
                 <ArrowLeft size={14} />

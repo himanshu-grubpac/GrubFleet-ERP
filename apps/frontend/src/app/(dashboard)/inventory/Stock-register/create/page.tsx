@@ -8,6 +8,7 @@ import CreatePartForm, {
 } from "@/components/modules/inventory/StockRegister/StockFormRegister";
 import { useAuth } from "@/providers/auth-provider";
 import { createSparePartApi } from "@/lib/api/inventory/stock-register";
+import { inventoryStockRegisterDetailHref } from "@/lib/navigation/inventory-static-routes";
 import {
   showErrorToast,
   showSparePartCreatedToast,
@@ -37,7 +38,7 @@ export default function StockCreatePage() {
       ),
     onSuccess: (result) => {
       showSparePartCreatedToast(result.partName);
-      router.push(`/inventory/Stock-register/${result.id}`);
+      router.push(inventoryStockRegisterDetailHref(result.id));
     },
     onError: () => showErrorToast("Failed to save part."),
   });

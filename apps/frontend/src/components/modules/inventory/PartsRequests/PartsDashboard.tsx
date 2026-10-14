@@ -16,6 +16,7 @@ import {
   fetchPartsRequestsListApi,
   type PartsRequestListItem,
 } from "@/lib/api/inventory/parts-requests";
+import { inventoryPartsRequestDetailHref } from "@/lib/navigation/inventory-static-routes";
 
 const PAGE_SIZE = 10;
 
@@ -132,7 +133,7 @@ export default function PartsDashboard() {
             <DashboardTableActions
               status="active"
               locationId={row.id}
-              viewHref={`/inventory/parts-requests/${row.id}`}
+              viewHref={inventoryPartsRequestDetailHref(row.id)}
             />
           )}
         />

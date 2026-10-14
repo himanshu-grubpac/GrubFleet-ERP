@@ -1,6 +1,8 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { inventoryStockReceiptEditHref } from "@/lib/navigation/inventory-static-routes";
+import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -9,9 +11,8 @@ import { fetchStockReceiptDetailApi } from "@/lib/api/inventory/stock-receipts";
 import { formatInrFromMinor } from "@/lib/format/money-format";
 
 export default function StockViewPage() {
-  const params = useParams();
   const router = useRouter();
-  const receiptId = String(params.id);
+  const receiptId = useInventoryEntityId("receiptId");
   const { token, organizationId, isLoading: isAuthLoading, permissions } =
     useAuth();
 
@@ -23,7 +24,7 @@ export default function StockViewPage() {
     queryKey: ["inventory", "stock-receipts", organizationId, receiptId],
     queryFn: () =>
       fetchStockReceiptDetailApi(organizationId!, receiptId, token!),
-    enabled: !!token && !!organizationId && !isAuthLoading,
+    enabled: !!token && !!organizationId && !isAuthLoading && !!receiptId,
   });
 
   if (detailQuery.isLoading || isAuthLoading) {
@@ -58,7 +59,7 @@ export default function StockViewPage() {
             type="button"
             variant="secondary"
             onClick={() =>
-              router.push(`/inventory/stock-receipt/${receiptId}/edit`)
+              router.push(inventoryStockReceiptEditHref(receiptId))
             }
           >
             Edit
