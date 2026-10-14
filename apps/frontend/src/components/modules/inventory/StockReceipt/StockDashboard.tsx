@@ -18,6 +18,11 @@ import {
   fetchStockReceiptsListApi,
   type StockReceiptListItem,
 } from "@/lib/api/inventory/stock-receipts";
+import {
+  inventoryStockReceiptCreateHref,
+  inventoryStockReceiptDetailHref,
+  inventoryStockReceiptEditHref,
+} from "@/lib/navigation/inventory-static-routes";
 
 const PAGE_SIZE = 10;
 
@@ -106,7 +111,7 @@ export default function StockDashboard() {
         canCreate ? (
           <Button
             type="button"
-            onClick={() => router.push("/inventory/stock-receipt/create")}
+            onClick={() => router.push(inventoryStockReceiptCreateHref)}
           >
             + Record Receipt
           </Button>
@@ -153,7 +158,7 @@ export default function StockDashboard() {
           }
           onButtonClick={() => {
             if (totalItems === 0 && canCreate) {
-              router.push("/inventory/stock-receipt/create");
+              router.push(inventoryStockReceiptCreateHref);
               return;
             }
             setSearch("");
@@ -168,11 +173,11 @@ export default function StockDashboard() {
             <DashboardTableActions
               status={row.status}
               locationId={row.id}
-              viewHref={`/inventory/stock-receipt/${row.id}`}
+              viewHref={inventoryStockReceiptDetailHref(row.id)}
               onEdit={
                 row.availableActions.edit
                   ? () =>
-                      router.push(`/inventory/stock-receipt/${row.id}/edit`)
+                      router.push(inventoryStockReceiptEditHref(row.id))
                   : undefined
               }
             />

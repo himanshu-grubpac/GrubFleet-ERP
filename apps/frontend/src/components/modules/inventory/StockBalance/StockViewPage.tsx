@@ -1,22 +1,30 @@
 "use client";
 
-import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
 import { fetchStockBalanceDetailApi } from "@/lib/api/inventory/stock-balance";
+import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 
 export default function StockViewPage() {
-  const params = useParams();
-  const partId = String(params.id);
+  const partId = useInventoryEntityId("partId");
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
   const detailQuery = useQuery({
     queryKey: ["inventory", "stock-balance", organizationId, partId],
     queryFn: () =>
       fetchStockBalanceDetailApi(organizationId!, partId, token!),
-    enabled: !!token && !!organizationId && !isAuthLoading,
+    enabled:
+      !!token && !!organizationId && !isAuthLoading && !!partId.trim(),
   });
+
+  if (!partId.trim()) {
+    return (
+      <div className="p-6">
+        <p className="text-sm text-gray-500">Stock balance not found.</p>
+      </div>
+    );
+  }
 
   if (detailQuery.isLoading || isAuthLoading) {
     return (

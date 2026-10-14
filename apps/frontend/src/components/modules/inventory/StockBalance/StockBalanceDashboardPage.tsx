@@ -16,6 +16,7 @@ import {
   fetchStockBalanceListApi,
   type StockBalanceListItem,
 } from "@/lib/api/inventory/stock-balance";
+import { inventoryStockBalanceDetailHref } from "@/lib/navigation/inventory-static-routes";
 
 const PAGE_SIZE = 10;
 
@@ -61,7 +62,7 @@ export default function StockBalanceDashboardPage() {
       label: "PART",
       render: (row: StockBalanceListItem) => (
         <Link
-          href={`/inventory/stock-balance/${row.id}`}
+          href={inventoryStockBalanceDetailHref(row.id)}
           className="font-medium text-[#FE5720]"
         >
           {row.partName}

@@ -488,21 +488,39 @@ export async function purgeStagingInterconnectedDemo(
     .returning({ id: organisationSuppliers.id });
   bump('organisationSuppliers', supplierDel.length);
 
+  const demoLocationFilter = and(
+    eq(organisationLocations.organizationId, organizationId),
+    or(
+      demoEmailSql(organisationLocations.siteContactEmail),
+      seededSiteEmails.length > 0
+        ? inArray(organisationLocations.siteContactEmail, seededSiteEmails)
+        : sql`false`,
+      sql`${organisationLocations.name} LIKE 'Staging Demo%'`,
+      sql`${organisationLocations.name} LIKE 'GrubFleet%'`,
+    ),
+  );
+
+  const demoLocationIdRows = await db
+    .select({ id: organisationLocations.id })
+    .from(organisationLocations)
+    .where(demoLocationFilter);
+  const demoLocationIds = demoLocationIdRows.map((r) => r.id);
+
+  if (demoLocationIds.length > 0) {
+    await db
+      .update(organisationEmployees)
+      .set({ locationId: null })
+      .where(
+        and(
+          eq(organisationEmployees.organizationId, organizationId),
+          inArray(organisationEmployees.locationId, demoLocationIds),
+        ),
+      );
+  }
+
   const locationDel = await db
     .delete(organisationLocations)
-    .where(
-      and(
-        eq(organisationLocations.organizationId, organizationId),
-        or(
-          demoEmailSql(organisationLocations.siteContactEmail),
-          seededSiteEmails.length > 0
-            ? inArray(organisationLocations.siteContactEmail, seededSiteEmails)
-            : sql`false`,
-          sql`${organisationLocations.name} LIKE 'Staging Demo%'`,
-          sql`${organisationLocations.name} LIKE 'GrubFleet%'`,
-        ),
-      ),
-    )
+    .where(demoLocationFilter)
     .returning({ id: organisationLocations.id });
   bump('organisationLocations', locationDel.length);
 

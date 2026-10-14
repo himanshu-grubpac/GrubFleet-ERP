@@ -1,6 +1,10 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import {
+  inventoryStockRegisterDetailHref,
+} from "@/lib/navigation/inventory-static-routes";
+import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import CreatePartForm, {
@@ -17,11 +21,10 @@ import {
 } from "@/lib/toast/show-toast";
 
 export default function StockEditPage() {
-  const params = useParams();
   const router = useRouter();
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
-  const stockId = String(params.id);
+  const stockId = useInventoryEntityId("partId");
 
   const detailQuery = useQuery({
     queryKey: ["inventory", "stock-register", organizationId, stockId],
@@ -47,7 +50,7 @@ export default function StockEditPage() {
       ),
     onSuccess: (result) => {
       showSparePartUpdatedToast(result.partName);
-      router.push(`/inventory/Stock-register/${stockId}`);
+      router.push(inventoryStockRegisterDetailHref(stockId));
     },
     onError: () => showErrorToast("Failed to update part."),
   });
@@ -71,7 +74,7 @@ export default function StockEditPage() {
   const stock = detailQuery.data;
 
   if (stock.status === "inactive") {
-    router.replace(`/inventory/Stock-register/${stockId}`);
+    router.replace(inventoryStockRegisterDetailHref(stockId));
     return null;
   }
 
@@ -86,7 +89,7 @@ export default function StockEditPage() {
         wholesaleMarkup: stock.wholesaleMarkup,
         threshold: stock.threshold,
       }}
-      onCancel={() => router.push(`/inventory/Stock-register/${stockId}`)}
+      onCancel={() => router.push(inventoryStockRegisterDetailHref(stockId))}
       onSaved={async (data) => {
         await updateMutation.mutateAsync(data);
       }}
