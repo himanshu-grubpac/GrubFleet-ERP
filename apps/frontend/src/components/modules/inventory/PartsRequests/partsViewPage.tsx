@@ -1,21 +1,20 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 import { useQuery } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
 import { fetchPartsRequestDetailApi } from "@/lib/api/inventory/parts-requests";
 
 export default function PartsViewPage() {
-  const params = useParams();
-  const requestId = String(params.id);
+  const requestId = useInventoryEntityId("partsRequestId");
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
   const detailQuery = useQuery({
     queryKey: ["inventory", "parts-requests", organizationId, requestId],
     queryFn: () =>
       fetchPartsRequestDetailApi(organizationId!, requestId, token!),
-    enabled: !!token && !!organizationId && !isAuthLoading,
+    enabled: !!token && !!organizationId && !isAuthLoading && !!requestId,
   });
 
   if (detailQuery.isLoading || isAuthLoading) {

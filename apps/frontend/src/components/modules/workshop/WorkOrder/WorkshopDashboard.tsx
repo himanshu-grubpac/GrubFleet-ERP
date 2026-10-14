@@ -10,6 +10,11 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  workshopWorkOrderCreateHref,
+  workshopWorkOrderDetailHref,
+  workshopWorkOrderEditHref,
+} from "@/lib/navigation/workshop-static-routes";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -192,17 +197,15 @@ export default function WorkshopDashboardPage() {
     /* ---------------------------------------------------------------------- */
 
     const handleCreateWorkOrder = () => {
-        router.push("/workshop/work-order/create");
+        router.push(workshopWorkOrderCreateHref);
     };
 
     const handleView = (workOrder: WorkOrder) => {
-        router.push(
-            `/workshop/work-orders/${workOrder.workOrderNumber}`
-        );
+        router.push(workshopWorkOrderDetailHref(workOrder.workOrderNumber));
     };
 
     const handleEdit = (workOrder: WorkOrder) => {
-        router.push(`/workshop/work-order/${workOrder.id}/edit`);
+        router.push(workshopWorkOrderEditHref(workOrder.id));
     };
 
     /* ---------------------------------------------------------------------- */
@@ -345,7 +348,7 @@ export default function WorkshopDashboardPage() {
         <DashboardLayout
             title="Work Orders"
             description="Manage workshop work orders, repairs, maintenance and parts usage."
-            activeTab="/workshop/work-orders"
+            activeTab="/workshop/work-order"
             action={
                 <Button
                     type="button"
@@ -464,7 +467,9 @@ export default function WorkshopDashboardPage() {
                                     : "active"
                             }
                             locationId={workOrder.id}
-                            viewHref={`/workshop/work-order/${workOrder.workOrderNumber}`}
+                            viewHref={workshopWorkOrderDetailHref(
+                                workOrder.workOrderNumber,
+                            )}
                             onEdit={() => handleEdit(workOrder)}
                             onToggleStatus={() => {
                                 console.log(

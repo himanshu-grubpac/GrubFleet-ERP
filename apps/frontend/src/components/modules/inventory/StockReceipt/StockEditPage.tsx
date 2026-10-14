@@ -1,6 +1,10 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import {
+  inventoryStockReceiptDetailHref,
+} from "@/lib/navigation/inventory-static-routes";
+import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import StockReciptForm, {
@@ -19,16 +23,15 @@ import {
 } from "@/lib/toast/show-toast";
 
 export default function StockEditPage() {
-  const params = useParams();
   const router = useRouter();
-  const receiptId = String(params.id);
+  const receiptId = useInventoryEntityId("receiptId");
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
   const detailQuery = useQuery({
     queryKey: ["inventory", "stock-receipts", organizationId, receiptId],
     queryFn: () =>
       fetchStockReceiptDetailApi(organizationId!, receiptId, token!),
-    enabled: !!token && !!organizationId && !isAuthLoading,
+    enabled: !!token && !!organizationId && !isAuthLoading && !!receiptId,
   });
 
   const partsQuery = useQuery({
@@ -72,7 +75,7 @@ export default function StockEditPage() {
     },
     onSuccess: (result) => {
       showStockReceiptUpdatedToast(result.receiptNumber);
-      router.push(`/inventory/stock-receipt/${receiptId}`);
+      router.push(inventoryStockReceiptDetailHref(receiptId));
     },
     onError: () => showErrorToast("Failed to update stock receipt."),
   });
@@ -95,7 +98,7 @@ export default function StockEditPage() {
 
   const receipt = detailQuery.data;
   if (receipt.status === "inactive") {
-    router.replace(`/inventory/stock-receipt/${receiptId}`);
+    router.replace(inventoryStockReceiptDetailHref(receiptId));
     return null;
   }
 
@@ -135,7 +138,7 @@ export default function StockEditPage() {
         batchLotReference: receipt.batchLotReference ?? "",
         notes: receipt.notes ?? "",
       }}
-      onCancel={() => router.push(`/inventory/stock-receipt/${receiptId}`)}
+      onCancel={() => router.push(inventoryStockReceiptDetailHref(receiptId))}
       onSaved={async (data) => {
         await updateMutation.mutateAsync(data);
       }}

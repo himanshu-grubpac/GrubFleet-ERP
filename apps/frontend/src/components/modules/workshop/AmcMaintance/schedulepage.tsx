@@ -1,8 +1,15 @@
 
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ArrowLeft, Eye, Info } from "lucide-react";
+
+import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
+import {
+  workshopAmcMaintenanceListHref,
+  workshopAmcScheduleEditHref,
+  workshopWorkOrderDetailHref,
+} from "@/lib/navigation/workshop-static-routes";
 
 const vehicles = [
     {
@@ -21,9 +28,7 @@ const vehicles = [
 
 export default function AmcScheduleDetailsPage() {
     const router = useRouter();
-    const params = useParams();
-
-    const scheduleId = String(params.id ?? "");
+    const scheduleId = useWorkshopEntityId("scheduleId");
     const scheduleName =
         scheduleId === "cargo-bed-hitch-inspection"
             ? "Cargo bed & hitch inspection"
@@ -37,7 +42,7 @@ export default function AmcScheduleDetailsPage() {
             {/* Breadcrumb */}
             <nav className="mb-5 flex flex-wrap items-center gap-2 text-xs text-gray-500">
                 <button
-                    onClick={() => router.push("/workshop/amc-maintenance")}
+                    onClick={() => router.push(workshopAmcMaintenanceListHref)}
                     className="hover:text-[#FE5720]"
                 >
                     AMC &amp; Maintenance
@@ -66,9 +71,7 @@ export default function AmcScheduleDetailsPage() {
 
                 <button
                     onClick={() =>
-                        router.push(
-                            `/workshop/amc-maintenance/schedules/${scheduleId}/edit`
-                        )
+                        router.push(workshopAmcScheduleEditHref(scheduleId))
                     }
                     className="h-8 shrink-0 rounded-md border border-gray-200 bg-white px-4 text-xs font-medium hover:bg-gray-50"
                 >
@@ -149,7 +152,9 @@ export default function AmcScheduleDetailsPage() {
                                             aria-label={`View work order for ${vehicle.code}`}
                                             onClick={() =>
                                                 router.push(
-                                                    "/workshop/work-orders/WO-2026-1201"
+                                                    workshopWorkOrderDetailHref(
+                                                        "WO-2026-1201",
+                                                    ),
                                                 )
                                             }
                                             className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
@@ -175,7 +180,7 @@ export default function AmcScheduleDetailsPage() {
 
             {/* Back */}
             <button
-                onClick={() => router.push("/workshop/amc-maintenance")}
+                onClick={() => router.push(workshopAmcMaintenanceListHref)}
                 className="mt-5 inline-flex h-8 items-center gap-2 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium hover:bg-gray-50"
             >
                 <ArrowLeft size={14} />
