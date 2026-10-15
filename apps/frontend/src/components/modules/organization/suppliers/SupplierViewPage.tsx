@@ -166,11 +166,11 @@ export default function SupplierViewPage() {
                         </h1>
 
                         {isActive ? (
-                            <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
+                            <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[14px] font-medium text-[#FE5720]">
                                 {supplier.type}
                             </span>
                         ) : (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[14px] font-medium text-gray-500">
                                 Inactive
                             </span>
                         )}
@@ -197,18 +197,18 @@ export default function SupplierViewPage() {
                             {isActive ? (
                                 <Button
                                     type="button"
-                                    variant="neutral"
+                                    variant="primary"
                                     onClick={handleToggleStatus}
-                                    className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
+                                    className="h-9"
                                 >
                                     Deactivate
                                 </Button>
                             ) : (
                                 <Button
                                     type="button"
-                                    variant="neutral"
+                                    variant="primary"
                                     onClick={handleToggleStatus}
-                                    className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
+                                    className="h-9"
                                 >
                                     Activate
                                 </Button>
@@ -251,7 +251,7 @@ export default function SupplierViewPage() {
                     {/* Address */}
 
                     <div className="mt-3">
-                        <p className="text-[10px] font-medium text-gray-400">
+                        <p className="text-[14px] font-medium text-gray-400">
                             ADDRESS
                         </p>
 
@@ -275,19 +275,19 @@ export default function SupplierViewPage() {
                             <thead>
                                 <tr className="border-b border-gray-200">
 
-                                    <th className="px-3 py-2 text-[10px] font-medium text-gray-400">
+                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
                                         PART
                                     </th>
 
-                                    <th className="px-3 py-2 text-[10px] font-medium text-gray-400">
+                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
                                         CATEGORY
                                     </th>
 
-                                    <th className="px-3 py-2 text-[10px] font-medium text-gray-400">
+                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
                                         LAST BATCH RECEIVED
                                     </th>
 
-                                    <th className="px-3 py-2 text-[10px] font-medium text-gray-400">
+                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
                                         ON-HAND QTY
                                     </th>
                                 </tr>
@@ -298,7 +298,7 @@ export default function SupplierViewPage() {
                                     <tr>
                                         <td
                                             colSpan={4}
-                                            className="px-3 py-6 text-center text-xs text-gray-500"
+                                            className="px-3 py-6 text-center text-[12px] text-gray-500"
                                         >
                                             No linked records yet.
                                         </td>
@@ -312,32 +312,32 @@ export default function SupplierViewPage() {
                                             <td className="px-3 py-2.5 text-xs text-gray-700">
                                                 {String(
                                                     item.part ??
-                                                        item.driver ??
-                                                        "—",
+                                                    item.driver ??
+                                                    "—",
                                                 )}
                                             </td>
 
                                             <td className="px-3 py-2.5 text-xs text-gray-700">
                                                 {String(
                                                     item.category ??
-                                                        item.licenseNo ??
-                                                        "—",
+                                                    item.licenseNo ??
+                                                    "—",
                                                 )}
                                             </td>
 
                                             <td className="px-3 py-2.5 text-xs text-gray-700">
                                                 {String(
                                                     item.lastBatchReceived ??
-                                                        item.assignedVehicle ??
-                                                        "—",
+                                                    item.assignedVehicle ??
+                                                    "—",
                                                 )}
                                             </td>
 
                                             <td className="px-3 py-2.5 text-xs text-gray-700">
                                                 {String(
                                                     item.onHandQty ??
-                                                        item.status ??
-                                                        "—",
+                                                    item.status ??
+                                                    "—",
                                                 )}
                                             </td>
                                         </tr>
@@ -412,11 +412,11 @@ function InfoItem({
 }) {
     return (
         <div>
-            <p className="text-[10px] font-medium text-gray-400">
+            <p className="text-[12px] font-medium text-gray-400">
                 {label}
             </p>
 
-            <p className="mt-0.5 text-xs font-medium text-gray-800">
+            <p className="mt-0.5 text-[12px] font-medium text-gray-800">
                 {value}
             </p>
         </div>

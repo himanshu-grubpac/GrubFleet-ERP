@@ -16,7 +16,6 @@ export default function FinanceComingSoonPage({
     <OrganizationFormLayout
       title={title}
       description={description}
-      backLink={{ label: "Back to invoices", href: financeInvoicesListHref }}
       contentVariant="form-card"
     >
       <p className="text-sm text-slate-600">

@@ -11,6 +11,9 @@ import { resolveFleetBreadcrumbs } from "@/lib/navigation/fleet-breadcrumb-resol
 import { resolveOrganizationBreadcrumbs } from "@/lib/navigation/organization-breadcrumb-resolver";
 import { resolveInventoryBreadcrumbs } from "@/lib/navigation/inventory-breadcrumb-resolver";
 import { resolveFinanceBreadcrumbs } from "@/lib/navigation/finance-breadcrumb-resolver";
+import {
+  resolveAdministrationBreadcrumbs,
+} from "@/lib/navigation/fleet-breadcrumb-resolver";
 
 interface LayoutHeaderProps {
   onMenuClick?: () => void;
@@ -29,7 +32,9 @@ export default function LayoutHeader({
         ? resolveOrganizationBreadcrumbs(pathname, searchParams)
         : pathname.startsWith("/finance")
           ? resolveFinanceBreadcrumbs(pathname, searchParams)
-          : resolveBreadcrumbs(pathname, searchParams);
+          : pathname.startsWith("/administration")
+            ? resolveAdministrationBreadcrumbs(pathname)
+            : resolveBreadcrumbs(pathname, searchParams);
 
   return (
     <header className="flex min-w-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 md:px-6">

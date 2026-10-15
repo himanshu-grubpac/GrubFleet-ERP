@@ -137,12 +137,12 @@ export default function FleetLeaseHistoryPage() {
 
     const asset: FleetAsset | undefined = vehicleQuery.data
         ? {
-              id: vehicleQuery.data.id,
-              fleetCode: vehicleQuery.data.fleetCode,
-              assetClass: vehicleQuery.data.assetClassName,
-              registrationNumber: vehicleQuery.data.registrationNumber,
-              status: vehicleQuery.data.operationalStatus as FleetStatus,
-          }
+            id: vehicleQuery.data.id,
+            fleetCode: vehicleQuery.data.fleetCode,
+            assetClass: vehicleQuery.data.assetClassName,
+            registrationNumber: vehicleQuery.data.registrationNumber,
+            status: vehicleQuery.data.operationalStatus as FleetStatus,
+        }
         : undefined;
 
     /* ========================================================
@@ -211,7 +211,7 @@ export default function FleetLeaseHistoryPage() {
             record.leaseEndDate === "—"
                 ? record.leaseEndDate
                 : (formatCalendarDateEnIn(record.leaseEndDate) ??
-                  record.leaseEndDate),
+                    record.leaseEndDate),
     }));
 
     const hasHistory = leaseHistory.length > 0;
@@ -237,7 +237,7 @@ export default function FleetLeaseHistoryPage() {
                             </h1>
 
                             <span
-                                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${getStatusClass(
+                                className={`rounded-full border px-2 py-0.5 text-[12px] font-medium ${getStatusClass(
                                     asset.status,
                                 )}`}
                             >
@@ -245,11 +245,11 @@ export default function FleetLeaseHistoryPage() {
                             </span>
                         </div>
 
-                        <p className="mt-1 text-[11px] text-gray-500">
+                        <p className="mt-1 text-[14px] text-gray-500">
                             {asset.assetClass} · {asset.registrationNumber}
                         </p>
 
-                        <p className="mt-1 text-[11px] text-gray-400">
+                        <p className="mt-1 text-[14px] text-gray-400">
                             Every lease assignment and lease status
                             change is recorded here.
                         </p>
@@ -321,17 +321,17 @@ export default function FleetLeaseHistoryPage() {
                                                 className="border-b border-gray-100 last:border-b-0"
                                             >
                                                 {/* DATE */}
-                                                <td className="px-4 py-2.5 text-[10px] font-medium text-gray-600">
+                                                <td className="px-4 py-2.5 text-[12px] font-medium text-gray-600">
                                                     {record.date}
                                                 </td>
 
                                                 {/* LESSEE */}
-                                                <td className="px-4 py-2.5 text-[10px] font-semibold text-gray-800">
+                                                <td className="px-4 py-2.5 text-[12px] font-semibold text-gray-800">
                                                     {record.lessee}
                                                 </td>
 
                                                 {/* LEASE PERIOD */}
-                                                <td className="px-4 py-2.5 text-[10px] text-gray-600">
+                                                <td className="px-4 py-2.5 text-[12px] text-gray-600">
                                                     <span>
                                                         {
                                                             record.leaseStartDate
@@ -363,7 +363,7 @@ export default function FleetLeaseHistoryPage() {
                                                 </td>
 
                                                 {/* CHANGED BY */}
-                                                <td className="px-4 py-2.5 text-[10px] text-gray-600">
+                                                <td className="px-4 py-2.5 text-[14px] text-gray-600">
                                                     {
                                                         record.changedBy
                                                     }

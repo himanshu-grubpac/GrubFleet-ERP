@@ -144,6 +144,50 @@ function getFleetNavigationBreadcrumbs(path: string): BreadcrumbItem[] {
     return breadcrumbs;
 }
 
+
+export function resolveAdministrationBreadcrumbs(
+    pathname: string,
+): BreadcrumbItem[] {
+    const path = normalizePath(pathname);
+
+    if (path === "/administration") {
+        return [{ label: "Administration" }];
+    }
+
+    if (path === "/administration/roles") {
+        return [
+            {
+                label: "Administration",
+                href: "/administration/",
+            },
+            {
+                label: "Roles & Permissions",
+            },
+        ];
+    }
+
+    if (
+        path === "/administration/roles/create" ||
+        path === "/administration/roles/new"
+    ) {
+        return [
+            {
+                label: "Administration",
+                href: "/administration/",
+            },
+            {
+                label: "Roles & Permissions",
+                href: "/administration/roles/",
+            },
+            {
+                label: "New",
+            },
+        ];
+    }
+
+    return [];
+}
+
 export function resolveFleetBreadcrumbs(
     pathname: string,
     searchParams: URLSearchParams,

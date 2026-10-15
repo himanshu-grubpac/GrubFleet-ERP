@@ -128,7 +128,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <OrganizationViewLayout>
-      <SubPageBackLink href={financeInvoicesListHref} label="Back to invoices" />
+
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">

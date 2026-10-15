@@ -5,9 +5,9 @@ import { ArrowLeft, Eye, Info } from "lucide-react";
 
 import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
 import {
-  workshopAmcMaintenanceListHref,
-  workshopAmcSubscriberDetailHref,
-  workshopAmcTierEditHref,
+    workshopAmcMaintenanceListHref,
+    workshopAmcSubscriberDetailHref,
+    workshopAmcTierEditHref,
 } from "@/lib/navigation/workshop-static-routes";
 
 const subscribers = [
@@ -56,7 +56,7 @@ export default function AmcTierDetailsPage() {
                             {tierName}
                         </h1>
 
-                        <span className="rounded-full bg-green-50 px-2 py-1 text-[10px] font-medium text-green-700">
+                        <span className="rounded-full bg-green-50 px-2 py-1 text-[14px] font-medium text-green-700">
                             9 active subscriptions
                         </span>
                     </div>
@@ -78,7 +78,7 @@ export default function AmcTierDetailsPage() {
 
             {/* Tier Details */}
             <section className="mb-5 max-w-5xl overflow-hidden rounded-lg border border-gray-200 bg-white">
-                <h2 className="px-4 pt-4 text-[10px] font-semibold text-gray-400">
+                <h2 className="px-4 pt-4 text-[14px] font-semibold text-gray-400">
                     TIER DETAILS
                 </h2>
 
@@ -115,7 +115,7 @@ export default function AmcTierDetailsPage() {
                 <div className="overflow-x-auto px-4">
                     <table className="w-full min-w-[580px] table-fixed text-left">
                         <thead>
-                            <tr className="border-y border-gray-100 text-[10px] font-semibold uppercase text-gray-400">
+                            <tr className="border-y border-gray-100 text-[14px] font-semibold uppercase text-gray-400">
                                 <th className="w-[22%] py-3">Fleet code</th>
                                 <th className="w-[28%] py-3">Owner</th>
                                 <th className="w-[20%] py-3">Services used</th>
@@ -144,9 +144,9 @@ export default function AmcTierDetailsPage() {
 
                                     <td className="py-3">
                                         <span
-                                            className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-medium ${subscriber.status === "Within limit"
-                                                    ? "bg-green-50 text-green-700"
-                                                    : "bg-orange-50 text-orange-700"
+                                            className={`whitespace-nowrap rounded-full px-2 py-1 text-[14px] font-medium ${subscriber.status === "Within limit"
+                                                ? "bg-green-50 text-green-700"
+                                                : "bg-orange-50 text-orange-700"
                                                 }`}
                                         >
                                             {subscriber.status}

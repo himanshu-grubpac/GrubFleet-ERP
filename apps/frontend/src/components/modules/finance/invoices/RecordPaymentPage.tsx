@@ -111,7 +111,7 @@ export default function RecordPaymentPage() {
     return (
       <OrganizationFormLayout
         title="Record payment"
-        backLink={{ label: "Back to invoices", href: financeInvoicesListHref }}
+
       >
         <p className="text-sm text-slate-600">Missing invoice id.</p>
       </OrganizationFormLayout>
@@ -122,10 +122,7 @@ export default function RecordPaymentPage() {
     return (
       <OrganizationFormLayout
         title="Record payment"
-        backLink={{
-          label: "Back to invoice",
-          href: financeInvoiceDetailHref(invoiceId),
-        }}
+
       >
         <p className="text-sm text-slate-500">Loading…</p>
       </OrganizationFormLayout>
@@ -136,7 +133,6 @@ export default function RecordPaymentPage() {
     return (
       <OrganizationFormLayout
         title="Record payment"
-        backLink={{ label: "Back to invoices", href: financeInvoicesListHref }}
       >
         <p className="text-sm text-red-700">Invoice not found.</p>
       </OrganizationFormLayout>
@@ -147,10 +143,7 @@ export default function RecordPaymentPage() {
     return (
       <OrganizationFormLayout
         title="Record payment"
-        backLink={{
-          label: "Back to invoice",
-          href: financeInvoiceDetailHref(invoiceId),
-        }}
+
       >
         <p className="text-sm text-slate-600">
           Payments cannot be recorded on this invoice.
@@ -163,10 +156,6 @@ export default function RecordPaymentPage() {
     <OrganizationFormLayout
       title="Record payment"
       description={invoice.invoiceNumber}
-      backLink={{
-        label: "Back to invoice",
-        href: financeInvoiceDetailHref(invoiceId),
-      }}
       actions={
         <div className="flex flex-wrap justify-end gap-2">
           <Button

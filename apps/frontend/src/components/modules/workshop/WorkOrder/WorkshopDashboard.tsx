@@ -301,7 +301,7 @@ export default function WorkshopDashboardPage() {
                         {workOrder.vehicleCode}
                     </p>
 
-                    <p className="text-[10px] text-gray-400">
+                    <p className="text-[1px] text-gray-400">
                         {workOrder.vehicleName}
                     </p>
                 </div>

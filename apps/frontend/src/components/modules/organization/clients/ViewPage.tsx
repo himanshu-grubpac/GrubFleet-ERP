@@ -190,7 +190,7 @@ export default function ViewPage() {
               {isActive ? (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   onClick={handleEdit}
                 >
                   Edit
@@ -211,7 +211,7 @@ export default function ViewPage() {
         <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              <p className="text-[14px] font-semibold uppercase tracking-wide text-gray-400">
                 Address
               </p>
 
@@ -221,7 +221,7 @@ export default function ViewPage() {
             </div>
 
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              <p className="text-[14px] font-semibold uppercase tracking-wide text-gray-400">
                 Total Contracts
               </p>
 
@@ -242,7 +242,7 @@ export default function ViewPage() {
           </h2>
 
           <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
-            <div className="grid grid-cols-[1.1fr_0.8fr_1.7fr_100px] border-b border-gray-100 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+            <div className="grid grid-cols-[1.1fr_0.8fr_1.7fr_100px] border-b border-gray-100 px-4 py-2.5 text-[14px] font-semibold uppercase tracking-wide text-gray-400">
               <span>Name</span>
               <span>Contact number</span>
               <span>Email</span>
@@ -267,7 +267,7 @@ export default function ViewPage() {
 
                   <div className="flex justify-end">
                     {contact.isPrimary && (
-                      <span className="rounded-full bg-green-100 px-2.5 py-1 text-[10px] font-semibold text-green-700">
+                      <span className="rounded-full bg-green-100 px-2.5 py-1 text-[14px] font-semibold text-green-700">
                         Primary
                       </span>
                     )}
@@ -299,14 +299,14 @@ export default function ViewPage() {
                 No contracts yet for this client
               </p>
 
-              <p className="mt-1 text-[10px] text-gray-500">
+              <p className="mt-1 text-[14px] text-gray-500">
                 Selectable from New Lease Contract (Flow 01) whenever one
                 starts.
               </p>
             </div>
           ) : (
             <div className="mt-3 overflow-hidden rounded-lg border border-gray-200 bg-white">
-              <div className="grid grid-cols-5 border-b border-gray-100 px-4 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+              <div className="grid grid-cols-5 border-b border-gray-100 px-4 py-2.5 text-[14px] font-semibold uppercase tracking-wide text-gray-400">
                 <span>Contract</span>
                 <span>Start date</span>
                 <span>Asset classes</span>
@@ -330,7 +330,7 @@ export default function ViewPage() {
                   </span>
 
                   <span>
-                    <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
+                    <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[14px] font-medium text-[#FE5720]">
                       {formatContractStatusLabel(contract.status)}
                     </span>
                   </span>

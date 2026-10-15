@@ -57,12 +57,12 @@ const SUPPLIER_FILTERS: {
     label: string;
     value: SupplierFilter;
 }[] = [
-    { label: "All", value: "all" },
-    { label: "Vehicles", value: "vehicles" },
-    { label: "Parts", value: "parts" },
-    { label: "Drivers", value: "drivers" },
-    { label: "Compliance", value: "compliance" },
-];
+        { label: "All", value: "all" },
+        { label: "Vehicles", value: "vehicles" },
+        { label: "Parts", value: "parts" },
+        { label: "Drivers", value: "drivers" },
+        { label: "Compliance", value: "compliance" },
+    ];
 
 function uiFilterToApiType(
     filter: SupplierFilter,
@@ -261,8 +261,8 @@ export default function SuppliersPage() {
         return (
             <DashboardLayout
                 title="Suppliers"
-                description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts,
-             used across Asset Management and Inventory."
+                description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts, used across Asset Management and Inventory."
+                descriptionBreakAfter="contacts,"
                 activeTab="/organization/suppliers"
                 action={addSupplierAction}
             >
@@ -310,12 +310,12 @@ export default function SuppliersPage() {
             pagination={
                 suppliersTotal > SUPPLIERS_PAGE_SIZE
                     ? {
-                          currentPage: page,
-                          totalPages,
-                          totalItems: suppliersTotal,
-                          pageSize: SUPPLIERS_PAGE_SIZE,
-                          onPageChange: setPage,
-                      }
+                        currentPage: page,
+                        totalPages,
+                        totalItems: suppliersTotal,
+                        pageSize: SUPPLIERS_PAGE_SIZE,
+                        onPageChange: setPage,
+                    }
                     : undefined
             }
         >
@@ -409,9 +409,9 @@ export default function SuppliersPage() {
                             onToggleStatus={
                                 canUpdate
                                     ? () =>
-                                          supplier.status === "active"
-                                              ? handleDeactivate(supplier)
-                                              : handleActivate(supplier)
+                                        supplier.status === "active"
+                                            ? handleDeactivate(supplier)
+                                            : handleActivate(supplier)
                                     : undefined
                             }
                         />

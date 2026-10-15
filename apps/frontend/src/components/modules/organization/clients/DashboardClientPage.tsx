@@ -235,12 +235,7 @@ export default function ClientDashboardPage() {
       <DashboardLayout
         title="Clients"
         description="Client register — companies, primary points of contact, contact details, and active contracts."
-        tabs={[
-          {
-            label: "Clients",
-            href: "/customer",
-          },
-        ]}
+
         activeTab="/customer"
         action={addClientAction}
       >

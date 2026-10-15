@@ -232,7 +232,7 @@ function SectionCard({ title, children }: { title: string; children: React.React
     return (
         <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
             <div className="px-3 pt-3">
-                <h2 className="text-[10px] font-semibold text-gray-400">{title}</h2>
+                <h2 className="text-[14px] font-semibold text-gray-400">{title}</h2>
             </div>
             <div className="mt-1">{children}</div>
         </div>
@@ -253,7 +253,7 @@ function TableHeader({ columns, template }: { columns: string[]; template: strin
         <div className="border-b border-gray-100 px-3 pb-2">
             <div className="grid gap-3" style={{ gridTemplateColumns: template }}>
                 {columns.map((column) => (
-                    <p key={column} className="text-[10px] font-semibold uppercase text-gray-400">{column}</p>
+                    <p key={column} className="text-[14px] font-semibold uppercase text-gray-400">{column}</p>
                 ))}
             </div>
         </div>
@@ -267,5 +267,5 @@ function StatusBadge({ status }: { status: WorkOrderStatus }) {
         Completed: "bg-green-50 text-green-700",
         Cancelled: "bg-red-50 text-red-600",
     };
-    return <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${styles[status]}`}>{status}</span>;
+    return <span className={`rounded-full px-2 py-0.5 text-[14px] font-medium ${styles[status]}`}>{status}</span>;
 }

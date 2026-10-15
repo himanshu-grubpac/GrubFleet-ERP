@@ -850,5 +850,42 @@ export const breadcrumbConfig: Record<
     ],
 
 
+    // ============================================================
+    // ADMINISTRATION
+    // ============================================================
+
+    "/administration": [
+        {
+            label: "Administration",
+        },
+    ],
+
+    // Roles & Permissions
+    "/administration/roles": [
+        {
+            label: "Administration",
+            href: "/administration",
+        },
+        {
+            label: "Roles & Permissions",
+        },
+    ],
+
+    // Create Role
+    "/administration/roles/create": [
+        {
+            label: "Administration",
+            href: "/administration",
+        },
+        {
+            label: "Roles & Permissions",
+            href: "/administration/roles",
+        },
+        {
+            label: "New",
+        },
+    ],
+
+
 };
 

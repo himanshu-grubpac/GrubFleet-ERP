@@ -57,7 +57,7 @@ export default function StockViewPage() {
         {canUpdate && receipt.availableActions.edit ? (
           <Button
             type="button"
-            variant="secondary"
+            variant="outline"
             onClick={() =>
               router.push(inventoryStockReceiptEditHref(receiptId))
             }
