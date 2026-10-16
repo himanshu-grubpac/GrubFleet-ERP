@@ -45,7 +45,7 @@
     "reset:dev:organisation-drivers": "npm run clean:dev:organisation-drivers && npm run seed:dev:organisation-driver-fleet && npm run seed:dev:organisation-drivers",
     "reset:dev:organisation-all": "npm run reset:dev:organisation-locations && npm run reset:dev:organisation-employees && npm run reset:dev:organisation-suppliers && npm run reset:dev:organisation-clients && npm run reset:dev:organisation-drivers",
     "reset:dev:organisation-data": "npm run clean:dev:organisation-data && npm run seed:dev:organisation-data",
-    "test": "jest",
+    "test": "jest --runInBand",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

@@ -211,7 +211,12 @@ export async function bootstrapIntegrationAuth(): Promise<IntegrationAuthContext
   const connectionString =
     process.env.DATABASE_URL ??
     'postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp';
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 15_000,
+    idleTimeoutMillis: 30_000,
+  });
   try {
     await pool.query('SELECT 1');
   } catch {
