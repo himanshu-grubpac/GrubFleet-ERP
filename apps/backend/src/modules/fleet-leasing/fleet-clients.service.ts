@@ -119,47 +119,57 @@ export class FleetClientsService {
       },
     );
 
-    const fleetRows = [];
-    for (const orgRow of orgRows) {
-      fleetRows.push(
-        await this.syncFromOrganisationClient(query.organizationId, orgRow.id),
+    const orgClientIds = orgRows.map((row) => row.id);
+    const existingByOrgClientId =
+      await this.repo.findFleetClientsByOrganisationClientIds(
+        query.organizationId,
+        orgClientIds,
       );
-    }
 
-    const contractCounts = await this.repo.countContractsForClients(
-      fleetRows.map((row) => row.id),
+    const fleetRows = await Promise.all(
+      orgRows.map(async (orgRow) => {
+        const existing = existingByOrgClientId.get(orgRow.id);
+        if (existing) {
+          return existing;
+        }
+        return this.syncFromOrganisationClient(query.organizationId, orgRow.id);
+      }),
     );
+
+    const fleetClientIds = fleetRows.map((row) => row.id);
+    const [contractCounts, primaryPocsByClientId] = await Promise.all([
+      this.repo.countContractsForClients(fleetClientIds),
+      this.repo.getPrimaryPocsForClients(fleetClientIds),
+    ]);
 
     const orgNameById = new Map(orgRows.map((row) => [row.id, row.name]));
 
-    const items = await Promise.all(
-      fleetRows.map(async (row) => {
-        const primary = await this.repo.getPrimaryPocForClient(row.id);
-        const orgName = row.organisationClientId
-          ? orgNameById.get(row.organisationClientId)
-          : undefined;
-        const companyName =
-          resolveFleetClientCompanyDisplayName(row.companyName, orgName) ??
-          row.companyName;
-        return {
-          id: row.id,
-          clientCode: row.clientCode,
-          companyName,
-          taxId: row.taxId,
-          address: row.address,
-          isActive: row.isActive,
-          primaryPoc: primary
-            ? {
-                id: primary.id,
-                name: primary.name,
-                email: primary.email,
-                contactNumber: primary.contactNumber,
-              }
-            : null,
-          contractCount: contractCounts.get(row.id) ?? 0,
-        };
-      }),
-    );
+    const items = fleetRows.map((row) => {
+      const primary = primaryPocsByClientId.get(row.id) ?? null;
+      const orgName = row.organisationClientId
+        ? orgNameById.get(row.organisationClientId)
+        : undefined;
+      const companyName =
+        resolveFleetClientCompanyDisplayName(row.companyName, orgName) ??
+        row.companyName;
+      return {
+        id: row.id,
+        clientCode: row.clientCode,
+        companyName,
+        taxId: row.taxId,
+        address: row.address,
+        isActive: row.isActive,
+        primaryPoc: primary
+          ? {
+              id: primary.id,
+              name: primary.name,
+              email: primary.email,
+              contactNumber: primary.contactNumber,
+            }
+          : null,
+        contractCount: contractCounts.get(row.id) ?? 0,
+      };
+    });
 
     return toPaginatedResult(items, page, pageSize, total);
   }

@@ -12,8 +12,14 @@ export class AssetRegisterCatalogService {
   /** Active asset register class names (wizard dropdown). */
   async listDistinctActiveAssetClassNames(
     organizationId: string,
-  ): Promise<string[]> {
-    return this.repo.listDistinctActiveAssetClassNames(organizationId);
+    page: number,
+    pageSize: number,
+  ) {
+    return this.repo.listDistinctActiveAssetClassNamesPaginated(
+      organizationId,
+      page,
+      pageSize,
+    );
   }
 
   /** True when an active class with this exact trimmed name exists in the org. */
@@ -43,11 +49,20 @@ export class AssetRegisterCatalogService {
     organizationId: string,
     assetClassName: string,
   ): Promise<{ availableNow: number; inbound: number }> {
-    const name = assetClassName.trim();
-    const availableNow = await this.repo.countAvailableVehiclesForClassName(
-      organizationId,
-      name,
-    );
+    const map = await this.getAssetClassInventoryBatch(organizationId, [
+      assetClassName,
+    ]);
+    const availableNow = map.get(assetClassName.trim()) ?? 0;
     return { availableNow, inbound: 0 };
+  }
+
+  async getAssetClassInventoryBatch(
+    organizationId: string,
+    assetClassNames: string[],
+  ): Promise<Map<string, number>> {
+    return this.repo.countAvailableVehiclesForClassNames(
+      organizationId,
+      assetClassNames,
+    );
   }
 }

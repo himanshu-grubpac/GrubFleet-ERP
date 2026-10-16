@@ -112,12 +112,34 @@ export class RolesRepository {
   }
 
   async getPermissionKeysForRole(roleId: string): Promise<string[]> {
+    const map = await this.getPermissionKeysForRoles([roleId]);
+    return map.get(roleId) ?? [];
+  }
+
+  async getPermissionKeysForRoles(
+    roleIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const uniqueIds = [...new Set(roleIds)];
+    const result = new Map<string, string[]>();
+    for (const id of uniqueIds) {
+      result.set(id, []);
+    }
+    if (uniqueIds.length === 0) {
+      return result;
+    }
     const rows = await this.db
-      .select({ key: permissions.key })
+      .select({
+        roleId: rolePermissions.roleId,
+        key: permissions.key,
+      })
       .from(rolePermissions)
       .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-      .where(eq(rolePermissions.roleId, roleId));
-    return rows.map((r) => r.key);
+      .where(inArray(rolePermissions.roleId, uniqueIds));
+    for (const row of rows) {
+      const keys = result.get(row.roleId);
+      if (keys) keys.push(row.key);
+    }
+    return result;
   }
 
   async insertRole(params: {

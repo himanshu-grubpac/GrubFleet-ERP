@@ -245,14 +245,24 @@ export class LeaseContractsService {
     return this.toDetail(organizationId, contract);
   }
 
-  async getChangeHistory(organizationId: string, contractId: string) {
+  async getChangeHistory(
+    organizationId: string,
+    contractId: string,
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
     const contract = await this.repo.findContractInOrg(
       organizationId,
       contractId,
     );
     if (!contract) throw new NotFoundException('Lease contract not found');
 
-    const editLogs = await this.repo.listEditLogs(contractId, 200);
+    const total = await this.repo.countEditLogs(contractId);
+    const offset = (page - 1) * pageSize;
+    const editLogs = await this.repo.listEditLogs(contractId, {
+      limit: pageSize,
+      offset,
+    });
     const actorIds = editLogs
       .map((log) => log.actorUserId)
       .filter((id): id is string => Boolean(id));
@@ -274,7 +284,7 @@ export class LeaseContractsService {
     return {
       contractId: contract.id,
       contractNumber: contract.contractNumber,
-      items,
+      ...toPaginatedResult(items, page, pageSize, total),
     };
   }
 
@@ -1335,22 +1345,22 @@ export class LeaseContractsService {
       }
     }
 
-    const snapshots = await Promise.all(
-      lines.map(async (l) => {
-        const { availableNow, inbound } =
-          await this.assetRegisterCatalog.getAssetClassInventory(
-            organizationId,
-            l.assetClass,
-          );
-        return computeAssetLineAvailability(
-          l.assetClass,
-          l.committedQuantity,
-          availableNow,
-          inbound,
-          options.confirmShortfall,
-        );
-      }),
-    );
+    const inventoryByClass =
+      await this.assetRegisterCatalog.getAssetClassInventoryBatch(
+        organizationId,
+        lines.map((l) => l.assetClass),
+      );
+    const snapshots = lines.map((l) => {
+      const availableNow = inventoryByClass.get(l.assetClass.trim()) ?? 0;
+      const inbound = 0;
+      return computeAssetLineAvailability(
+        l.assetClass,
+        l.committedQuantity,
+        availableNow,
+        inbound,
+        options.confirmShortfall,
+      );
+    });
     const shortfalls = snapshots.filter((s) => s.status === 'shortfall');
     if (shortfalls.length > 0 && !options.confirmShortfall) {
       throw new ConflictException({

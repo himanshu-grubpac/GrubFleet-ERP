@@ -262,18 +262,83 @@ export class AssetRegisterRepository {
   async listDistinctActiveAssetClassNames(
     organizationId: string,
   ): Promise<string[]> {
+    const { rows } = await this.listDistinctActiveAssetClassNamesPaginated(
+      organizationId,
+      1,
+      Number.MAX_SAFE_INTEGER,
+    );
+    return rows;
+  }
+
+  async listDistinctActiveAssetClassNamesPaginated(
+    organizationId: string,
+    page: number,
+    pageSize: number,
+  ): Promise<{ rows: string[]; total: number }> {
+    const offset = (page - 1) * pageSize;
+    const where = and(
+      eq(assetRegisterAssetClasses.organizationId, organizationId),
+      eq(assetRegisterAssetClasses.isActive, true),
+    );
+    const [nameRows, countRows] = await Promise.all([
+      this.db
+        .selectDistinct({ name: assetRegisterAssetClasses.name })
+        .from(assetRegisterAssetClasses)
+        .where(where)
+        .orderBy(asc(assetRegisterAssetClasses.name))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({
+          count: sql<number>`count(DISTINCT ${assetRegisterAssetClasses.name})::int`,
+        })
+        .from(assetRegisterAssetClasses)
+        .where(where),
+    ]);
+    const rows = nameRows
+      .map((row) => row.name.trim())
+      .filter((name) => name.length > 0);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async countAvailableVehiclesForClassNames(
+    organizationId: string,
+    assetClassNames: string[],
+  ): Promise<Map<string, number>> {
+    const names = [
+      ...new Set(assetClassNames.map((n) => n.trim()).filter(Boolean)),
+    ];
+    const result = new Map<string, number>();
+    for (const name of names) {
+      result.set(name, 0);
+    }
+    if (names.length === 0) {
+      return result;
+    }
     const rows = await this.db
-      .selectDistinct({ name: assetRegisterAssetClasses.name })
-      .from(assetRegisterAssetClasses)
+      .select({
+        name: assetRegisterAssetClasses.name,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
       .where(
         and(
-          eq(assetRegisterAssetClasses.organizationId, organizationId),
+          eq(assetRegisterVehicles.organizationId, organizationId),
+          eq(assetRegisterVehicles.isActive, true),
+          eq(assetRegisterVehicles.operationalStatus, 'available'),
           eq(assetRegisterAssetClasses.isActive, true),
+          inArray(assetRegisterAssetClasses.name, names),
         ),
       )
-      .orderBy(asc(assetRegisterAssetClasses.name));
-
-    return rows.map((row) => row.name.trim()).filter((name) => name.length > 0);
+      .groupBy(assetRegisterAssetClasses.name);
+    for (const row of rows) {
+      result.set(row.name.trim(), row.count ?? 0);
+    }
+    return result;
   }
 
   async listActiveAssetClassesByIds(
@@ -697,6 +762,37 @@ export class AssetRegisterRepository {
     organizationId: string,
     contractId: string,
   ) {
+    return this.listAllocatedRegisterVehiclesOnContractSlice(
+      organizationId,
+      contractId,
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
+  }
+
+  async countAllocatedRegisterVehiclesOnContract(
+    organizationId: string,
+    contractId: string,
+  ): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(assetRegisterVehicleAssignments)
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.leaseContractId, contractId),
+          eq(assetRegisterVehicleAssignments.organizationId, organizationId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+        ),
+      );
+    return row?.count ?? 0;
+  }
+
+  async listAllocatedRegisterVehiclesOnContractSlice(
+    organizationId: string,
+    contractId: string,
+    offset: number,
+    limit: number,
+  ) {
     return this.db
       .select({
         id: assetRegisterVehicles.id,
@@ -721,7 +817,9 @@ export class AssetRegisterRepository {
           isNull(assetRegisterVehicleAssignments.unassignedAt),
         ),
       )
-      .orderBy(asc(assetRegisterVehicles.registrationNumber));
+      .orderBy(asc(assetRegisterVehicles.registrationNumber))
+      .limit(limit)
+      .offset(offset);
   }
 
   private availableRegisterReplacementConditions(params: {
@@ -823,6 +921,8 @@ export class AssetRegisterRepository {
     organizationId: string;
     page: number;
     pageSize: number;
+    sliceOffset?: number;
+    sliceLimit?: number;
     assetClass?: string;
     vehicleType?: string;
     brand?: string;
@@ -833,13 +933,17 @@ export class AssetRegisterRepository {
       organizationId,
       page,
       pageSize,
+      sliceOffset,
+      sliceLimit,
       assetClass,
       vehicleType,
       brand,
       modelName,
       excludeVehicleIds,
     } = params;
-    const offset = (page - 1) * pageSize;
+    const offset = sliceOffset ?? (page - 1) * pageSize;
+    const limit = sliceLimit ?? pageSize;
+    const includeTotal = sliceOffset === undefined;
     const where = this.availableRegisterReplacementConditions({
       organizationId,
       assetClass,
@@ -848,24 +952,29 @@ export class AssetRegisterRepository {
       modelName,
       excludeVehicleIds,
     });
+    const rowsQuery = this.db
+      .select({
+        id: assetRegisterVehicles.id,
+        registrationNo: assetRegisterVehicles.registrationNumber,
+        vin: assetRegisterVehicles.chassisNumber,
+        assetClass: assetRegisterAssetClasses.name,
+        status: assetRegisterVehicles.operationalStatus,
+      })
+      .from(assetRegisterVehicles)
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(where)
+      .orderBy(asc(assetRegisterVehicles.registrationNumber))
+      .limit(limit)
+      .offset(offset);
+    if (!includeTotal) {
+      const rows = await rowsQuery;
+      return { rows, total: 0 };
+    }
     const [rows, countRows] = await Promise.all([
-      this.db
-        .select({
-          id: assetRegisterVehicles.id,
-          registrationNo: assetRegisterVehicles.registrationNumber,
-          vin: assetRegisterVehicles.chassisNumber,
-          assetClass: assetRegisterAssetClasses.name,
-          status: assetRegisterVehicles.operationalStatus,
-        })
-        .from(assetRegisterVehicles)
-        .innerJoin(
-          assetRegisterAssetClasses,
-          eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
-        )
-        .where(where)
-        .orderBy(asc(assetRegisterVehicles.registrationNumber))
-        .limit(pageSize)
-        .offset(offset),
+      rowsQuery,
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(assetRegisterVehicles)
@@ -994,18 +1103,37 @@ export class AssetRegisterRepository {
     organizationId: string,
     vehicleId: string,
   ): Promise<AssetRegisterVehicleAssignmentRow | undefined> {
-    const [row] = await this.db
+    const map = await this.findActiveAssignmentsForVehicles(organizationId, [
+      vehicleId,
+    ]);
+    return map.get(vehicleId);
+  }
+
+  async findActiveAssignmentsForVehicles(
+    organizationId: string,
+    vehicleIds: string[],
+  ): Promise<Map<string, AssetRegisterVehicleAssignmentRow>> {
+    const uniqueIds = [...new Set(vehicleIds)];
+    const result = new Map<string, AssetRegisterVehicleAssignmentRow>();
+    if (uniqueIds.length === 0) {
+      return result;
+    }
+    const rows = await this.db
       .select()
       .from(assetRegisterVehicleAssignments)
       .where(
         and(
           eq(assetRegisterVehicleAssignments.organizationId, organizationId),
-          eq(assetRegisterVehicleAssignments.vehicleId, vehicleId),
+          inArray(assetRegisterVehicleAssignments.vehicleId, uniqueIds),
           isNull(assetRegisterVehicleAssignments.unassignedAt),
         ),
-      )
-      .limit(1);
-    return row;
+      );
+    for (const row of rows) {
+      if (!result.has(row.vehicleId)) {
+        result.set(row.vehicleId, row);
+      }
+    }
+    return result;
   }
 
   async countActiveAssignmentsByContractGroupedByClassName(

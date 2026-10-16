@@ -27,7 +27,7 @@ export class ListClientStatementsQueryDto extends PaginationQueryDto {
   search?: string;
 }
 
-export class ClientStatementDetailQueryDto {
+export class ClientStatementDetailQueryDto extends PaginationQueryDto {
   @ApiProperty()
   @IsUUID()
   organizationId!: string;

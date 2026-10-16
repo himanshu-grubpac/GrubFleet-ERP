@@ -10,6 +10,7 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { paginateTwoMergedSortedLists } from '../../common/utils/merge-sorted-pagination.util';
 import { AuditService } from '../audit/audit.service';
 import { DriversService } from '../organisation/drivers.service';
 import { SUPPORT_REPLACEMENT_CONTRACT_STATUSES } from './constants/support-replacement-contract-status';
@@ -126,11 +127,10 @@ export class SupportVehicleReplacementService {
         ?.split(',')
         .map((id) => id.trim())
         .filter(Boolean) ?? [];
-    const fetchThrough = page * pageSize;
     const listParams = {
       organizationId: query.organizationId,
-      page: 1,
-      pageSize: fetchThrough,
+      page,
+      pageSize,
       assetClass: query.assetClass,
       vehicleType: query.vehicleType,
       brand: query.brand,
@@ -141,37 +141,102 @@ export class SupportVehicleReplacementService {
     const includeLegacy = !sourceKind || sourceKind === 'legacy';
     const includeRegister = !sourceKind || sourceKind === 'register';
 
-    const [legacy, register] = await Promise.all([
-      includeLegacy
-        ? this.repo.listAvailableReplacementVehicles(listParams)
-        : Promise.resolve({ rows: [], total: 0 }),
-      includeRegister
-        ? this.assetRegisterRepo.listAvailableRegisterReplacementVehicles(
-            listParams,
-          )
-        : Promise.resolve({ rows: [], total: 0 }),
+    type ReplacementCandidateItem = {
+      id: string;
+      registrationNo: string;
+      vin: string;
+      assetClass: string;
+      status: string;
+      vehicleStore: 'legacy' | 'register';
+    };
+    const mapLegacy = (v: {
+      id: string;
+      registrationNo: string;
+      vin: string;
+      assetClass: string;
+      status: string;
+    }): ReplacementCandidateItem => ({
+      id: v.id,
+      registrationNo: v.registrationNo,
+      vin: v.vin,
+      assetClass: v.assetClass,
+      status: v.status,
+      vehicleStore: 'legacy',
+    });
+    const mapRegister = (v: {
+      id: string;
+      registrationNo: string;
+      vin: string;
+      assetClass: string;
+      status: string;
+    }): ReplacementCandidateItem => ({
+      id: v.id,
+      registrationNo: v.registrationNo,
+      vin: v.vin,
+      assetClass: v.assetClass,
+      status: v.status,
+      vehicleStore: 'register',
+    });
+
+    if (includeLegacy && !includeRegister) {
+      const legacy =
+        await this.repo.listAvailableReplacementVehicles(listParams);
+      const items = legacy.rows.map(mapLegacy);
+      return toPaginatedResult(items, page, pageSize, legacy.total);
+    }
+    if (includeRegister && !includeLegacy) {
+      const register =
+        await this.assetRegisterRepo.listAvailableRegisterReplacementVehicles(
+          listParams,
+        );
+      const items = register.rows.map(mapRegister);
+      return toPaginatedResult(items, page, pageSize, register.total);
+    }
+
+    const [legacyMeta, registerMeta] = await Promise.all([
+      this.repo.listAvailableReplacementVehicles({
+        ...listParams,
+        page: 1,
+        pageSize: 1,
+      }),
+      this.assetRegisterRepo.listAvailableRegisterReplacementVehicles({
+        ...listParams,
+        page: 1,
+        pageSize: 1,
+      }),
     ]);
-    const merged = [
-      ...legacy.rows.map((v) => ({
-        id: v.id,
-        registrationNo: v.registrationNo,
-        vin: v.vin,
-        assetClass: v.assetClass,
-        status: v.status,
-        vehicleStore: 'legacy' as const,
-      })),
-      ...register.rows.map((v) => ({
-        id: v.id,
-        registrationNo: v.registrationNo,
-        vin: v.vin,
-        assetClass: v.assetClass,
-        status: v.status,
-        vehicleStore: 'register' as const,
-      })),
-    ].sort((a, b) => a.registrationNo.localeCompare(b.registrationNo));
-    const offset = (page - 1) * pageSize;
-    const items = merged.slice(offset, offset + pageSize);
-    const total = legacy.total + register.total;
+
+    const { items, total } =
+      await paginateTwoMergedSortedLists<ReplacementCandidateItem>({
+        page,
+        pageSize,
+        leftTotal: legacyMeta.total,
+        rightTotal: registerMeta.total,
+        sortKey: (item) => item.registrationNo,
+        fetchLeft: async (offset, limit) => {
+          const { rows } = await this.repo.listAvailableReplacementVehicles({
+            ...listParams,
+            page: 1,
+            pageSize: 1,
+            sliceOffset: offset,
+            sliceLimit: limit,
+          });
+          return rows.map(mapLegacy);
+        },
+        fetchRight: async (offset, limit) => {
+          const { rows } =
+            await this.assetRegisterRepo.listAvailableRegisterReplacementVehicles(
+              {
+                ...listParams,
+                page: 1,
+                pageSize: 1,
+                sliceOffset: offset,
+                sliceLimit: limit,
+              },
+            );
+          return rows.map(mapRegister);
+        },
+      });
     return toPaginatedResult(items, page, pageSize, total);
   }
 
@@ -350,7 +415,12 @@ export class SupportVehicleReplacementService {
     };
   }
 
-  async listAllocatedVehicles(organizationId: string, contractId: string) {
+  async listAllocatedVehicles(
+    organizationId: string,
+    contractId: string,
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
     const contract = await this.repo.findContractInOrg(
       organizationId,
       contractId,
@@ -363,29 +433,57 @@ export class SupportVehicleReplacementService {
         'Contract is not eligible for vehicle replacement',
       );
     }
-    const [legacyRows, registerRows] = await Promise.all([
-      this.repo.listAllocatedVehiclesOnContract(organizationId, contractId),
-      this.assetRegisterRepo.listAllocatedRegisterVehiclesOnContract(
+    const [legacyTotal, registerTotal] = await Promise.all([
+      this.repo.countAllocatedVehiclesOnContract(organizationId, contractId),
+      this.assetRegisterRepo.countAllocatedRegisterVehiclesOnContract(
         organizationId,
         contractId,
       ),
     ]);
-    const items = [
-      ...legacyRows.map((v) => ({
-        ...v,
-        vehicleStore: 'legacy' as const,
-      })),
-      ...registerRows.map((v) => ({
-        ...v,
-        vehicleStore: 'register' as const,
-      })),
-    ].sort((a, b) => a.registrationNo.localeCompare(b.registrationNo));
-    return { items };
+
+    type AllocRow = {
+      id: string;
+      registrationNo: string;
+      vin: string;
+      assetClass: string;
+      status: string;
+      vehicleStore: 'legacy' | 'register';
+    };
+
+    const { items, total } = await paginateTwoMergedSortedLists<AllocRow>({
+      page,
+      pageSize,
+      leftTotal: legacyTotal,
+      rightTotal: registerTotal,
+      sortKey: (item) => item.registrationNo,
+      fetchLeft: async (offset, limit) => {
+        const rows = await this.repo.listAllocatedVehiclesOnContractSlice(
+          organizationId,
+          contractId,
+          offset,
+          limit,
+        );
+        return rows.map((v) => ({ ...v, vehicleStore: 'legacy' as const }));
+      },
+      fetchRight: async (offset, limit) => {
+        const rows =
+          await this.assetRegisterRepo.listAllocatedRegisterVehiclesOnContractSlice(
+            organizationId,
+            contractId,
+            offset,
+            limit,
+          );
+        return rows.map((v) => ({ ...v, vehicleStore: 'register' as const }));
+      },
+    });
+    return toPaginatedResult(items, page, pageSize, total);
   }
 
   async listActiveContractsForClient(
     organizationId: string,
     fleetClientId: string,
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
   ) {
     const client = await this.repo.getClientInOrg(
       organizationId,
@@ -394,20 +492,20 @@ export class SupportVehicleReplacementService {
     if (!client) {
       throw new NotFoundException('Fleet client not found');
     }
-    const rows = await this.repo.listContractsForFleetClient(
+    const { rows, total } = await this.repo.listContractsForFleetClient(
       organizationId,
       fleetClientId,
       SUPPORT_REPLACEMENT_CONTRACT_STATUSES,
+      { page, pageSize },
     );
-    return {
-      items: rows.map((c) => ({
-        id: c.id,
-        contractNumber: c.contractNumber,
-        status: c.status,
-        startDate: c.startDate?.toISOString().slice(0, 10) ?? null,
-        endDate: c.endDate?.toISOString().slice(0, 10) ?? null,
-      })),
-    };
+    const items = rows.map((c) => ({
+      id: c.id,
+      contractNumber: c.contractNumber,
+      status: c.status,
+      startDate: c.startDate?.toISOString().slice(0, 10) ?? null,
+      endDate: c.endDate?.toISOString().slice(0, 10) ?? null,
+    }));
+    return toPaginatedResult(items, page, pageSize, total);
   }
 
   async executeReplacements(userId: string, dto: CreateVehicleReplacementsDto) {

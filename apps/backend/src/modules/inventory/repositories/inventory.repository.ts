@@ -241,8 +241,43 @@ export class InventoryRepository {
   }
 
   async quantityByPartAndLocation(organizationId: string, partId: string) {
-    return this.db
+    const map = await this.quantitiesByPartIdsGrouped(organizationId, [partId]);
+    return map.get(partId) ?? [];
+  }
+
+  /** One query for all part IDs on a list page (avoids N+1 per part). */
+  async quantitiesByPartIdsGrouped(
+    organizationId: string,
+    partIds: string[],
+  ): Promise<
+    Map<
+      string,
+      Array<{
+        locationId: string;
+        locationName: string;
+        quantity: number;
+      }>
+    >
+  > {
+    const uniqueIds = [...new Set(partIds)];
+    const result = new Map<
+      string,
+      Array<{
+        locationId: string;
+        locationName: string;
+        quantity: number;
+      }>
+    >();
+    for (const id of uniqueIds) {
+      result.set(id, []);
+    }
+    if (uniqueIds.length === 0) {
+      return result;
+    }
+
+    const rows = await this.db
       .select({
+        partId: inventoryStockReceipts.partId,
         locationId: inventoryStockReceipts.locationId,
         locationName: organisationLocations.name,
         quantity: sum(inventoryStockReceipts.quantityReceived).mapWith(Number),
@@ -255,11 +290,26 @@ export class InventoryRepository {
       .where(
         and(
           eq(inventoryStockReceipts.organizationId, organizationId),
-          eq(inventoryStockReceipts.partId, partId),
+          inArray(inventoryStockReceipts.partId, uniqueIds),
           eq(inventoryStockReceipts.isActive, true),
         ),
       )
-      .groupBy(inventoryStockReceipts.locationId, organisationLocations.name);
+      .groupBy(
+        inventoryStockReceipts.partId,
+        inventoryStockReceipts.locationId,
+        organisationLocations.name,
+      );
+
+    for (const row of rows) {
+      const list = result.get(row.partId);
+      if (!list) continue;
+      list.push({
+        locationId: row.locationId,
+        locationName: row.locationName,
+        quantity: Number(row.quantity ?? 0),
+      });
+    }
+    return result;
   }
 
   async listStockBalanceParts(

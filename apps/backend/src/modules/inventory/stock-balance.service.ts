@@ -29,29 +29,26 @@ export class StockBalanceService {
       pageSize,
       query.search,
     );
-    const items = await Promise.all(
-      rows.map(async (part) => {
-        const locations = await this.repo.quantityByPartAndLocation(
-          query.organizationId,
-          part.id,
-        );
-        return {
-          id: part.id,
-          partName: part.name,
-          partNumber: part.partCode ?? '—',
-          unit: part.unitOfMeasure,
-          threshold: part.reorderThreshold,
-          locations: locations.map((loc) => ({
-            location: loc.locationName,
-            quantity: Number(loc.quantity ?? 0),
-          })),
-          stockStatus: stockStatus(
-            locations.reduce((sum, l) => sum + Number(l.quantity ?? 0), 0),
-            part.reorderThreshold,
-          ),
-        };
-      }),
+    const locationsByPartId = await this.repo.quantitiesByPartIdsGrouped(
+      query.organizationId,
+      rows.map((part) => part.id),
     );
+    const items = rows.map((part) => {
+      const locations = locationsByPartId.get(part.id) ?? [];
+      const onHand = locations.reduce((sum, l) => sum + l.quantity, 0);
+      return {
+        id: part.id,
+        partName: part.name,
+        partNumber: part.partCode ?? '—',
+        unit: part.unitOfMeasure,
+        threshold: part.reorderThreshold,
+        locations: locations.map((loc) => ({
+          location: loc.locationName,
+          quantity: loc.quantity,
+        })),
+        stockStatus: stockStatus(onHand, part.reorderThreshold),
+      };
+    });
     return toPaginatedResult(items, page, pageSize, total);
   }
 

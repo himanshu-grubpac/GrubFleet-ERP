@@ -33,40 +33,26 @@ export class VehicleAllocationsService {
     pageSize: number,
     excludeVehicleCodes: string[],
   ) {
-    const [fromAllocations, fromContractLinks] = await Promise.all([
-      this.repo.listDriverAssignableFromAllocations({
-        organizationId,
-        excludeVehicleCodes,
-      }),
-      this.repo.listDriverAssignableFromActiveContracts({
-        organizationId,
-        excludeVehicleCodes,
-      }),
-    ]);
-    const byVehicleId = new Map<
-      string,
-      {
-        vehicleId: string;
-        vehicleCode: string;
-        assetClass: string;
-        activeLeaseId: string;
-      }
-    >();
-    for (const row of [...fromAllocations, ...fromContractLinks]) {
-      byVehicleId.set(row.vehicleId, row);
-    }
-    const merged = [...byVehicleId.values()].sort((a, b) =>
-      a.vehicleCode.localeCompare(b.vehicleCode),
-    );
+    const total = await this.repo.countDriverAssignableForDriverRegister({
+      organizationId,
+      excludeVehicleCodes,
+    });
     const offset = (page - 1) * pageSize;
-    const pageRows = merged.slice(offset, offset + pageSize);
+    const pageRows = await this.repo.listDriverAssignableForDriverRegisterSlice(
+      {
+        organizationId,
+        excludeVehicleCodes,
+        offset,
+        limit: pageSize,
+      },
+    );
     const items = pageRows.map((row) => ({
       id: row.vehicleId,
       vehicleCode: row.vehicleCode,
       assetClass: row.assetClass,
       activeLeaseId: row.activeLeaseId,
     }));
-    return toPaginatedResult(items, page, pageSize, merged.length);
+    return toPaginatedResult(items, page, pageSize, total);
   }
 
   async assertVehicleAssignableForDriver(
@@ -103,15 +89,21 @@ export class VehicleAllocationsService {
     return toPaginatedResult(items, page, pageSize, total);
   }
 
-  async listForContract(organizationId: string, contractId: string) {
+  async listForContract(
+    organizationId: string,
+    contractId: string,
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
+  ) {
     await this.requireContract(organizationId, contractId);
-    const { rows } = await this.repo.listVehicleAllocations({
+    const { rows, total } = await this.repo.listVehicleAllocations({
       organizationId,
-      page: 1,
-      pageSize: 200,
+      page,
+      pageSize,
       contractId,
     });
-    return rows.map((r) => this.toListItem(r));
+    const items = rows.map((r) => this.toListItem(r));
+    return toPaginatedResult(items, page, pageSize, total);
   }
 
   async getById(organizationId: string, allocationId: string) {

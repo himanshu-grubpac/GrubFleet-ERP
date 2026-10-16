@@ -1,10 +1,23 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  ParseUUIDPipe,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ParseUUIDPipe } from '@nestjs/common';
+import {
+  DEFAULT_PAGE,
+  DEFAULT_PAGE_SIZE,
+  toPaginatedResult,
+} from '../../common/dto/pagination-query.dto';
 import { RequireOrganizationContext } from '../auth/authorization/decorators/require-organization-context.decorator';
 import { RequirePermissions } from '../auth/authorization/decorators/require-permissions.decorator';
 import { FleetLeasingPermissionKeys } from './constants/fleet-leasing-permission-keys';
 import { AssetRegisterCatalogService } from '../asset-register/asset-register-catalog.service';
+import { ListFleetAssetClassesQueryDto } from './dto/list-fleet-asset-classes-query.dto';
 import { PreviewAssetAvailabilityBatchDto } from './dto/preview-asset-availability.dto';
 import { computeAssetLineAvailability } from './utils/asset-class-availability.util';
 
@@ -23,12 +36,16 @@ export class AssetClassesController {
     summary:
       'Distinct active asset class names from asset register (wizard dropdown)',
   })
-  async list(@Query('organizationId', ParseUUIDPipe) organizationId: string) {
-    const items =
+  async list(@Query() query: ListFleetAssetClassesQueryDto) {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const { rows, total } =
       await this.assetRegisterCatalog.listDistinctActiveAssetClassNames(
-        organizationId,
+        query.organizationId,
+        page,
+        pageSize,
       );
-    return { items };
+    return toPaginatedResult(rows, page, pageSize, total);
   }
 
   @Get('availability')
@@ -66,22 +83,23 @@ export class AssetClassesController {
     summary: 'Batch availability preview for wizard step 2 (LEASE-03 table)',
   })
   async previewBatch(@Body() dto: PreviewAssetAvailabilityBatchDto) {
-    const lines = await Promise.all(
-      dto.lines.map(async (line) => {
-        const { availableNow, inbound } =
-          await this.assetRegisterCatalog.getAssetClassInventory(
-            dto.organizationId,
-            line.assetClass,
-          );
-        return computeAssetLineAvailability(
-          line.assetClass,
-          line.committedQuantity,
-          availableNow,
-          inbound,
-          false,
-        );
-      }),
-    );
+    const classNames = dto.lines.map((line) => line.assetClass);
+    const inventoryByClass =
+      await this.assetRegisterCatalog.getAssetClassInventoryBatch(
+        dto.organizationId,
+        classNames,
+      );
+    const lines = dto.lines.map((line) => {
+      const availableNow = inventoryByClass.get(line.assetClass.trim()) ?? 0;
+      const inbound = 0;
+      return computeAssetLineAvailability(
+        line.assetClass,
+        line.committedQuantity,
+        availableNow,
+        inbound,
+        false,
+      );
+    });
     const mvpAllLinesCovered = lines.every((l) => l.mvpAvailableNowCovers);
     return { lines, mvpAllLinesCovered };
   }
