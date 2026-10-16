@@ -1,4 +1,5 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
+import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { apiFetch } from "../client";
 import type { AssetRegisterClassStatus } from "./asset-classes";
 
@@ -70,6 +71,25 @@ export async function fetchAssetRegisterVehiclesApi(params: {
       token: params.token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+const ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE = 50;
+
+/** Loads every page of active fleet vehicles for workshop dropdowns. */
+export async function fetchAllActiveAssetRegisterVehiclesApi(params: {
+  organizationId: string;
+  token: string;
+}): Promise<AssetRegisterVehicleListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchAssetRegisterVehiclesApi({
+        ...params,
+        page,
+        pageSize,
+        status: "active",
+      }),
+    ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE,
   );
 }
 

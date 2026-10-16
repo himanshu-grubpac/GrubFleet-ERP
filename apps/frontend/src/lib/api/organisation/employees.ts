@@ -23,6 +23,7 @@ export type OrganisationEmployeeListItem = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician: boolean;
   status: EmployeeStatus;
 };
 
@@ -62,6 +63,7 @@ export type CreateOrganisationEmployeePayload = {
   email: string;
   branchLocationLabel?: string;
   reportsToEmployeeId?: string;
+  isWorkshopTechnician?: boolean;
 };
 
 export type UpdateOrganisationEmployeePayload = Partial<

@@ -1,17 +1,20 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { AppModule } from '../../app.module';
-import { GlobalHttpExceptionFilter } from '../../common/filters/http-exception.filter';
 import {
   DEV_ADMIN_EMAIL,
   DEV_ADMIN_PASSWORD,
   seedDevAdminBootstrap,
 } from '../../database/seed/dev-admin-bootstrap';
 import { ensureTestSchema } from '../../../test/helpers/ensure-test-schema';
+import {
+  closeIntegrationResources,
+  configureIntegrationNestApp,
+} from '../../../test/helpers/integration-auth';
 import * as schema from '../../database/schema';
 
 describe('Auth (integration)', () => {
@@ -46,21 +49,12 @@ describe('Auth (integration)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalFilters(new GlobalHttpExceptionFilter());
+    configureIntegrationNestApp(app);
     await app.init();
   }, 60000);
 
   afterAll(async () => {
-    await pool?.end();
-    await app?.close();
+    await closeIntegrationResources(app, pool);
   });
 
   it('GET /auth/me returns 401 without token', () => {

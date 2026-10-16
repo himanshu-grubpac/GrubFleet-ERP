@@ -235,6 +235,13 @@ export default function EmployeeViewPage() {
 
           <div className="mt-3 grid grid-cols-4 gap-6 border-t border-gray-100 pt-3">
             <InfoItem
+              label="WORKSHOP TECHNICIAN"
+              value={detail.isWorkshopTechnician ? "Yes" : "No"}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-4 gap-6 border-t border-gray-100 pt-3">
+            <InfoItem
               label="DATE OF JOINING"
               value={
                 employee.dateOfJoining

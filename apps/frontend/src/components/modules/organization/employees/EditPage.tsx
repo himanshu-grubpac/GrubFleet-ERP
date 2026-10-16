@@ -76,6 +76,7 @@ export default function EditEmployeePage() {
       dateOfJoining: detail.dateOfJoining,
       phone: detail.phone,
       email: detail.email,
+      isWorkshopTechnician: detail.isWorkshopTechnician,
     };
   }, [employeeQuery.data]);
 
@@ -109,6 +110,7 @@ export default function EditEmployeePage() {
           phone,
           email: data.email,
           reportsToEmployeeId: data.reportsToEmployeeId ?? null,
+          isWorkshopTechnician: data.isWorkshopTechnician,
         },
       );
       await queryClient.invalidateQueries({
@@ -116,6 +118,9 @@ export default function EditEmployeePage() {
       });
       await queryClient.invalidateQueries({
         queryKey: ["organization", "employee", organizationId, employeeId],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["workshop", "technicians-all"],
       });
       showEmployeeUpdatedToast(updated.fullName);
       router.push(organisationEmployeeDetailHref(employeeId));

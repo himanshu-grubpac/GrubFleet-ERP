@@ -45,7 +45,7 @@ export default function OrganizationFormLayout({
     return (
         <div className="w-full">
             {backLink ? (
-                <div className="px-6 pt-4">
+                <div className="px-4 pt-4 sm:px-6">
                     {backLink.href ? (
                         <SubPageBackLink
                             href={backLink.href}
@@ -67,7 +67,7 @@ export default function OrganizationFormLayout({
 
             {beforeHeader}
 
-            <div className="px-6 pt-4 pb-8">
+            <div className="px-4 pt-4 pb-8 sm:px-6">
                 <DashboardHeader
                     title={title}
                     description={description}

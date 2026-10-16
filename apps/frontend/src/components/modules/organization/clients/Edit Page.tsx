@@ -163,6 +163,8 @@ export default function EditClientPage() {
 
   return (
     <CreateClientPage
+      key={clientId}
+      mode="edit"
       initialData={initialData}
       onCancel={handleCancel}
       onSaved={handleSaved}

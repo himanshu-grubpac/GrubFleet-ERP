@@ -473,7 +473,7 @@
               "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": 15000,\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/vehicles",
-            "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; active asset class only (class-only register; asset master layer retired)."
+            "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; registrationNumber unique per org (trim + case-insensitive). 409 when duplicate. Active asset class only (class-only register; asset master layer retired)."
           },
           "response": []
         },
@@ -2030,6 +2030,447 @@
           "response": []
         }
       ]
+    },
+    {
+      "name": "Workshop",
+      "description": "Labor job card templates and work orders (AMC phased).",
+      "item": [
+        {
+          "name": "List labor job cards",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/labor-job-cards?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/labor-job-cards — saved templates."
+          },
+          "response": []
+        },
+        {
+          "name": "Create labor job card",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"General service\",\n  \"description\": \"Oil + filter\",\n  \"laborChargeMinor\": 25000,\n  \"parts\": [\n    { \"partId\": \"{{inventorySparePartId}}\", \"quantity\": 1 }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/workshop/labor-job-cards",
+            "description": "POST /workshop/labor-job-cards"
+          },
+          "response": []
+        },
+        {
+          "name": "Get labor job card",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/labor-job-cards/{{workshopLaborJobCardId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/labor-job-cards/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update labor job card",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"General service (updated)\",\n  \"laborChargeMinor\": 30000\n}"
+            },
+            "url": "{{baseUrl}}/workshop/labor-job-cards/{{workshopLaborJobCardId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/labor-job-cards/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "List work orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workshop/work-orders?organizationId={{organizationId}}&page=1&pageSize=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["workshop", "work-orders"],
+              "query": [
+                { "key": "organizationId", "value": "{{organizationId}}" },
+                { "key": "page", "value": "1" },
+                { "key": "pageSize", "value": "20" }
+              ]
+            },
+            "description": "GET /workshop/work-orders — paginated list."
+          },
+          "response": []
+        },
+        {
+          "name": "Create work order",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"vehicleId\": \"{{assetRegisterVehicleId}}\",\n  \"laborJobCardId\": \"{{workshopLaborJobCardId}}\",\n  \"expectedCompletionDate\": \"2026-12-15\",\n  \"issueDescription\": \"Routine service\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders",
+            "description": "POST /workshop/work-orders — fleet + optional template."
+          },
+          "response": []
+        },
+        {
+          "name": "Get work order",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/work-orders/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"issueDescription\": \"Updated from Postman\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Start work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"start\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}/status — start"
+          },
+          "response": []
+        },
+        {
+          "name": "Close work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"close\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}/status — close"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"cancel\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}/status — cancel"
+          },
+          "response": []
+        },
+        {
+          "name": "List technicians",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/technicians?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/technicians"
+          },
+          "response": []
+        },
+        {
+          "name": "List AMC tiers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/tiers?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/amc/tiers"
+          },
+          "response": []
+        },
+        {
+          "name": "Create AMC tier",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Gold AMC\",\n  \"description\": \"Annual coverage\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/tiers",
+            "description": "POST /workshop/amc/tiers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get AMC tier",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/tiers/{{workshopAmcTierId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/amc/tiers/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update AMC tier",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated tier copy\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/tiers/{{workshopAmcTierId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/tiers/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate AMC tier",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired plan\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/tiers/{{workshopAmcTierId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/tiers/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "List maintenance schedules",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/schedules?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/amc/schedules"
+          },
+          "response": []
+        },
+        {
+          "name": "Create maintenance schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"4k service\",\n  \"assetClassLabel\": \"Sample class\",\n  \"intervalLabel\": \"4000 km\",\n  \"maintenanceType\": \"Preventive Maintenance\",\n  \"intervalType\": \"Odometer\",\n  \"vehicleApplicability\": \"Leased\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/schedules",
+            "description": "POST /workshop/amc/schedules"
+          },
+          "response": []
+        },
+        {
+          "name": "Get maintenance schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/amc/schedules/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "List maintenance schedule vehicles",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}/vehicles?organizationId={{organizationId}}&page=1&pageSize=50",
+            "description": "GET /workshop/amc/schedules/{id}/vehicles — asset class match + threshold; auto-creates PM work orders when threshold reached."
+          },
+          "response": []
+        },
+        {
+          "name": "Update maintenance schedule",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intervalLabel\": \"5000 km\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/schedules/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate maintenance schedule",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired schedule\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/schedules/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate labor job card",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired template\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/labor-job-cards/{{workshopLaborJobCardId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/labor-job-cards/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "List AMC subscribers",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/subscribers?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/amc/subscribers"
+          },
+          "response": []
+        },
+        {
+          "name": "Create AMC subscriber",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"amcTierId\": \"{{workshopAmcTierId}}\",\n  \"vehicleId\": \"{{assetRegisterVehicleId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/subscribers",
+            "description": "POST /workshop/amc/subscribers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get AMC subscriber by code",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/subscribers/by-code/{{workshopAmcSubscriberCode}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/amc/subscribers/by-code/{subscriberCode}"
+          },
+          "response": []
+        }
+      ]
     }
   ],
   "variable": [
@@ -2111,6 +2552,30 @@
     },
     {
       "key": "inventoryPartsRequestId",
+      "value": ""
+    },
+    {
+      "key": "workshopLaborJobCardId",
+      "value": ""
+    },
+    {
+      "key": "workshopWorkOrderId",
+      "value": ""
+    },
+    {
+      "key": "workshopAmcTierId",
+      "value": ""
+    },
+    {
+      "key": "workshopAmcScheduleId",
+      "value": ""
+    },
+    {
+      "key": "workshopAmcSubscriberCode",
+      "value": ""
+    },
+    {
+      "key": "assetRegisterVehicleId",
       "value": ""
     }
   ]
