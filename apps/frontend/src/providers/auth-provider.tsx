@@ -241,14 +241,11 @@ export function GrubpacAuthProvider({
     const onFocus = () => {
       void refetchMe();
     };
+
     window.addEventListener("focus", onFocus);
-    const intervalId = window.setInterval(() => {
-      void refetchMe();
-    }, 10_000);
 
     return () => {
       window.removeEventListener("focus", onFocus);
-      window.clearInterval(intervalId);
     };
   }, [token, isLoading, isLoggingOut, refetchMe]);
 
