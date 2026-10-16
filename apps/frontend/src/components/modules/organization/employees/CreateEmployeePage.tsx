@@ -45,6 +45,7 @@ export type EmployeeFormData = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician: boolean;
 };
 
 export type EmployeeFormInitialData = {
@@ -57,6 +58,7 @@ export type EmployeeFormInitialData = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician?: boolean;
 };
 
 type CreateEmployeePageProps = {
@@ -88,6 +90,7 @@ type FormState = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician: boolean;
 };
 
 function buildDepartmentTypes(
@@ -191,6 +194,7 @@ export default function CreateEmployeePage({
       : "",
     phone: initialData?.phone ?? "",
     email: initialData?.email ?? "",
+    isWorkshopTechnician: initialData?.isWorkshopTechnician ?? false,
   });
 
   const [validationErrors, setValidationErrors] =
@@ -482,6 +486,7 @@ export default function CreateEmployeePage({
       dateOfJoining,
       phone: form.phone.trim(),
       email: form.email.trim(),
+      isWorkshopTechnician: form.isWorkshopTechnician,
     };
 
     try {
@@ -616,6 +621,27 @@ export default function CreateEmployeePage({
             </p>
           )}
         </div>
+      </div>
+
+      <div className="mt-3 flex items-start gap-2">
+        <input
+          id="employee-workshop-technician"
+          type="checkbox"
+          checked={form.isWorkshopTechnician}
+          onChange={(event) =>
+            updateForm("isWorkshopTechnician", event.target.checked)
+          }
+          className="mt-1 h-4 w-4 rounded border-gray-300"
+        />
+        <label
+          htmlFor="employee-workshop-technician"
+          className="text-sm text-gray-700"
+        >
+          Workshop technician{" "}
+          <span className="text-xs text-gray-500">
+            (optional — eligible for work order assignment)
+          </span>
+        </label>
       </div>
 
       {/* Department — full-width row */}

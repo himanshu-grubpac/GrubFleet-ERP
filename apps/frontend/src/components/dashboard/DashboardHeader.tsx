@@ -14,8 +14,8 @@ export default function DashboardHeader({
     action,
 }: DashboardHeaderProps) {
     return (
-        <div className="flex items-start justify-between gap-4">
-            <div className="min-w-0">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+            <div className="min-w-0 flex-1">
                 <h1 className="text-xl font-semibold text-gray-900">
                     {title}
                 </h1>
@@ -28,7 +28,7 @@ export default function DashboardHeader({
             </div>
 
             {action && (
-                <div className="shrink-0">
+                <div className="w-full shrink-0 sm:w-auto">
                     {action}
                 </div>
             )}

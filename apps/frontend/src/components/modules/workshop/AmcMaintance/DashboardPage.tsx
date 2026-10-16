@@ -1,53 +1,191 @@
-
 "use client";
 
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Eye, Info } from "lucide-react";
+import { Info } from "lucide-react";
 
+import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { ApiClientError } from "@/lib/api/client";
 import {
-    workshopAmcScheduleCreateHref,
-    workshopAmcScheduleDetailHref,
-    workshopAmcTierDetailHref,
+  fetchWorkshopAmcTiersApi,
+  fetchWorkshopMaintenanceSchedulesApi,
+  updateWorkshopAmcTierStatusApi,
+  updateWorkshopMaintenanceScheduleStatusApi,
+  type WorkshopAmcTierListItem,
+  type WorkshopMaintenanceScheduleListItem,
+} from "@/lib/api/workshop/amc";
+import {
+  workshopAmcScheduleCreateHref,
+  workshopAmcScheduleDetailHref,
+  workshopAmcScheduleEditHref,
+  workshopAmcTierCreateHref,
+  workshopAmcTierDetailHref,
+  workshopAmcTierEditHref,
 } from "@/lib/navigation/workshop-static-routes";
+import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import {
+  showErrorToast,
+  showSuccessToast,
+} from "@/lib/toast/show-toast";
+import { useAuth } from "@/providers/auth-provider";
 
-const tiers = [
-    {
-        id: "gold",
-        name: "Gold",
-        description: "4 scheduled services / year + roadside",
-        price: "Rs. 3,200 / vehicle",
-        subscribers: 9,
-    },
-    {
-        id: "silver",
-        name: "Silver",
-        description: "2 scheduled services / year",
-        price: "Rs. 1,800 / vehicle",
-        subscribers: 6,
-    },
-];
+function formatAmcTierRowCopyText(tier: WorkshopAmcTierListItem): string {
+  const parts = [
+    tier.name,
+    tier.priceDisplayLabel,
+    `${tier.subscriberCount} subscribers`,
+    tier.status === "active" ? "Active" : "Inactive",
+  ].filter(Boolean);
+  return parts.join("\t");
+}
 
-const schedules = [
-    {
-        id: "cargo-bed-hitch-inspection",
-        name: "Cargo bed & hitch inspection",
-        assetClass: "Petrol Auto — Cargo",
-        interval: "Every 4,000 km",
-        vehicles: 2,
-        thresholdReached: 1,
-    },
-    {
-        id: "engine-oil-service",
-        name: "Engine oil service",
-        assetClass: "Petrol Scooter",
-        interval: "Every 3,000 km",
-        vehicles: 8,
-        thresholdReached: 0,
-    },
-];
+function formatMaintenanceScheduleRowCopyText(
+  schedule: WorkshopMaintenanceScheduleListItem,
+): string {
+  const parts = [
+    schedule.name,
+    schedule.assetClassLabel,
+    schedule.intervalLabel,
+    `${schedule.vehicleCount} vehicles`,
+    schedule.status === "active" ? "Active" : "Inactive",
+  ].filter(Boolean);
+  return parts.join("\t");
+}
 
 export default function AmcMaintenancePage() {
-    const router = useRouter();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const { token, organizationId, isLoading: isAuthLoading, permissions } =
+    useAuth();
+
+  const canCreate =
+    permissions.has("workshop.create") ||
+    permissions.has("workshop.manage");
+  const canUpdate =
+    permissions.has("workshop.update") ||
+    permissions.has("workshop.manage");
+
+  const [tierActivateTarget, setTierActivateTarget] =
+    useState<WorkshopAmcTierListItem | null>(null);
+  const [tierDeactivateTarget, setTierDeactivateTarget] =
+    useState<WorkshopAmcTierListItem | null>(null);
+  const [scheduleActivateTarget, setScheduleActivateTarget] =
+    useState<WorkshopMaintenanceScheduleListItem | null>(null);
+  const [scheduleDeactivateTarget, setScheduleDeactivateTarget] =
+    useState<WorkshopMaintenanceScheduleListItem | null>(null);
+
+  const tiersQuery = useQuery({
+    queryKey: ["workshop", "amc-tiers", organizationId],
+    queryFn: () =>
+      fetchWorkshopAmcTiersApi(token!, organizationId!, 1, 50),
+    enabled: !!token && !!organizationId && !isAuthLoading,
+    ...dashboardListQueryOptions,
+  });
+
+  const schedulesQuery = useQuery({
+    queryKey: ["workshop", "amc-schedules", organizationId],
+    queryFn: () =>
+      fetchWorkshopMaintenanceSchedulesApi(token!, organizationId!, 1, 50),
+    enabled: !!token && !!organizationId && !isAuthLoading,
+    ...dashboardListQueryOptions,
+  });
+
+  const tiers = tiersQuery.data?.items ?? [];
+  const schedules = schedulesQuery.data?.items ?? [];
+
+  const summary = useMemo(() => {
+    const activeTiers = tiers.filter((tier) => tier.status === "active").length;
+    const subscriptions = tiers.reduce(
+      (sum, tier) => sum + tier.subscriberCount,
+      0,
+    );
+    const thresholdReached = schedules.reduce(
+      (sum, row) => sum + row.thresholdReachedCount,
+      0,
+    );
+    return { activeTiers, subscriptions, thresholdReached };
+  }, [tiers, schedules]);
+
+  const tierStatusMutation = useMutation({
+    mutationFn: async (input: {
+      tier: WorkshopAmcTierListItem;
+      action: "activate" | "deactivate";
+      reason?: string;
+    }) => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return updateWorkshopAmcTierStatusApi(
+        token,
+        input.tier.id,
+        organizationId,
+        input.action,
+        input.reason,
+      );
+    },
+    onSuccess: (data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["workshop", "amc-tiers"],
+      });
+      setTierActivateTarget(null);
+      setTierDeactivateTarget(null);
+      showSuccessToast(
+        variables.action === "activate"
+          ? `${data.name} was activated`
+          : `${data.name} was deactivated`,
+      );
+    },
+    onError: (error: Error) => {
+      showErrorToast(
+        error instanceof ApiClientError
+          ? error.message
+          : "Could not update tier status.",
+      );
+    },
+  });
+
+  const scheduleStatusMutation = useMutation({
+    mutationFn: async (input: {
+      schedule: WorkshopMaintenanceScheduleListItem;
+      action: "activate" | "deactivate";
+      reason?: string;
+    }) => {
+      if (!token || !organizationId) {
+        throw new Error("Missing auth context");
+      }
+      return updateWorkshopMaintenanceScheduleStatusApi(
+        token,
+        input.schedule.id,
+        organizationId,
+        input.action,
+        input.reason,
+      );
+    },
+    onSuccess: (data, variables) => {
+      void queryClient.invalidateQueries({
+        queryKey: ["workshop", "amc-schedules"],
+      });
+      setScheduleActivateTarget(null);
+      setScheduleDeactivateTarget(null);
+      showSuccessToast(
+        variables.action === "activate"
+          ? `${data.name} was activated`
+          : `${data.name} was deactivated`,
+      );
+    },
+    onError: (error: Error) => {
+      showErrorToast(
+        error instanceof ApiClientError
+          ? error.message
+          : "Could not update schedule status.",
+      );
+    },
+  });
 
     return (
         <div className="min-h-full bg-gray-50 px-5 py-4 text-[14px] text-gray-800">
@@ -62,29 +200,42 @@ export default function AmcMaintenancePage() {
                     </p>
                 </div>
 
-                <button
-                    onClick={() => router.push(workshopAmcScheduleCreateHref)}
-                    className="h-8 shrink-0 rounded-md bg-[#FE5720] px-4 text-xs font-medium text-white hover:bg-[#E94B18]"
-                >
-                    + Create schedule
-                </button>
+                {canCreate ? (
+                <div className="flex shrink-0 flex-wrap gap-2">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 text-xs"
+                        onClick={() => router.push(workshopAmcTierCreateHref)}
+                    >
+                        + Create tier
+                    </Button>
+                    <Button
+                        type="button"
+                        className="h-8 text-xs"
+                        onClick={() => router.push(workshopAmcScheduleCreateHref)}
+                    >
+                        + Create schedule
+                    </Button>
+                </div>
+                ) : null}
             </div>
 
             {/* Summary cards */}
             <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <SummaryCard
                     label="Active AMC tiers"
-                    value="2"
+                    value={String(summary.activeTiers)}
                     description="Available maintenance plans"
                 />
                 <SummaryCard
                     label="Active subscriptions"
-                    value="15"
+                    value={String(summary.subscriptions)}
                     description="Vehicles covered by AMC"
                 />
                 <SummaryCard
                     label="Threshold reached"
-                    value="1"
+                    value={String(summary.thresholdReached)}
                     description="Requires maintenance attention"
                 />
             </div>
@@ -113,6 +264,27 @@ export default function AmcMaintenancePage() {
                         </thead>
 
                         <tbody>
+                            {tiersQuery.isLoading && (
+                                <tr>
+                                    <td
+                                        colSpan={5}
+                                        className="py-6 text-center text-xs text-gray-500"
+                                    >
+                                        Loading tiers…
+                                    </td>
+                                </tr>
+                            )}
+                            {!tiersQuery.isLoading && tiers.length === 0 && (
+                                <tr>
+                                    <td
+                                        colSpan={5}
+                                        className="py-6 text-center text-xs text-gray-500"
+                                    >
+                                        No AMC tiers yet. Use Create tier to add
+                                        a plan.
+                                    </td>
+                                </tr>
+                            )}
                             {tiers.map((tier) => (
                                 <tr
                                     key={tier.id}
@@ -123,34 +295,64 @@ export default function AmcMaintenancePage() {
                                     </td>
 
                                     <td className="py-3 pr-2 text-xs text-gray-500">
-                                        <p>{tier.description}</p>
-                                        <p className="mt-1">{tier.price}</p>
+                                        <p>{tier.description ?? "—"}</p>
+                                        <p className="mt-1">
+                                            {tier.priceDisplayLabel ?? "—"}
+                                        </p>
                                     </td>
 
                                     <td className="py-3 text-xs">
-                                        {tier.subscribers} vehicles
+                                        {tier.subscriberCount} vehicles
                                     </td>
 
                                     <td className="py-3">
-                                        <span className="rounded-full bg-green-50 px-2 py-1 text-[10px] font-medium text-green-700">
-                                            Active
+                                        <span
+                                            className={
+                                                tier.status === "active"
+                                                    ? "rounded-full bg-green-50 px-2 py-1 text-[10px] font-medium text-green-700"
+                                                    : "rounded-full bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-600"
+                                            }
+                                        >
+                                            {tier.status === "active"
+                                                ? "Active"
+                                                : "Inactive"}
                                         </span>
                                     </td>
 
                                     <td className="py-3 text-right">
-                                        <button
-                                            aria-label={`View ${tier.name} tier`}
-                                            onClick={() =>
-                                                router.push(
-                                                    workshopAmcTierDetailHref(
-                                                        tier.id,
-                                                    ),
-                                                )
+                                        <DashboardTableActions
+                                            status={tier.status}
+                                            viewHref={workshopAmcTierDetailHref(
+                                                tier.id,
+                                            )}
+                                            copyText={formatAmcTierRowCopyText(
+                                                tier,
+                                            )}
+                                            onEdit={
+                                                canUpdate &&
+                                                tier.status === "active"
+                                                    ? () =>
+                                                          router.push(
+                                                              workshopAmcTierEditHref(
+                                                                  tier.id,
+                                                              ),
+                                                          )
+                                                    : undefined
                                             }
-                                            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-                                        >
-                                            <Eye size={14} />
-                                        </button>
+                                            onToggleStatus={
+                                                canUpdate
+                                                    ? () =>
+                                                          tier.status ===
+                                                          "active"
+                                                              ? setTierDeactivateTarget(
+                                                                    tier,
+                                                                )
+                                                              : setTierActivateTarget(
+                                                                    tier,
+                                                                )
+                                                    : undefined
+                                            }
+                                        />
                                     </td>
                                 </tr>
                             ))}
@@ -171,14 +373,18 @@ export default function AmcMaintenancePage() {
                         </p>
                     </div>
 
-                    <button
+                    {canCreate ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        className="h-8 text-xs"
                         onClick={() =>
                             router.push(workshopAmcScheduleCreateHref)
                         }
-                        className="h-8 rounded-md border border-gray-200 bg-white px-3 text-xs font-medium hover:bg-gray-50"
                     >
                         + Add schedule
-                    </button>
+                    </Button>
+                    ) : null}
                 </div>
 
                 <div className="overflow-x-auto px-4">
@@ -195,6 +401,27 @@ export default function AmcMaintenancePage() {
                         </thead>
 
                         <tbody>
+                            {schedulesQuery.isLoading && (
+                                <tr>
+                                    <td
+                                        colSpan={6}
+                                        className="py-6 text-center text-xs text-gray-500"
+                                    >
+                                        Loading schedules…
+                                    </td>
+                                </tr>
+                            )}
+                            {!schedulesQuery.isLoading &&
+                                schedules.length === 0 && (
+                                    <tr>
+                                        <td
+                                            colSpan={6}
+                                            className="py-6 text-center text-xs text-gray-500"
+                                        >
+                                            No maintenance schedules yet.
+                                        </td>
+                                    </tr>
+                                )}
                             {schedules.map((schedule) => (
                                 <tr
                                     key={schedule.id}
@@ -205,44 +432,64 @@ export default function AmcMaintenancePage() {
                                     </td>
 
                                     <td className="py-3 pr-2 text-xs text-gray-500">
-                                        {schedule.assetClass}
+                                        {schedule.assetClassLabel ?? "—"}
                                     </td>
 
                                     <td className="py-3 text-xs">
-                                        {schedule.interval}
+                                        {schedule.intervalLabel ?? "—"}
                                     </td>
 
                                     <td className="py-3 text-xs">
-                                        {schedule.vehicles}
+                                        {schedule.vehicleCount}
                                     </td>
 
                                     <td className="py-3">
                                         <span
-                                            className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-medium ${schedule.thresholdReached > 0
+                                            className={`whitespace-nowrap rounded-full px-2 py-1 text-[10px] font-medium ${schedule.thresholdReachedCount > 0
                                                 ? "bg-orange-50 text-orange-700"
                                                 : "bg-green-50 text-green-700"
                                                 }`}
                                         >
-                                            {schedule.thresholdReached > 0
-                                                ? `${schedule.thresholdReached} reached`
+                                            {schedule.thresholdReachedCount > 0
+                                                ? `${schedule.thresholdReachedCount} reached`
                                                 : "On track"}
                                         </span>
                                     </td>
 
                                     <td className="py-3 text-right">
-                                        <button
-                                            aria-label={`View ${schedule.name}`}
-                                            onClick={() =>
-                                                router.push(
-                                                    workshopAmcScheduleDetailHref(
-                                                        schedule.id,
-                                                    ),
-                                                )
+                                        <DashboardTableActions
+                                            status={schedule.status}
+                                            viewHref={workshopAmcScheduleDetailHref(
+                                                schedule.id,
+                                            )}
+                                            copyText={formatMaintenanceScheduleRowCopyText(
+                                                schedule,
+                                            )}
+                                            onEdit={
+                                                canUpdate &&
+                                                schedule.status === "active"
+                                                    ? () =>
+                                                          router.push(
+                                                              workshopAmcScheduleEditHref(
+                                                                  schedule.id,
+                                                              ),
+                                                          )
+                                                    : undefined
                                             }
-                                            className="inline-flex h-7 w-7 items-center justify-center rounded text-gray-500 hover:bg-gray-100"
-                                        >
-                                            <Eye size={14} />
-                                        </button>
+                                            onToggleStatus={
+                                                canUpdate
+                                                    ? () =>
+                                                          schedule.status ===
+                                                          "active"
+                                                              ? setScheduleDeactivateTarget(
+                                                                    schedule,
+                                                                )
+                                                              : setScheduleActivateTarget(
+                                                                    schedule,
+                                                                )
+                                                    : undefined
+                                            }
+                                        />
                                     </td>
                                 </tr>
                             ))}
@@ -259,6 +506,89 @@ export default function AmcMaintenancePage() {
                     </p>
                 </div>
             </section>
+
+            <ConfirmDialog
+                open={tierActivateTarget !== null}
+                title="Activate AMC tier?"
+                message={
+                    tierActivateTarget
+                        ? `${tierActivateTarget.name} will be available for new subscriptions.`
+                        : ""
+                }
+                confirmLabel="Activate"
+                isConfirmPending={tierStatusMutation.isPending}
+                onConfirm={() => {
+                    if (tierActivateTarget) {
+                        tierStatusMutation.mutate({
+                            tier: tierActivateTarget,
+                            action: "activate",
+                        });
+                    }
+                }}
+                onClose={() => setTierActivateTarget(null)}
+            />
+            <ReasonRequiredDialog
+                open={tierDeactivateTarget !== null}
+                title="Deactivate AMC tier?"
+                description={
+                    tierDeactivateTarget
+                        ? `${tierDeactivateTarget.name} will no longer accept new subscriptions.`
+                        : ""
+                }
+                confirmLabel="Deactivate"
+                isPending={tierStatusMutation.isPending}
+                onConfirm={(reason) => {
+                    if (tierDeactivateTarget) {
+                        tierStatusMutation.mutate({
+                            tier: tierDeactivateTarget,
+                            action: "deactivate",
+                            reason,
+                        });
+                    }
+                }}
+                onClose={() => setTierDeactivateTarget(null)}
+            />
+            <ConfirmDialog
+                open={scheduleActivateTarget !== null}
+                title="Activate maintenance schedule?"
+                message={
+                    scheduleActivateTarget
+                        ? `${scheduleActivateTarget.name} will be active again.`
+                        : ""
+                }
+                confirmLabel="Activate"
+                isConfirmPending={scheduleStatusMutation.isPending}
+                onConfirm={() => {
+                    if (scheduleActivateTarget) {
+                        scheduleStatusMutation.mutate({
+                            schedule: scheduleActivateTarget,
+                            action: "activate",
+                        });
+                    }
+                }}
+                onClose={() => setScheduleActivateTarget(null)}
+            />
+            <ReasonRequiredDialog
+                open={scheduleDeactivateTarget !== null}
+                title="Deactivate maintenance schedule?"
+                description={
+                    scheduleDeactivateTarget
+                        ? `${scheduleDeactivateTarget.name} will be marked inactive.`
+                        : ""
+                }
+                confirmLabel="Deactivate"
+                isPending={scheduleStatusMutation.isPending}
+                onConfirm={(reason) => {
+                    if (scheduleDeactivateTarget) {
+                        scheduleStatusMutation.mutate({
+                            schedule: scheduleDeactivateTarget,
+                            action: "deactivate",
+                            reason,
+                        });
+                    }
+                }}
+                onClose={() => setScheduleDeactivateTarget(null)}
+            />
         </div>
     );
 }

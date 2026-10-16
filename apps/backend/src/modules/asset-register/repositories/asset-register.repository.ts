@@ -461,6 +461,29 @@ export class AssetRegisterRepository {
     return row;
   }
 
+  async findVehicleIdByNormalizedRegistration(
+    organizationId: string,
+    registrationNumber: string,
+    excludeVehicleId?: string,
+  ): Promise<string | undefined> {
+    const trimmed = registrationNumber.trim();
+    if (!trimmed) return undefined;
+    const normalized = trimmed.toUpperCase();
+    const conditions = [
+      eq(assetRegisterVehicles.organizationId, organizationId),
+      sql`upper(trim(${assetRegisterVehicles.registrationNumber})) = ${normalized}`,
+    ];
+    if (excludeVehicleId) {
+      conditions.push(ne(assetRegisterVehicles.id, excludeVehicleId));
+    }
+    const [row] = await this.db
+      .select({ id: assetRegisterVehicles.id })
+      .from(assetRegisterVehicles)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id;
+  }
+
   async getVehicleInOrg(
     organizationId: string,
     id: string,

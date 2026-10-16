@@ -19,6 +19,7 @@ export function employeeDetailToFormData(
     dateOfJoining: detail.dateOfJoining?.slice(0, 10) ?? "",
     phone: detail.phone,
     email: detail.email,
+    isWorkshopTechnician: detail.isWorkshopTechnician,
   };
 }
 
@@ -44,6 +45,7 @@ export function buildEmployeeCreatePayload(input: {
     dateOfJoining: input.form.dateOfJoining.trim().slice(0, 10),
     phone,
     email: input.form.email.trim().toLowerCase(),
+    isWorkshopTechnician: input.form.isWorkshopTechnician,
   };
 }
 
@@ -67,5 +69,6 @@ export function buildEmployeeUpdatePayload(input: {
     dateOfJoining: input.form.dateOfJoining.trim().slice(0, 10),
     phone,
     email: input.form.email.trim().toLowerCase(),
+    isWorkshopTechnician: input.form.isWorkshopTechnician,
   };
 }

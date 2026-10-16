@@ -514,6 +514,7 @@ export default function AddLocationForm({
                 dateOfJoining: "",
                 phone: form.responsiblePerson.phone,
                 email: form.responsiblePerson.email,
+                isWorkshopTechnician: false,
                 status: "active" as const,
             });
         }
@@ -541,6 +542,7 @@ export default function AddLocationForm({
                 dateOfJoining: "",
                 phone: form.deputy.phone,
                 email: form.deputy.email,
+                isWorkshopTechnician: false,
                 status: "active" as const,
             });
         }

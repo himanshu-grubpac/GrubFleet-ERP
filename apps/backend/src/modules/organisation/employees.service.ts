@@ -96,6 +96,7 @@ export class EmployeesService {
       dateOfJoining: dto.dateOfJoining.trim(),
       mobile: dto.phone.trim(),
       companyEmail: dto.email.trim(),
+      isWorkshopTechnician: dto.isWorkshopTechnician ?? false,
       isActive: true,
     });
     return this.getById(dto.organizationId, inserted.id);
@@ -161,6 +162,9 @@ export class EmployeesService {
       ...(dto.phone !== undefined ? { mobile: dto.phone?.trim() ?? null } : {}),
       ...(dto.email !== undefined
         ? { companyEmail: dto.email?.trim() ?? null }
+        : {}),
+      ...(dto.isWorkshopTechnician !== undefined
+        ? { isWorkshopTechnician: dto.isWorkshopTechnician }
         : {}),
     });
     return this.getById(organizationId, employeeId);
@@ -275,6 +279,7 @@ export class EmployeesService {
         : '',
       phone: row.mobile ?? '',
       email: row.companyEmail ?? '',
+      isWorkshopTechnician: row.isWorkshopTechnician ?? false,
       status: row.isActive ? ('active' as const) : ('inactive' as const),
     };
   }

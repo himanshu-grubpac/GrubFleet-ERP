@@ -17,6 +17,8 @@ export function AppShell({
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   const [preferenceReady, setPreferenceReady] = useState(false);
 
   useEffect(() => {
@@ -32,6 +34,19 @@ export function AppShell({
     writeSidebarCollapsedPreference(sidebarCollapsed);
   }, [sidebarCollapsed, preferenceReady]);
 
+  useEffect(() => {
+    if (!mobileNavOpen) {
+      return;
+    }
+
+    const previousOverflow = document.documentElement.style.overflow;
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow = previousOverflow;
+    };
+  }, [mobileNavOpen]);
+
   const toggleSidebarCollapsed = useCallback(() => {
     setSidebarCollapsed((value) => !value);
   }, []);
@@ -41,12 +56,14 @@ export function AppShell({
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggleCollapsed={toggleSidebarCollapsed}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <LayoutHeader />
+        <LayoutHeader onMenuClick={() => setMobileNavOpen(true)} />
 
-        <main className="min-h-0 flex-1 overflow-auto">
+        <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-y-contain">
           {children}
         </main>
       </div>

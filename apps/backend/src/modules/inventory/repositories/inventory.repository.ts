@@ -460,4 +460,70 @@ export class InventoryRepository {
       .returning();
     return rows[0];
   }
+
+  async pickStockLocationForPart(
+    organizationId: string,
+    partId: string,
+    quantityNeeded: number,
+  ): Promise<{ locationId: string } | null> {
+    const grouped = await this.quantitiesByPartIdsGrouped(organizationId, [
+      partId,
+    ]);
+    const locations = grouped.get(partId) ?? [];
+    if (locations.length === 0) return null;
+    const sorted = [...locations].sort((a, b) => b.quantity - a.quantity);
+    const sufficient = sorted.find((row) => row.quantity >= quantityNeeded);
+    const pick = sufficient ?? sorted[0];
+    return pick ? { locationId: pick.locationId } : null;
+  }
+
+  async createWorkOrderPartReservation(input: {
+    organizationId: string;
+    workOrderNumber: string;
+    vehicleFleetCode: string;
+    partId: string;
+    quantity: number;
+    lineKey: string;
+  }): Promise<PartsRequestRow> {
+    const location = await this.pickStockLocationForPart(
+      input.organizationId,
+      input.partId,
+      input.quantity,
+    );
+    const base = `PR-${input.workOrderNumber}-${input.lineKey}`.replace(
+      /\s+/g,
+      '',
+    );
+    const requestNumber = base.slice(0, 32);
+    return this.insertPartsRequest({
+      organizationId: input.organizationId,
+      requestNumber,
+      workOrderRef: input.workOrderNumber,
+      partId: input.partId,
+      locationId: location?.locationId ?? null,
+      quantityRequested: input.quantity,
+      requestType: 'internal',
+      vehicleRef: input.vehicleFleetCode,
+      status: 'reserved',
+      compatibilityOk: true,
+    });
+  }
+
+  async transitionPartsRequestsByWorkOrderRef(
+    organizationId: string,
+    workOrderRef: string,
+    fromStatus: PartsRequestRow['status'],
+    toStatus: PartsRequestRow['status'],
+  ): Promise<void> {
+    await this.db
+      .update(inventoryPartsRequests)
+      .set({ status: toStatus, updatedAt: new Date() })
+      .where(
+        and(
+          eq(inventoryPartsRequests.organizationId, organizationId),
+          eq(inventoryPartsRequests.workOrderRef, workOrderRef),
+          eq(inventoryPartsRequests.status, fromStatus),
+        ),
+      );
+  }
 }

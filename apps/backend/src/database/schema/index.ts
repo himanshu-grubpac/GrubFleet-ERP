@@ -268,3 +268,4 @@ export * from './organisation.schema';
 export * from './asset-register.schema';
 export * from './finance.schema';
 export * from './inventory.schema';
+export * from './workshop.schema';

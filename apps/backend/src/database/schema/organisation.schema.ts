@@ -179,6 +179,9 @@ export const organisationEmployees = pgTable(
       length: 255,
     }),
     linkedUserId: uuid('linked_user_id'),
+    isWorkshopTechnician: boolean('is_workshop_technician')
+      .notNull()
+      .default(false),
     isActive: boolean('is_active').notNull().default(true),
     offBoardReasonType: organisationOffBoardReasonEnum('off_board_reason_type'),
     offBoardComment: text('off_board_comment'),

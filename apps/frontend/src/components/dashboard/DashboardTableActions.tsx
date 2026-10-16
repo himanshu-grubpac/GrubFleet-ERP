@@ -6,10 +6,13 @@ import { FaCopy } from "react-icons/fa";
 import { Edit, Power } from "lucide-react";
 import Link from "next/link";
 
+import { MoreVertical } from "lucide-react";
+
 import {
     DashboardRowActionsMenu,
     DashboardRowActionsMenuItem,
 } from "./DashboardRowActionsMenu";
+import { dashboardRowMenuTriggerClassName } from "./dashboard-row-icon-button";
 
 import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
 
@@ -54,6 +57,8 @@ type DashboardTableActionsProps = {
     allowEditWhenInactive?: boolean;
     hideEdit?: boolean;
     alwaysShowOverflowMenu?: boolean;
+    /** Gray non-clickable ⋮ for row alignment when no menu actions apply. */
+    overflowMenuDisabled?: boolean;
     onEdit?: () => void;
     onToggleStatus?: () => void;
     renderAdditionalMenuItems?: () => ReactNode;
@@ -67,6 +72,7 @@ export default function DashboardTableActions({
     allowEditWhenInactive = false,
     hideEdit = false,
     alwaysShowOverflowMenu = false,
+    overflowMenuDisabled = false,
     onEdit,
     onToggleStatus,
     renderAdditionalMenuItems,
@@ -151,7 +157,20 @@ export default function DashboardTableActions({
             </button>
 
             {/* Three-dot actions menu */}
-            {hasOverflowMenu ? (
+            {overflowMenuDisabled ? (
+                <button
+                    type="button"
+                    disabled
+                    aria-label="Row actions unavailable"
+                    title="No actions available"
+                    className={`${dashboardRowMenuTriggerClassName} cursor-not-allowed text-gray-400 opacity-40`}
+                >
+                    <MoreVertical
+                        className="h-4 w-4"
+                        strokeWidth={1.75}
+                    />
+                </button>
+            ) : hasOverflowMenu ? (
                 <DashboardRowActionsMenu ariaLabel="Row actions">
                     {({ close }) => (
                         <>
