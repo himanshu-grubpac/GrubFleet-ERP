@@ -84,6 +84,7 @@ function findNavigationMatch(
     return bestMatch;
 }
 
+
 function getFleetNavigationBreadcrumbs(path: string): BreadcrumbItem[] {
     const fleetItem = mainNavItems.find(
         (item) => normalizePath(item.href) === "/fleet-leasing",
@@ -91,16 +92,41 @@ function getFleetNavigationBreadcrumbs(path: string): BreadcrumbItem[] {
 
     if (!fleetItem) return [];
 
+    // Explicit handling for Renew and Extend pages.
+    const renewalsPath = "/fleet-leasing/renewals-extensions";
+
+    if (
+        path === `${renewalsPath}/renew` ||
+        path === `${renewalsPath}/extend`
+    ) {
+        const page = path.endsWith("/renew") ? "Renew" : "Extend";
+
+        return [
+            {
+                label: "Fleet & Leasing",
+                href: "/fleet-leasing/",
+            },
+            {
+                label: "Renewals & Extensions",
+                href: `${renewalsPath}/`,
+            },
+            {
+                label: page,
+            },
+        ];
+    }
+
     const match = findNavigationMatch([fleetItem], path);
     if (!match) return [];
 
     const breadcrumbs: BreadcrumbItem[] = [
         {
             label: "Fleet & Leasing",
-            href: "/fleet-leasing",
+            href: "/fleet-leasing/",
         },
     ];
 
+    // Add parent navigation items, excluding Fleet & Leasing.
     for (const ancestor of match.ancestors.slice(1)) {
         breadcrumbs.push({
             label: ancestor.label,
@@ -108,14 +134,12 @@ function getFleetNavigationBreadcrumbs(path: string): BreadcrumbItem[] {
         });
     }
 
-    // Make Lease Contracts clickable even on its own pages.
-    if (path.startsWith("/fleet-leasing/lease-contracts")) {
+    // Add the matched navigation item.
+    if (match.item !== fleetItem) {
         breadcrumbs.push({
-            label: "Lease Contracts",
-            href: "/fleet-leasing/lease-contracts",
+            label: match.item.label,
+            href: match.href,
         });
-    } else {
-        breadcrumbs.push({ label: match.item.label });
     }
 
     let currentPath = match.href;
@@ -125,24 +149,20 @@ function getFleetNavigationBreadcrumbs(path: string): BreadcrumbItem[] {
     const segments = remainingPath.split("/").filter(Boolean);
 
     segments.forEach((segment, index) => {
-        currentPath += `/ ${segment} `;
-
-        // Avoid adding Lease Contracts twice.
-        if (
-            path.startsWith("/fleet-leasing/lease-contracts") &&
-            segment === "lease-contracts"
-        ) {
-            return;
-        }
+        currentPath = `${currentPath}/${segment}`;
 
         breadcrumbs.push({
             label: formatSegment(segment),
-            href: index < segments.length - 1 ? currentPath : undefined,
+            href:
+                index < segments.length - 1
+                    ? `${currentPath}/`
+                    : undefined,
         });
     });
 
     return breadcrumbs;
 }
+
 
 
 export function resolveAdministrationBreadcrumbs(

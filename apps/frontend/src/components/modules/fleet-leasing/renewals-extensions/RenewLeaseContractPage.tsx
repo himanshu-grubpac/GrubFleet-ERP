@@ -36,10 +36,6 @@ const INPUT_LABEL =
 const SECTION_TITLE =
   "mb-4 text-xs font-semibold uppercase tracking-wider text-slate-500";
 
-const RENEW_BACK_LINK = {
-  href: "/fleet-leasing/renewals-extensions",
-  label: "Back to Renewals & Extensions",
-} as const;
 
 export default function RenewLeaseContractPage() {
   const router = useRouter();
@@ -168,7 +164,7 @@ export default function RenewLeaseContractPage() {
     return (
       <OrganizationFormLayout
         title="Renew contract"
-        backLink={RENEW_BACK_LINK}
+
       >
         <p className="text-sm text-slate-600">
           Missing contract. Open renew from the Renewals & Extensions list.
@@ -181,7 +177,7 @@ export default function RenewLeaseContractPage() {
     return (
       <OrganizationFormLayout
         title="Renew contract"
-        backLink={RENEW_BACK_LINK}
+
       >
         <p className="text-sm text-red-600">Could not load contract.</p>
       </OrganizationFormLayout>
@@ -192,7 +188,7 @@ export default function RenewLeaseContractPage() {
     return (
       <OrganizationFormLayout
         title="Renew contract"
-        backLink={RENEW_BACK_LINK}
+
       >
         <p className="text-sm text-slate-600">
           Only active contracts can be renewed or extended.
@@ -212,7 +208,7 @@ export default function RenewLeaseContractPage() {
       <OrganizationFormLayout
         title="Renew contract"
         description="Update the contract term and start date. Security deposit carries forward."
-        backLink={RENEW_BACK_LINK}
+
         actions={footerActions}
       >
         {detailQuery.isLoading || !detail ? (
