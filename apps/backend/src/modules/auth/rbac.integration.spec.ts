@@ -1,11 +1,10 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { AppModule } from '../../app.module';
-import { GlobalHttpExceptionFilter } from '../../common/filters/http-exception.filter';
 import {
   DEV_ADMIN_EMAIL,
   DEV_ADMIN_PASSWORD,
@@ -27,6 +26,7 @@ import {
 import { and, eq, inArray } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import {
+  configureIntegrationNestApp,
   ensureUserWithPermissions,
   loginAs,
   ORG_VIEW_ONLY_USER,
@@ -308,15 +308,7 @@ describe('RBAC admin (integration)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalFilters(new GlobalHttpExceptionFilter());
+    configureIntegrationNestApp(app);
     await app.init();
 
     const adminLogin = await request(app.getHttpServer())
