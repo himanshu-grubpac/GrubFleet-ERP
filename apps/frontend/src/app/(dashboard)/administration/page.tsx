@@ -1,5 +1,5 @@
-import { AdministrationModule } from '@/components/modules/administration';
+import AdministrationPage from "@/components/modules/administration/administrationPage";
 
-export default function RolesPermissionsPage() {
-  return <AdministrationModule />;
+export default function Page() {
+    return <AdministrationPage />;
 }

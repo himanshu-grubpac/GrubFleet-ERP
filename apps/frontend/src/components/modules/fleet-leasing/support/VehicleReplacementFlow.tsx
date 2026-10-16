@@ -310,19 +310,7 @@ export default function VehicleReplacementFlow() {
         Boolean(searchQuery.trim()) && orgReady && !lookupPending;
     const registrationLookupHasError = Boolean(lookupError);
 
-    const backLink: OrganizationFormBackLink = useMemo(
-        () =>
-            step === 2
-                ? {
-                      label: "Back to select vehicles",
-                      onClick: () => setStep(1),
-                  }
-                : {
-                      href: "/fleet-leasing/support/",
-                      label: "Back to Support",
-                  },
-        [step],
-    );
+
 
     const replaceMutation = useMutation({
         mutationFn: () =>
@@ -471,8 +459,8 @@ export default function VehicleReplacementFlow() {
                     value={
                         previewResult.contract.startDate
                             ? formatCalendarDateEnIn(
-                                  previewResult.contract.startDate,
-                              )
+                                previewResult.contract.startDate,
+                            )
                             : "—"
                     }
                 />
@@ -612,7 +600,7 @@ export default function VehicleReplacementFlow() {
                                                 {client.contractCount ?? 0}{" "}
                                                 active contract
                                                 {(client.contractCount ?? 0) ===
-                                                1
+                                                    1
                                                     ? ""
                                                     : "s"}
                                             </span>
@@ -670,7 +658,7 @@ export default function VehicleReplacementFlow() {
                                     Loading allocated vehicles…
                                 </div>
                             ) : (allocatedQuery.data?.items ?? []).length ===
-                              0 ? (
+                                0 ? (
                                 <DashboardEmptyState
                                     title="No allocated vehicles"
                                     description="This contract has no vehicles allocated yet."
@@ -695,7 +683,7 @@ export default function VehicleReplacementFlow() {
     return (
         <>
             <OrganizationFormLayout
-                backLink={backLink}
+
                 beforeHeader={
                     <VehicleReplacementStepper currentStep={step} />
                 }
@@ -722,11 +710,10 @@ export default function VehicleReplacementFlow() {
                                 type="button"
                                 role="tab"
                                 aria-selected={findMode === "registration"}
-                                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                                    findMode === "registration"
+                                className={`rounded-md px-4 py-2 text-sm font-medium transition ${findMode === "registration"
                                         ? "bg-white text-slate-900 shadow-sm"
                                         : "text-slate-600 hover:text-slate-900"
-                                }`}
+                                    }`}
                                 onClick={() => setFindMode("registration")}
                             >
                                 Registration or VIN
@@ -735,11 +722,10 @@ export default function VehicleReplacementFlow() {
                                 type="button"
                                 role="tab"
                                 aria-selected={findMode === "contract"}
-                                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                                    findMode === "contract"
+                                className={`rounded-md px-4 py-2 text-sm font-medium transition ${findMode === "contract"
                                         ? "bg-white text-slate-900 shadow-sm"
                                         : "text-slate-600 hover:text-slate-900"
-                                }`}
+                                    }`}
                                 onClick={() => setFindMode("contract")}
                             >
                                 From client contract

@@ -10,9 +10,9 @@ import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
-  COMPLIANCE_RENEWAL_SAVE_ERROR,
-  showComplianceRenewalSavedToast,
-  showErrorToast,
+    COMPLIANCE_RENEWAL_SAVE_ERROR,
+    showComplianceRenewalSavedToast,
+    showErrorToast,
 } from "@/lib/toast/show-toast";
 import {
     fetchAssetRegisterComplianceDetailApi,
@@ -82,21 +82,21 @@ export default function RenewCompliancePage() {
 
     const vehicle: ComplianceVehicle | undefined = detailQuery.data
         ? {
-              id: detailQuery.data.vehicleId,
-              fleetCode: detailQuery.data.fleetCode,
-              assetClass: detailQuery.data.assetClassName,
-              registrationNumber: detailQuery.data.registrationNumber,
-              insuranceExpiry: formatAssetRegisterIsoDate(
-                  detailQuery.data.insuranceEndDate,
-              ),
-              registrationExpiry: formatAssetRegisterIsoDate(
-                  detailQuery.data.registrationEndDate,
-              ),
-              insuranceSupplier: "—",
-              contactPerson: "—",
-              phone: "—",
-              email: "—",
-          }
+            id: detailQuery.data.vehicleId,
+            fleetCode: detailQuery.data.fleetCode,
+            assetClass: detailQuery.data.assetClassName,
+            registrationNumber: detailQuery.data.registrationNumber,
+            insuranceExpiry: formatAssetRegisterIsoDate(
+                detailQuery.data.insuranceEndDate,
+            ),
+            registrationExpiry: formatAssetRegisterIsoDate(
+                detailQuery.data.registrationEndDate,
+            ),
+            insuranceSupplier: "—",
+            contactPerson: "—",
+            phone: "—",
+            email: "—",
+        }
         : undefined;
 
     const renewMutation = useMutation({
@@ -111,14 +111,14 @@ export default function RenewCompliancePage() {
                 renewalType === "Insurance"
                     ? "insurance"
                     : renewalType === "Registration"
-                      ? "registration"
-                      : "warranty";
+                        ? "registration"
+                        : "warranty";
             const startDate =
                 renewalType === "Insurance"
                     ? detailQuery.data.insuranceStartDate
                     : renewalType === "Registration"
-                      ? detailQuery.data.registrationStartDate
-                      : detailQuery.data.warrantyStartDate;
+                        ? detailQuery.data.registrationStartDate
+                        : detailQuery.data.warrantyStartDate;
             return renewAssetRegisterComplianceApi({
                 token,
                 organizationId,

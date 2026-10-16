@@ -12,6 +12,7 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
   fetchStockBalanceListApi,
   type StockBalanceListItem,
@@ -132,11 +133,24 @@ export default function StockBalanceDashboardPage() {
           onButtonClick={() => setSearch("")}
         />
       ) : (
+
+
         <DashboardTable
           columns={columns}
           data={items}
           getRowKey={(row) => row.id}
+          renderActions={(row) => (
+            <div className="flex w-full items-center justify-center">
+              <Link
+                href={inventoryStockBalanceDetailHref(row.id)}
+                className="inline-flex h-12 min-w-[98px] items-center justify-center rounded-lg bg-white px-5 text-[14px] font-normal leading-none text-[#FE5720] underline transition-colors hover:text-[#E64A19]"
+              >
+                View
+              </Link>
+            </div>
+          )}
         />
+
       )}
     </DashboardLayout>
   );

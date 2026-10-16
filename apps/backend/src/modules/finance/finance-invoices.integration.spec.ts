@@ -727,15 +727,31 @@ describe('Finance invoices (integration)', () => {
 
   describe('inventory parts catalog (purchase spare tab)', () => {
     it('returns parts for finance.view with valid pageSize', async () => {
-      const res = await request(app.getHttpServer())
-        .get('/api/v1/finance/inventory-parts')
-        .query({ organizationId, page: 1, pageSize: 50 })
-        .set('Authorization', `Bearer ${financeViewToken}`)
-        .set('x-organization-id', organizationId)
-        .expect(200);
+      let page = 1;
+      const pageSize = 50;
+      let found = false;
+      while (!found) {
+        const res = await request(app.getHttpServer())
+          .get('/api/v1/finance/inventory-parts')
+          .query({ organizationId, page, pageSize })
+          .set('Authorization', `Bearer ${financeViewToken}`)
+          .set('x-organization-id', organizationId)
+          .expect(200);
 
-      const body = res.body as { items: Array<{ id: string }> };
-      expect(body.items.some((row) => row.id === partId)).toBe(true);
+        const body = res.body as {
+          items: Array<{ id: string }>;
+          totalPages: number;
+        };
+        if (body.items.some((row) => row.id === partId)) {
+          found = true;
+          break;
+        }
+        if (page >= body.totalPages) {
+          break;
+        }
+        page += 1;
+      }
+      expect(found).toBe(true);
     });
 
     it('returns 400 when pageSize exceeds max', async () => {

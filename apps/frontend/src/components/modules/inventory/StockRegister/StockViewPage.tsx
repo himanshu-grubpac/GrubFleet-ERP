@@ -5,19 +5,21 @@ import { useRouter } from "next/navigation";
 import { inventoryStockRegisterEditHref } from "@/lib/navigation/inventory-static-routes";
 import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+
 import { useAuth } from "@/providers/auth-provider";
 import {
-  fetchStockRegisterDetailApi,
-  updateSparePartStatusApi,
+    fetchStockRegisterDetailApi,
+    updateSparePartStatusApi,
 } from "@/lib/api/inventory/stock-register";
 import {
-  showErrorToast,
-  showSparePartActivatedToast,
-  showSparePartDeactivatedToast,
+    showErrorToast,
+    showSparePartActivatedToast,
+    showSparePartDeactivatedToast,
 } from "@/lib/toast/show-toast";
-import { AlertTriangle } from "lucide-react";
 
+import { AlertTriangle } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -40,25 +42,16 @@ type WorkOrderUsage = {
 
 type StockRecord = {
     id: string;
-
     partName: string;
     partNumber: string;
-
     status: StockStatus;
-
     compatibleAssetClasses: string[];
-
     unitOfMeasure: string;
-
     retailMarkup: string;
     wholesaleMarkup: string;
-
     threshold: string;
-
     onHand: number;
-
     locationStock: StockLocation[];
-
     workOrderHistory: WorkOrderUsage[];
 };
 
@@ -69,56 +62,111 @@ type StockRecord = {
 export default function StockViewPage() {
     const router = useRouter();
     const queryClient = useQueryClient();
-    const { token, organizationId, isLoading: isAuthLoading, permissions } =
-        useAuth();
+
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+        permissions,
+    } = useAuth();
 
     const stockId = useInventoryEntityId("partId");
 
     const detailQuery = useQuery({
-        queryKey: ["inventory", "stock-register", organizationId, stockId],
+        queryKey: [
+            "inventory",
+            "stock-register",
+            organizationId,
+            stockId,
+        ],
         queryFn: () =>
-            fetchStockRegisterDetailApi(organizationId!, stockId, token!),
-        enabled: !!token && !!organizationId && !isAuthLoading && !!stockId,
+            fetchStockRegisterDetailApi(
+                organizationId!,
+                stockId,
+                token!,
+            ),
+        enabled:
+            !!token &&
+            !!organizationId &&
+            !isAuthLoading &&
+            !!stockId,
     });
 
+    /* ---------------------------------------------------------------------- */
+    /* Status Mutation                                                        */
+    /* ---------------------------------------------------------------------- */
+
     const statusMutation = useMutation({
-        mutationFn: (input: { isActive: boolean; reason?: string }) =>
+        mutationFn: (input: {
+            isActive: boolean;
+            reason?: string;
+        }) =>
             updateSparePartStatusApi(
                 organizationId!,
                 stockId,
                 input,
                 token!,
             ),
+
         onSuccess: (_data, variables) => {
             void queryClient.invalidateQueries({
-                queryKey: ["inventory", "stock-register", organizationId],
+                queryKey: [
+                    "inventory",
+                    "stock-register",
+                    organizationId,
+                ],
             });
+
             if (variables.isActive) {
-                showSparePartActivatedToast(detailQuery.data?.partName ?? "Part");
+                showSparePartActivatedToast(
+                    detailQuery.data?.partName ?? "Part",
+                );
             } else {
                 showSparePartDeactivatedToast(
                     detailQuery.data?.partName ?? "Part",
                 );
             }
         },
-        onError: () => showErrorToast("Could not update part status."),
+
+        onError: () => {
+            showErrorToast("Could not update part status.");
+        },
     });
 
     const canUpdate =
         permissions.has("inventory.update") ||
         permissions.has("inventory.manage");
 
-    const [showDeactivateModal, setShowDeactivateModal] = useState(false);
-    const [deactivateReason, setDeactivateReason] = useState("");
-    const [deactivateReasonError, setDeactivateReasonError] = useState("");
+    /* ---------------------------------------------------------------------- */
+    /* Modal State                                                            */
+    /* ---------------------------------------------------------------------- */
+
+    const [showActivateModal, setShowActivateModal] =
+        useState(false);
+
+    const [showDeactivateModal, setShowDeactivateModal] =
+        useState(false);
+
+    const [deactivateReason, setDeactivateReason] =
+        useState("");
+
+    const [deactivateReasonError, setDeactivateReasonError] =
+        useState("");
 
     const canConfirmDeactivate =
-        deactivateReason.trim().length > 0 && !statusMutation.isPending;
+        deactivateReason.trim().length > 0 &&
+        !statusMutation.isPending;
+
+    /* ---------------------------------------------------------------------- */
+    /* Loading and Error States                                               */
+    /* ---------------------------------------------------------------------- */
 
     if (detailQuery.isLoading || isAuthLoading) {
         return (
             <div className="p-6">
-                <p className="text-sm text-gray-500">Loading part…</p>
+                <p className="text-sm text-gray-500">
+                    Loading part…
+                </p>
             </div>
         );
     }
@@ -126,12 +174,19 @@ export default function StockViewPage() {
     if (detailQuery.isError || !detailQuery.data) {
         return (
             <div className="p-6">
-                <p className="text-sm text-gray-500">Stock record not found.</p>
+                <p className="text-sm text-gray-500">
+                    Stock record not found.
+                </p>
             </div>
         );
     }
 
+    /* ---------------------------------------------------------------------- */
+    /* Stock Record                                                            */
+    /* ---------------------------------------------------------------------- */
+
     const api = detailQuery.data;
+
     const stock: StockRecord = {
         id: api.id,
         partName: api.partName,
@@ -147,55 +202,82 @@ export default function StockViewPage() {
         workOrderHistory: [],
     };
 
+    /* ---------------------------------------------------------------------- */
+    /* Edit                                                                    */
+    /* ---------------------------------------------------------------------- */
+
     const handleEdit = () => {
-        if (!canUpdate || stock.status !== "active") return;
-        router.push(inventoryStockRegisterEditHref(stock.id));
+        if (!canUpdate || stock.status !== "active") {
+            return;
+        }
+
+        router.push(
+            inventoryStockRegisterEditHref(stock.id),
+        );
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Deactivate                                                            */
+    /* Activate                                                                */
+    /* ---------------------------------------------------------------------- */
+
+    const handleActivate = () => {
+        if (!canUpdate || statusMutation.isPending) {
+            return;
+        }
+
+        statusMutation.mutate(
+            { isActive: true },
+            {
+                onSuccess: () => {
+                    setShowActivateModal(false);
+                },
+            },
+        );
+    };
+
+    /* ---------------------------------------------------------------------- */
+    /* Deactivate                                                              */
     /* ---------------------------------------------------------------------- */
 
     const handleDeactivate = () => {
         const reason = deactivateReason.trim();
 
         if (!reason) {
-            setDeactivateReasonError(
-                "Reason is required.",
-            );
+            setDeactivateReasonError("Reason is required.");
+            return;
+        }
+
+        if (!canUpdate || statusMutation.isPending) {
             return;
         }
 
         statusMutation.mutate(
-            { isActive: false, reason },
             {
-                onSettled: () => {
+                isActive: false,
+                reason,
+            },
+            {
+                onSuccess: () => {
                     setShowDeactivateModal(false);
+                    setDeactivateReason("");
+                    setDeactivateReasonError("");
                 },
             },
         );
-
-        setShowDeactivateModal(false);
-        setDeactivateReason("");
-        setDeactivateReasonError("");
     };
 
     /* ---------------------------------------------------------------------- */
-    /* Cancel Deactivate                                                     */
+    /* Cancel Deactivate                                                       */
     /* ---------------------------------------------------------------------- */
 
     const handleCancelDeactivate = () => {
+        if (statusMutation.isPending) {
+            return;
+        }
+
         setShowDeactivateModal(false);
         setDeactivateReason("");
         setDeactivateReasonError("");
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Activate                                                               */
-    /* ---------------------------------------------------------------------- */
-
-    const handleActivate = () => {
-        statusMutation.mutate({ isActive: true });
     };
 
     /* ---------------------------------------------------------------------- */
@@ -210,29 +292,6 @@ export default function StockViewPage() {
                 : "Both classes";
 
     /* ---------------------------------------------------------------------- */
-    /* Threshold Unit                                                         */
-    /* ---------------------------------------------------------------------- */
-
-    /*
-     * The Add Part form stores the threshold as a number and
-     * the Unit of measure as the unit.
-     *
-     * Therefore the Threshold unit displayed in Master Record
-     * comes from the same Unit of measure.
-     *
-     * Example:
-     * Unit of measure = Set
-     * Threshold = 15
-     *
-     * Master Record:
-     * Threshold unit = Set
-     *
-     * Stock:
-     * Low stock threshold = 15 sets
-     */
-
-
-    /* ---------------------------------------------------------------------- */
     /* UI                                                                      */
     /* ---------------------------------------------------------------------- */
 
@@ -244,32 +303,28 @@ export default function StockViewPage() {
                 {/* ========================================================== */}
 
                 <div className="mb-4 flex items-start justify-between">
-                    {/* Part Name + Status */}
-
                     <div>
                         <div className="flex items-center gap-2">
                             <h1 className="text-xl font-semibold text-gray-900">
                                 {stock.partName}
                             </h1>
 
-                            {stock.status ===
-                                "active" ? (
-                                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
+                            {stock.status === "active" ? (
+                                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[12px] font-medium text-[#FE5720]">
                                     Active
                                 </span>
                             ) : (
-                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[12px] font-medium text-gray-500">
                                     Inactive
                                 </span>
                             )}
                         </div>
 
-                        <p className="mt-0.5 text-[10px] text-gray-500">
+                        <p className="mt-0.5 text-[12px] text-gray-500">
                             {stock.partNumber}
                             {" — "}
                             compatible with{" "}
-                            {stock.compatibleAssetClasses.length >
-                                1
+                            {stock.compatibleAssetClasses.length > 1
                                 ? "both classes"
                                 : "one class"}
                             .
@@ -281,46 +336,47 @@ export default function StockViewPage() {
                     {/* ====================================================== */}
 
                     <div className="flex items-center gap-2">
-                        {/* Edit */}
+                        {stock.status === "active" && (
+                            <>
+                                {/* Edit: Active parts only */}
+                                {canUpdate && (
+                                    <Button
+                                        type="button"
+                                        variant="neutral"
+                                        onClick={handleEdit}
+                                        className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
+                                    >
+                                        Edit
+                                    </Button>
+                                )}
 
-                        <Button
-                            type="button"
-                            variant="neutral"
-                            onClick={handleEdit}
-                            className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
-                        >
-                            Edit
-                        </Button>
+                                {/* Deactivate */}
+                                {canUpdate && (
+                                    <Button
+                                        type="button"
+                                        variant="primary"
+                                        onClick={() => {
+                                            setDeactivateReason("");
+                                            setDeactivateReasonError("");
+                                            setShowDeactivateModal(true);
+                                        }}
+                                        disabled={statusMutation.isPending}
+                                        className="h-9"
+                                    >
+                                        Deactivate
+                                    </Button>
+                                )}
+                            </>
+                        )}
 
-                        {/* Deactivate / Activate */}
-
-                        {stock.status === "active" ? (
+                        {stock.status === "inactive" && canUpdate && (
+                            /* Activate: Inactive parts only */
                             <Button
                                 type="button"
-                                variant="neutral"
-                                onClick={() => {
-                                    setDeactivateReason(
-                                        "",
-                                    );
-
-                                    setDeactivateReasonError(
-                                        "",
-                                    );
-
-                                    setShowDeactivateModal(
-                                        true,
-                                    );
-                                }}
-                                className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
-                            >
-                                Deactivate
-                            </Button>
-                        ) : (
-                            <Button
-                                type="button"
-                                variant="neutral"
-                                onClick={handleActivate}
-                                className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
+                                variant="primary"
+                                onClick={() => setShowActivateModal(true)}
+                                disabled={statusMutation.isPending}
+                                className="h-9"
                             >
                                 Activate
                             </Button>
@@ -338,30 +394,20 @@ export default function StockViewPage() {
                     </h2>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                        {/* Part Number */}
-
                         <InfoRow
                             label="Part number"
                             value={stock.partNumber}
                         />
-
-                        {/* Compatible Class */}
 
                         <InfoRow
                             label="Compatible class"
                             value={compatibleClass}
                         />
 
-                        {/* Unit of Measure */}
-
                         <InfoRow
                             label="Unit of measure"
                             value={stock.unitOfMeasure}
                         />
-
-                        {/* Threshold Unit */}
-
-
                     </div>
                 </section>
 
@@ -375,14 +421,10 @@ export default function StockViewPage() {
                     </h2>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                        {/* Retail Markup */}
-
                         <InfoRow
                             label="Retail markup"
                             value={`${stock.retailMarkup}%`}
                         />
-
-                        {/* Wholesale Markup */}
 
                         <InfoRow
                             label="Wholesale markup"
@@ -401,8 +443,6 @@ export default function StockViewPage() {
                     </h2>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-                        {/* On Hand */}
-
                         <InfoRow
                             label="On-hand (all locations)"
                             value={`${stock.onHand} ${getPluralizedUnit(
@@ -410,8 +450,6 @@ export default function StockViewPage() {
                                 stock.onHand,
                             )}`}
                         />
-
-                        {/* Low Stock Threshold */}
 
                         <InfoRow
                             label="Low stock threshold"
@@ -421,20 +459,16 @@ export default function StockViewPage() {
                             )}`}
                         />
 
-                        {/* Location Stock */}
-
-                        {stock.locationStock.map(
-                            (location) => (
-                                <InfoRow
-                                    key={location.location}
-                                    label={location.location}
-                                    value={`${location.quantity} ${getPluralizedUnit(
-                                        stock.unitOfMeasure,
-                                        location.quantity,
-                                    )}`}
-                                />
-                            ),
-                        )}
+                        {stock.locationStock.map((location) => (
+                            <InfoRow
+                                key={location.location}
+                                label={location.location}
+                                value={`${location.quantity} ${getPluralizedUnit(
+                                    stock.unitOfMeasure,
+                                    location.quantity,
+                                )}`}
+                            />
+                        ))}
                     </div>
                 </section>
 
@@ -452,64 +486,63 @@ export default function StockViewPage() {
                             <table className="w-full border-collapse">
                                 <thead>
                                     <tr className="border-b border-gray-200">
-                                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                        <th className="px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wide text-gray-400">
                                             Work order
                                         </th>
 
-                                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                        <th className="px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wide text-gray-400">
                                             Date
                                         </th>
 
-                                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                        <th className="px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wide text-gray-400">
                                             Quantity
                                         </th>
 
-                                        <th className="px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                                        <th className="px-3 py-2.5 text-left text-[12px] font-semibold uppercase tracking-wide text-gray-400">
                                             Type / Vehicle
                                         </th>
                                     </tr>
                                 </thead>
 
                                 <tbody>
-                                    {stock.workOrderHistory.map(
-                                        (item) => (
+                                    {stock.workOrderHistory.length > 0 ? (
+                                        stock.workOrderHistory.map((item) => (
                                             <tr
-                                                key={
-                                                    item.workOrder
-                                                }
+                                                key={item.workOrder}
                                                 className="border-b border-gray-100 last:border-b-0"
                                             >
-                                                <td className="px-3 py-2.5 text-[10px] font-medium text-gray-800">
-                                                    {
-                                                        item.workOrder
-                                                    }
+                                                <td className="px-3 py-2.5 text-[12px] font-medium text-gray-800">
+                                                    {item.workOrder}
                                                 </td>
 
-                                                <td className="px-3 py-2.5 text-[10px] font-medium text-gray-800">
+                                                <td className="px-3 py-2.5 text-[12px] font-medium text-gray-800">
                                                     {item.date}
                                                 </td>
 
-                                                <td className="px-3 py-2.5 text-[10px] font-medium text-gray-800">
-                                                    {
-                                                        item.quantity
-                                                    }{" "}
-                                                    {
-                                                        getPluralizedUnit(
-                                                            stock.unitOfMeasure,
-                                                            item.quantity,
-                                                        )
-                                                    }
+                                                <td className="px-3 py-2.5 text-[12px] font-medium text-gray-800">
+                                                    {item.quantity}{" "}
+                                                    {getPluralizedUnit(
+                                                        stock.unitOfMeasure,
+                                                        item.quantity,
+                                                    )}
                                                 </td>
 
-                                                <td className="px-3 py-2.5 text-[10px] font-medium text-gray-800">
+                                                <td className="px-3 py-2.5 text-[12px] font-medium text-gray-800">
                                                     {item.type}
                                                     {" — "}
-                                                    {
-                                                        item.vehicle
-                                                    }
+                                                    {item.vehicle}
                                                 </td>
                                             </tr>
-                                        ),
+                                        ))
+                                    ) : (
+                                        <tr>
+                                            <td
+                                                colSpan={4}
+                                                className="px-3 py-8 text-center text-xs text-gray-400"
+                                            >
+                                                No work order usage history found.
+                                            </td>
+                                        </tr>
                                     )}
                                 </tbody>
                             </table>
@@ -519,7 +552,28 @@ export default function StockViewPage() {
             </div>
 
             {/* ============================================================= */}
-            {/* DEACTIVATE MODAL                                               */}
+            {/* ACTIVATE CONFIRMATION — SHARED DIALOG                          */}
+            {/* ============================================================= */}
+
+            <ConfirmDialog
+                open={showActivateModal}
+                title="Activate this part?"
+                message={`Are you sure you want to activate "${stock.partName}"? It will become available in the part register.`}
+                confirmLabel="Activate"
+                cancelLabel="Cancel"
+                variant="default"
+                isConfirmPending={statusMutation.isPending}
+                confirmDisabled={!canUpdate}
+                onClose={() => {
+                    if (!statusMutation.isPending) {
+                        setShowActivateModal(false);
+                    }
+                }}
+                onConfirm={handleActivate}
+            />
+
+            {/* ============================================================= */}
+            {/* DEACTIVATE MODAL — REASON REQUIRED                             */}
             {/* ============================================================= */}
 
             {showDeactivateModal && (
@@ -530,9 +584,7 @@ export default function StockViewPage() {
                         aria-modal="true"
                         aria-labelledby="deactivate-part-title"
                     >
-                        {/* ================================================== */}
-                        {/* Modal Header                                         */}
-                        {/* ================================================== */}
+                        {/* Modal Header */}
 
                         <div className="flex items-start gap-3">
                             <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-50">
@@ -553,18 +605,14 @@ export default function StockViewPage() {
                                 <p className="mt-1 text-xs leading-5 text-gray-500">
                                     This will deactivate{" "}
                                     <span className="font-medium text-gray-700">
-                                        &quot;
-                                        {stock.partName}
-                                        &quot;
+                                        &quot;{stock.partName}&quot;
                                     </span>{" "}
                                     from the part register.
                                 </p>
                             </div>
                         </div>
 
-                        {/* ================================================== */}
-                        {/* Reason                                                */}
-                        {/* ================================================== */}
+                        {/* Reason */}
 
                         <div className="mt-4">
                             <label
@@ -581,24 +629,17 @@ export default function StockViewPage() {
                                 id="deactivate-reason"
                                 value={deactivateReason}
                                 onChange={(event) => {
-                                    const value =
-                                        event.target
-                                            .value;
+                                    const value = event.target.value;
 
-                                    setDeactivateReason(
-                                        value,
-                                    );
+                                    setDeactivateReason(value);
 
-                                    if (
-                                        value.trim()
-                                    ) {
-                                        setDeactivateReasonError(
-                                            "",
-                                        );
+                                    if (value.trim()) {
+                                        setDeactivateReasonError("");
                                     }
                                 }}
                                 placeholder="Enter reason for deactivation..."
                                 rows={3}
+                                disabled={statusMutation.isPending}
                                 className={[
                                     "w-full resize-none rounded-md bg-white px-3 py-2 text-xs text-gray-900 outline-none placeholder:text-gray-400",
                                     deactivateReasonError
@@ -609,24 +650,19 @@ export default function StockViewPage() {
 
                             {deactivateReasonError && (
                                 <p className="mt-1 text-xs text-red-500">
-                                    {
-                                        deactivateReasonError
-                                    }
+                                    {deactivateReasonError}
                                 </p>
                             )}
                         </div>
 
-                        {/* ================================================== */}
-                        {/* Modal Actions                                        */}
-                        {/* ================================================== */}
+                        {/* Modal Actions */}
 
                         <div className="mt-5 flex justify-end gap-2">
                             <Button
                                 type="button"
                                 variant="neutral"
-                                onClick={
-                                    handleCancelDeactivate
-                                }
+                                onClick={handleCancelDeactivate}
+                                disabled={statusMutation.isPending}
                                 className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
                             >
                                 Cancel
@@ -634,14 +670,16 @@ export default function StockViewPage() {
 
                             <Button
                                 type="button"
-                                variant="neutral"
-                                onClick={
-                                    handleDeactivate
+                                variant="primary"
+                                onClick={handleDeactivate}
+                                disabled={
+                                    !canConfirmDeactivate || !canUpdate
                                 }
-                                disabled={!canConfirmDeactivate}
-                                className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
+                                className="h-9"
                             >
-                                Deactivate
+                                {statusMutation.isPending
+                                    ? "Deactivating..."
+                                    : "Deactivate"}
                             </Button>
                         </div>
                     </div>
@@ -664,11 +702,11 @@ function InfoRow({
 }) {
     return (
         <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
-            <p className="w-1/2 text-[10px] font-medium text-gray-400">
+            <p className="w-1/2 text-[12px] font-medium text-gray-400">
                 {label}
             </p>
 
-            <p className="w-1/2 text-right text-[10px] font-medium text-gray-800">
+            <p className="w-1/2 text-right text-[12px] font-medium text-gray-800">
                 {value}
             </p>
         </div>
@@ -682,7 +720,7 @@ function InfoRow({
 function getPluralizedUnit(
     unit: string,
     quantity: number,
-) {
+): string {
     const normalizedUnit = unit.toLowerCase();
 
     if (quantity === 1) {
@@ -714,4 +752,4 @@ function getPluralizedUnit(
     }
 
     return `${normalizedUnit}s`;
-} 
+}

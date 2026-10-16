@@ -18,6 +18,7 @@ import {
   FleetLeasingWriteAny,
 } from './constants/fleet-leasing-permission-keys';
 import { CreateVehicleAllocationDto } from './dto/create-vehicle-allocation.dto';
+import { ListContractVehicleAllocationsQueryDto } from './dto/list-contract-vehicle-allocations-query.dto';
 import { ListVehicleAllocationsQueryDto } from './dto/list-vehicle-allocations-query.dto';
 import { VehicleAllocationsService } from './vehicle-allocations.service';
 
@@ -51,10 +52,15 @@ export class VehicleAllocationsController {
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
   @ApiOperation({ summary: 'Allocations for a lease contract' })
   listForContract(
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Query() query: ListContractVehicleAllocationsQueryDto,
     @Param('contractId', ParseUUIDPipe) contractId: string,
   ) {
-    return this.allocations.listForContract(organizationId, contractId);
+    return this.allocations.listForContract(
+      query.organizationId,
+      contractId,
+      query.page,
+      query.pageSize,
+    );
   }
 
   @Post('lease-contracts/:contractId/vehicle-allocations')

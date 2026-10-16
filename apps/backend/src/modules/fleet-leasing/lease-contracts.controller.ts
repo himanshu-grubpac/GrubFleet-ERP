@@ -21,6 +21,7 @@ import {
   FleetLeasingWriteAny,
 } from './constants/fleet-leasing-permission-keys';
 import { CreateLeaseContractDto } from './dto/create-lease-contract.dto';
+import { LeaseContractChangeHistoryQueryDto } from './dto/lease-contract-change-history-query.dto';
 import { ListLeaseContractsQueryDto } from './dto/list-lease-contracts-query.dto';
 import { UpdateLeaseContractDto } from './dto/update-lease-contract.dto';
 import { LeaseContractsService } from './lease-contracts.service';
@@ -150,10 +151,15 @@ export class LeaseContractsController {
       'Field-level change history (FROM/TO rows from lease_contract_edit_logs)',
   })
   getChangeHistory(
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Query() query: LeaseContractChangeHistoryQueryDto,
     @Param('id', ParseUUIDPipe) id: string,
   ) {
-    return this.leaseContracts.getChangeHistory(organizationId, id);
+    return this.leaseContracts.getChangeHistory(
+      query.organizationId,
+      id,
+      query.page,
+      query.pageSize,
+    );
   }
 
   @Post(':id/renew')

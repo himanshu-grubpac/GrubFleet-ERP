@@ -77,7 +77,13 @@ type ConfirmLeaseContractResponse = {
   activatedStatus: string;
   contract: LeaseContractDetailResponse;
 };
-type FleetAssetClassListResponse = { items: string[] };
+type FleetAssetClassListResponse = {
+  items: string[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
 type LeaseContractReviewResponse = { reviewAction: string };
 type ApiErrorResponse = { message: string; code?: string; statusCode?: number };
 
@@ -1164,7 +1170,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
   describe('Support — vehicle replacement', () => {
     async function seedActiveContractWithTwoFleetVehicles(unique: number) {
       const assetClass = await seedAssetRegisterClassWithVehicle(
-        'SupportReplace',
+        `SupportReplace-${unique}`,
         unique,
       );
       const onLeaseReg = `MH-SUP-ON-${unique}`;
@@ -1815,15 +1821,28 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .expect((res) => expect([200, 201]).toContain(res.status));
     const createdName = (createRes.body as { name: string }).name;
 
-    const res = await request(app.getHttpServer())
-      .get('/api/v1/fleet-leasing/asset-classes')
-      .query({ organizationId })
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .expect(200);
+    let page = 1;
+    const pageSize = 50;
+    let found = false;
+    while (!found) {
+      const res = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/asset-classes')
+        .query({ organizationId, page, pageSize })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
 
-    const body = res.body as FleetAssetClassListResponse;
-    expect(Array.isArray(body.items)).toBe(true);
-    expect(body.items).toContain(createdName);
+      const body = res.body as FleetAssetClassListResponse;
+      expect(Array.isArray(body.items)).toBe(true);
+      if (body.items.includes(createdName)) {
+        found = true;
+        break;
+      }
+      if (page >= body.totalPages) {
+        break;
+      }
+      page += 1;
+    }
+    expect(found).toBe(true);
   });
 });

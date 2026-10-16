@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { Eye, Info } from "lucide-react";
 
 import {
-  workshopAmcScheduleCreateHref,
-  workshopAmcScheduleDetailHref,
-  workshopAmcTierDetailHref,
+    workshopAmcScheduleCreateHref,
+    workshopAmcScheduleDetailHref,
+    workshopAmcTierDetailHref,
 } from "@/lib/navigation/workshop-static-routes";
 
 const tiers = [

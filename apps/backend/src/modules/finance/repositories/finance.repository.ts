@@ -508,20 +508,42 @@ export class FinanceRepository {
     clientId: string,
     periodStart: string,
     periodEnd: string,
-  ): Promise<InvoiceRow[]> {
-    return this.db
-      .select()
-      .from(financeInvoices)
-      .where(
-        and(
-          eq(financeInvoices.organizationId, organizationId),
-          eq(financeInvoices.invoiceType, 'billing'),
-          eq(financeInvoices.clientId, clientId),
-          gte(financeInvoices.invoiceDate, periodStart),
-          lte(financeInvoices.invoiceDate, periodEnd),
-        ),
-      )
-      .orderBy(desc(financeInvoices.invoiceDate), desc(financeInvoices.id));
+    pagination?: { page: number; pageSize: number },
+  ): Promise<{ rows: InvoiceRow[]; total: number }> {
+    const where = and(
+      eq(financeInvoices.organizationId, organizationId),
+      eq(financeInvoices.invoiceType, 'billing'),
+      eq(financeInvoices.clientId, clientId),
+      gte(financeInvoices.invoiceDate, periodStart),
+      lte(financeInvoices.invoiceDate, periodEnd),
+    );
+    const order = [
+      desc(financeInvoices.invoiceDate),
+      desc(financeInvoices.id),
+    ] as const;
+    if (!pagination) {
+      const rows = await this.db
+        .select()
+        .from(financeInvoices)
+        .where(where)
+        .orderBy(...order);
+      return { rows, total: rows.length };
+    }
+    const offset = (pagination.page - 1) * pagination.pageSize;
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select()
+        .from(financeInvoices)
+        .where(where)
+        .orderBy(...order)
+        .limit(pagination.pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(financeInvoices)
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
   }
 
   async allocateVendorPaymentNumber(

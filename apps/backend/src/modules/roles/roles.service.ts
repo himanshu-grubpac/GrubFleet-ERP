@@ -113,12 +113,12 @@ export class RolesService {
       pageSize,
       visibleRoleIds,
     );
-    const items = await Promise.all(
-      rows.map(async (role) => {
-        const permissionKeys =
-          await this.rolesRepository.getPermissionKeysForRole(role.id);
-        return this.toDto(role, permissionKeys);
-      }),
+    const permissionKeysByRoleId =
+      await this.rolesRepository.getPermissionKeysForRoles(
+        rows.map((role) => role.id),
+      );
+    const items = rows.map((role) =>
+      this.toDto(role, permissionKeysByRoleId.get(role.id) ?? []),
     );
     return toPaginatedResult(items, page, pageSize, total);
   }

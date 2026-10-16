@@ -61,12 +61,12 @@ export class AssetRegisterAssignmentsService {
 
     this.assertVehiclesAssignable(vehicles);
 
+    const activeByVehicleId = await this.repo.findActiveAssignmentsForVehicles(
+      dto.organizationId,
+      vehicles.map((v) => v.id),
+    );
     for (const vehicle of vehicles) {
-      const active = await this.repo.findActiveAssignmentForVehicle(
-        dto.organizationId,
-        vehicle.id,
-      );
-      if (active) {
+      if (activeByVehicleId.has(vehicle.id)) {
         throw new BadRequestException({
           code: AssetRegisterAssignmentErrorCodes.VEHICLE_ALREADY_ASSIGNED,
           message: `Vehicle ${vehicle.fleetCode} already has an active assignment`,

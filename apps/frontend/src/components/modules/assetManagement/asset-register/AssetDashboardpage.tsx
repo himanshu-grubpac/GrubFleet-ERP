@@ -63,13 +63,13 @@ const ASSET_FILTERS: {
   label: string;
   value: AssetFilter;
 }[] = [
-  { label: "All", value: "all" },
-  { label: "2-Wheeler", value: "2-wheeler" },
-  { label: "3-Wheeler", value: "3-wheeler" },
-  { label: "4-Wheeler", value: "4-wheeler" },
-  { label: "Active", value: "active" },
-  { label: "Inactive", value: "inactive" },
-];
+    { label: "All", value: "all" },
+    { label: "2-Wheeler", value: "2-wheeler" },
+    { label: "3-Wheeler", value: "3-wheeler" },
+    { label: "4-Wheeler", value: "4-wheeler" },
+    { label: "Active", value: "active" },
+    { label: "Inactive", value: "inactive" },
+  ];
 
 const PAGE_SIZE = 50;
 
@@ -96,6 +96,7 @@ function filterToApiStatus(
 export default function AssetClassesPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+
   const {
     token,
     organizationId,
@@ -106,23 +107,34 @@ export default function AssetClassesPage() {
   const canCreate =
     permissions.has("asset_register.create") ||
     permissions.has("asset_register.manage");
+
   const canUpdate =
     permissions.has("asset_register.update") ||
     permissions.has("asset_register.manage");
 
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
+
   const [activeFilter, setActiveFilter] = useState<AssetFilter>("all");
+
+  const [page, setPage] = useState(1);
+
   const [deactivateTarget, setDeactivateTarget] =
     useState<AssetClass | null>(null);
-  const [activateTarget, setActivateTarget] = useState<AssetClass | null>(
-    null,
-  );
+
+  const [activateTarget, setActivateTarget] =
+    useState<AssetClass | null>(null);
+
   const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     setStatusError(null);
   }, [activeFilter, debouncedSearch]);
+
+  // Reset pagination when search or filters change.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, activeFilter]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -131,15 +143,17 @@ export default function AssetClassesPage() {
       organizationId,
       debouncedSearch,
       activeFilter,
+      page,
     ],
     queryFn: () => {
       if (!token || !organizationId) {
         throw new Error("Missing auth context");
       }
+
       return fetchAssetRegisterAssetClassesApi({
         token,
         organizationId,
-        page: 1,
+        page,
         pageSize: PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
         status: filterToApiStatus(activeFilter),
@@ -148,6 +162,13 @@ export default function AssetClassesPage() {
     enabled: !!token && !!organizationId && !isAuthLoading,
     ...dashboardListQueryOptions,
   });
+
+  const totalItems = listQuery.data?.total ?? 0;
+
+  const totalPages = Math.max(
+    1,
+    Math.ceil(totalItems / PAGE_SIZE),
+  );
 
   const statusMutation = useMutation({
     mutationFn: async (input: {
@@ -158,6 +179,7 @@ export default function AssetClassesPage() {
       if (!token || !organizationId) {
         throw new Error("Missing auth context");
       }
+
       return updateAssetRegisterAssetClassStatusApi({
         token,
         organizationId,
@@ -170,9 +192,11 @@ export default function AssetClassesPage() {
       void queryClient.invalidateQueries({
         queryKey: ["asset-register", "asset-classes"],
       });
+
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
+
       if (variables.action === "activate") {
         showAssetClassActivatedToast(variables.assetClass.name);
       } else {
@@ -188,24 +212,29 @@ export default function AssetClassesPage() {
 
   const assetClasses = useMemo(() => {
     const items = (listQuery.data?.items ?? []).map(mapListItem);
+
     if (activeFilter === "2-wheeler") {
       return items.filter((row) => row.vehicleType === "2-Wheeler");
     }
+
     if (activeFilter === "3-wheeler") {
       return items.filter((row) => row.vehicleType === "3-Wheeler");
     }
+
     if (activeFilter === "4-wheeler") {
       return items.filter((row) => row.vehicleType === "4-Wheeler");
     }
+
     return items;
   }, [listQuery.data?.items, activeFilter]);
 
   const isInitialLoading =
     isAuthLoading || (listQuery.isLoading && !listQuery.data);
+
   const isEmptyOrgList =
     !isInitialLoading &&
     !listQuery.isError &&
-    (listQuery.data?.total ?? 0) === 0 &&
+    totalItems === 0 &&
     activeFilter === "all" &&
     !debouncedSearch.trim();
 
@@ -222,6 +251,7 @@ export default function AssetClassesPage() {
   const handleClearFilters = () => {
     setSearch("");
     setActiveFilter("all");
+    setPage(1);
   };
 
   const assetClassColumns = [
@@ -266,6 +296,17 @@ export default function AssetClassesPage() {
       description="The master list of vehicle classes offered when adding a vehicle or building a lease contract line."
       activeTab="/asset-register/assestclass"
       action={addAction}
+      pagination={
+        totalItems > 0
+          ? {
+            currentPage: page,
+            totalPages,
+            totalItems,
+            pageSize: PAGE_SIZE,
+            onPageChange: setPage,
+          }
+          : undefined
+      }
     >
       <div className="mb-4 flex items-center gap-3">
         <div className="min-w-0 flex-1">
@@ -281,6 +322,7 @@ export default function AssetClassesPage() {
         <div className="flex shrink-0 items-center gap-1.5">
           {ASSET_FILTERS.map((filter) => {
             const isActive = activeFilter === filter.value;
+
             return (
               <button
                 key={filter.value}
@@ -331,12 +373,15 @@ export default function AssetClassesPage() {
             className="mb-3 h-7 w-7 text-gray-400"
             strokeWidth={1.4}
           />
+
           <h3 className="text-sm font-semibold text-gray-900">
             No asset classes found
           </h3>
+
           <p className="mt-1 text-xs text-gray-500">
             Try changing your search or filters.
           </p>
+
           <button
             type="button"
             onClick={handleClearFilters}
@@ -363,13 +408,14 @@ export default function AssetClassesPage() {
               onToggleStatus={
                 canUpdate
                   ? () => {
-                      setStatusError(null);
-                      if (assetClass.status === "active") {
-                        setDeactivateTarget(assetClass);
-                      } else {
-                        setActivateTarget(assetClass);
-                      }
+                    setStatusError(null);
+
+                    if (assetClass.status === "active") {
+                      setDeactivateTarget(assetClass);
+                    } else {
+                      setActivateTarget(assetClass);
                     }
+                  }
                   : undefined
               }
             />
@@ -395,6 +441,7 @@ export default function AssetClassesPage() {
         }}
         onConfirm={() => {
           if (!activateTarget) return;
+
           statusMutation.mutate({
             assetClass: activateTarget,
             action: "activate",
@@ -425,6 +472,7 @@ export default function AssetClassesPage() {
         }}
         onConfirm={(reason) => {
           if (!deactivateTarget) return;
+
           statusMutation.mutate({
             assetClass: deactivateTarget,
             action: "deactivate",
