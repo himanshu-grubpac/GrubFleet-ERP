@@ -86,6 +86,8 @@ describe('RBAC admin (integration)', () => {
       throw new Error('Dev organization missing after seed');
     }
 
+    await purgeRbacIntegrationTestRoles(db, organizationId);
+
     const viewerEmail = 'viewer.rbac@grubpac.local';
     const viewerPassword = 'ViewerTest123!';
     const passwordHash = await bcrypt.hash(viewerPassword, 12);
@@ -463,13 +465,17 @@ describe('RBAC admin (integration)', () => {
   });
 
   it('DELETE custom role, PATCH isActive, DELETE system role returns 409', async () => {
+    const lifecycleRoleName = rbacIntegrationTestRoleName('lifecycle');
+    const db = drizzle(pool, { schema });
+    await deleteOrgRoleByNameIfExists(db, organizationId, lifecycleRoleName);
+
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/roles')
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         organizationId,
-        name: rbacIntegrationTestRoleName('lifecycle'),
+        name: lifecycleRoleName,
         moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
       })
       .expect(201);
