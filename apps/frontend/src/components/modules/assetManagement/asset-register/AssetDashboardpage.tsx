@@ -37,6 +37,7 @@ import {
   assetRegisterAssetClassDetailHref,
   assetRegisterAssetClassEditHref,
 } from "@/lib/navigation/asset-register-static-routes";
+import DashboardEntityUuidCell from "@/components/dashboard/DashboardEntityUuidCell";
 import AssetClassNameCell from "@/components/modules/assetManagement/asset-register/AssetClassNameCell";
 
 type AssetStatus = "active" | "inactive";
@@ -256,6 +257,17 @@ export default function AssetClassesPage() {
     setPage(1);
   };
   const assetClassColumns: DashboardColumn<AssetClass>[] = [
+    {
+      key: "id",
+      label: "Class ID",
+      sortType: "alphabetical",
+      render: (assetClass) => (
+        <DashboardEntityUuidCell
+          id={assetClass.id}
+          copyAriaLabel="Copy class ID"
+        />
+      ),
+    },
     {
       key: "name",
       label: "Class name",

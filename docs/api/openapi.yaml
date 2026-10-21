@@ -4200,6 +4200,10 @@ paths:
       responses:
         '200':
           description: Paginated asset class rows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAssetRegisterAssetClasses'
         '401':
           description: Unauthorized
         '403':
@@ -4241,6 +4245,10 @@ paths:
       responses:
         '200':
           description: Asset class detail (class name is system-generated, read-only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetRegisterAssetClassDetail'
         '404':
           description: Not found
     patch:
@@ -4938,6 +4946,130 @@ components:
           type: string
           format: uuid
           nullable: true
+    AssetRegisterAssetClassListItem:
+      type: object
+      required:
+        - id
+        - name
+        - specLabel
+        - vehicleType
+        - fuelType
+        - inFleetCount
+        - availableCount
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Stable asset class identifier (same as detail GET and lease assetClassId).
+        name:
+          type: string
+          description: System-generated class name from spec fields (read-only).
+        specLabel:
+          type: string
+          description: Human-readable spec summary for dropdowns and tooltips.
+        vehicleType:
+          type: string
+          enum: ['2W', '3W', '4W']
+        fuelType:
+          type: string
+        inFleetCount:
+          type: integer
+          minimum: 0
+        availableCount:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [active, inactive]
+      additionalProperties: false
+    AssetRegisterAssetClassDetail:
+      allOf:
+        - $ref: '#/components/schemas/AssetRegisterAssetClassListItem'
+        - type: object
+          required:
+            - brand
+            - modelName
+            - manufacturingYear
+            - engineDisplacementCc
+            - fuelSystem
+            - color
+            - colorCode
+            - description
+            - intakeChecklistItems
+            - defaultIntakeChecklist
+            - isActive
+            - createdAt
+            - updatedAt
+          properties:
+            brand:
+              type: string
+            modelName:
+              type: string
+            manufacturingYear:
+              type: integer
+            engineDisplacementCc:
+              type: integer
+            fuelCapacity:
+              type: string
+              nullable: true
+            fuelSystem:
+              type: string
+            color:
+              type: string
+            colorCode:
+              type: string
+            description:
+              type: string
+            mileageFrom:
+              type: string
+              nullable: true
+            mileageTo:
+              type: string
+              nullable: true
+            mileageUnit:
+              type: string
+              nullable: true
+            fuelTankCapacity:
+              type: string
+              nullable: true
+            ratedLoadFrom:
+              type: string
+              nullable: true
+            ratedLoadTo:
+              type: string
+              nullable: true
+            intakeChecklistItems:
+              type: array
+              items:
+                type: string
+            defaultIntakeChecklist:
+              type: string
+            isActive:
+              type: boolean
+            deactivatedAt:
+              type: string
+              format: date-time
+              nullable: true
+            deactivateReason:
+              type: string
+              nullable: true
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    PaginatedAssetRegisterAssetClasses:
+      allOf:
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AssetRegisterAssetClassListItem'
+        - $ref: '#/components/schemas/PaginationMeta'
     CreateAssetRegisterAssetClassRequest:
       type: object
       required:

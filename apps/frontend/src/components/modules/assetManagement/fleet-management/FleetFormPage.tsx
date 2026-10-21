@@ -46,7 +46,6 @@ export type FleetVehicleFormData = {
     registrationStartDate: string;
     registrationEndDate: string;
 
-    insuranceSupplier: string;
     insurancePremium: string;
     insuranceStartDate: string;
     insuranceEndDate: string;
@@ -73,34 +72,6 @@ type AssetClass = {
 
     defaultIntakeChecklist: string;
 };
-
-type InsuranceSupplier = {
-    id: string;
-    name: string;
-};
-
-/* -------------------------------------------------------------------------- */
-/* Mock data                                                                  */
-/* -------------------------------------------------------------------------- */
-
-/* -------------------------------------------------------------------------- */
-/* Insurance suppliers                                                        */
-/* -------------------------------------------------------------------------- */
-
-const INSURANCE_SUPPLIERS: InsuranceSupplier[] = [
-    {
-        id: "insurance-001",
-        name: "ICICI Lombard",
-    },
-    {
-        id: "insurance-002",
-        name: "HDFC ERGO",
-    },
-    {
-        id: "insurance-003",
-        name: "Bajaj Allianz",
-    },
-];
 
 /* -------------------------------------------------------------------------- */
 /* Props                                                                      */
@@ -193,9 +164,6 @@ export default function CreateFleetVehicleForm({
 
         registrationEndDate:
             initialData?.registrationEndDate ?? "",
-
-        insuranceSupplier:
-            initialData?.insuranceSupplier ?? "",
 
         insurancePremium:
             initialData?.insurancePremium ?? "",
@@ -305,7 +273,6 @@ export default function CreateFleetVehicleForm({
             ["odometerReading", "Odometer reading"],
             ["registrationStartDate", "Registration start date"],
             ["registrationEndDate", "Registration end date"],
-            ["insuranceSupplier", "Insurance supplier"],
             ["insurancePremium", "Insurance premium"],
             ["insuranceStartDate", "Insurance start date"],
             ["insuranceEndDate", "Insurance end date"],
@@ -381,7 +348,6 @@ export default function CreateFleetVehicleForm({
                 odometerReading: form.odometerReading.trim(),
                 registrationStartDate: form.registrationStartDate,
                 registrationEndDate: form.registrationEndDate,
-                insuranceSupplier: form.insuranceSupplier.trim(),
                 insurancePremium: form.insurancePremium.trim(),
                 insuranceStartDate: form.insuranceStartDate,
                 insuranceEndDate: form.insuranceEndDate,
@@ -764,54 +730,10 @@ export default function CreateFleetVehicleForm({
             </div>
 
             {/* ============================================================ */}
-            {/* INSURANCE SUPPLIER + INSURANCE PREMIUM                       */}
+            {/* INSURANCE PREMIUM                                            */}
             {/* ============================================================ */}
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                <div>
-                    <label
-                        htmlFor="insurance-supplier"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
-                        Insurance supplier
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
-                    </label>
-
-                    <select
-                        id="insurance-supplier"
-                        value={form.insuranceSupplier}
-                        onChange={(event) =>
-                            updateForm(
-                                "insuranceSupplier",
-                                event.target.value,
-                            )
-                        }
-                        className={selectClassName}
-                    >
-                        <option value="">
-                            Select insurance supplier
-                        </option>
-
-                        {INSURANCE_SUPPLIERS.map(
-                            (supplier) => (
-                                <option
-                                    key={supplier.id}
-                                    value={supplier.id}
-                                >
-                                    {supplier.name}
-                                </option>
-                            ),
-                        )}
-                    </select>
-                    {displayedErrors.insuranceSupplier && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            {displayedErrors.insuranceSupplier}
-                        </p>
-                    )}
-                </div>
+            <div className="mt-4">
 
                 <div>
                     <label

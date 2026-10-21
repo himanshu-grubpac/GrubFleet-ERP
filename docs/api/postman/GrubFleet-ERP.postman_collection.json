@@ -375,7 +375,7 @@
               { "key": "x-organization-id", "value": "{{organizationId}}" }
             ],
             "url": "{{baseUrl}}/asset-register/asset-classes?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /asset-register/asset-classes — paginated list; optional search, status."
+            "description": "GET /asset-register/asset-classes — paginated list; each item includes id (UUID, stable assetClassId), name, specLabel, vehicleType, fuelType, inFleetCount, availableCount, status. Optional search, status."
           },
           "response": []
         },

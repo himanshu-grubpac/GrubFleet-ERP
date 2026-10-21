@@ -261,14 +261,25 @@ describe('Organisation drivers (integration)', () => {
     });
 
     it('returns 409 when CPR duplicates another driver in the same org (not 500)', async () => {
-      const cprNo = String(Date.now()).slice(-9).padStart(9, '0');
-      const licenseA = `KA04/2024101${String(Date.now()).slice(-2)}`;
-      const licenseB = `KA04/2024102${String(Date.now()).slice(-2)}`;
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const cprNo = String(unique)
+        .replace(/\D/g, '')
+        .slice(-9)
+        .padStart(9, '0');
+      const licenseA = `DL-CPR-A-${unique}`;
+      const licenseB = `DL-CPR-B-${unique}`;
       await request(app.getHttpServer())
         .post('/api/v1/organisation/drivers')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send(buildDriverCreatePayload({ cprNo, licenseNumber: licenseA }))
+        .send(
+          buildDriverCreatePayload({
+            cprNo,
+            licenseNumber: licenseA,
+            phone: `+9198${String(unique).replace(/\D/g, '').slice(-8)}`,
+            email: `driver.cpr.a.${unique}@grubpac.local`,
+          }),
+        )
         .expect(201);
       const dup = await request(app.getHttpServer())
         .post('/api/v1/organisation/drivers')
@@ -278,6 +289,8 @@ describe('Organisation drivers (integration)', () => {
           buildDriverCreatePayload({
             cprNo,
             licenseNumber: licenseB,
+            phone: `+9197${String(unique).replace(/\D/g, '').slice(-8)}`,
+            email: `driver.cpr.b.${unique}@grubpac.local`,
           }),
         )
         .expect(409);
@@ -287,12 +300,19 @@ describe('Organisation drivers (integration)', () => {
     });
 
     it('returns 409 when license number duplicates another driver in the same org', async () => {
-      const licenseNumber = `KA04/2024100${String(Date.now()).slice(-3)}`;
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const licenseNumber = `DL-LIC-DUP-${unique}`;
       await request(app.getHttpServer())
         .post('/api/v1/organisation/drivers')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send(buildDriverCreatePayload({ licenseNumber }))
+        .send(
+          buildDriverCreatePayload({
+            licenseNumber,
+            phone: `+9196${String(unique).replace(/\D/g, '').slice(-8)}`,
+            email: `driver.lic.${unique}@grubpac.local`,
+          }),
+        )
         .expect(201);
       const dup = await request(app.getHttpServer())
         .post('/api/v1/organisation/drivers')

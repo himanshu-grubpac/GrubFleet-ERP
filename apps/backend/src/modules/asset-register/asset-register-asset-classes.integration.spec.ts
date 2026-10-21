@@ -437,6 +437,36 @@ describe('Asset Register — asset classes (integration)', () => {
         .expect(200);
     });
 
+    it('list item id is full UUID and matches detail GET', async () => {
+      const id = await createAssetClassAsAdmin();
+
+      const listRes = await request(app.getHttpServer())
+        .get('/api/v1/asset-register/asset-classes')
+        .query({ organizationId, page: 1, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+
+      const listBody = listRes.body as {
+        items: Array<{ id: string; name: string }>;
+      };
+      const listRow = listBody.items.find((row) => row.id === id);
+      expect(listRow).toBeDefined();
+      expect(listRow!.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(listRow!.id.length).toBe(36);
+
+      const detailRes = await request(app.getHttpServer())
+        .get(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+
+      expect((detailRes.body as AssetClassDetail).id).toBe(listRow!.id);
+    });
+
     it('lists only inactive classes when status=inactive', async () => {
       const id = await createAssetClassAsAdmin();
       await request(app.getHttpServer())

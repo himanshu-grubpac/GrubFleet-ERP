@@ -28,6 +28,18 @@ export function formatAssetClassNameForDisplay(name: string): string {
   return `${trimmed.slice(0, ASSET_CLASS_NAME_DISPLAY_MAX)}…`;
 }
 
+/** Compact UUID for list cells; copy and tooltip use the full string. */
+export function formatEntityUuidForDisplay(id: string): string {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed.length <= 13) {
+    return trimmed;
+  }
+  return `${trimmed.slice(0, 8)}…${trimmed.slice(-4)}`;
+}
+
 export function formatEmployeeRowCopyText(
   employee: OrganisationEmployeeListItem,
 ): string {

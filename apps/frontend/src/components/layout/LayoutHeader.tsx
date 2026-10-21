@@ -1,16 +1,13 @@
 
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState } from "react";
 import {
   Bell,
   ChevronDown,
-  KeyRound,
   LogOut,
   Menu,
   Search,
-  UserRound,
 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -21,23 +18,45 @@ interface LayoutHeaderProps {
   onMenuClick?: () => void;
 }
 
+function headerUserInitials(
+  fullName?: string | null,
+  email?: string,
+): string {
+  const trimmed = fullName?.trim();
+  if (trimmed) {
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0]![0]!}${parts[parts.length - 1]![0]!}`.toUpperCase();
+    }
+    return parts[0]!.slice(0, 2).toUpperCase();
+  }
+  if (email) {
+    return email.trim().charAt(0).toUpperCase() || "U";
+  }
+  return "U";
+}
+
 export default function LayoutHeader({
   onMenuClick,
 }: LayoutHeaderProps) {
-  const router = useRouter();
-  const { isAuthenticated, isLoggingOut, logout } = useAuth();
+  const { isAuthenticated, isLoggingOut, logout, user } = useAuth();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
-  // Replace with the authenticated user's actual name.
-  const userName = "Dev Admin";
-  const userInitial = userName.trim().charAt(0).toUpperCase() || "U";
-
-  const handleChangePassword = () => {
-    setProfileOpen(false);
-    router.push("/change-password");
-  };
+  const userName = useMemo(
+    () =>
+      user?.fullName?.trim() ||
+      user?.name?.trim() ||
+      user?.email?.trim() ||
+      "Account",
+    [user?.email, user?.fullName, user?.name],
+  );
+  const userEmail = user?.email?.trim() ?? "";
+  const userInitial = headerUserInitials(
+    user?.fullName ?? user?.name,
+    user?.email,
+  );
 
   const handleLogout = () => {
     if (isLoggingOut) return;
@@ -163,21 +182,12 @@ export default function LayoutHeader({
                   <p className="text-base font-semibold text-slate-900">
                     {userName}
                   </p>
-                  <p className="mt-0.5 text-sm text-slate-500">
-                    Account
-                  </p>
+                  {userEmail ? (
+                    <p className="mt-0.5 truncate text-sm text-slate-500">
+                      {userEmail}
+                    </p>
+                  ) : null}
                 </div>
-
-                {/* Change Password */}
-                <button
-                  type="button"
-                  role="menuitem"
-                  onClick={handleChangePassword}
-                  className="flex w-full items-center gap-3 border-b border-slate-100 px-4 py-3.5 text-left text-sm text-slate-700 transition-colors hover:bg-slate-50"
-                >
-                  <KeyRound className="h-5 w-5 text-slate-500" />
-                  <span>Change Password</span>
-                </button>
 
                 {/* Logout */}
                 <button

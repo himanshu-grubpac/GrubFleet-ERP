@@ -390,7 +390,6 @@ export function vehicleDetailToFleetFormData(
     odometerReading: String(detail.odometer),
     registrationStartDate: detail.registrationStartDate,
     registrationEndDate: detail.registrationEndDate,
-    insuranceSupplier: "",
     insurancePremium: detail.insurancePremium,
     insuranceStartDate: detail.insuranceStartDate,
     insuranceEndDate: detail.insuranceEndDate,
