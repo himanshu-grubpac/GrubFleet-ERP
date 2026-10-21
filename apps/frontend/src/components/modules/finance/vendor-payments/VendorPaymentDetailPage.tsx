@@ -26,7 +26,7 @@ import {
 import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
 import {
   FINANCE_VENDOR_PAYMENT_REMOVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceVendorPaymentRemovedToast,
 } from "@/lib/toast/show-toast";
 
@@ -60,8 +60,8 @@ export default function VendorPaymentDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
       router.push(financeVendorPaymentsListHref);
     },
-    onError: () => {
-      showErrorToast(FINANCE_VENDOR_PAYMENT_REMOVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_VENDOR_PAYMENT_REMOVE_ERROR);
     },
   });
 

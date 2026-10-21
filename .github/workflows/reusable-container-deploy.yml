@@ -268,7 +268,13 @@ jobs:
       - name: Sync static export to S3
         if: vars.PORTAL_S3_BUCKET != ''
         run: |
-          aws s3 sync apps/frontend/out "s3://${{ vars.PORTAL_S3_BUCKET }}" --delete
+          aws s3 sync apps/frontend/out "s3://${{ vars.PORTAL_S3_BUCKET }}" \
+            --delete \
+            --cache-control "public,max-age=0,must-revalidate" \
+            --exclude "_next/static/*"
+          aws s3 sync apps/frontend/out/_next/static "s3://${{ vars.PORTAL_S3_BUCKET }}/_next/static" \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable"
       - name: Invalidate CloudFront cache
         if: vars.PORTAL_S3_BUCKET != '' && vars.CLOUDFRONT_DISTRIBUTION_ID != ''
         run: |

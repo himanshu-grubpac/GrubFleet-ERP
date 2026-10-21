@@ -12,6 +12,13 @@ type FormActionsProps = {
     saveLabel: string;
     savingLabel?: string;
     cancelLabel?: string;
+    secondaryAction?: {
+        label: string;
+        onClick: () => void;
+        disabled?: boolean;
+        isPending?: boolean;
+        pendingLabel?: string;
+    };
 };
 
 export default function FormActions({
@@ -24,7 +31,9 @@ export default function FormActions({
     saveLabel,
     savingLabel = "Saving...",
     cancelLabel = "Cancel",
+    secondaryAction,
 }: FormActionsProps) {
+    const secondaryPending = Boolean(secondaryAction?.isPending);
     return (
         <div className="flex w-full flex-col items-stretch gap-4">
             {/* Validation summary: left-aligned on its own row */}
@@ -44,16 +53,34 @@ export default function FormActions({
                 <button
                     type="button"
                     onClick={onCancel}
-                    disabled={isSaving}
+                    disabled={isSaving || secondaryPending}
                     className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                     {cancelLabel}
                 </button>
 
+                {secondaryAction ? (
+                    <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={secondaryAction.onClick}
+                        disabled={
+                            secondaryAction.disabled || isSaving || secondaryPending
+                        }
+                        className="h-10 px-5"
+                    >
+                        {secondaryPending && secondaryAction.pendingLabel
+                            ? secondaryAction.pendingLabel
+                            : secondaryAction.label}
+                    </Button>
+                ) : null}
+
                 <Button
                     type="button"
                     onClick={() => void onSave()}
-                    disabled={!canSubmit || isSaving}
+                    disabled={
+                        !canSubmit || isSaving || secondaryPending
+                    }
                     className="h-10 px-5"
                 >
                     {isSaving ? savingLabel : saveLabel}

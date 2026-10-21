@@ -23,6 +23,8 @@ export function pgPoolOptions(connectionString: string): PoolConfig {
     .replace(/\?&/, '?')
     .replace(/\?$/, '');
 
+  // Prefer mounting RDS CA (e.g. AWS global bundle) and rejectUnauthorized: true
+  // when ops provides PGSSLROOTCERT — until then, encrypted but chain not verified (AUD-008).
   return {
     connectionString: cleaned,
     max: 10,

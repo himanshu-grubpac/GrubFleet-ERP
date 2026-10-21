@@ -7,7 +7,7 @@
  * Or standalone:
  *   ts-node -r tsconfig-paths/register src/database/seed/seed-staging-interconnected-demo.ts
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
@@ -1209,6 +1209,17 @@ export async function seedStagingInterconnectedDemo(
       .limit(1);
     if (existing) {
       fleetClientIds.set(clientKey, existing.id);
+      if (orgClientId) {
+        await db
+          .update(fleetClients)
+          .set({ organisationClientId: orgClientId })
+          .where(
+            and(
+              eq(fleetClients.id, existing.id),
+              isNull(fleetClients.organisationClientId),
+            ),
+          );
+      }
       bump('fleetClients', false);
       continue;
     }

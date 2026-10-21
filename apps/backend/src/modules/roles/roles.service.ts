@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { mapPostgresErrorToHttp } from '../../infrastructure/database/postgres-error.util';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -18,6 +19,7 @@ import {
   allowedLevelsForActor,
   deriveModuleAccessFromKeys,
   deriveModuleAccessFromKeysDetailed,
+  expandImpliedPermissionKeys,
   expandModuleAccess,
   resolveModuleAccessLevel,
   type ModuleAccessEntry,
@@ -221,11 +223,15 @@ export class RolesService {
         description: dto.description ?? null,
         parentRoleId,
       });
-    } catch {
-      throw new ConflictException({
-        message: 'Role name already exists in this organization',
-        code: 'ROLE_NAME_CONFLICT',
-      });
+    } catch (err) {
+      const mapped = mapPostgresErrorToHttp(err);
+      if (mapped?.statusCode === 409) {
+        throw new ConflictException({
+          message: mapped.message,
+          code: mapped.code,
+        });
+      }
+      throw err;
     }
 
     const permissionIds =
@@ -583,7 +589,7 @@ export class RolesService {
         code: 'ROLE_PERMISSIONS_REQUIRED',
       });
     }
-    return [...new Set(dto.permissionKeys)].sort();
+    return expandImpliedPermissionKeys(dto.permissionKeys);
   }
 
   private resolvePermissionKeysFromUpdateDto(
@@ -594,7 +600,7 @@ export class RolesService {
       return expandModuleAccess(dto.moduleAccess);
     }
     if (dto.permissionKeys !== undefined) {
-      return [...new Set(dto.permissionKeys)].sort();
+      return expandImpliedPermissionKeys(dto.permissionKeys);
     }
     return undefined;
   }

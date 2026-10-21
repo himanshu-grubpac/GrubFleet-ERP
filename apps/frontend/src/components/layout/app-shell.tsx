@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import LayoutHeader from "@/components/layout/LayoutHeader";
 import ModuleSubHeader from "@/components/layout/ModuleSubHeader";
@@ -65,12 +65,16 @@ export function AppShell({
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Main Header */}
-        <LayoutHeader
-          onMenuClick={() => setMobileNavOpen(true)}
-        />
+        <LayoutHeader onMenuClick={() => setMobileNavOpen(true)} />
 
-        {/* Breadcrumb Sub-header */}
-        <ModuleSubHeader />
+        {/* Breadcrumb Sub-header (useSearchParams — Suspense boundary) */}
+        <Suspense
+          fallback={
+            <div className="flex min-h-12 min-w-0 items-center bg-[#f8f8f8] px-4 py-3 md:px-6" />
+          }
+        >
+          <ModuleSubHeader />
+        </Suspense>
 
         {/* Page Content */}
         <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-y-contain">

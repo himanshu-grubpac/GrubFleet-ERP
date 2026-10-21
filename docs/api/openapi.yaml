@@ -811,21 +811,92 @@ paths:
     post:
       tags: [fleet-leasing]
       summary: Create draft lease contract
+      description: >-
+        Explicit draft save only (wizard Save draft or batch create before confirm).
+        Optional body fields mirror PATCH update. Asset lines on create reject shortfall
+        unless confirmShortfall is true (409 ASSET_SHORTFALL otherwise — same as PUT asset-lines).
+        Confirm step still validates allocation before activate.
       operationId: createLeaseContract
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                clientId:
+                  type: string
+                  format: uuid
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+                termMonths:
+                  type: integer
+                  minimum: 1
+                securityDeposit:
+                  type: string
+                  pattern: '^\\d{1,12}(\\.\\d{1,2})?$'
+                billingFrequency:
+                  type: string
+                  enum: [monthly, quarterly, annual]
+                additionalTerms:
+                  type: string
+                  maxLength: 2000
+                amcTier:
+                  type: string
+                  maxLength: 120
+                  enum: [Gold, Silver, Bronze]
+                description:
+                  type: string
+                  maxLength: 2000
+                confirmShortfall:
+                  type: boolean
+                assetLines:
+                  type: array
+                  items:
+                    type: object
+                    required: [assetClass, committedQuantity, ratePerVehicleMonth]
+                    properties:
+                      assetClass:
+                        type: string
+                        maxLength: 64
+                      committedQuantity:
+                        type: integer
+                        minimum: 1
+                      ratePerVehicleMonth:
+                        type: string
+                        pattern: '^\\d{1,12}(\\.\\d{1,2})?$'
+                vehicleIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
       responses:
         '201':
           description: Created draft contract
+        '400':
+          description: Validation error (e.g. INVALID_CLIENT, CONTRACT_DATE_TERM_MISMATCH)
+        '409':
+          description: ASSET_SHORTFALL when lines exceed availability without confirmShortfall
         '403':
           $ref: '#/components/responses/Forbidden'
   /fleet-leasing/asset-classes:
     get:
       tags: [fleet-leasing]
-      summary: Distinct active asset class names from asset register
+      summary: Active asset register classes for lease wizard
       description: >-
-        Wizard dropdown source. Names match asset_register_asset_classes.name for active classes.
-        Lease asset lines store the same string in lease_contract_asset_lines.asset_class.
+        Returns paginated `items` (generated class names — legacy wizard) plus `catalog`
+        entries with stable `id`, current `name`, and human `specLabel`. Lease lines persist
+        `assetClassId` (FK) and denormalized `assetClass` name.
       operationId: listFleetAssetClasses
       security:
         - bearerAuth: []
@@ -835,19 +906,24 @@ paths:
         - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Paginated sorted distinct asset class names for wizard dropdowns
+          description: Paginated class names (items) plus id/specLabel catalog
           content:
             application/json:
               schema:
                 allOf:
                   - $ref: '#/components/schemas/PaginationMeta'
                   - type: object
-                    required: [items]
+                    required: [items, catalog]
                     properties:
                       items:
                         type: array
+                        description: Legacy wizard — generated class names only
                         items:
                           type: string
+                      catalog:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FleetAssetClassCatalogItem'
         '403':
           $ref: '#/components/responses/Forbidden'
   /fleet-leasing/asset-classes/availability/preview:
@@ -873,8 +949,11 @@ paths:
                   minItems: 1
                   items:
                     type: object
-                    required: [assetClass, committedQuantity]
+                    required: [committedQuantity]
                     properties:
+                      assetClassId:
+                        type: string
+                        format: uuid
                       assetClass:
                         type: string
                         maxLength: 64
@@ -899,9 +978,15 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - name: assetClass
           in: query
-          required: true
+          required: false
           schema:
             type: string
+        - name: assetClassId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
         - name: committedQuantity
           in: query
           required: true
@@ -950,6 +1035,11 @@ paths:
     put:
       tags: [fleet-leasing]
       summary: Save wizard step 2 asset-class lines
+      description: >-
+        Replaces all asset-class lines on a draft/pre-active contract. When committed quantity
+        exceeds available fleet, returns 409 ASSET_SHORTFALL unless confirmShortfall is true
+        (lines persist as awaiting assets). POST /lease-contracts with assetLines follows the
+        same rule. Final POST /confirm still runs full review validation before activate.
       operationId: updateLeaseContractAssetLines
       security:
         - bearerAuth: []
@@ -961,6 +1051,32 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetLines]
+              properties:
+                assetLines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [assetClass, committedQuantity, ratePerVehicleMonth]
+                    properties:
+                      assetClass:
+                        type: string
+                        maxLength: 64
+                      committedQuantity:
+                        type: integer
+                        minimum: 1
+                      ratePerVehicleMonth:
+                        type: string
+                        pattern: '^\\d{1,12}(\\.\\d{1,2})?$'
+                confirmShortfall:
+                  type: boolean
       responses:
         '200':
           description: Saved lines with lineAvailability
@@ -1236,6 +1352,50 @@ paths:
       responses:
         '200':
           description: Deactivated contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/approve:
+    post:
+      tags: [fleet-leasing]
+      summary: Approve contract pending approval (activates or awaiting assets)
+      operationId: approveLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Approved contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/activate:
+    post:
+      tags: [fleet-leasing]
+      summary: Activate approved or draft contract (direct activation path)
+      operationId: activateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Activated contract detail
           content:
             application/json:
               schema:
@@ -1715,63 +1875,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [organizationId, companyName, pointsOfContact]
-              properties:
-                organizationId:
-                  type: string
-                  format: uuid
-                companyName:
-                  type: string
-                  maxLength: 255
-                taxId:
-                  type: string
-                  maxLength: 32
-                  description: GSTIN / Tax ID (optional)
-                address:
-                  type: string
-                  description: Legacy line when structured address fields omitted
-                addressLine1:
-                  type: string
-                  maxLength: 255
-                addressLine2:
-                  type: string
-                  maxLength: 255
-                addressCity:
-                  type: string
-                  maxLength: 120
-                addressCountry:
-                  type: string
-                  minLength: 2
-                  maxLength: 2
-                addressState:
-                  type: string
-                  maxLength: 120
-                addressDistrict:
-                  type: string
-                  maxLength: 120
-                addressPincode:
-                  type: string
-                  maxLength: 20
-                pointsOfContact:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: object
-                    required: [name, contactNumber, email, isPrimary]
-                    properties:
-                      name:
-                        type: string
-                        maxLength: 255
-                      contactNumber:
-                        type: string
-                        maxLength: 32
-                      email:
-                        type: string
-                        format: email
-                        maxLength: 320
-                      isPrimary:
-                        type: boolean
+              $ref: '#/components/schemas/CreateFleetClientRequest'
       responses:
         '201':
           description: Client created
@@ -1807,6 +1911,12 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFleetClientRequest'
       responses:
         '200':
           description: Updated client
@@ -4380,7 +4490,10 @@ paths:
                 organisationClientId:
                   type: string
                   format: uuid
-                  description: Optional org client id for future org↔fleet link (not validated against lease client yet)
+                  description: >-
+                    Organisation client id, or fleet client id from lease detail client.id
+                    (resolved via fleet_clients.organisation_client_id when linked).
+                    Omitted when the lease fleet client is linked — server resolves the org client.
                 vehicleIds:
                   type: array
                   minItems: 1
@@ -4392,7 +4505,10 @@ paths:
         '200':
           description: Assignments recorded; vehicles operationalStatus set to leased
         '400':
-          description: NO_ACTIVE_LEASE_CONTRACT, LEASE_CAPACITY_SHORTFALL, or vehicle not assignable
+          description: >-
+            NO_ACTIVE_LEASE_CONTRACT, LEASE_CAPACITY_SHORTFALL, VEHICLE_NOT_ASSIGNABLE,
+            ORGANISATION_CLIENT_MISMATCH, ORGANISATION_CLIENT_NOT_FOUND,
+            FLEET_CLIENT_ORGANISATION_LINK_MISSING, or LEASE_FLEET_CLIENT_NOT_FOUND
   /asset-register/vehicle-assignments/{vehicleId}/unassign:
     patch:
       tags: [asset-register]
@@ -4484,13 +4600,12 @@ paths:
                   type: string
                   enum: [insurance, registration, warranty]
                 startDate:
-                  type: string
-                  format: date
+                  $ref: '#/components/schemas/StrictIsoDateString'
                 endDate:
-                  type: string
-                  format: date
+                  $ref: '#/components/schemas/StrictIsoDateString'
                 insurancePremium:
-                  type: number
+                  allOf:
+                    - $ref: '#/components/schemas/DecimalMoneyString'
                   description: Required when type is insurance
       responses:
         '200':
@@ -4586,6 +4701,32 @@ components:
             database: up
             redis: up
             drizzle: up
+    StrictIsoDateString:
+      type: string
+      format: date
+      description: >-
+        ISO 8601 calendar date (YYYY-MM-DD) only. Strict validation rejects
+        datetime strings with a time component (e.g. 2026-01-15T00:00:00Z).
+      example: '2026-01-15'
+    DecimalMoneyString:
+      type: string
+      pattern: '^\d{1,12}(\.\d{1,2})?$'
+      description: >-
+        Decimal amount string with up to 12 integer digits and optional 2
+        decimal places (asset insurance premium, lease decimal amounts).
+      example: '12000.00'
+    OptionalGstin:
+      type: string
+      maxLength: 32
+      description: Optional GSTIN / tax ID (15-character Indian GSTIN when provided).
+      pattern: '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$'
+    CompactE164Phone:
+      type: string
+      maxLength: 32
+      description: >-
+        Compact international phone (E.164 or digits). Validated with
+        libphonenumber-js at the API boundary.
+      example: '+919876543210'
     CreateOrganisationLocationTypeRequest:
       type: object
       required:
@@ -4976,7 +5117,12 @@ components:
           format: uuid
         registrationNumber:
           type: string
+          minLength: 4
           maxLength: 32
+          pattern: '^[A-Za-z0-9 -]+$'
+          description: >-
+            Letters, digits, spaces, and hyphens only (min 4, max 32 after trim).
+            Must include at least one letter and one digit. Stored uppercased with collapsed spaces.
         chassisNumber:
           type: string
           maxLength: 64
@@ -4989,26 +5135,19 @@ components:
           minimum: 0
           maximum: 9999999
         registrationStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         registrationEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insurancePremium:
-          type: number
-          minimum: 0
+          $ref: '#/components/schemas/DecimalMoneyString'
         warrantyStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         warrantyEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         specialNotes:
           type: string
           maxLength: 2000
@@ -5028,7 +5167,10 @@ components:
           format: uuid
         registrationNumber:
           type: string
+          minLength: 4
           maxLength: 32
+          pattern: '^[A-Za-z0-9 -]+$'
+          description: Same rules as create registrationNumber.
         chassisNumber:
           type: string
           maxLength: 64
@@ -5041,26 +5183,19 @@ components:
           minimum: 0
           maximum: 9999999
         registrationStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         registrationEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insurancePremium:
-          type: number
-          minimum: 0
+          $ref: '#/components/schemas/DecimalMoneyString'
         warrantyStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         warrantyEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         specialNotes:
           type: string
           maxLength: 2000
@@ -5098,8 +5233,7 @@ components:
           type: string
           maxLength: 255
         contactPhone:
-          type: string
-          maxLength: 32
+          $ref: '#/components/schemas/CompactE164Phone'
         contactEmail:
           type: string
           format: email
@@ -5189,8 +5323,95 @@ components:
           type: string
           maxLength: 255
         contactNumber:
+          $ref: '#/components/schemas/CompactE164Phone'
+        email:
           type: string
-          maxLength: 32
+          format: email
+          maxLength: 320
+        isPrimary:
+          type: boolean
+    CreateFleetClientRequest:
+      type: object
+      required:
+        - organizationId
+        - companyName
+        - addressLine1
+        - addressCountry
+        - addressState
+        - addressDistrict
+        - addressPincode
+        - pointsOfContact
+      additionalProperties: false
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        companyName:
+          type: string
+          maxLength: 255
+        taxId:
+          $ref: '#/components/schemas/OptionalGstin'
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+        addressCity:
+          type: string
+          maxLength: 120
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+          description: ISO 3166-1 alpha-2 country code
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+          description: Country-aware postal validation (see addressCountry)
+        pointsOfContact:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FleetClientPoc'
+    UpdateFleetClientRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        companyName:
+          type: string
+          maxLength: 255
+        taxId:
+          allOf:
+            - $ref: '#/components/schemas/OptionalGstin'
+          nullable: true
+        address:
+          type: string
+          description: Legacy single-line address on PATCH only (structured fields on create)
+        pointsOfContact:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FleetClientPoc'
+    FleetClientPoc:
+      type: object
+      required: [name, contactNumber, email, isPrimary]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        contactNumber:
+          $ref: '#/components/schemas/CompactE164Phone'
         email:
           type: string
           format: email
@@ -5208,6 +5429,10 @@ components:
         - addressDistrict
         - addressPincode
         - pointsOfContact
+      description: >-
+        Organisation client register (no GSTIN/taxId on this entity). Fleet
+        leasing clients linked from this record may carry optional taxId (GSTIN).
+      additionalProperties: false
       properties:
         organizationId:
           type: string
@@ -5238,6 +5463,7 @@ components:
         addressPincode:
           type: string
           maxLength: 20
+          description: Country-aware postal validation (see addressCountry)
         pointsOfContact:
           type: array
           minItems: 1
@@ -5314,7 +5540,13 @@ components:
           maxLength: 320
         licenseNumber:
           type: string
+          minLength: 4
           maxLength: 64
+          pattern: '^[A-Za-z0-9/ -]+$'
+          description: >-
+            Driving licence id (min 4, max 64). Letters, digits, spaces, hyphens, slashes.
+            Must include at least one letter and one digit. Stored uppercased with collapsed spaces.
+            Unique per organisation (case/space insensitive).
         licenseExpiry:
           type: string
           format: date
@@ -5362,7 +5594,10 @@ components:
           maxLength: 320
         licenseNumber:
           type: string
+          minLength: 4
           maxLength: 64
+          pattern: '^[A-Za-z0-9/ -]+$'
+          description: Same rules as create licenseNumber.
         licenseExpiry:
           type: string
           format: date
@@ -5837,7 +6072,10 @@ components:
           type: array
           items:
             type: string
-          description: Alternate contract; ignored when moduleAccess is set
+          description: >-
+            Alternate contract; ignored when moduleAccess is set. Server expands
+            implied keys before save (create/update/delete/manage imply view for the
+            same module; manage implies view plus create, update, and delete).
         parentRoleId:
           type: string
           format: uuid
@@ -5860,6 +6098,9 @@ components:
           type: array
           items:
             type: string
+          description: >-
+            Explicit keys; server expands implied view/CRUD keys per module before save
+            (same rules as CreateRoleRequest.permissionKeys).
         isActive:
           type: boolean
         parentRoleId:
@@ -6052,13 +6293,31 @@ components:
           items:
             type: string
           description: User ids or emails (logged in audit/event metadata for v1)
+    FleetAssetClassCatalogItem:
+      type: object
+      required: [id, name, specLabel]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Current generated class name (recomputed when spec changes)
+        specLabel:
+          type: string
+          description: Human-readable spec line for dropdowns
     LeaseContractAssetLineInput:
       type: object
-      required: [assetClass, committedQuantity, ratePerVehicleMonth]
+      required: [committedQuantity, ratePerVehicleMonth]
       properties:
+        assetClassId:
+          type: string
+          format: uuid
+          description: Preferred stable reference to asset register class
         assetClass:
           type: string
-          example: Sedan
+          description: Legacy generated name; resolved to assetClassId on write
+          example: 2026_activa_150_petrol_efi_bl
         committedQuantity:
           type: integer
           minimum: 1
@@ -6521,6 +6780,7 @@ components:
     CreateWorkshopAmcTierRequest:
       type: object
       required: [organizationId, name]
+      additionalProperties: false
       properties:
         organizationId:
           type: string
@@ -6531,11 +6791,15 @@ components:
         description:
           type: string
           maxLength: 2000
-        priceDisplayLabel:
-          type: string
-          maxLength: 120
+        pricePaise:
+          type: integer
+          minimum: 0
+          description: >-
+            Optional annual price in minor currency units (paise for INR).
+            Display label is derived server-side when set.
     UpdateWorkshopAmcTierRequest:
       type: object
+      additionalProperties: false
       properties:
         name:
           type: string
@@ -6544,10 +6808,11 @@ components:
           type: string
           maxLength: 2000
           nullable: true
-        priceDisplayLabel:
-          type: string
-          maxLength: 120
+        pricePaise:
+          type: integer
+          minimum: 0
           nullable: true
+          description: Minor currency units (paise for INR); null clears stored price
     CreateWorkshopMaintenanceScheduleRequest:
       type: object
       required: [organizationId, name]

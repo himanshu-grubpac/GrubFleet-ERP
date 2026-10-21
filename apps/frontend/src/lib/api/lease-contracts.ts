@@ -126,6 +126,7 @@ export interface LeaseContractDetail {
 
     client?: {
         id: string;
+        organisationClientId?: string | null;
         companyName: string;
         pocs?: unknown[];
     } | null;
@@ -401,6 +402,7 @@ export type CreateLeaseContractDraftPayload = {
     amcTier?: string;
     description?: string;
     assetLines?: ContractAssetLineInput[];
+    confirmShortfall?: boolean;
     vehicleIds?: string[];
 };
 

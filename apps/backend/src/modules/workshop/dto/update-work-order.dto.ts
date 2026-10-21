@@ -32,7 +32,7 @@ export class UpdateWorkOrderDto {
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   expectedCompletionDate?: string | null;
 
   @ApiPropertyOptional()

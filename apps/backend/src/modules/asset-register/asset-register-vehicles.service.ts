@@ -21,7 +21,10 @@ import {
   AssetRegisterRepository,
   type AssetRegisterVehicleWithRelations,
 } from './repositories/asset-register.repository';
-import { ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE } from './utils/registration-number.util';
+import {
+  ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE,
+  normalizeAssetRegisterRegistrationNumber,
+} from './utils/registration-number.util';
 
 @Injectable()
 export class AssetRegisterVehiclesService {
@@ -76,7 +79,9 @@ export class AssetRegisterVehiclesService {
       warrantyEndDate: dto.warrantyEndDate,
     });
 
-    const registrationNumber = dto.registrationNumber.trim();
+    const registrationNumber = normalizeAssetRegisterRegistrationNumber(
+      dto.registrationNumber,
+    );
     await this.assertRegistrationNumberUnique(
       dto.organizationId,
       registrationNumber,
@@ -166,7 +171,9 @@ export class AssetRegisterVehiclesService {
     });
 
     if (dto.registrationNumber !== undefined) {
-      const registrationNumber = dto.registrationNumber.trim();
+      const registrationNumber = normalizeAssetRegisterRegistrationNumber(
+        dto.registrationNumber,
+      );
       await this.assertRegistrationNumberUnique(
         organizationId,
         registrationNumber,
@@ -180,7 +187,11 @@ export class AssetRegisterVehiclesService {
           ? { assetClassId: dto.assetClassId, assetMasterId: null }
           : {}),
         ...(dto.registrationNumber !== undefined
-          ? { registrationNumber: dto.registrationNumber.trim() }
+          ? {
+              registrationNumber: normalizeAssetRegisterRegistrationNumber(
+                dto.registrationNumber,
+              ),
+            }
           : {}),
         ...(dto.chassisNumber !== undefined
           ? { chassisNumber: dto.chassisNumber.trim() }

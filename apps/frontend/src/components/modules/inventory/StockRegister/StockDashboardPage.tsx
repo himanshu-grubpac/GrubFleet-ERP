@@ -31,7 +31,7 @@ import {
   inventoryStockRegisterEditHref,
 } from "@/lib/navigation/inventory-static-routes";
 import {
-  showErrorToast,
+  showApiErrorToast,
   showSparePartActivatedToast,
   showSparePartDeactivatedToast,
 } from "@/lib/toast/show-toast";
@@ -117,7 +117,8 @@ export default function StockDashboardPage() {
       setDeactivateOpen(false);
       setStatusTarget(null);
     },
-    onError: () => showErrorToast("Could not update part status."),
+    onError: (error) =>
+      showApiErrorToast(error, "Could not update part status."),
   });
 
   const items = listQuery.data?.items ?? [];

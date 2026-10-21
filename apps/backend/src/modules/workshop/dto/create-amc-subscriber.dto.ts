@@ -16,6 +16,6 @@ export class CreateAmcSubscriberDto {
 
   @ApiPropertyOptional({ description: 'ISO date when subscription started' })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   startedAt?: string;
 }

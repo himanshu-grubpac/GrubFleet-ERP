@@ -470,7 +470,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": 15000,\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": \"15000.00\",\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/vehicles",
             "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; registrationNumber unique per org (trim + case-insensitive). 409 when duplicate. Active asset class only (class-only register; asset master layer retired)."
@@ -594,7 +594,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"type\": \"insurance\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"insurancePremium\": 12000\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"type\": \"insurance\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"insurancePremium\": \"12000.00\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/compliance/{{assetRegisterVehicleId}}/renew",
             "description": "POST /asset-register/compliance/{vehicleId}/renew — type insurance | registration | warranty"
@@ -607,6 +607,24 @@
       "name": "Fleet & Leasing",
       "description": "Lease contract wizard and lifecycle. Set leaseContractId from Create draft response.",
       "item": [
+        {
+          "name": "Create fleet leasing client",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"companyName\": \"Meridian Fleet Client\",\n  \"taxId\": \"29ABCDE1234F1Z5\",\n  \"addressLine1\": \"12 Industrial Estate\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai\",\n  \"addressPincode\": \"400001\",\n  \"pointsOfContact\": [\n    {\n      \"name\": \"Aditi Rao\",\n      \"contactNumber\": \"+919876543201\",\n      \"email\": \"aditi@meridian.example\",\n      \"isPrimary\": true\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/clients",
+            "description": "POST /fleet-leasing/clients — structured address required; optional GSTIN taxId; POC phone validated E.164."
+          },
+          "response": []
+        },
         {
           "name": "List fleet asset classes",
           "request": {
@@ -649,10 +667,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"clientId\": \"{{fleetClientId}}\",\n  \"startDate\": \"2026-04-01\",\n  \"termMonths\": 12,\n  \"securityDeposit\": \"50000.00\",\n  \"billingFrequency\": \"monthly\"\n}"
             },
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts?organizationId={{organizationId}}",
-            "description": "POST /fleet-leasing/lease-contracts — wizard entry (draft)."
+            "description": "POST /fleet-leasing/lease-contracts — explicit Save draft / batch create. Optional clientId, terms, assetLines, confirmShortfall. 400 INVALID_CLIENT; 409 ASSET_SHORTFALL without confirmShortfall."
           },
           "response": []
         },
@@ -780,6 +798,32 @@
             },
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}?organizationId={{organizationId}}",
             "description": "PATCH .../{id} — edit client, terms, asset lines, optional vehicleIds. Blocked on closed/concluded/pending_termination. Returns detail + pricingEvaluation when terms/lines change."
+          },
+          "response": []
+        },
+        {
+          "name": "Approve lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/approve?organizationId={{organizationId}}",
+            "description": "POST .../approve — pending approval → active or awaiting_assets; requires fleet leasing approve permission."
+          },
+          "response": []
+        },
+        {
+          "name": "Activate lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "x-organization-id", "value": "{{organizationId}}" }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/activate?organizationId={{organizationId}}",
+            "description": "POST .../activate — direct activation path for eligible contract states."
           },
           "response": []
         },
@@ -2259,7 +2303,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Gold AMC\",\n  \"description\": \"Annual coverage\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Gold AMC\",\n  \"description\": \"Annual coverage\",\n  \"pricePaise\": 2500000\n}"
             },
             "url": "{{baseUrl}}/workshop/amc/tiers",
             "description": "POST /workshop/amc/tiers"

@@ -65,7 +65,7 @@ export class CreatePurchaseVehicleInvoiceDto {
   supplierId!: string;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   invoiceDate!: string;
 
   @ApiProperty({

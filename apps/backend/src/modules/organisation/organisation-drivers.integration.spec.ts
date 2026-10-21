@@ -239,11 +239,97 @@ describe('Organisation drivers (integration)', () => {
     });
 
     it('returns 400 for unknown JSON key on create', async () => {
-      await request(app.getHttpServer())
+      const res = await request(app.getHttpServer())
         .post('/api/v1/organisation/drivers')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
         .send(buildDriverCreatePayload({ hackField: 'x' }))
+        .expect(400);
+
+      expect(res.body).toMatchObject({
+        code: 'VALIDATION_ERROR',
+        statusCode: 400,
+      });
+      expect(
+        (res.body as { details?: { errors: { field?: string }[] } }).details
+          ?.errors,
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'hackField' }),
+        ]),
+      );
+    });
+
+    it('returns 409 when CPR duplicates another driver in the same org (not 500)', async () => {
+      const cprNo = String(Date.now()).slice(-9).padStart(9, '0');
+      const licenseA = `KA04/2024101${String(Date.now()).slice(-2)}`;
+      const licenseB = `KA04/2024102${String(Date.now()).slice(-2)}`;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildDriverCreatePayload({ cprNo, licenseNumber: licenseA }))
+        .expect(201);
+      const dup = await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildDriverCreatePayload({
+            cprNo,
+            licenseNumber: licenseB,
+          }),
+        )
+        .expect(409);
+
+      expect(dup.body).toMatchObject({ statusCode: 409 });
+      expect((dup.body as { code: string }).code).not.toBe('INTERNAL_ERROR');
+    });
+
+    it('returns 409 when license number duplicates another driver in the same org', async () => {
+      const licenseNumber = `KA04/2024100${String(Date.now()).slice(-3)}`;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildDriverCreatePayload({ licenseNumber }))
+        .expect(201);
+      const dup = await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildDriverCreatePayload({
+            licenseNumber: `  ${licenseNumber.toLowerCase()}  `,
+            cprNo: String(Date.now() + 2)
+              .slice(-9)
+              .padStart(9, '0'),
+          }),
+        )
+        .expect(409);
+
+      expect(dup.body).toMatchObject({ statusCode: 409 });
+      expect(['CONFLICT', 'DRIVER_LICENSE_DUPLICATE']).toContain(
+        (dup.body as { code: string }).code,
+      );
+      expect((dup.body as { code: string }).code).not.toBe('INTERNAL_ERROR');
+    });
+
+    it('returns 400 for invalid driver phone on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildDriverCreatePayload({ phone: 'not-a-phone' }))
+        .expect(400);
+    });
+
+    it('returns 400 for invalid license number without a digit', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildDriverCreatePayload({ licenseNumber: 'lklmmlm' }))
         .expect(400);
     });
 

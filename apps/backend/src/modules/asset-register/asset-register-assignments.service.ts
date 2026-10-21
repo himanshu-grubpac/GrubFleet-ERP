@@ -40,11 +40,12 @@ export class AssetRegisterAssignmentsService {
       });
     }
 
-    await this.assertOrganisationClientForLease(
-      dto.organizationId,
-      contract.clientId ?? null,
-      dto.organisationClientId,
-    );
+    const resolvedOrganisationClientId =
+      await this.resolveOrganisationClientIdForAssign(
+        dto.organizationId,
+        contract.clientId ?? null,
+        dto.organisationClientId,
+      );
 
     const assetLines = await this.fleetRepo.listAssetLines(dto.leaseContractId);
     const lineByClass = new Map(
@@ -129,7 +130,7 @@ export class AssetRegisterAssignmentsService {
       organizationId: dto.organizationId,
       leaseContractId: dto.leaseContractId,
       fleetClientId: contract.clientId ?? null,
-      organisationClientId: dto.organisationClientId ?? null,
+      organisationClientId: resolvedOrganisationClientId,
       vehicleIds: uniqueIds,
     });
 
@@ -200,37 +201,30 @@ export class AssetRegisterAssignmentsService {
     return value.trim().toLowerCase();
   }
 
-  private async assertOrganisationClientForLease(
+  /**
+   * Resolves organisation client for assignment from lease fleet client link.
+   * Accepts fleet client id in organisationClientId (portal lease detail uses fleet id as client.id).
+   */
+  private async resolveOrganisationClientIdForAssign(
     organizationId: string,
     leaseFleetClientId: string | null,
-    organisationClientId: string | undefined,
-  ): Promise<void> {
+    organisationClientIdInput: string | undefined,
+  ): Promise<string | null> {
     if (!leaseFleetClientId) {
-      if (!organisationClientId) return;
+      if (!organisationClientIdInput) {
+        return null;
+      }
       const orgClient = await this.repo.getOrganisationClientInOrg(
         organizationId,
-        organisationClientId,
+        organisationClientIdInput,
       );
       if (!orgClient) {
-        throw new BadRequestException('Organisation client not found');
+        throw new BadRequestException({
+          code: AssetRegisterAssignmentErrorCodes.ORGANISATION_CLIENT_NOT_FOUND,
+          message: 'Organisation client not found',
+        });
       }
-      return;
-    }
-
-    if (!organisationClientId) {
-      throw new BadRequestException({
-        code: AssetRegisterAssignmentErrorCodes.ORGANISATION_CLIENT_REQUIRED,
-        message:
-          'organisationClientId is required when the lease contract has a fleet client',
-      });
-    }
-
-    const orgClient = await this.repo.getOrganisationClientInOrg(
-      organizationId,
-      organisationClientId,
-    );
-    if (!orgClient) {
-      throw new BadRequestException('Organisation client not found');
+      return organisationClientIdInput;
     }
 
     const fleetBundle = await this.fleetRepo.getClientWithPocs(
@@ -238,7 +232,57 @@ export class AssetRegisterAssignmentsService {
       leaseFleetClientId,
     );
     if (!fleetBundle) {
-      throw new BadRequestException('Lease fleet client not found');
+      throw new BadRequestException({
+        code: AssetRegisterAssignmentErrorCodes.LEASE_FLEET_CLIENT_NOT_FOUND,
+        message: 'Lease fleet client not found',
+      });
+    }
+
+    const linkedOrganisationClientId =
+      fleetBundle.client.organisationClientId ?? null;
+
+    let effectiveOrganisationClientId: string | null = null;
+
+    if (!organisationClientIdInput) {
+      effectiveOrganisationClientId = linkedOrganisationClientId;
+    } else if (organisationClientIdInput === leaseFleetClientId) {
+      effectiveOrganisationClientId = linkedOrganisationClientId;
+    } else if (
+      linkedOrganisationClientId &&
+      organisationClientIdInput === linkedOrganisationClientId
+    ) {
+      effectiveOrganisationClientId = linkedOrganisationClientId;
+    } else {
+      const orgClient = await this.repo.getOrganisationClientInOrg(
+        organizationId,
+        organisationClientIdInput,
+      );
+      if (!orgClient) {
+        throw new BadRequestException({
+          code: AssetRegisterAssignmentErrorCodes.ORGANISATION_CLIENT_NOT_FOUND,
+          message: 'Organisation client not found',
+        });
+      }
+      effectiveOrganisationClientId = organisationClientIdInput;
+    }
+
+    if (!effectiveOrganisationClientId) {
+      throw new BadRequestException({
+        code: AssetRegisterAssignmentErrorCodes.FLEET_CLIENT_ORGANISATION_LINK_MISSING,
+        message:
+          'Lease fleet client is not linked to an organisation client; link the client in Organisation or Fleet before assigning vehicles',
+      });
+    }
+
+    const orgClient = await this.repo.getOrganisationClientInOrg(
+      organizationId,
+      effectiveOrganisationClientId,
+    );
+    if (!orgClient) {
+      throw new BadRequestException({
+        code: AssetRegisterAssignmentErrorCodes.ORGANISATION_CLIENT_NOT_FOUND,
+        message: 'Organisation client not found',
+      });
     }
 
     if (
@@ -251,6 +295,8 @@ export class AssetRegisterAssignmentsService {
           'Organisation client name must match the lease contract fleet client company name',
       });
     }
+
+    return effectiveOrganisationClientId;
   }
 
   private assertVehiclesAssignable(

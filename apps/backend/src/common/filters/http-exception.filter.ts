@@ -7,6 +7,9 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { buildValidationErrorDetails } from '../http/validation-error.util';
+import { mapPostgresErrorToHttp } from '../../infrastructure/database/postgres-error.util';
+
 interface ApiErrorBody {
   message: string;
   code: string;
@@ -37,19 +40,50 @@ export class GlobalHttpExceptionFilter implements ExceptionFilter {
       const body = exception.getResponse();
       if (typeof body === 'string') {
         message = body;
+        code = this.codeFromStatus(statusCode);
       } else if (typeof body === 'object' && body !== null) {
         const obj = body as Record<string, unknown>;
-        message = this.stringifyField(obj.message, message);
-        code = this.stringifyField(obj.code, this.codeFromStatus(statusCode));
-        details = obj.details;
+        const rawMessage = obj.message;
+
+        if (
+          Array.isArray(rawMessage) &&
+          obj.details === undefined &&
+          rawMessage.every((entry) => typeof entry === 'string')
+        ) {
+          details = buildValidationErrorDetails(rawMessage);
+        }
+
+        message = this.stringifyField(rawMessage, message);
+
+        if (typeof obj.code === 'string' && obj.code.length > 0) {
+          code = obj.code;
+        } else if (
+          statusCode === HttpStatus.BAD_REQUEST &&
+          Array.isArray(rawMessage)
+        ) {
+          code = 'VALIDATION_ERROR';
+        } else {
+          code = this.codeFromStatus(statusCode);
+        }
+
+        if (obj.details !== undefined) {
+          details = obj.details;
+        }
       } else {
         code = this.codeFromStatus(statusCode);
       }
-    } else if (exception instanceof Error) {
-      this.logger.error(
-        { err: exception.message, correlationId },
-        exception.stack,
-      );
+    } else {
+      const mapped = mapPostgresErrorToHttp(exception);
+      if (mapped) {
+        statusCode = mapped.statusCode;
+        message = mapped.message;
+        code = mapped.code;
+      } else if (exception instanceof Error) {
+        this.logger.error(
+          { err: exception.message, correlationId },
+          exception.stack,
+        );
+      }
     }
 
     const payload: ApiErrorBody = {

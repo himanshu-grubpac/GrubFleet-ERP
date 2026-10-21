@@ -9,7 +9,6 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import {
   buildClientPayloadFromForm,
   clientDetailToFormData,
@@ -18,8 +17,9 @@ import {
 } from "@/lib/api/organisation/clients";
 import {
   CLIENT_SAVE_ERROR,
+  getApiErrorMessage,
+  showApiErrorToast,
   showClientUpdatedToast,
-  showErrorToast,
 } from "@/lib/toast/show-toast";
 
 import CreateClientPage, {
@@ -90,9 +90,9 @@ export default function EditClientPage() {
       const { organizationId: payloadOrgId, ...updatePayload } = full;
       void payloadOrgId;
       payload = updatePayload;
-    } catch {
-      showErrorToast(CLIENT_SAVE_ERROR);
-      throw new Error(CLIENT_SAVE_ERROR);
+    } catch (error) {
+      showApiErrorToast(error, CLIENT_SAVE_ERROR);
+      throw error;
     }
 
     try {
@@ -111,9 +111,7 @@ export default function EditClientPage() {
       showClientUpdatedToast(updated.clientName);
       router.push(organisationClientDetailHref(clientId));
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.message : CLIENT_SAVE_ERROR;
-      showErrorToast(message);
+      showApiErrorToast(error, CLIENT_SAVE_ERROR);
       throw error;
     }
   };
@@ -138,9 +136,7 @@ export default function EditClientPage() {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
         <p className="text-sm font-medium text-red-600">
-          {clientQuery.error instanceof ApiClientError
-            ? clientQuery.error.message
-            : "Client not found."}
+          {getApiErrorMessage(clientQuery.error, "Client not found.")}
         </p>
         <button
           type="button"

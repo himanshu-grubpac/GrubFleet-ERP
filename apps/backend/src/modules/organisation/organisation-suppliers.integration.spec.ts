@@ -305,6 +305,19 @@ describe('Organisation suppliers (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 for invalid contact phone on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/suppliers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildSupplierCreatePayload({
+            contactPhone: 'abc-not-phone',
+          }),
+        )
+        .expect(400);
+    });
+
     it('returns 401 without JWT on supplier types catalog', async () => {
       await request(app.getHttpServer())
         .get('/api/v1/organisation/suppliers/types')

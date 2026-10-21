@@ -61,6 +61,13 @@ describe('Auth (integration)', () => {
     return request(app.getHttpServer()).get('/api/v1/auth/me').expect(401);
   });
 
+  it('GET /health sets Helmet security headers (AUD-002)', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/health')
+      .expect(200);
+    expect(res.headers['x-content-type-options']).toBe('nosniff');
+  });
+
   it('POST /auth/login issues tokens for dev admin', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/login')

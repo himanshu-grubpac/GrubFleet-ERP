@@ -281,6 +281,26 @@ describe('Organisation clients (integration)', () => {
       expect(row.metadata).toEqual({ reason: 'Audit lattice closure' });
     });
 
+    it('returns 400 for invalid POC contactNumber on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/clients')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildClientCreatePayload({
+            pointsOfContact: [
+              {
+                name: 'Bad Phone',
+                contactNumber: 'not-a-phone',
+                email: 'bad-phone@grubpac.local',
+                isPrimary: true,
+              },
+            ],
+          }),
+        )
+        .expect(400);
+    });
+
     it('returns 400 for invalid addressCountry on create', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/organisation/clients')

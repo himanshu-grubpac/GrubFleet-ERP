@@ -7,6 +7,7 @@ import {
 import { AssetRegisterRepository } from '../asset-register/repositories/asset-register.repository';
 import type { CreateAmcSubscriberDto } from './dto/create-amc-subscriber.dto';
 import type { CreateAmcTierDto } from './dto/create-amc-tier.dto';
+import { formatAmcTierPriceDisplayLabelFromPaise } from './utils/amc-tier-price.util';
 import type { CreateMaintenanceScheduleDto } from './dto/create-maintenance-schedule.dto';
 import type { ListAmcSubscribersQueryDto } from './dto/list-amc-subscribers-query.dto';
 import type { UpdateAmcTierDto } from './dto/update-amc-tier.dto';
@@ -288,7 +289,10 @@ export class WorkshopAmcService {
         organizationId: dto.organizationId,
         name: dto.name.trim(),
         description: dto.description?.trim() ?? null,
-        priceDisplayLabel: dto.priceDisplayLabel?.trim() ?? null,
+        priceDisplayLabel:
+          dto.pricePaise !== undefined
+            ? formatAmcTierPriceDisplayLabelFromPaise(dto.pricePaise)
+            : null,
         subscriberCount: 0,
         isActive: true,
       });
@@ -319,8 +323,13 @@ export class WorkshopAmcService {
         ...(dto.description !== undefined
           ? { description: dto.description?.trim() ?? null }
           : {}),
-        ...(dto.priceDisplayLabel !== undefined
-          ? { priceDisplayLabel: dto.priceDisplayLabel?.trim() ?? null }
+        ...(dto.pricePaise !== undefined
+          ? {
+              priceDisplayLabel:
+                dto.pricePaise === null
+                  ? null
+                  : formatAmcTierPriceDisplayLabelFromPaise(dto.pricePaise),
+            }
           : {}),
       });
     } catch (error) {

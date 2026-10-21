@@ -1,5 +1,7 @@
 import { HttpException, HttpStatus, Inject, Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
+import type { Env } from '../../config/env.schema';
 import { REDIS_CLIENT } from '../../infrastructure/redis/redis.tokens';
 import {
   LOGIN_RATE_LIMIT_MAX,
@@ -8,7 +10,10 @@ import {
 
 @Injectable()
 export class LoginRateLimiterService {
-  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+  constructor(
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly configService: ConfigService<Env, true>,
+  ) {}
 
   async assertAllowed(
     email: string,
@@ -41,7 +46,22 @@ export class LoginRateLimiterService {
       if (err instanceof HttpException) {
         throw err;
       }
-      // Fail open when Redis is unavailable so auth still works in degraded mode.
+      if (this.shouldFailClosedWhenRedisUnavailable()) {
+        throw new HttpException(
+          {
+            message: 'Login is temporarily unavailable. Try again later.',
+            code: 'LOGIN_RATE_LIMIT_UNAVAILABLE',
+          },
+          HttpStatus.SERVICE_UNAVAILABLE,
+        );
+      }
+      // Development only: fail open when Redis is unavailable.
     }
+  }
+
+  /** Production tiers fail closed on Redis errors; local dev may proceed without throttling. */
+  private shouldFailClosedWhenRedisUnavailable(): boolean {
+    const appEnv = this.configService.get('APP_ENV', { infer: true });
+    return appEnv !== 'development';
   }
 }

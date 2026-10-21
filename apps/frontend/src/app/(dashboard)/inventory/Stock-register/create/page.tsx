@@ -10,7 +10,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { createSparePartApi } from "@/lib/api/inventory/stock-register";
 import { inventoryStockRegisterDetailHref } from "@/lib/navigation/inventory-static-routes";
 import {
-  showErrorToast,
+  showApiErrorToast,
   showSparePartCreatedToast,
 } from "@/lib/toast/show-toast";
 
@@ -40,7 +40,7 @@ export default function StockCreatePage() {
       showSparePartCreatedToast(result.partName);
       router.push(inventoryStockRegisterDetailHref(result.id));
     },
-    onError: () => showErrorToast("Failed to save part."),
+    onError: (error) => showApiErrorToast(error, "Failed to save part."),
   });
 
   if (!canCreate) {

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
@@ -22,6 +23,8 @@ import { resolveFleetClientCompanyDisplayName } from './utils/fleet-client-displ
 
 @Injectable()
 export class FleetClientsService {
+  private readonly logger = new Logger(FleetClientsService.name);
+
   constructor(
     private readonly repo: FleetLeasingRepository,
     private readonly orgRepo: OrganisationRepository,
@@ -126,15 +129,28 @@ export class FleetClientsService {
         orgClientIds,
       );
 
-    const fleetRows = await Promise.all(
+    const resolvedRows = await Promise.all(
       orgRows.map(async (orgRow) => {
         const existing = existingByOrgClientId.get(orgRow.id);
         if (existing) {
           return existing;
         }
-        return this.syncFromOrganisationClient(query.organizationId, orgRow.id);
+        try {
+          return await this.syncFromOrganisationClient(
+            query.organizationId,
+            orgRow.id,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `Fleet client list: skipping organisation client ${orgRow.id} after sync failure — ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+          return null;
+        }
       }),
     );
+    const fleetRows = resolvedRows.filter((row) => row !== null);
 
     const fleetClientIds = fleetRows.map((row) => row.id);
     const [contractCounts, primaryPocsByClientId] = await Promise.all([
@@ -249,41 +265,16 @@ export class FleetClientsService {
   }
 
   private toOrganisationCreateDto(dto: CreateFleetClientDto) {
-    const hasStructuredAddress =
-      Boolean(dto.addressLine1?.trim()) &&
-      Boolean(dto.addressCountry?.trim()) &&
-      Boolean(dto.addressState?.trim()) &&
-      Boolean(dto.addressDistrict?.trim()) &&
-      Boolean(dto.addressPincode?.trim());
-
-    const addressLine1 = hasStructuredAddress
-      ? dto.addressLine1!.trim()
-      : dto.address?.trim() || dto.companyName.trim();
-    const addressCountry = (
-      hasStructuredAddress ? dto.addressCountry! : (dto.addressCountry ?? 'IN')
-    )
-      .trim()
-      .toUpperCase();
-    const addressState = hasStructuredAddress
-      ? dto.addressState!.trim()
-      : dto.addressState?.trim() || 'Not specified';
-    const addressDistrict = hasStructuredAddress
-      ? dto.addressDistrict!.trim()
-      : dto.addressDistrict?.trim() || addressState;
-    const addressPincode = hasStructuredAddress
-      ? dto.addressPincode!.trim()
-      : dto.addressPincode?.trim() || '110001';
-
     return {
       organizationId: dto.organizationId,
       clientName: dto.companyName.trim(),
-      addressLine1,
+      addressLine1: dto.addressLine1.trim(),
       addressLine2: dto.addressLine2?.trim(),
       addressCity: dto.addressCity?.trim(),
-      addressCountry,
-      addressState,
-      addressDistrict,
-      addressPincode,
+      addressCountry: dto.addressCountry.trim().toUpperCase(),
+      addressState: dto.addressState.trim(),
+      addressDistrict: dto.addressDistrict.trim(),
+      addressPincode: dto.addressPincode.trim(),
       pointsOfContact: dto.pointsOfContact,
     };
   }

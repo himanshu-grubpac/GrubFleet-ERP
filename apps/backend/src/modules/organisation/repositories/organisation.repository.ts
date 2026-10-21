@@ -733,6 +733,28 @@ export class OrganisationRepository {
     return { rows, total: countRows[0]?.count ?? 0 };
   }
 
+  async findDriverIdByNormalizedLicenseNumber(
+    organizationId: string,
+    licenseNumber: string,
+    excludeDriverId?: string,
+  ): Promise<string | undefined> {
+    const normalized = licenseNumber.trim().replace(/\s+/g, ' ').toUpperCase();
+    if (!normalized) return undefined;
+    const conditions = [
+      eq(organisationDrivers.organizationId, organizationId),
+      sql`upper(trim(${organisationDrivers.licenseNumber})) = ${normalized}`,
+    ];
+    if (excludeDriverId) {
+      conditions.push(sql`${organisationDrivers.id} <> ${excludeDriverId}`);
+    }
+    const [row] = await this.db
+      .select({ id: organisationDrivers.id })
+      .from(organisationDrivers)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id;
+  }
+
   async getDriverInOrg(
     organizationId: string,
     driverId: string,

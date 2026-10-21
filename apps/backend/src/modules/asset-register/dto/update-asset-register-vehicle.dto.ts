@@ -2,16 +2,22 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
   IsInt,
-  IsNumber,
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
+import {
+  DECIMAL_MONEY_PATTERN,
+  DECIMAL_MONEY_PATTERN_MESSAGE,
+} from '@grubpac/validation';
+import { IsValidChassisVin } from '../../../common/decorators/is-valid-chassis-vin.decorator';
+import { IsValidVehicleRegistrationNumber } from '../../../common/decorators/is-valid-vehicle-registration-number.decorator';
 import {
   ASSET_REGISTER_VEHICLE_CHASSIS_MAX_LENGTH,
   ASSET_REGISTER_VEHICLE_MODEL_YEAR_MAX,
@@ -34,6 +40,7 @@ export class UpdateAssetRegisterVehicleDto {
   @IsString()
   @MinLength(1)
   @MaxLength(ASSET_REGISTER_VEHICLE_REGISTRATION_MAX_LENGTH)
+  @IsValidVehicleRegistrationNumber()
   registrationNumber?: string;
 
   @ApiPropertyOptional({ maxLength: ASSET_REGISTER_VEHICLE_CHASSIS_MAX_LENGTH })
@@ -41,6 +48,7 @@ export class UpdateAssetRegisterVehicleDto {
   @IsString()
   @MinLength(1)
   @MaxLength(ASSET_REGISTER_VEHICLE_CHASSIS_MAX_LENGTH)
+  @IsValidChassisVin()
   chassisNumber?: string;
 
   @ApiPropertyOptional()
@@ -77,11 +85,11 @@ export class UpdateAssetRegisterVehicleDto {
   @IsDateString({ strict: true })
   insuranceEndDate?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ example: '12000.00' })
   @IsOptional()
-  @IsNumber()
-  @Min(0)
-  insurancePremium?: number;
+  @IsString()
+  @Matches(DECIMAL_MONEY_PATTERN, { message: DECIMAL_MONEY_PATTERN_MESSAGE })
+  insurancePremium?: string;
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()

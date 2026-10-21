@@ -366,12 +366,13 @@ describe('Asset Register — asset classes (integration)', () => {
             fuelSystem: undefined,
             color: undefined,
             colorCode: undefined,
-            fuelType: `Petrol${unique}`,
+            modelName: `Partial Spec ${unique}`,
+            fuelType: 'Petrol',
           }),
         )
         .expect(201);
       expect((res.body as AssetClassDetail).name).toMatch(
-        /^0_na_0_petrol\d+_na_na$/,
+        /^0_partial-spec-\d+_0_petrol_na_na$/,
       );
     });
 
@@ -396,6 +397,44 @@ describe('Asset Register — asset classes (integration)', () => {
       expect((res.body as AssetClassDetail).name).toMatch(
         /^2026_activa-\d+_150_petrol_efi_bl$/,
       );
+    });
+
+    it('recomputes generated name when name-spec fields change on PATCH', async () => {
+      const unique = Date.now();
+      const id = await createAssetClassAsAdmin({
+        modelName: `PatchName ${unique}`,
+        manufacturingYear: 2024,
+        engineDisplacementCc: 125,
+        fuelType: 'Petrol',
+        fuelSystem: 'carb',
+        colorCode: 'rd',
+      });
+      const before = await request(app.getHttpServer())
+        .get(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const beforeName = (before.body as AssetClassDetail).name;
+
+      const patchRes = await request(app.getHttpServer())
+        .patch(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ manufacturingYear: 2026, engineDisplacementCc: 150 })
+        .expect(200);
+      const afterName = (patchRes.body as AssetClassDetail).name;
+      expect(afterName).not.toBe(beforeName);
+      expect(afterName).toMatch(/^2026_patchname-\d+_150_petrol_carb_rd$/);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ brand: 'Only brand label change' })
+        .expect(200);
     });
 
     it('lists only inactive classes when status=inactive', async () => {

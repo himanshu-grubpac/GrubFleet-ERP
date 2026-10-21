@@ -45,6 +45,11 @@ export interface LeaseTerms {
     billingFrequency: "monthly" | "quarterly" | "annual";
 }
 
+export interface TermsDraftSnapshot {
+    terms: LeaseTerms;
+    assetLinesWithRates: AssetLine[];
+}
+
 interface TermsStepProps {
     assetLines: AssetLine[];
     initialTerms?: Partial<LeaseTerms>;
@@ -53,6 +58,9 @@ interface TermsStepProps {
         terms: LeaseTerms,
         assetLines: AssetLine[],
     ) => void | Promise<void>;
+    onSaveDraft?: (snapshot: TermsDraftSnapshot) => void | Promise<void>;
+    isSaveDraftPending?: boolean;
+    showSaveDraft?: boolean;
 }
 
 function rateFieldLabel(assetClass: string): string {
@@ -118,6 +126,9 @@ export default function TermsStep({
     initialTerms,
     onBack,
     onContinue,
+    onSaveDraft,
+    isSaveDraftPending = false,
+    showSaveDraft = false,
 }: TermsStepProps) {
     const [startDate, setStartDate] = useState(
         initialTerms?.startDate ?? "",
@@ -205,6 +216,19 @@ export default function TermsStep({
 
     const canSubmit = validationSummary.length === 0;
 
+    const buildTermsSnapshot = (): TermsDraftSnapshot => ({
+        terms: {
+            startDate,
+            termMonths,
+            securityDeposit,
+            billingFrequency,
+        },
+        assetLinesWithRates: assetLines.map((line) => ({
+            ...line,
+            ratePerVehicleMonth: lineRates[line.id] ?? "",
+        })),
+    });
+
     const handleContinue = async () => {
         setHasAttemptedSubmit(true);
 
@@ -212,26 +236,23 @@ export default function TermsStep({
             return;
         }
 
-        const linesWithRates: AssetLine[] = assetLines.map((line) => ({
-            ...line,
-            ratePerVehicleMonth: lineRates[line.id] ?? "",
-        }));
+        const { terms: snapshotTerms, assetLinesWithRates } =
+            buildTermsSnapshot();
 
         setIsContinuing(true);
 
         try {
-            await onContinue(
-                {
-                    startDate,
-                    termMonths,
-                    securityDeposit,
-                    billingFrequency,
-                },
-                linesWithRates,
-            );
+            await onContinue(snapshotTerms, assetLinesWithRates);
         } finally {
             setIsContinuing(false);
         }
+    };
+
+    const handleSaveDraft = () => {
+        if (!onSaveDraft || isSaveDraftPending || isContinuing) {
+            return;
+        }
+        void onSaveDraft(buildTermsSnapshot());
     };
 
     const renderRateField = (line: AssetLine) => (
@@ -424,6 +445,17 @@ export default function TermsStep({
                     cancelLabel="Back"
                     saveLabel="Continue"
                     savingLabel="Saving..."
+                    secondaryAction={
+                        showSaveDraft && onSaveDraft
+                            ? {
+                                  label: "Save draft",
+                                  pendingLabel: "Saving…",
+                                  isPending: isSaveDraftPending,
+                                  disabled: isContinuing || isSaveDraftPending,
+                                  onClick: handleSaveDraft,
+                              }
+                            : undefined
+                    }
                 />
             </div>
         </>

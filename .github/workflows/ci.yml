@@ -73,6 +73,8 @@ jobs:
         run: npm run lint -w backend
       - name: Typecheck backend
         run: npm run typecheck -w backend
+      - name: OpenAPI route coverage
+        run: npm run audit:openapi-routes
       - name: Test backend
         run: npm run test -w backend
       - name: Build backend

@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -8,7 +9,10 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import type { AppDatabase } from '../../database/database.module';
+import { DRIZZLE } from '../../database/drizzle.tokens';
 import { AuditService } from '../audit/audit.service';
+import { FleetLeasingRepository } from '../fleet-leasing/repositories/fleet-leasing.repository';
 import type { CreateAssetClassDto } from './dto/create-asset-class.dto';
 import type { ListAssetClassesQueryDto } from './dto/list-asset-classes-query.dto';
 import type { UpdateAssetClassDto } from './dto/update-asset-class.dto';
@@ -21,11 +25,24 @@ import {
   buildAssetClassSpecLabel,
 } from './utils/asset-class-name.util';
 
+const NAME_SPEC_FIELDS = [
+  'modelName',
+  'manufacturingYear',
+  'engineDisplacementCc',
+  'fuelType',
+  'fuelSystem',
+  'colorCode',
+] as const;
+
+type NameSpecField = (typeof NAME_SPEC_FIELDS)[number];
+
 @Injectable()
 export class AssetClassesService {
   constructor(
     private readonly repo: AssetRegisterRepository,
     private readonly audit: AuditService,
+    private readonly fleetLeasingRepo: FleetLeasingRepository,
+    @Inject(DRIZZLE) private readonly db: AppDatabase,
   ) {}
 
   async list(query: ListAssetClassesQueryDto) {
@@ -203,7 +220,35 @@ export class AssetClassesService {
       });
     }
 
-    await this.repo.updateAssetClass(organizationId, id, patch);
+    const mergedRow = { ...existing, ...patch };
+    let nextName: string | undefined;
+    if (this.didNameSpecChange(existing, dto)) {
+      const nameSpec = this.nameSpecFromRow(mergedRow);
+      nextName = await this.allocateUniqueClassName(
+        organizationId,
+        nameSpec,
+        id,
+      );
+      if (nextName !== existing.name) {
+        patch.name = nextName;
+      }
+    }
+
+    if (nextName && nextName !== existing.name) {
+      await this.db.transaction(async (tx) => {
+        await this.repo.updateAssetClassInTx(tx, organizationId, id, patch);
+        await this.fleetLeasingRepo.cascadeAssetClassDisplayName(
+          tx,
+          organizationId,
+          id,
+          existing.name,
+          nextName,
+        );
+      });
+    } else {
+      await this.repo.updateAssetClass(organizationId, id, patch);
+    }
+
     return this.getById(organizationId, id);
   }
 
@@ -274,9 +319,64 @@ export class AssetClassesService {
     };
   }
 
+  private nameSpecFromRow(row: AssetRegisterAssetClassRow) {
+    return {
+      brand: row.brand,
+      modelName: row.modelName,
+      manufacturingYear: row.manufacturingYear,
+      engineDisplacementCc: row.engineDisplacementCc,
+      fuelType: row.fuelType,
+      fuelSystem: row.fuelSystem,
+      color: row.color,
+      colorCode: row.colorCode,
+    };
+  }
+
+  private didNameSpecChange(
+    existing: AssetRegisterAssetClassRow,
+    dto: UpdateAssetClassDto,
+  ): boolean {
+    for (const field of NAME_SPEC_FIELDS) {
+      if (!this.dtoTouchesNameSpecField(dto, field)) {
+        continue;
+      }
+      const next = this.normalizedNameSpecValue(field, dto, existing);
+      const prev = this.normalizedNameSpecValue(field, undefined, existing);
+      if (next !== prev) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private dtoTouchesNameSpecField(
+    dto: UpdateAssetClassDto,
+    field: NameSpecField,
+  ): boolean {
+    return (dto as Record<string, unknown>)[field] !== undefined;
+  }
+
+  private normalizedNameSpecValue(
+    field: NameSpecField,
+    dto: UpdateAssetClassDto | undefined,
+    existing: AssetRegisterAssetClassRow,
+  ): string | number {
+    const raw =
+      dto && (dto as Record<string, unknown>)[field] !== undefined
+        ? (dto as Record<string, unknown>)[field]
+        : existing[field];
+    if (typeof raw === 'string') {
+      return raw.trim().toLowerCase();
+    }
+    if (typeof raw === 'number') {
+      return raw;
+    }
+    return '';
+  }
+
   private async allocateUniqueClassName(
     organizationId: string,
-    spec: ReturnType<AssetClassesService['specFromCreateDto']>,
+    spec: ReturnType<AssetClassesService['nameSpecFromRow']>,
     excludeClassId?: string,
   ): Promise<string> {
     const base = buildAssetClassNameFromSpec(spec);

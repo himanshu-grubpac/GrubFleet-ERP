@@ -13,6 +13,7 @@ import {
   sql,
 } from 'drizzle-orm';
 import type { AppDatabase } from '../../../database/database.module';
+import { normalizeAssetRegisterRegistrationNumber } from '../utils/registration-number.util';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
 import {
   assetRegisterAssetClasses,
@@ -124,7 +125,11 @@ export class AssetRegisterRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    options: { search?: string; isActive?: boolean },
+    options: {
+      search?: string;
+      isActive?: boolean;
+      orderByName?: boolean;
+    },
   ): Promise<{ rows: AssetRegisterAssetClassRow[]; total: number }> {
     const conditions = [
       eq(assetRegisterAssetClasses.organizationId, organizationId),
@@ -151,8 +156,15 @@ export class AssetRegisterRepository {
         .from(assetRegisterAssetClasses)
         .where(where)
         .orderBy(
-          desc(assetRegisterAssetClasses.createdAt),
-          desc(assetRegisterAssetClasses.id),
+          ...(options.orderByName
+            ? [
+                asc(assetRegisterAssetClasses.name),
+                asc(assetRegisterAssetClasses.id),
+              ]
+            : [
+                desc(assetRegisterAssetClasses.createdAt),
+                desc(assetRegisterAssetClasses.id),
+              ]),
         )
         .limit(pageSize)
         .offset(offset),
@@ -162,6 +174,23 @@ export class AssetRegisterRepository {
         .where(where),
     ]);
     return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async updateAssetClassInTx(
+    tx: Pick<AppDatabase, 'update'>,
+    organizationId: string,
+    id: string,
+    patch: Parameters<AssetRegisterRepository['updateAssetClass']>[2],
+  ): Promise<void> {
+    await tx
+      .update(assetRegisterAssetClasses)
+      .set({ ...patch, updatedAt: new Date() })
+      .where(
+        and(
+          eq(assetRegisterAssetClasses.organizationId, organizationId),
+          eq(assetRegisterAssetClasses.id, id),
+        ),
+      );
   }
 
   async updateAssetClass(
@@ -466,12 +495,12 @@ export class AssetRegisterRepository {
     registrationNumber: string,
     excludeVehicleId?: string,
   ): Promise<string | undefined> {
-    const trimmed = registrationNumber.trim();
-    if (!trimmed) return undefined;
-    const normalized = trimmed.toUpperCase();
+    const normalized =
+      normalizeAssetRegisterRegistrationNumber(registrationNumber);
+    if (!normalized) return undefined;
     const conditions = [
       eq(assetRegisterVehicles.organizationId, organizationId),
-      sql`upper(trim(${assetRegisterVehicles.registrationNumber})) = ${normalized}`,
+      sql`regexp_replace(upper(trim(${assetRegisterVehicles.registrationNumber})), '\\s+', ' ', 'g') = ${normalized}`,
     ];
     if (excludeVehicleId) {
       conditions.push(ne(assetRegisterVehicles.id, excludeVehicleId));

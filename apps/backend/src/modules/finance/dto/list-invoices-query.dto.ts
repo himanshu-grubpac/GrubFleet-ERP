@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsUUID, MaxLength } from 'class-validator';
+import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import {
   FINANCE_INVOICE_STATUSES,
@@ -15,6 +15,7 @@ export class ListInvoicesQueryDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({ maxLength: 120 })
   @IsOptional()
+  @IsString()
   @MaxLength(120)
   search?: string;
 

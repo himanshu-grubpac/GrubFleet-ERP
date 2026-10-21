@@ -1,8 +1,10 @@
-/** Trim + uppercase for org-scoped registration uniqueness (matches DB functional index). */
+import { normalizeVehicleRegistrationNumber } from '@grubpac/validation';
+
+/** Trim, collapse spaces, uppercase — shared with DTO validation and uniqueness checks. */
 export function normalizeAssetRegisterRegistrationNumber(
   registrationNumber: string,
 ): string {
-  return registrationNumber.trim().toUpperCase();
+  return normalizeVehicleRegistrationNumber(registrationNumber);
 }
 
 export const ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE =

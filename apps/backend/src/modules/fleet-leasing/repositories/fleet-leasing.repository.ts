@@ -20,6 +20,7 @@ import {
   fleetClients,
   fleetDamageRecords,
   fleetReturnInspections,
+  financeInvoiceLines,
   fleetVehicleAllocations,
   fleetVehicles,
   organisationClients,
@@ -107,6 +108,7 @@ export class FleetLeasingRepository {
           clientCompanyName: sql<
             string | null
           >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+          fleetOrganisationClientId: fleetClients.organisationClientId,
         })
         .from(leaseContracts)
         .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
@@ -436,18 +438,63 @@ export class FleetLeasingRepository {
   async insertContract(
     values: typeof leaseContracts.$inferInsert,
   ): Promise<typeof leaseContracts.$inferSelect> {
-    const { clientId, ...rest } = values;
-    const insertValues =
-      clientId === null ||
-      clientId === undefined ||
-      (typeof clientId === 'string' && clientId.trim() === '')
-        ? rest
-        : { ...rest, clientId };
+    const insertValues = this.normalizeContractInsertValues(values);
     const [row] = await this.db
       .insert(leaseContracts)
       .values(insertValues)
       .returning();
     return row;
+  }
+
+  /** Draft create — contract row + asset lines + vehicle links in one transaction. */
+  async insertDraftContractWithNested(input: {
+    contract: typeof leaseContracts.$inferInsert;
+    assetLines: Omit<
+      typeof leaseContractAssetLines.$inferInsert,
+      'id' | 'contractId' | 'createdAt' | 'updatedAt'
+    >[];
+    vehicleIds: string[];
+    awaitingFutureAssets: boolean;
+  }): Promise<typeof leaseContracts.$inferSelect> {
+    const insertValues = this.normalizeContractInsertValues(input.contract);
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(leaseContracts)
+        .values({
+          ...insertValues,
+          awaitingFutureAssets: input.awaitingFutureAssets,
+        })
+        .returning();
+      if (input.assetLines.length > 0) {
+        await tx.insert(leaseContractAssetLines).values(
+          input.assetLines.map((line, sortOrder) => ({
+            ...line,
+            contractId: row.id,
+            sortOrder,
+          })),
+        );
+      }
+      if (input.vehicleIds.length > 0) {
+        await tx.insert(leaseContractVehicles).values(
+          input.vehicleIds.map((vehicleId) => ({
+            contractId: row.id,
+            vehicleId,
+          })),
+        );
+      }
+      return row;
+    });
+  }
+
+  private normalizeContractInsertValues(
+    values: typeof leaseContracts.$inferInsert,
+  ) {
+    const { clientId, ...rest } = values;
+    return clientId === null ||
+      clientId === undefined ||
+      (typeof clientId === 'string' && clientId.trim() === '')
+      ? rest
+      : { ...rest, clientId };
   }
 
   async updateContract(
@@ -1725,5 +1772,43 @@ export class FleetLeasingRepository {
           .where(eq(fleetVehicles.id, toVehicleId));
       }
     });
+  }
+
+  /**
+   * When asset register recomputes class `name`, update denormalized varchar copies.
+   * Lease lines match by stable assetClassId; fleet_vehicles still keyed by legacy name string.
+   */
+  async cascadeAssetClassDisplayName(
+    tx: Pick<AppDatabase, 'update'>,
+    organizationId: string,
+    assetClassId: string,
+    oldName: string,
+    newName: string,
+  ): Promise<void> {
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    if (!trimmedNew || trimmedOld === trimmedNew) {
+      return;
+    }
+
+    await tx
+      .update(leaseContractAssetLines)
+      .set({ assetClass: trimmedNew, updatedAt: new Date() })
+      .where(eq(leaseContractAssetLines.assetClassId, assetClassId));
+
+    await tx
+      .update(fleetVehicles)
+      .set({ assetClass: trimmedNew, updatedAt: new Date() })
+      .where(
+        and(
+          eq(fleetVehicles.organizationId, organizationId),
+          eq(fleetVehicles.assetClass, trimmedOld),
+        ),
+      );
+
+    await tx
+      .update(financeInvoiceLines)
+      .set({ assetClassName: trimmedNew })
+      .where(eq(financeInvoiceLines.assetClassId, assetClassId));
   }
 }

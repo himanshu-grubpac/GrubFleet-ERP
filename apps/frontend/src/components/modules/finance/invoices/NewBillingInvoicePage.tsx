@@ -31,7 +31,7 @@ import {
 } from "@/lib/navigation/finance-static-routes";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoiceCreatedToast,
   showFinanceInvoiceUpdatedToast,
 } from "@/lib/toast/show-toast";
@@ -248,8 +248,8 @@ export default function NewBillingInvoicePage() {
       }
     },
 
-    onError: () => {
-      showErrorToast(FINANCE_INVOICE_SAVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_INVOICE_SAVE_ERROR);
     },
 
     onSettled: () => {

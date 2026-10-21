@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -34,18 +35,22 @@ export class AssetClassesController {
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
   @ApiOperation({
     summary:
-      'Distinct active asset class names from asset register (wizard dropdown)',
+      'Active asset register classes (wizard dropdown — id, name, specLabel)',
   })
   async list(@Query() query: ListFleetAssetClassesQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
-    const { rows, total } =
-      await this.assetRegisterCatalog.listDistinctActiveAssetClassNames(
+    const { catalog, total } =
+      await this.assetRegisterCatalog.listActiveAssetClassCatalog(
         query.organizationId,
         page,
         pageSize,
       );
-    return toPaginatedResult(rows, page, pageSize, total);
+    const names = catalog.map((row) => row.name);
+    return {
+      ...toPaginatedResult(names, page, pageSize, total),
+      catalog,
+    };
   }
 
   @Get('availability')
@@ -57,17 +62,38 @@ export class AssetClassesController {
   })
   async preview(
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
-    @Query('assetClass') assetClass: string,
+    @Query('assetClass') assetClass: string | undefined,
+    @Query('assetClassId') assetClassId: string | undefined,
     @Query('committedQuantity') committedQuantityRaw: string,
   ) {
     const committedQuantity = Number(committedQuantityRaw);
+    let className: string;
+    if (assetClassId?.trim()) {
+      const inv =
+        await this.assetRegisterCatalog.getAssetClassInventoryByClassId(
+          organizationId,
+          assetClassId.trim(),
+        );
+      className = inv.name;
+      return computeAssetLineAvailability(
+        className,
+        committedQuantity,
+        inv.availableNow,
+        inv.inbound,
+        false,
+      );
+    }
+    if (!assetClass?.trim()) {
+      throw new BadRequestException('assetClass or assetClassId is required');
+    }
+    className = assetClass.trim();
     const { availableNow, inbound } =
       await this.assetRegisterCatalog.getAssetClassInventory(
         organizationId,
-        assetClass,
+        className,
       );
     return computeAssetLineAvailability(
-      assetClass,
+      className,
       committedQuantity,
       availableNow,
       inbound,
@@ -83,17 +109,35 @@ export class AssetClassesController {
     summary: 'Batch availability preview for wizard step 2 (LEASE-03 table)',
   })
   async previewBatch(@Body() dto: PreviewAssetAvailabilityBatchDto) {
-    const classNames = dto.lines.map((line) => line.assetClass);
-    const inventoryByClass =
-      await this.assetRegisterCatalog.getAssetClassInventoryBatch(
-        dto.organizationId,
-        classNames,
-      );
-    const lines = dto.lines.map((line) => {
-      const availableNow = inventoryByClass.get(line.assetClass.trim()) ?? 0;
+    const resolvedLines = await Promise.all(
+      dto.lines.map((line) =>
+        this.assetRegisterCatalog.resolveAssetClassForAvailabilityPreview(
+          dto.organizationId,
+          {
+            assetClass: line.assetClass,
+            assetClassId: line.assetClassId,
+          },
+        ),
+      ),
+    );
+    const classIds = resolvedLines
+      .map((row) => row.id)
+      .filter((id): id is string => Boolean(id));
+    const inventoryById =
+      classIds.length > 0
+        ? await this.assetRegisterCatalog.getAssetClassInventoryBatchByIds(
+            dto.organizationId,
+            classIds,
+          )
+        : new Map<string, number>();
+    const lines = dto.lines.map((line, index) => {
+      const resolved = resolvedLines[index];
+      const availableNow = resolved.id
+        ? (inventoryById.get(resolved.id) ?? 0)
+        : 0;
       const inbound = 0;
       return computeAssetLineAvailability(
-        line.assetClass,
+        resolved.name,
         line.committedQuantity,
         availableNow,
         inbound,

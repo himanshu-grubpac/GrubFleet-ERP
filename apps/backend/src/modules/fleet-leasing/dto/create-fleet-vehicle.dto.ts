@@ -8,6 +8,8 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsValidChassisVin } from '../../../common/decorators/is-valid-chassis-vin.decorator';
+import { IsValidVehicleRegistrationNumber } from '../../../common/decorators/is-valid-vehicle-registration-number.decorator';
 
 export class CreateFleetVehicleDto {
   @ApiProperty()
@@ -17,19 +19,21 @@ export class CreateFleetVehicleDto {
   @ApiProperty()
   @IsString()
   @MaxLength(64)
+  @IsValidChassisVin()
   vin!: string;
 
   @ApiProperty()
   @IsString()
   @MaxLength(32)
+  @IsValidVehicleRegistrationNumber()
   registrationNo!: string;
 
   @ApiProperty()
-  @IsDateString()
+  @IsDateString({ strict: true })
   registrationExpiry!: string;
 
   @ApiProperty()
-  @IsDateString()
+  @IsDateString({ strict: true })
   insuranceExpiry!: string;
 
   @ApiPropertyOptional()

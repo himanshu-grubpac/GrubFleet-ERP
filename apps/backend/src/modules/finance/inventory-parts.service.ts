@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -31,29 +31,16 @@ export class InventoryPartsService {
 
   async create(dto: CreateInventoryPartDto) {
     const name = dto.name.trim();
-    try {
-      const row = await this.repo.createInventoryPart({
-        organizationId: dto.organizationId,
-        name,
-        partCode: dto.partCode?.trim() || null,
-        isActive: true,
-      });
-      return {
-        id: row.id,
-        name: row.name,
-        partCode: row.partCode,
-      };
-    } catch (err: unknown) {
-      const code =
-        err && typeof err === 'object' && 'code' in err
-          ? String((err as { code: string }).code)
-          : '';
-      if (code === '23505') {
-        throw new ConflictException(
-          'Part name already exists in this organization',
-        );
-      }
-      throw err;
-    }
+    const row = await this.repo.createInventoryPart({
+      organizationId: dto.organizationId,
+      name,
+      partCode: dto.partCode?.trim() || null,
+      isActive: true,
+    });
+    return {
+      id: row.id,
+      name: row.name,
+      partCode: row.partCode,
+    };
   }
 }

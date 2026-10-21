@@ -81,6 +81,7 @@ async function main() {
   await waitForPort('127.0.0.1', 5432, 'Postgres');
   await waitForPort('127.0.0.1', 6379, 'Redis');
 
+  runStep('OpenAPI route coverage', ['run', 'audit:openapi-routes']);
   runStep('Migrate database', ['run', 'db:migrate', '-w', 'backend']);
   // Workspace lint scripts use --max-warnings 0 (same as ci.yml npm run lint).
   runStep('Lint backend', ['run', 'lint', '-w', 'backend']);

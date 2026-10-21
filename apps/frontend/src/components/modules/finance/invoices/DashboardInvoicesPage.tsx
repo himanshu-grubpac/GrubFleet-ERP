@@ -54,7 +54,7 @@ import {
 import {
   FINANCE_INVOICE_CANCEL_ERROR,
   FINANCE_INVOICE_REMOVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoiceCancelledToast,
   showFinanceInvoiceRemovedToast,
 } from "@/lib/toast/show-toast";
@@ -215,11 +215,7 @@ export default function DashboardInvoicesPage() {
       invalidateInvoiceQueries();
     },
     onError: (error) => {
-      showErrorToast(
-        error instanceof Error && error.message
-          ? error.message
-          : FINANCE_INVOICE_CANCEL_ERROR,
-      );
+      showApiErrorToast(error, FINANCE_INVOICE_CANCEL_ERROR);
     },
   });
 
@@ -236,11 +232,7 @@ export default function DashboardInvoicesPage() {
       invalidateInvoiceQueries();
     },
     onError: (error) => {
-      showErrorToast(
-        error instanceof Error && error.message
-          ? error.message
-          : FINANCE_INVOICE_REMOVE_ERROR,
-      );
+      showApiErrorToast(error, FINANCE_INVOICE_REMOVE_ERROR);
     },
   });
 

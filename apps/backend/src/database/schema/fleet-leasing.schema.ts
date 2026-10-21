@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   boolean,
   index,
@@ -13,6 +13,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { assetRegisterAssetClasses } from './asset-register.schema';
 import { organisationClients } from './organisation.schema';
 
 /** Flow 00 + Figma list/detail (Completed → closed/concluded). */
@@ -221,6 +222,11 @@ export const leaseContractAssetLines = pgTable(
       .notNull()
       .references(() => leaseContracts.id, { onDelete: 'cascade' }),
     assetClass: varchar('asset_class', { length: 64 }).notNull(),
+    /** Stable FK to asset register class; assetClass remains denormalized name for display/legacy. */
+    assetClassId: uuid('asset_class_id').references(
+      () => assetRegisterAssetClasses.id,
+      { onDelete: 'restrict' },
+    ),
     committedQuantity: integer('committed_quantity').notNull(),
     ratePerVehicleMonth: numeric('rate_per_vehicle_month', {
       precision: 14,
@@ -253,6 +259,10 @@ export const leaseContractAssetLines = pgTable(
       t.contractId,
       t.assetClass,
     ),
+    index('lease_contract_asset_lines_asset_class_id_idx').on(t.assetClassId),
+    uniqueIndex('lease_contract_asset_lines_contract_class_id_uidx')
+      .on(t.contractId, t.assetClassId)
+      .where(sql`${t.assetClassId} is not null`),
   ],
 );
 

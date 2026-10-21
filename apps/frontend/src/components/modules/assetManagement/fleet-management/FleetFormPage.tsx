@@ -23,6 +23,10 @@ import {
     mapAssetRegisterVehicleTypeToUiLabel,
 } from "@/lib/api/asset-register/mappers";
 import FormActions from "@/components/common/FormActions";
+import {
+    getVehicleRegistrationValidationError,
+    normalizeVehicleRegistrationNumber,
+} from "@grubpac/validation";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -314,6 +318,12 @@ export default function CreateFleetVehicleForm({
             if (message) errors[field] = message;
         }
 
+        if (form.registrationNumber.trim()) {
+            const regError = getVehicleRegistrationValidationError(
+                form.registrationNumber,
+            );
+            if (regError) errors.registrationNumber = regError;
+        }
 
         if (form.modelYear.trim()) {
             const year = Number(form.modelYear.trim());
@@ -363,7 +373,9 @@ export default function CreateFleetVehicleForm({
                 assetClassId: form.assetClassId.trim(),
                 vehicleName: form.vehicleName.trim(),
                 purchaseInvoiceId: form.purchaseInvoiceId.trim(),
-                registrationNumber: form.registrationNumber.trim(),
+                registrationNumber: normalizeVehicleRegistrationNumber(
+                    form.registrationNumber,
+                ),
                 chassisNumber: form.chassisNumber.trim(),
                 modelYear: form.modelYear.trim(),
                 odometerReading: form.odometerReading.trim(),

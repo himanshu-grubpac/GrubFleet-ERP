@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { QueryProvider } from '@/providers/query-provider';
 import { AuthProvider } from '@/providers/auth-provider';
 import { AppToaster } from '@/components/ui/app-toaster';
+import { ChunkLoadRecovery } from '@/components/chunk-load-recovery';
 import './globals.css';
 
 const geistSans = Geist({
@@ -30,6 +31,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <ChunkLoadRecovery />
         <QueryProvider>
           <AuthProvider>
             {children}

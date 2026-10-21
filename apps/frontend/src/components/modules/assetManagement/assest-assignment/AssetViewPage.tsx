@@ -174,12 +174,9 @@ export default function AssetAssignmentViewPage() {
                 throw new Error("Missing auth context");
             }
             const detail = leaseDetailQuery.data;
-            const organisationClientId = detail?.client?.id;
-
-
-            console.log("Lease contract detail:", detail);
-            console.log("Client ID being sent:", organisationClientId);
-            console.log("Selected lease contract ID:", selectedLeaseContractId);
+            const organisationClientId =
+                detail?.client?.organisationClientId ??
+                detail?.client?.id;
             return bulkAssignAssetRegisterVehiclesApi({
                 token,
                 body: {

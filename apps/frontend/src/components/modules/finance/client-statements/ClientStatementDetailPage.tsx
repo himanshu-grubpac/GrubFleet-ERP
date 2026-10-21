@@ -27,7 +27,7 @@ import {
 } from "@/lib/navigation/finance-static-routes";
 import {
   FINANCE_CLIENT_STATEMENT_SEND_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceClientStatementSendRecordedToast,
 } from "@/lib/toast/show-toast";
 
@@ -115,7 +115,8 @@ export default function ClientStatementDetailPage() {
         queryKey: ["finance-client-statement-detail"],
       });
     },
-    onError: () => showErrorToast(FINANCE_CLIENT_STATEMENT_SEND_ERROR),
+    onError: (error) =>
+      showApiErrorToast(error, FINANCE_CLIENT_STATEMENT_SEND_ERROR),
   });
 
   const syncPeriodToUrl = (start: string, end: string) => {

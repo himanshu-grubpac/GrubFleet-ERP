@@ -35,7 +35,7 @@ import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-opti
 
 import {
   FINANCE_VENDOR_PAYMENT_REMOVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceVendorPaymentRemovedToast,
 } from "@/lib/toast/show-toast";
 
@@ -116,8 +116,8 @@ export default function VendorPaymentsPage() {
       });
     },
 
-    onError: () => {
-      showErrorToast(FINANCE_VENDOR_PAYMENT_REMOVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_VENDOR_PAYMENT_REMOVE_ERROR);
     },
   });
 

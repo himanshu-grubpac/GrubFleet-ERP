@@ -1,5 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsDateString, IsOptional, IsUUID, MaxLength } from 'class-validator';
+import {
+  IsDateString,
+  IsOptional,
+  IsString,
+  IsUUID,
+  MaxLength,
+} from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 
 export class ListClientStatementsQueryDto extends PaginationQueryDto {
@@ -11,18 +17,19 @@ export class ListClientStatementsQueryDto extends PaginationQueryDto {
     format: 'date',
     description: 'Inclusive period start (ISO date)',
   })
-  @IsDateString()
+  @IsDateString({ strict: true })
   periodStart!: string;
 
   @ApiProperty({
     format: 'date',
     description: 'Inclusive period end (ISO date)',
   })
-  @IsDateString()
+  @IsDateString({ strict: true })
   periodEnd!: string;
 
   @ApiPropertyOptional({ maxLength: 120 })
   @IsOptional()
+  @IsString()
   @MaxLength(120)
   search?: string;
 }
@@ -33,10 +40,10 @@ export class ClientStatementDetailQueryDto extends PaginationQueryDto {
   organizationId!: string;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   periodStart!: string;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   periodEnd!: string;
 }

@@ -24,7 +24,7 @@ import {
 } from "@/lib/navigation/finance-static-routes";
 import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
 import {
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoicePaymentRecordedToast,
 } from "@/lib/toast/show-toast";
 
@@ -104,7 +104,8 @@ export default function RecordPaymentPage() {
       void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
       router.push(financeInvoiceDetailHref(invoiceId!));
     },
-    onError: () => showErrorToast("Could not record payment. Try again."),
+    onError: (error) =>
+      showApiErrorToast(error, "Could not record payment. Try again."),
   });
 
   if (!invoiceId) {

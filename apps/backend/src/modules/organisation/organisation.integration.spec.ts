@@ -386,6 +386,15 @@ describe('Organisation locations (integration)', () => {
         .expect(403);
     });
 
+    it('returns 400 for invalid employee phone on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildEmployeeCreatePayload({ phone: 'not-a-valid-phone' }))
+        .expect(400);
+    });
+
     it('writes an audit row on deactivate', async () => {
       const id = await createEmployeeAsAdmin();
       await request(app.getHttpServer())
@@ -496,6 +505,25 @@ describe('Organisation locations (integration)', () => {
         addressState: 'California',
         addressDistrict: 'Los Angeles',
         addressPincode: 'not-a-zip',
+      })
+      .expect(400);
+  });
+
+  it('rejects location create with invalid site contact phone', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/organisation/locations')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        name: 'Bad Phone Location',
+        locationTypeId: officeTypeId,
+        addressLine1: 'Line 1',
+        addressCountry: 'IN',
+        addressState: 'Maharashtra',
+        addressDistrict: 'Mumbai',
+        addressPincode: '400001',
+        siteContactPhone: 'not-a-phone',
       })
       .expect(400);
   });

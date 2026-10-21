@@ -21,7 +21,7 @@ import {
 import { financeVendorPaymentsListHref } from "@/lib/navigation/finance-static-routes";
 import {
   FINANCE_VENDOR_PAYMENT_SAVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceVendorPaymentRecordedToast,
 } from "@/lib/toast/show-toast";
 
@@ -112,8 +112,8 @@ export default function RecordVendorPaymentPage() {
       });
       router.push(financeVendorPaymentsListHref);
     },
-    onError: () => {
-      showErrorToast(FINANCE_VENDOR_PAYMENT_SAVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_VENDOR_PAYMENT_SAVE_ERROR);
     },
   });
 
