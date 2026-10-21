@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 
-import { internalHref } from "@/lib/navigation/nav-path-match";
+import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 import { cn } from "@/lib/utils";
 
 type SubPageBackLinkProps = {
@@ -19,8 +18,8 @@ export function SubPageBackLink({
   className,
 }: SubPageBackLinkProps) {
   return (
-    <Link
-      href={internalHref(href)}
+    <DashboardNavLink
+      href={href}
       className={cn(
         "inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 transition hover:text-[#FE5720]",
         className,
@@ -28,6 +27,6 @@ export function SubPageBackLink({
     >
       <ArrowLeft className="h-4 w-4 shrink-0" aria-hidden />
       {label}
-    </Link>
+    </DashboardNavLink>
   );
 }

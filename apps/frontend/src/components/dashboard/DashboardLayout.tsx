@@ -1,10 +1,9 @@
 
 "use client";
 
-import Link from "next/link";
 import React from "react";
 
-import { internalHref } from "@/lib/navigation/nav-path-match";
+import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -233,9 +232,9 @@ export default function DashboardLayout({
                                 activeTab === tab.href;
 
                             return (
-                                <Link
+                                <DashboardNavLink
                                     key={tab.href}
-                                    href={internalHref(tab.href)}
+                                    href={tab.href}
                                     className={[
                                         "border-b-2 pb-3 text-sm font-medium transition-colors",
                                         isActive
@@ -244,7 +243,7 @@ export default function DashboardLayout({
                                     ].join(" ")}
                                 >
                                     {tab.label}
-                                </Link>
+                                </DashboardNavLink>
                             );
                         })}
                     </nav>
