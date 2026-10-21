@@ -3,14 +3,9 @@ import {
   IsDateString,
   IsEnum,
   IsOptional,
-  IsString,
   IsUUID,
-  Matches,
 } from 'class-validator';
-import {
-  DECIMAL_MONEY_PATTERN,
-  DECIMAL_MONEY_PATTERN_MESSAGE,
-} from '@grubpac/validation';
+import { IsDecimalMoneyAmount } from '../../../common/decorators/is-decimal-money-amount.decorator';
 
 export enum AssetRegisterComplianceRenewType {
   INSURANCE = 'insurance',
@@ -39,7 +34,6 @@ export class RenewAssetRegisterComplianceDto {
     description: 'Required when type is insurance.',
   })
   @IsOptional()
-  @IsString()
-  @Matches(DECIMAL_MONEY_PATTERN, { message: DECIMAL_MONEY_PATTERN_MESSAGE })
-  insurancePremium?: string;
+  @IsDecimalMoneyAmount()
+  insurancePremium?: number;
 }

@@ -5,17 +5,13 @@ import {
   IsOptional,
   IsString,
   IsUUID,
-  Matches,
   Max,
   MaxLength,
   Min,
   MinLength,
   ValidateIf,
 } from 'class-validator';
-import {
-  DECIMAL_MONEY_PATTERN,
-  DECIMAL_MONEY_PATTERN_MESSAGE,
-} from '@grubpac/validation';
+import { IsDecimalMoneyAmount } from '../../../common/decorators/is-decimal-money-amount.decorator';
 import { IsValidChassisVin } from '../../../common/decorators/is-valid-chassis-vin.decorator';
 import { IsValidVehicleRegistrationNumber } from '../../../common/decorators/is-valid-vehicle-registration-number.decorator';
 import {
@@ -85,11 +81,10 @@ export class UpdateAssetRegisterVehicleDto {
   @IsDateString({ strict: true })
   insuranceEndDate?: string;
 
-  @ApiPropertyOptional({ example: '12000.00' })
+  @ApiPropertyOptional({ example: 12000 })
   @IsOptional()
-  @IsString()
-  @Matches(DECIMAL_MONEY_PATTERN, { message: DECIMAL_MONEY_PATTERN_MESSAGE })
-  insurancePremium?: string;
+  @IsDecimalMoneyAmount()
+  insurancePremium?: number;
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()

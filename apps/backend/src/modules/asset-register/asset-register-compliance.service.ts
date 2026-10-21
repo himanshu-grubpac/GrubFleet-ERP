@@ -1,3 +1,4 @@
+import { formatDecimalMoneyForStorage } from '@grubpac/validation';
 import {
   BadRequestException,
   Injectable,
@@ -108,9 +109,15 @@ export class AssetRegisterComplianceService {
 
     const patch: Parameters<AssetRegisterRepository['updateVehicle']>[2] = {};
     if (dto.type === AssetRegisterComplianceRenewType.INSURANCE) {
+      const premium = dto.insurancePremium;
+      if (premium === undefined) {
+        throw new BadRequestException(
+          'insurancePremium is required when renewing insurance',
+        );
+      }
       patch.insuranceStartDate = dto.startDate;
       patch.insuranceEndDate = dto.endDate;
-      patch.insurancePremium = String(dto.insurancePremium);
+      patch.insurancePremium = formatDecimalMoneyForStorage(premium);
     } else if (dto.type === AssetRegisterComplianceRenewType.REGISTRATION) {
       patch.registrationStartDate = dto.startDate;
       patch.registrationEndDate = dto.endDate;

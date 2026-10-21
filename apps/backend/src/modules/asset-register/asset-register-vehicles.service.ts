@@ -17,6 +17,7 @@ import {
   ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
   ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
 } from './constants/asset-register-list-sort.constants';
+import { formatDecimalMoneyForStorage } from '@grubpac/validation';
 import { AuditService } from '../audit/audit.service';
 import type { CreateAssetRegisterVehicleDto } from './dto/create-asset-register-vehicle.dto';
 import type { ListAssetRegisterVehiclesQueryDto } from './dto/list-asset-register-vehicles-query.dto';
@@ -115,7 +116,7 @@ export class AssetRegisterVehiclesService {
         registrationEndDate: dto.registrationEndDate,
         insuranceStartDate: dto.insuranceStartDate,
         insuranceEndDate: dto.insuranceEndDate,
-        insurancePremium: String(dto.insurancePremium),
+        insurancePremium: formatDecimalMoneyForStorage(dto.insurancePremium),
         warrantyStartDate: dto.warrantyStartDate,
         warrantyEndDate: dto.warrantyEndDate,
         specialNotes: dto.specialNotes?.trim() ?? null,
@@ -222,7 +223,11 @@ export class AssetRegisterVehiclesService {
           ? { insuranceEndDate: dto.insuranceEndDate }
           : {}),
         ...(dto.insurancePremium !== undefined
-          ? { insurancePremium: String(dto.insurancePremium) }
+          ? {
+              insurancePremium: formatDecimalMoneyForStorage(
+                dto.insurancePremium,
+              ),
+            }
           : {}),
         ...(dto.warrantyStartDate !== undefined
           ? { warrantyStartDate: dto.warrantyStartDate }
