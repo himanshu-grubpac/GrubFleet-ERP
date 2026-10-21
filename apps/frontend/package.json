@@ -22,7 +22,6 @@
     "clsx": "^2.1.1",
     "country-state-city": "^3.2.1",
     "libphonenumber-js": "^1.12.9",
-    "postcode-validator": "^3.10.5",
     "lucide-react": "^1.47.0",
     "next": "15.5.26",
     "react": "19.1.0",

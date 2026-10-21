@@ -31,6 +31,11 @@ import {
   assertValidLocationCountry,
   assertValidLocationPostal,
 } from './utils/validate-location-geo.util';
+import {
+  normalizeOrgContactEmail,
+  normalizeOrgContactPhone,
+} from './utils/org-contact-normalize.util';
+import { assertSupplierContactUniqueInOrg } from './utils/organisation-contact-uniqueness.util';
 
 @Injectable()
 export class SuppliersService {
@@ -91,13 +96,19 @@ export class SuppliersService {
   async create(dto: CreateSupplierDto) {
     const addressCountry = assertValidLocationCountry(dto.addressCountry);
     assertValidLocationPostal(addressCountry, dto.addressPincode);
+    const contactEmail = normalizeOrgContactEmail(dto.contactEmail);
+    const contactPhone = normalizeOrgContactPhone(dto.contactPhone);
+    await assertSupplierContactUniqueInOrg(this.repo, dto.organizationId, {
+      contactEmail,
+      contactPhone,
+    });
     const inserted = await this.repo.insertSupplier({
       organizationId: dto.organizationId,
       name: dto.name.trim(),
       supplierType: dto.supplierType,
       contactPerson: dto.contactPerson.trim(),
-      contactPhone: dto.contactPhone.trim(),
-      contactEmail: dto.contactEmail.trim().toLowerCase(),
+      contactPhone,
+      contactEmail,
       agreementReference: dto.agreementReference?.trim() ?? null,
       addressLine1: dto.addressLine1.trim(),
       addressLine2: dto.addressLine2?.trim() ?? null,
@@ -137,6 +148,19 @@ export class SuppliersService {
           : (existing.addressPincode ?? '');
       assertValidLocationPostal(nextCountry, postal);
     }
+    const nextContactEmail =
+      dto.contactEmail !== undefined
+        ? normalizeOrgContactEmail(dto.contactEmail)
+        : undefined;
+    const nextContactPhone =
+      dto.contactPhone !== undefined
+        ? normalizeOrgContactPhone(dto.contactPhone)
+        : undefined;
+    await assertSupplierContactUniqueInOrg(this.repo, organizationId, {
+      contactEmail: nextContactEmail,
+      contactPhone: nextContactPhone,
+      excludeSupplierId: supplierId,
+    });
     await this.repo.updateSupplier(organizationId, supplierId, {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
       ...(dto.supplierType !== undefined
@@ -145,11 +169,11 @@ export class SuppliersService {
       ...(dto.contactPerson !== undefined
         ? { contactPerson: dto.contactPerson.trim() }
         : {}),
-      ...(dto.contactPhone !== undefined
-        ? { contactPhone: dto.contactPhone.trim() }
+      ...(nextContactPhone !== undefined
+        ? { contactPhone: nextContactPhone }
         : {}),
-      ...(dto.contactEmail !== undefined
-        ? { contactEmail: dto.contactEmail.trim().toLowerCase() }
+      ...(nextContactEmail !== undefined
+        ? { contactEmail: nextContactEmail }
         : {}),
       ...(dto.agreementReference !== undefined
         ? { agreementReference: dto.agreementReference?.trim() ?? null }

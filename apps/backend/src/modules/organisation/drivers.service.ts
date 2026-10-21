@@ -36,6 +36,11 @@ import {
   normalizeOrganisationDriverLicenseNumber,
   ORGANISATION_DRIVER_LICENSE_DUPLICATE_MESSAGE,
 } from './utils/driver-license-number.util';
+import {
+  normalizeOrgContactEmail,
+  normalizeOrgContactPhone,
+} from './utils/org-contact-normalize.util';
+import { assertDriverContactUniqueInOrg } from './utils/organisation-contact-uniqueness.util';
 
 @Injectable()
 export class DriversService {
@@ -112,13 +117,19 @@ export class DriversService {
       dto.licenseNumber,
     );
     await this.assertDriverLicenseUnique(dto.organizationId, licenseNumber);
+    const email = normalizeOrgContactEmail(dto.email);
+    const phone = normalizeOrgContactPhone(dto.phone);
+    await assertDriverContactUniqueInOrg(this.repo, dto.organizationId, {
+      email,
+      phone,
+    });
     try {
       const inserted = await this.repo.insertDriver({
         organizationId: dto.organizationId,
         name: dto.name.trim(),
         cprNo: dto.cprNo.trim(),
-        phone: dto.phone.trim(),
-        email: dto.email.trim().toLowerCase(),
+        phone,
+        email,
         licenseNumber,
         licenseExpiry: dto.licenseExpiry,
         supplierId: dto.supplierId,
@@ -170,14 +181,21 @@ export class DriversService {
         driverId,
       );
     }
+    const nextEmail =
+      dto.email !== undefined ? normalizeOrgContactEmail(dto.email) : undefined;
+    const nextPhone =
+      dto.phone !== undefined ? normalizeOrgContactPhone(dto.phone) : undefined;
+    await assertDriverContactUniqueInOrg(this.repo, organizationId, {
+      email: nextEmail,
+      phone: nextPhone,
+      excludeDriverId: driverId,
+    });
     try {
       await this.repo.updateDriver(organizationId, driverId, {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
         ...(dto.cprNo !== undefined ? { cprNo: dto.cprNo.trim() } : {}),
-        ...(dto.phone !== undefined ? { phone: dto.phone.trim() } : {}),
-        ...(dto.email !== undefined
-          ? { email: dto.email.trim().toLowerCase() }
-          : {}),
+        ...(nextPhone !== undefined ? { phone: nextPhone } : {}),
+        ...(nextEmail !== undefined ? { email: nextEmail } : {}),
         ...(licenseNumber !== undefined ? { licenseNumber } : {}),
         ...(dto.licenseExpiry !== undefined
           ? { licenseExpiry: dto.licenseExpiry }

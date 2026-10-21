@@ -4,6 +4,7 @@ import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries"
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
+import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 
 export type SupplierStatus = "active" | "inactive";
 
@@ -283,7 +284,7 @@ export async function updateOrganisationSupplierApi(
       method: "PATCH",
       token,
       headers: orgHeaders(organizationId),
-      body: JSON.stringify(payload),
+      body: serializeOrgScopedPatchBody(payload),
     },
   );
 }

@@ -3,13 +3,14 @@ import {
   IsBoolean,
   IsEmail,
   IsIn,
+  IsNotEmpty,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   MinLength,
-  IsDateString,
 } from 'class-validator';
+import { IsIsoCalendarDate } from '../../../common/decorators/is-iso-calendar-date.decorator';
 import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
 
 const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract'] as const;
@@ -58,8 +59,9 @@ export class CreateEmployeeDto {
   @IsIn(EMPLOYMENT_TYPES)
   employmentType!: (typeof EMPLOYMENT_TYPES)[number];
 
-  @ApiProperty({ description: 'ISO date YYYY-MM-DD' })
-  @IsDateString({ strict: true })
+  @ApiProperty({ description: 'ISO 8601 calendar date (YYYY-MM-DD)' })
+  @IsNotEmpty()
+  @IsIsoCalendarDate({ allowFuture: false })
   @MaxLength(10)
   dateOfJoining!: string;
 

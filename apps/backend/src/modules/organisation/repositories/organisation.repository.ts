@@ -605,6 +605,214 @@ export class OrganisationRepository {
     return row?.id ?? null;
   }
 
+  async findEmployeeIdByCompanyEmailInOrg(
+    organizationId: string,
+    companyEmail: string,
+    excludeEmployeeId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationEmployees.organizationId, organizationId),
+      sql`lower(${organisationEmployees.companyEmail}) = ${companyEmail}`,
+    ];
+    if (excludeEmployeeId) {
+      conditions.push(ne(organisationEmployees.id, excludeEmployeeId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationEmployees.id })
+      .from(organisationEmployees)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findEmployeeIdByMobileInOrg(
+    organizationId: string,
+    mobile: string,
+    excludeEmployeeId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationEmployees.organizationId, organizationId),
+      eq(organisationEmployees.mobile, mobile),
+    ];
+    if (excludeEmployeeId) {
+      conditions.push(ne(organisationEmployees.id, excludeEmployeeId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationEmployees.id })
+      .from(organisationEmployees)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findSupplierIdByContactEmailInOrg(
+    organizationId: string,
+    contactEmail: string,
+    excludeSupplierId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationSuppliers.organizationId, organizationId),
+      sql`lower(${organisationSuppliers.contactEmail}) = ${contactEmail}`,
+    ];
+    if (excludeSupplierId) {
+      conditions.push(ne(organisationSuppliers.id, excludeSupplierId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationSuppliers.id })
+      .from(organisationSuppliers)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findSupplierIdByContactPhoneInOrg(
+    organizationId: string,
+    contactPhone: string,
+    excludeSupplierId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationSuppliers.organizationId, organizationId),
+      eq(organisationSuppliers.contactPhone, contactPhone),
+    ];
+    if (excludeSupplierId) {
+      conditions.push(ne(organisationSuppliers.id, excludeSupplierId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationSuppliers.id })
+      .from(organisationSuppliers)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findDriverIdByEmailInOrg(
+    organizationId: string,
+    email: string,
+    excludeDriverId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationDrivers.organizationId, organizationId),
+      sql`lower(${organisationDrivers.email}) = ${email}`,
+    ];
+    if (excludeDriverId) {
+      conditions.push(ne(organisationDrivers.id, excludeDriverId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationDrivers.id })
+      .from(organisationDrivers)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findDriverIdByPhoneInOrg(
+    organizationId: string,
+    phone: string,
+    excludeDriverId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationDrivers.organizationId, organizationId),
+      eq(organisationDrivers.phone, phone),
+    ];
+    if (excludeDriverId) {
+      conditions.push(ne(organisationDrivers.id, excludeDriverId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationDrivers.id })
+      .from(organisationDrivers)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findLocationIdBySiteContactEmailInOrg(
+    organizationId: string,
+    siteContactEmail: string,
+    excludeLocationId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationLocations.organizationId, organizationId),
+      sql`lower(${organisationLocations.siteContactEmail}) = ${siteContactEmail}`,
+    ];
+    if (excludeLocationId) {
+      conditions.push(ne(organisationLocations.id, excludeLocationId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationLocations.id })
+      .from(organisationLocations)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findLocationIdBySiteContactPhoneInOrg(
+    organizationId: string,
+    siteContactPhone: string,
+    excludeLocationId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationLocations.organizationId, organizationId),
+      eq(organisationLocations.siteContactPhone, siteContactPhone),
+    ];
+    if (excludeLocationId) {
+      conditions.push(ne(organisationLocations.id, excludeLocationId));
+    }
+    const [row] = await this.db
+      .select({ id: organisationLocations.id })
+      .from(organisationLocations)
+      .where(and(...conditions))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async findOrganisationClientIdByPocEmailInOrg(
+    organizationId: string,
+    email: string,
+    excludeClientId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationClients.organizationId, organizationId),
+      sql`lower(${organisationClientPocs.email}) = ${email}`,
+    ];
+    if (excludeClientId) {
+      conditions.push(ne(organisationClients.id, excludeClientId));
+    }
+    const [row] = await this.db
+      .select({ clientId: organisationClients.id })
+      .from(organisationClientPocs)
+      .innerJoin(
+        organisationClients,
+        eq(organisationClientPocs.clientId, organisationClients.id),
+      )
+      .where(and(...conditions))
+      .limit(1);
+    return row?.clientId ?? null;
+  }
+
+  async findOrganisationClientIdByPocPhoneInOrg(
+    organizationId: string,
+    contactNumber: string,
+    excludeClientId?: string,
+  ): Promise<string | null> {
+    const conditions = [
+      eq(organisationClients.organizationId, organizationId),
+      eq(organisationClientPocs.contactNumber, contactNumber),
+    ];
+    if (excludeClientId) {
+      conditions.push(ne(organisationClients.id, excludeClientId));
+    }
+    const [row] = await this.db
+      .select({ clientId: organisationClients.id })
+      .from(organisationClientPocs)
+      .innerJoin(
+        organisationClients,
+        eq(organisationClientPocs.clientId, organisationClients.id),
+      )
+      .where(and(...conditions))
+      .limit(1);
+    return row?.clientId ?? null;
+  }
+
   async insertEmployee(values: EmployeeInsert): Promise<EmployeeRow> {
     const [row] = await this.db
       .insert(organisationEmployees)

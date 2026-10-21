@@ -3,6 +3,7 @@ import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
 import { fleetClientStructuredAddressIn } from './fleet-client-address.fixture';
+import { uniqueIntegrationPhone } from './unique-integration-contact';
 
 export type DraftLeaseContractResponse = {
   id: string;
@@ -38,7 +39,7 @@ export async function createFleetClientForIntegrationTest(
       pointsOfContact: [
         {
           name: `${label} POC`,
-          contactNumber: '+919999999996',
+          contactNumber: uniqueIntegrationPhone(suffix),
           email: `${label.toLowerCase().replace(/\s+/g, '-')}-${suffix}@example.com`,
           isPrimary: true,
         },
