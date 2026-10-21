@@ -11,6 +11,7 @@ import {
   type IntegrationAuthContext,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import { uniqueIntegrationPhone } from '../../../test/helpers/unique-integration-contact';
 import { computePurchaseVehicleLineTax } from './utils/purchase-vehicle-line-tax.util';
 
 const FINANCE_VIEW_ONLY_USER = {
@@ -75,7 +76,7 @@ describe('Finance vendor payments (integration)', () => {
         name: `VP Vendor ${unique}`,
         supplierType: 'spare_parts',
         contactPerson: 'VP Contact',
-        contactPhone: '+919888877772',
+        contactPhone: uniqueIntegrationPhone(unique),
         contactEmail: `vp.vendor.${unique}@grubpac.local`,
         agreementReference: `VP-${unique}`,
         addressLine1: 'Line 1',

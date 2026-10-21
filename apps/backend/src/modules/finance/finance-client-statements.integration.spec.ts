@@ -12,6 +12,7 @@ import {
   type IntegrationAuthContext,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import { uniqueIntegrationPhone } from '../../../test/helpers/unique-integration-contact';
 
 const FINANCE_VIEW_ONLY_USER = {
   email: 'finance.cs.viewonly@grubpac.local',
@@ -87,7 +88,7 @@ describe('Finance client statements (integration)', () => {
           {
             name: 'POC',
             email: `cs.client.${unique}@grubpac.local`,
-            contactNumber: '+919876543210',
+            contactNumber: uniqueIntegrationPhone(unique),
             isPrimary: true,
           },
         ],
@@ -112,7 +113,7 @@ describe('Finance client statements (integration)', () => {
           {
             name: 'POC2',
             email: `cs.zero.${unique}@grubpac.local`,
-            contactNumber: '+919876543211',
+            contactNumber: uniqueIntegrationPhone(`${unique}-2`),
             isPrimary: true,
           },
         ],

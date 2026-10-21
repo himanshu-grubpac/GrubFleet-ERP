@@ -28,6 +28,7 @@ import {
   createFleetClientForIntegrationTest,
 } from '../../../test/helpers/fleet-leasing-test.util';
 import { fleetClientStructuredAddressIn } from '../../../test/helpers/fleet-client-address.fixture';
+import { uniqueIntegrationPhone } from '../../../test/helpers/unique-integration-contact';
 import * as schema from '../../database/schema';
 import { fleetClients, organizations } from '../../database/schema';
 import { FleetClientsService } from './fleet-clients.service';
@@ -211,7 +212,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Aditi Rao',
-            contactNumber: '+919999999999',
+            contactNumber: uniqueIntegrationPhone('meridian-aditi'),
             email: 'aditi@meridian.example',
             isPrimary: true,
           },
@@ -295,7 +296,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'LEASE CREATE POC',
-            contactNumber: '+919999999991',
+            contactNumber: uniqueIntegrationPhone(leaseCreateToken),
             email: `lease-create-${leaseCreateToken}@example.com`,
             isPrimary: true,
           },
@@ -359,7 +360,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Bad Postal POC',
-            contactNumber: '+919876543210',
+            contactNumber: uniqueIntegrationPhone(lease02Token),
             email: 'bad-postal@example.com',
             isPrimary: true,
           },
@@ -379,7 +380,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Bad Gstin POC',
-            contactNumber: '+919876543211',
+            contactNumber: uniqueIntegrationPhone(`${lease02Token}-gstin`),
             email: 'bad-gstin@example.com',
             isPrimary: true,
           },
@@ -399,7 +400,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
-            contactNumber: '+919876543210',
+            contactNumber: uniqueIntegrationPhone(lease02Token),
             email: 'arjun@sunrise-freight.example',
             isPrimary: true,
           },
@@ -420,7 +421,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
-            contactNumber: '+919876543210',
+            contactNumber: uniqueIntegrationPhone(lease02Token),
             email: 'arjun@sunrise-freight.example',
             isPrimary: true,
           },
@@ -483,7 +484,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Good Client POC',
-            contactNumber: '+919876543212',
+            contactNumber: uniqueIntegrationPhone(token),
             email: `good-${token}@grubpac.local`,
             isPrimary: true,
           },
@@ -507,7 +508,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Broken Sync POC',
-            contactNumber: '+919888877771',
+            contactNumber: uniqueIntegrationPhone('broken-sync'),
             email: `broken-sync-${token}@grubpac.local`,
             isPrimary: true,
           },
@@ -654,7 +655,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'POC LEASE05',
-            contactNumber: '+919999999998',
+            contactNumber: uniqueIntegrationPhone(`lease05-${unique}`),
             email: `lease05-${unique}@example.com`,
             isPrimary: true,
           },
@@ -749,7 +750,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'POC',
-            contactNumber: '+919999999997',
+            contactNumber: uniqueIntegrationPhone(`lease05-rate-${unique}`),
             email: `lease05-rate-${unique}@example.com`,
             isPrimary: true,
           },
@@ -903,7 +904,9 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'POC LEASE06 History',
-            contactNumber: '+919999999997',
+            contactNumber: uniqueIntegrationPhone(
+              `lease06-history-${historyClientSuffix}`,
+            ),
             email: `lease06-history-${historyClientSuffix}@example.com`,
             isPrimary: true,
           },
@@ -1052,7 +1055,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Term POC',
-            contactNumber: '+919999999997',
+            contactNumber: uniqueIntegrationPhone(`lease06-term-${unique}`),
             email: `lease06-${unique}@example.com`,
             isPrimary: true,
           },
@@ -1224,7 +1227,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'POC Renew',
-            contactNumber: '+919999999996',
+            contactNumber: uniqueIntegrationPhone(`renew-${unique}`),
             email: `renew-${unique}@example.com`,
             isPrimary: true,
           },
@@ -1418,7 +1421,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
           pointsOfContact: [
             {
               name: 'SUP POC',
-              contactNumber: '+919999999995',
+              contactNumber: uniqueIntegrationPhone(`sup-rep-${unique}`),
               email: `sup-rep-${unique}@example.com`,
               isPrimary: true,
             },

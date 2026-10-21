@@ -369,8 +369,8 @@ describe('Organisation clients (integration)', () => {
             pointsOfContact: [
               {
                 name: 'No Primary',
-                contactNumber: '+919888877771',
-                email: 'noprimary@grubpac.local',
+                contactNumber: `+9193${String(Date.now()).slice(-8)}`,
+                email: `noprimary.${Date.now()}@grubpac.local`,
                 isPrimary: false,
               },
             ],
