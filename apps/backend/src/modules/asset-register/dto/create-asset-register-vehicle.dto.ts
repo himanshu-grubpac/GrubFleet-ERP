@@ -73,7 +73,10 @@ export class CreateAssetRegisterVehicleDto {
   @IsDateString({ strict: true })
   insuranceEndDate!: string;
 
-  @ApiProperty({ example: 12000, description: 'INR major units (max 2 decimal places)' })
+  @ApiProperty({
+    example: 12000,
+    description: 'INR major units (max 2 decimal places)',
+  })
   @IsDecimalMoneyAmount()
   insurancePremium!: number;
 

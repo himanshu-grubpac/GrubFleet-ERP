@@ -1,10 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsDateString,
-  IsEnum,
-  IsOptional,
-  IsUUID,
-} from 'class-validator';
+import { IsDateString, IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { IsDecimalMoneyAmount } from '../../../common/decorators/is-decimal-money-amount.decorator';
 
 export enum AssetRegisterComplianceRenewType {

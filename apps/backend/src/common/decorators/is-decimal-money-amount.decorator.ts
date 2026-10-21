@@ -1,4 +1,7 @@
-import { DECIMAL_MONEY_PATTERN_MESSAGE, isValidDecimalMoneyNumber } from '@grubpac/validation';
+import {
+  DECIMAL_MONEY_PATTERN_MESSAGE,
+  isValidDecimalMoneyNumber,
+} from '@grubpac/validation';
 import {
   registerDecorator,
   ValidationOptions,
