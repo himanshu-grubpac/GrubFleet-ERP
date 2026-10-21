@@ -5,6 +5,7 @@ import { DRIZZLE } from '../../database/drizzle.tokens';
 import {
   memberships,
   organizations,
+  passwordResetTokens,
   permissions,
   refreshTokens,
   rolePermissions,
@@ -27,6 +28,14 @@ export type RefreshTokenRow = {
   tokenHash: string;
   expiresAt: Date;
   revokedAt: Date | null;
+};
+
+export type PasswordResetTokenRow = {
+  id: string;
+  userId: string;
+  tokenHash: string;
+  expiresAt: Date;
+  usedAt: Date | null;
 };
 
 export type MeProfile = {
@@ -148,6 +157,75 @@ export class AuthRepository {
       .update(refreshTokens)
       .set({ revokedAt: new Date() })
       .where(eq(refreshTokens.tokenHash, tokenHash));
+  }
+
+  async updateUserPasswordHash(
+    userId: string,
+    passwordHash: string,
+  ): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ passwordHash, updatedAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async invalidateUnusedPasswordResetTokensForUser(
+    userId: string,
+  ): Promise<void> {
+    await this.db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(passwordResetTokens.userId, userId),
+          isNull(passwordResetTokens.usedAt),
+        ),
+      );
+  }
+
+  async insertPasswordResetToken(params: {
+    userId: string;
+    tokenHash: string;
+    expiresAt: Date;
+    ipAddress?: string | null;
+  }): Promise<void> {
+    await this.db.insert(passwordResetTokens).values({
+      userId: params.userId,
+      tokenHash: params.tokenHash,
+      expiresAt: params.expiresAt,
+      ipAddress: params.ipAddress ?? null,
+    });
+  }
+
+  async findValidPasswordResetTokenByHash(
+    tokenHash: string,
+  ): Promise<PasswordResetTokenRow | null> {
+    const now = new Date();
+    const rows = await this.db
+      .select({
+        id: passwordResetTokens.id,
+        userId: passwordResetTokens.userId,
+        tokenHash: passwordResetTokens.tokenHash,
+        expiresAt: passwordResetTokens.expiresAt,
+        usedAt: passwordResetTokens.usedAt,
+      })
+      .from(passwordResetTokens)
+      .where(
+        and(
+          eq(passwordResetTokens.tokenHash, tokenHash),
+          isNull(passwordResetTokens.usedAt),
+          gt(passwordResetTokens.expiresAt, now),
+        ),
+      )
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async markPasswordResetTokenUsed(tokenId: string): Promise<void> {
+    await this.db
+      .update(passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(eq(passwordResetTokens.id, tokenId));
   }
 
   async getMeProfile(userId: string): Promise<MeProfile | null> {

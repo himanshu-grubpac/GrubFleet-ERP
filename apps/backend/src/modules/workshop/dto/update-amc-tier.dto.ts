@@ -1,5 +1,13 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  MaxLength,
+  Min,
+  MinLength,
+} from 'class-validator';
 
 export class UpdateAmcTierDto {
   @ApiPropertyOptional()
@@ -9,15 +17,18 @@ export class UpdateAmcTierDto {
   @MaxLength(120)
   name?: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(2000)
   description?: string | null;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    description: 'Annual price in minor currency units (paise for INR)',
+  })
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  priceDisplayLabel?: string | null;
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  pricePaise?: number | null;
 }

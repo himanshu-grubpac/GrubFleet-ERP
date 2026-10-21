@@ -1,4 +1,5 @@
 import { toast } from "sonner";
+import { ApiClientError } from "@/lib/api/client";
 
 const DEFAULT_SUCCESS_DURATION_MS = 4000;
 const DEFAULT_ERROR_DURATION_MS = 6000;
@@ -12,7 +13,34 @@ export function showCopiedToClipboardToast(): void {
 }
 
 export function showErrorToast(message: string): void {
-  toast.error(message, { duration: DEFAULT_ERROR_DURATION_MS });
+  const trimmed = message.trim();
+  toast.error(trimmed || "Something went wrong", {
+    duration: DEFAULT_ERROR_DURATION_MS,
+  });
+}
+
+/** Prefer API envelope message when error came from apiFetch. */
+export function getApiErrorMessage(error: unknown, fallback?: string): string {
+  if (error instanceof ApiClientError) {
+    const fromApi = error.message.trim();
+    if (fromApi) {
+      return fromApi;
+    }
+  }
+  if (error instanceof Error) {
+    const fromError = error.message.trim();
+    if (fromError) {
+      return fromError;
+    }
+  }
+  if (typeof error === "string" && error.trim()) {
+    return error.trim();
+  }
+  return fallback?.trim() || "Something went wrong";
+}
+
+export function showApiErrorToast(error: unknown, fallback?: string): void {
+  showErrorToast(getApiErrorMessage(error, fallback));
 }
 
 export function showEmployeeActivatedToast(fullName: string): void {

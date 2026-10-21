@@ -3,11 +3,10 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, X } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
-import InlineAddField from "@/components/ui/inline-add-field";
 import {
   FormFieldInlineError,
   mergeCompositeShellBorderClass,
@@ -138,6 +137,7 @@ export default function CreateAssetClassForm({
   const [isSaving, setIsSaving] = useState(false);
   const [intakePanelExpanded, setIntakePanelExpanded] = useState(false);
   const [intakeCustomAddOpen, setIntakeCustomAddOpen] = useState(false);
+  const [intakeCustomValue, setIntakeCustomValue] = useState("");
   const [customIntakeOptions, setCustomIntakeOptions] = useState<string[]>([]);
   const intakeDropdownRef = useRef<HTMLDivElement>(null);
   const isSubmittingRef = useRef(false);
@@ -145,6 +145,7 @@ export default function CreateAssetClassForm({
   const closeIntakeDropdown = () => {
     setIntakePanelExpanded(false);
     setIntakeCustomAddOpen(false);
+    setIntakeCustomValue("");
   };
 
   useEffect(() => {
@@ -264,6 +265,7 @@ export default function CreateAssetClassForm({
         intakeChecklistItems: [...prev.intakeChecklistItems, trimmed],
       };
     });
+    setIntakeCustomValue("");
     setIntakeCustomAddOpen(false);
     setError("");
   };
@@ -453,6 +455,7 @@ export default function CreateAssetClassForm({
             restrictedKind="name"
             maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.brand}
             value={form.brand}
+            placeholder="e.g. Honda, Tata, Bajaj"
             onChange={(value) => updateForm("brand", value)}
             className={inputClassName}
           />
@@ -469,6 +472,7 @@ export default function CreateAssetClassForm({
             restrictedKind="name"
             maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.modelName}
             value={form.modelName}
+            placeholder="e.g. Activa 6G, Ace Gold"
             onChange={(value) => updateForm("modelName", value)}
             className={inputClassName}
           />
@@ -482,6 +486,7 @@ export default function CreateAssetClassForm({
             restrictedKind="digits"
             maxLength={4}
             value={form.manufacturingYear}
+            placeholder="e.g. 2025"
             onChange={(value) => updateForm("manufacturingYear", value)}
             aria-invalid={Boolean(displayedErrors.manufacturingYear)}
             className={mergeFormControlBorderClass(
@@ -527,6 +532,7 @@ export default function CreateAssetClassForm({
             restrictedKind="text"
             maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.fuelSystem}
             value={form.fuelSystem}
+            placeholder="e.g. Fuel injection, carburetor"
             onChange={(value) => updateForm("fuelSystem", value)}
             className={inputClassName}
           />
@@ -543,6 +549,7 @@ export default function CreateAssetClassForm({
             restrictedKind="text"
             maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.color}
             value={form.color}
+            placeholder="e.g. White, Matte black"
             onChange={(value) => updateForm("color", value)}
             className={inputClassName}
           />
@@ -556,6 +563,7 @@ export default function CreateAssetClassForm({
             restrictedKind="text"
             maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.colorCode}
             value={form.colorCode}
+            placeholder="e.g. #FFFFFF"
             onChange={(value) => updateForm("colorCode", value)}
             className={inputClassName}
           />
@@ -572,6 +580,7 @@ export default function CreateAssetClassForm({
             restrictedKind="digits"
             maxLength={5}
             value={form.engineDisplacementCc}
+            placeholder="e.g. 110"
             onChange={(value) => updateForm("engineDisplacementCc", value)}
             aria-invalid={Boolean(displayedErrors.engineDisplacementCc)}
             className={mergeFormControlBorderClass(
@@ -776,7 +785,7 @@ export default function CreateAssetClassForm({
                   Boolean(displayedErrors.intakeChecklistItems),
                   selectClassName,
                 ),
-                "w-full pr-10 text-left",
+                `w-full text-left ${form.intakeChecklistItems.length > 0 ? "pr-16" : "pr-10"}`,
                 intakePanelExpanded
                   ? "rounded-b-none border-b-0 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
                   : "",
@@ -799,8 +808,22 @@ export default function CreateAssetClassForm({
                     : "Select checklist"}
               </span>
             </button>
+            {form.intakeChecklistItems.length > 0 ? (
+              <button
+                type="button"
+                aria-label="Clear selected checklist items"
+                title="Clear selected items"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  updateForm("intakeChecklistItems", []);
+                }}
+                className="absolute right-9 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+              >
+                <X className="h-4 w-4" aria-hidden="true" />
+              </button>
+            ) : null}
             <ChevronDown
-              className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+              className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform ${intakePanelExpanded ? "rotate-180" : ""}`}
               strokeWidth={1.7}
               aria-hidden
             />
@@ -828,41 +851,77 @@ export default function CreateAssetClassForm({
                           type="button"
                           aria-pressed={isSelected}
                           onClick={() => setIntakeItemChecked(item, !isSelected)}
-                          className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
+                          className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50"
                         >
-                          <span className="min-w-0 flex-1">{item}</span>
-                          <span className="flex h-4 w-4 shrink-0 items-center justify-center">
-                            {isSelected ? (
-                              <Check
-                                className="h-4 w-4 text-[#FE5720]"
-                                aria-hidden
-                              />
-                            ) : null}
+                          <span
+                            aria-hidden="true"
+                            className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isSelected
+                                ? "border-[#FE5720] bg-[#FE5720] text-white"
+                                : "border-gray-300 bg-white"
+                              }`}
+                          >
+                            {isSelected ? <Check className="h-3 w-3" strokeWidth={2.5} /> : null}
                           </span>
+                          <span className="min-w-0 flex-1">{item}</span>
                         </button>
                       </li>
                     );
                   })}
                 </ul>
               ) : null}
-              <div className="border-t border-gray-200 px-3 py-2">
+              <div className="border-t border-gray-200 bg-white px-3 py-2">
                 {intakeCustomAddOpen ? (
-                  <InlineAddField
-                    placeholder="Custom checklist item"
-                    maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.intakeItem}
-                    buttonLabel="Add"
-                    disabled={isSaving}
-                    onAdd={submitIntakeCustomAdd}
-                  />
-                ) : (
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    disabled={isSaving}
-                    onClick={() => setIntakeCustomAddOpen(true)}
+                  <form
+                    className="flex w-full items-center gap-2"
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      submitIntakeCustomAdd(intakeCustomValue);
+                    }}
                   >
-                    {intakeCustomAddTriggerLabel}
-                  </Button>
+                    <input
+                      autoFocus
+                      type="text"
+                      value={intakeCustomValue}
+                      maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.intakeItem}
+                      placeholder="Enter custom checklist item"
+                      disabled={isSaving}
+                      onChange={(event) => setIntakeCustomValue(event.target.value)}
+                      className="h-10 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20 disabled:bg-gray-50"
+                      aria-label="Custom checklist item"
+                    />
+                    <button
+                      type="submit"
+                      disabled={isSaving || !intakeCustomValue.trim()}
+                      className="h-10 shrink-0 rounded-md bg-slate-700 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Cancel adding custom checklist item"
+                      title="Cancel"
+                      disabled={isSaving}
+                      onClick={() => {
+                        setIntakeCustomValue("");
+                        setIntakeCustomAddOpen(false);
+                      }}
+                      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-gray-400 hover:bg-gray-100 hover:text-gray-700 disabled:opacity-50"
+                    >
+                      <X className="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </form>
+                ) : (
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={isSaving}
+                      onClick={() => setIntakeCustomAddOpen(true)}
+                      className="h-9 bg-slate-700 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+                    >
+                      Add custom
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>
@@ -870,42 +929,27 @@ export default function CreateAssetClassForm({
         </div>
         <FormFieldInlineError message={displayedErrors.intakeChecklistItems} />
 
-        {form.intakeChecklistItems.length === 0 && !intakePanelExpanded ? (
-          <div className="mt-2">
-            {intakeCustomAddOpen ? (
-              <InlineAddField
-                placeholder="Custom checklist item"
-                maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.intakeItem}
-                buttonLabel="Add"
-                disabled={isSaving}
-                onAdd={submitIntakeCustomAdd}
-              />
-            ) : (
-              <Button
-                type="button"
-                variant="secondary"
-                disabled={isSaving}
-                onClick={() => setIntakeCustomAddOpen(true)}
+        {form.intakeChecklistItems.length > 0 ? (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {form.intakeChecklistItems.map((item) => (
+              <span
+                key={item}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-md border border-[#FE5720] bg-orange-50 px-2.5 py-1 text-xs font-medium text-gray-700"
               >
-                Add
-              </Button>
-            )}
+                <span className="min-w-0 break-words">{item}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove ${item}`}
+                  title={`Remove ${item}`}
+                  onClick={() => setIntakeItemChecked(item, false)}
+                  className="flex h-4 w-4 shrink-0 items-center justify-center rounded text-gray-500 hover:bg-orange-100 hover:text-gray-900"
+                >
+                  <X className="h-3 w-3" aria-hidden="true" />
+                </button>
+              </span>
+            ))}
           </div>
         ) : null}
-      </div>
-
-      <div className="mt-4">
-        {form.intakeChecklistItems.length > 0 ? (
-          <ol className="list-decimal space-y-1.5 pl-5 text-sm text-gray-800">
-            {form.intakeChecklistItems.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ol>
-        ) : (
-          <p className="text-sm text-gray-500">
-            Selected checklist items will appear here as numbered points.
-          </p>
-        )}
       </div>
 
       {error ? (

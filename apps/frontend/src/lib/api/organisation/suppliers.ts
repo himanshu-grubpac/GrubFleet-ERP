@@ -1,6 +1,8 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
 
 export type SupplierStatus = "active" | "inactive";
@@ -63,7 +65,7 @@ export type OrganisationSupplierDetail = OrganisationSupplierListItem & {
   linkedSections: SupplierLinkedSections;
 };
 
-export type ListOrganisationSuppliersParams = {
+export type ListOrganisationSuppliersParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -229,6 +231,7 @@ export async function fetchOrganisationSuppliersApi(
   if (params.status) {
     query.set("status", params.status);
   }
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<OrganisationSupplierListItem>>(
     `/organisation/suppliers?${query.toString()}`,
     {

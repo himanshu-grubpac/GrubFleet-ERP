@@ -35,7 +35,7 @@ import {
 import { PURCHASE_INVOICE_NUMBER_FORMAT_HINT } from "@/lib/finance/invoice-filter-options";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoiceCreatedToast,
 } from "@/lib/toast/show-toast";
 
@@ -432,8 +432,8 @@ export default function NewPurchaseInvoicePage() {
       showFinanceInvoiceCreatedToast(detail.invoiceNumber);
       router.push(financeInvoicesListHref);
     },
-    onError: () => {
-      showErrorToast(FINANCE_INVOICE_SAVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_INVOICE_SAVE_ERROR);
     },
     onSettled: () => {
       isSubmittingRef.current = false;

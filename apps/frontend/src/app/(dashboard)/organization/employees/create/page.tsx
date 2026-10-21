@@ -7,12 +7,12 @@ import CreateEmployeePage, {
   type EmployeeFormData,
 } from "@/components/modules/organization/employees/CreateEmployeePage";
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import { createOrganisationEmployeeApi } from "@/lib/api/organisation/employees";
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { organisationEmployeeDetailHref } from "@/lib/navigation/organisation-static-routes";
 import {
   EMPLOYEE_SAVE_ERROR,
+  showApiErrorToast,
   showEmployeeCreatedToast,
   showErrorToast,
 } from "@/lib/toast/show-toast";
@@ -65,11 +65,7 @@ export default function CreatePage() {
       showEmployeeCreatedToast(created.fullName);
       router.push(organisationEmployeeDetailHref(created.id));
     } catch (error) {
-      const message =
-        error instanceof ApiClientError
-          ? error.message
-          : EMPLOYEE_SAVE_ERROR;
-      showErrorToast(message);
+      showApiErrorToast(error, EMPLOYEE_SAVE_ERROR);
       throw error;
     }
   };

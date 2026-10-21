@@ -24,11 +24,8 @@ export class AuditController {
   async list(@Query() query: ListAuditQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
-    const { rows, total } = await this.auditService.listOrganizationAuditLogs(
-      query.organizationId,
-      page,
-      pageSize,
-    );
+    const { rows, total } =
+      await this.auditService.listOrganizationAuditLogs(query);
     return toPaginatedResult(
       rows.map((log) => ({
         id: log.id,

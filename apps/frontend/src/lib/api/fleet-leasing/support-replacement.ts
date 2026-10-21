@@ -1,3 +1,5 @@
+import type { ListSortParams } from '@/lib/query/list-sort-params';
+import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
 import { apiFetch } from '../client';
 
 export type SupportReplacementVehicleStore = 'legacy' | 'register';
@@ -120,7 +122,7 @@ export async function fetchReplacementCandidates(
         modelName?: string;
         excludeVehicleIds?: string[];
         sourceKind?: SupportReplacementVehicleStore;
-    } = {},
+    } & ListSortParams = {},
 ): Promise<PaginatedReplacementCandidates> {
     const params = new URLSearchParams({
         organizationId,
@@ -145,6 +147,7 @@ export async function fetchReplacementCandidates(
     if (options.sourceKind) {
         params.set('sourceKind', options.sourceKind);
     }
+    appendListSortSearchParams(params, options);
     return apiFetch<PaginatedReplacementCandidates>(
         `/fleet-leasing/support/replacement-candidates?${params.toString()}`,
         {

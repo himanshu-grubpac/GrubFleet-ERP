@@ -12,6 +12,13 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  LEASE_CONTRACT_LIST_DEFAULT_SORT,
+  LEASE_CONTRACT_LIST_SORT_FIELDS,
+  RENEWALS_EXTENSION_LIST_DEFAULT_SORT,
+  RENEWALS_EXTENSION_LIST_SORT_FIELDS,
+} from './constants/fleet-leasing-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import { AMC_TIER_STUB_VALUES } from './constants/amc-tier-stub';
 import { normalizeEditClassification } from './constants/contract-edit-classification';
@@ -102,12 +109,18 @@ export class LeaseContractsService {
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const filterKey = query.statusFilter ?? 'all';
     const statusFilter = LIST_STATUS_FILTER[filterKey];
+    const sort = resolveListSort(
+      LEASE_CONTRACT_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      LEASE_CONTRACT_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listContracts({
       organizationId: query.organizationId,
       page,
       pageSize,
       statusFilter,
       search: query.search,
+      sort,
     });
     const contractIds = rows.map((r) => r.contract.id);
     const allLines =
@@ -133,6 +146,7 @@ export class LeaseContractsService {
         r.contract,
         r.clientCompanyName ?? null,
         linesByContractId.get(r.contract.id) ?? [],
+        r.fleetOrganisationClientId ?? null,
       ),
     );
     return toPaginatedResult(items, page, pageSize, total);
@@ -142,12 +156,21 @@ export class LeaseContractsService {
   async listRenewalEligible(query: ListRenewalsExtensionsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      RENEWALS_EXTENSION_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      RENEWALS_EXTENSION_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listContracts({
       organizationId: query.organizationId,
       page,
       pageSize,
       statusFilter: [...RENEWABLE_CONTRACT_STATUSES],
       search: query.search,
+      sort: {
+        sortBy: sort.sortBy,
+        sortOrder: sort.sortOrder,
+      },
     });
     const contractIds = rows.map((r) => r.contract.id);
     const allLines =
@@ -173,6 +196,7 @@ export class LeaseContractsService {
         r.contract,
         r.clientCompanyName ?? null,
         linesByContractId.get(r.contract.id) ?? [],
+        r.fleetOrganisationClientId ?? null,
       ),
     );
     return toPaginatedResult(items, page, pageSize, total);
@@ -310,34 +334,63 @@ export class LeaseContractsService {
 
   async create(userId: string, dto: CreateLeaseContractDto) {
     this.validateAmcTierOptional(dto.amcTier);
+    const organizationId = dto.organizationId;
     const clientId = this.normalizeOptionalClientId(dto.clientId);
-    const insertPayload = {
-      organizationId: dto.organizationId,
-      clientId,
-      status: 'draft' as const,
-      startDate: dto.startDate ? new Date(dto.startDate) : null,
-      endDate: dto.endDate ? new Date(dto.endDate) : null,
+    if (clientId) {
+      await this.assertClientInOrg(organizationId, clientId);
+    }
+
+    const { startDate, endDate, termMonths } = this.resolveContractDateFields({
+      startDate: dto.startDate,
+      endDate: dto.endDate,
       termMonths: dto.termMonths ?? null,
-      securityDeposit: dto.securityDeposit ?? null,
-      billingFrequency: dto.billingFrequency ?? 'monthly',
-      additionalTerms: dto.additionalTerms ?? null,
-      amcTier: dto.amcTier ?? null,
-      description: dto.description ?? null,
-      createdByUserId: userId,
-      updatedByUserId: userId,
-    };
+    });
+
+    const vehicleIds = dto.vehicleIds ?? [];
+    if (vehicleIds.length > 0) {
+      await this.validateVehiclesForNewContract(organizationId, vehicleIds);
+    }
+
+    let enrichedLines: Awaited<
+      ReturnType<LeaseContractsService['buildEnrichedAssetLines']>
+    >['enriched'] = [];
+    let hasAwaitingLine = false;
+    if (dto.assetLines?.length) {
+      const built = await this.buildEnrichedAssetLines(
+        organizationId,
+        dto.assetLines,
+        { confirmShortfall: dto.confirmShortfall === true },
+      );
+      enrichedLines = built.enriched;
+      hasAwaitingLine = built.enriched.some((line) => line.awaitingAssetsLine);
+    }
 
     let row: Awaited<
-      ReturnType<FleetLeasingRepository['insertContract']>
+      ReturnType<FleetLeasingRepository['insertDraftContractWithNested']>
     > | null = null;
     for (let attempt = 0; attempt < 8; attempt++) {
-      const contractNumber = await this.repo.nextContractNumber(
-        dto.organizationId,
-      );
+      const contractNumber = await this.repo.nextContractNumber(organizationId);
       try {
-        row = await this.repo.insertContract({
-          ...insertPayload,
-          contractNumber,
+        row = await this.repo.insertDraftContractWithNested({
+          contract: {
+            organizationId,
+            contractNumber,
+            clientId,
+            status: 'draft',
+            startDate,
+            endDate,
+            termMonths,
+            securityDeposit: dto.securityDeposit ?? null,
+            billingFrequency: dto.billingFrequency ?? 'monthly',
+            additionalTerms: dto.additionalTerms ?? null,
+            amcTier: dto.amcTier ?? null,
+            description: dto.description ?? null,
+            createdByUserId: userId,
+            updatedByUserId: userId,
+          },
+          assetLines: enrichedLines,
+          vehicleIds,
+          awaitingFutureAssets: hasAwaitingLine,
         });
         break;
       } catch (err) {
@@ -352,30 +405,22 @@ export class LeaseContractsService {
         'Could not allocate a unique lease contract number',
       );
     }
-    if (dto.assetLines?.length) {
-      await this.applyAssetLines(dto.organizationId, row.id, dto.assetLines, {
-        confirmShortfall: false,
-      });
-    }
-    if (dto.vehicleIds?.length) {
-      await this.applyVehicles(dto.organizationId, row.id, dto.vehicleIds);
-    }
     await this.logEvent(
       row.id,
-      dto.organizationId,
+      organizationId,
       userId,
       'contract.created',
       `Draft contract ${row.contractNumber} created`,
     );
     await this.audit.log({
-      organizationId: dto.organizationId,
+      organizationId,
       userId,
       action: 'lease_contract.create',
       resourceType: 'lease_contract',
       resourceId: row.id,
       status: 'SUCCESS',
     });
-    return this.getById(dto.organizationId, row.id);
+    return this.getById(organizationId, row.id);
   }
 
   async updateAssetLines(
@@ -453,6 +498,7 @@ export class LeaseContractsService {
         l.awaitingAssetsLine,
       );
       return {
+        assetClassId: l.assetClassId ?? null,
         assetClass: l.assetClass,
         committedQuantity: l.committedQuantity,
         ratePerVehicleMonth: l.ratePerVehicleMonth,
@@ -698,20 +744,29 @@ export class LeaseContractsService {
         ? this.normalizeOptionalClientId(dto.clientId)
         : undefined;
     if (patchClientId) {
-      const client = await this.repo.getClientInOrg(
-        organizationId,
-        patchClientId,
-      );
-      if (!client)
-        throw new BadRequestException('Invalid client for organization');
+      await this.assertClientInOrg(organizationId, patchClientId);
     }
 
-    const nextStartDate =
-      dto.startDate !== undefined
-        ? new Date(dto.startDate)
-        : existing.startDate;
-    const nextTermMonths =
-      dto.termMonths !== undefined ? dto.termMonths : existing.termMonths;
+    const resolvedDates = this.resolveContractDateFields({
+      startDate:
+        dto.startDate !== undefined
+          ? dto.startDate
+          : (existing.startDate?.toISOString().slice(0, 10) ?? undefined),
+      endDate:
+        dto.endDate !== undefined
+          ? dto.endDate
+          : (existing.endDate?.toISOString().slice(0, 10) ?? undefined),
+      termMonths:
+        dto.termMonths !== undefined
+          ? dto.termMonths
+          : (existing.termMonths ?? null),
+      existingStartDate: existing.startDate,
+      existingEndDate: existing.endDate,
+      existingTermMonths: existing.termMonths,
+      allowPartialExisting: true,
+    });
+    const nextStartDate = resolvedDates.startDate;
+    const nextTermMonths = resolvedDates.termMonths;
     const recomputeEndDate =
       (dto.startDate !== undefined || dto.termMonths !== undefined) &&
       nextStartDate !== null &&
@@ -726,10 +781,10 @@ export class LeaseContractsService {
     if (patchClientId !== undefined) contractPatch.clientId = patchClientId;
     if (dto.startDate !== undefined) contractPatch.startDate = nextStartDate;
     if (dto.termMonths !== undefined) contractPatch.termMonths = dto.termMonths;
-    if (recomputeEndDate) {
+    if (recomputeEndDate && nextStartDate && nextTermMonths) {
       contractPatch.endDate = addMonthsUtc(nextStartDate, nextTermMonths);
     } else if (dto.endDate !== undefined) {
-      contractPatch.endDate = new Date(dto.endDate);
+      contractPatch.endDate = resolvedDates.endDate;
     }
     if (dto.securityDeposit !== undefined) {
       contractPatch.securityDeposit = dto.securityDeposit;
@@ -1324,38 +1379,56 @@ export class LeaseContractsService {
     organizationId: string,
     contractId: string,
     lines: {
-      assetClass: string;
+      assetClass?: string;
+      assetClassId?: string;
       committedQuantity: number;
       ratePerVehicleMonth: string;
     }[],
     options: { confirmShortfall: boolean },
   ) {
-    for (const line of lines) {
-      const className = line.assetClass.trim();
-      const exists = await this.assetRegisterCatalog.activeAssetClassNameExists(
-        organizationId,
-        className,
-      );
-      if (!exists) {
-        throw new BadRequestException({
-          code: 'UNKNOWN_ASSET_CLASS',
-          message: `Unknown asset class "${className}" — create it in Asset Register first`,
-          assetClass: className,
-        });
-      }
-    }
+    const { enriched, snapshots } = await this.buildEnrichedAssetLines(
+      organizationId,
+      lines,
+      options,
+    );
+    await this.repo.replaceAssetLines(contractId, enriched);
+    return snapshots;
+  }
 
-    const inventoryByClass =
-      await this.assetRegisterCatalog.getAssetClassInventoryBatch(
+  private async buildEnrichedAssetLines(
+    organizationId: string,
+    lines: {
+      assetClass?: string;
+      assetClassId?: string;
+      committedQuantity: number;
+      ratePerVehicleMonth: string;
+    }[],
+    options: { confirmShortfall: boolean },
+  ) {
+    const resolved = await Promise.all(
+      lines.map((line) =>
+        this.assetRegisterCatalog.resolveActiveAssetClassReference(
+          organizationId,
+          {
+            assetClass: line.assetClass,
+            assetClassId: line.assetClassId,
+          },
+        ),
+      ),
+    );
+
+    const inventoryById =
+      await this.assetRegisterCatalog.getAssetClassInventoryBatchByIds(
         organizationId,
-        lines.map((l) => l.assetClass),
+        resolved.map((row) => row.id),
       );
-    const snapshots = lines.map((l) => {
-      const availableNow = inventoryByClass.get(l.assetClass.trim()) ?? 0;
+    const snapshots = resolved.map((ref, index) => {
+      const line = lines[index];
+      const availableNow = inventoryById.get(ref.id) ?? 0;
       const inbound = 0;
       return computeAssetLineAvailability(
-        l.assetClass,
-        l.committedQuantity,
+        ref.name,
+        line.committedQuantity,
         availableNow,
         inbound,
         options.confirmShortfall,
@@ -1378,8 +1451,10 @@ export class LeaseContractsService {
     }
     const enriched = lines.map((l, i) => {
       const s = snapshots[i];
+      const ref = resolved[i];
       return {
-        assetClass: l.assetClass,
+        assetClassId: ref.id,
+        assetClass: ref.name,
         committedQuantity: l.committedQuantity,
         ratePerVehicleMonth: l.ratePerVehicleMonth,
         availabilityCovered: s.availabilityCovered,
@@ -1390,8 +1465,101 @@ export class LeaseContractsService {
         awaitingAssetsLine: s.awaitingAssetsLine,
       };
     });
-    await this.repo.replaceAssetLines(contractId, enriched);
-    return snapshots;
+    return { enriched, snapshots };
+  }
+
+  private async validateVehiclesForNewContract(
+    organizationId: string,
+    vehicleIds: string[],
+  ) {
+    const now = new Date();
+    for (const vehicleId of vehicleIds) {
+      const vehicle = await this.repo.getVehicleInOrg(
+        organizationId,
+        vehicleId,
+      );
+      if (!vehicle) {
+        throw new BadRequestException({
+          code: 'VEHICLE_NOT_FOUND',
+          message: `Vehicle ${vehicleId} not found`,
+        });
+      }
+      if (vehicle.status !== 'available') {
+        throw new BadRequestException({
+          code: 'VEHICLE_NOT_AVAILABLE',
+          message: `Vehicle ${vehicle.registrationNo} is not available`,
+        });
+      }
+      if (vehicle.registrationExpiry < now || vehicle.insuranceExpiry < now) {
+        throw new BadRequestException({
+          code: 'VEHICLE_COMPLIANCE_EXPIRED',
+          message: `Vehicle ${vehicle.registrationNo} has expired compliance`,
+        });
+      }
+    }
+  }
+
+  private async assertClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.repo.getClientInOrg(organizationId, clientId);
+    if (!client) {
+      throw new BadRequestException({
+        code: 'INVALID_CLIENT',
+        message: 'Invalid client for organization',
+      });
+    }
+  }
+
+  private resolveContractDateFields(input: {
+    startDate?: string;
+    endDate?: string;
+    termMonths: number | null;
+    existingStartDate?: Date | null;
+    existingEndDate?: Date | null;
+    existingTermMonths?: number | null;
+    allowPartialExisting?: boolean;
+  }): {
+    startDate: Date | null;
+    endDate: Date | null;
+    termMonths: number | null;
+  } {
+    const startDate =
+      input.startDate !== undefined
+        ? parseIsoDateOnlyUtc(input.startDate)
+        : (input.existingStartDate ?? null);
+    const termMonths =
+      input.termMonths !== undefined && input.termMonths !== null
+        ? input.termMonths
+        : (input.existingTermMonths ?? null);
+
+    let endDate: Date | null =
+      input.endDate !== undefined
+        ? parseIsoDateOnlyUtc(input.endDate)
+        : (input.existingEndDate ?? null);
+
+    if (startDate && termMonths != null && termMonths > 0) {
+      const computedEnd = addMonthsUtc(startDate, termMonths);
+      if (
+        input.endDate !== undefined &&
+        !input.allowPartialExisting &&
+        endDate
+      ) {
+        const expectedIso = computedEnd.toISOString().slice(0, 10);
+        const endIso = endDate.toISOString().slice(0, 10);
+        if (expectedIso !== endIso) {
+          throw new BadRequestException({
+            code: 'CONTRACT_DATE_TERM_MISMATCH',
+            message:
+              'startDate, endDate, and termMonths are inconsistent — end date must match start date plus term',
+          });
+        }
+      }
+      endDate = computedEnd;
+    }
+
+    return { startDate, endDate, termMonths };
   }
 
   private async applyVehicles(
@@ -1483,13 +1651,20 @@ export class LeaseContractsService {
     },
     clientCompanyName: string | null,
     lines: Array<{ assetClass: string }>,
+    fleetOrganisationClientId: string | null,
   ) {
     const assetClasses = lines.map((l) => l.assetClass).join(', ') || null;
     const rawStatus = contract.status as LeaseContractStatus;
+    const vehicleAssignmentEligible =
+      !contract.clientId || Boolean(fleetOrganisationClientId);
+    const vehicleAssignmentIneligibleReason = vehicleAssignmentEligible
+      ? null
+      : 'FLEET_CLIENT_ORGANISATION_LINK_MISSING';
     return {
       id: contract.id,
       contractNumber: contract.contractNumber,
       clientId: contract.clientId,
+      organisationClientId: fleetOrganisationClientId,
       clientName: clientCompanyName ?? 'Not yet selected',
       assetClasses: assetClasses ?? '--',
       startDate: contract.startDate?.toISOString().slice(0, 10) ?? null,
@@ -1499,6 +1674,8 @@ export class LeaseContractsService {
       rawStatus: contract.status,
       billingPaused: contract.billingPaused,
       onHold: contract.onHold,
+      vehicleAssignmentEligible,
+      vehicleAssignmentIneligibleReason,
       statusTags: buildStatusTags({
         rawStatus,
         billingPaused: contract.billingPaused,
@@ -1632,6 +1809,7 @@ export class LeaseContractsService {
       client: client
         ? {
             id: client.client.id,
+            organisationClientId: client.client.organisationClientId,
             companyName: clientCompanyName ?? client.client.companyName,
             address: client.client.address,
             pointsOfContact: client.pocs.map((p) => ({
@@ -1663,6 +1841,7 @@ export class LeaseContractsService {
         );
         return {
           id: l.id,
+          assetClassId: l.assetClassId ?? null,
           assetClass: l.assetClass,
           committedQuantity: l.committedQuantity,
           ratePerVehicleMonth: l.ratePerVehicleMonth,

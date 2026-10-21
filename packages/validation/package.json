@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "i18n-iso-countries": "^7.14.0",
+    "libphonenumber-js": "^1.12.9",
     "postcode-validator": "^3.10.22",
     "zod": "^4.6.5"
   },

@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from '../../src/app.module';
 import { GlobalHttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
+import { applyHttpSecurityHeaders } from '../../src/common/http/apply-http-security-headers';
 import type { AppDatabase } from '../../src/database/database.module';
 import {
   DEV_ADMIN_EMAIL,
@@ -59,6 +60,7 @@ export type IntegrationAuthContext = {
 export function configureIntegrationNestApp(
   app: INestApplication<App>,
 ): INestApplication<App> {
+  applyHttpSecurityHeaders(app);
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({

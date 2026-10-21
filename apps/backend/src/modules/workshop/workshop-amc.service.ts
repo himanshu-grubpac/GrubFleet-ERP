@@ -7,8 +7,13 @@ import {
 import { AssetRegisterRepository } from '../asset-register/repositories/asset-register.repository';
 import type { CreateAmcSubscriberDto } from './dto/create-amc-subscriber.dto';
 import type { CreateAmcTierDto } from './dto/create-amc-tier.dto';
+import { formatAmcTierPriceDisplayLabelFromPaise } from './utils/amc-tier-price.util';
 import type { CreateMaintenanceScheduleDto } from './dto/create-maintenance-schedule.dto';
+import type { ListSortOrder } from '../../common/constants/list-sort.constants';
 import type { ListAmcSubscribersQueryDto } from './dto/list-amc-subscribers-query.dto';
+import type { ListAmcTiersQueryDto } from './dto/list-amc-tiers-query.dto';
+import type { ListMaintenanceSchedulesQueryDto } from './dto/list-maintenance-schedules-query.dto';
+import type { MaintenanceScheduleVehicleListSortField } from './constants/workshop-list-sort.constants';
 import type { UpdateAmcTierDto } from './dto/update-amc-tier.dto';
 import type { UpdateMaintenanceScheduleDto } from './dto/update-maintenance-schedule.dto';
 import {
@@ -16,6 +21,17 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  AMC_SUBSCRIBER_LIST_DEFAULT_SORT,
+  AMC_SUBSCRIBER_LIST_SORT_FIELDS,
+  AMC_TIER_LIST_DEFAULT_SORT,
+  AMC_TIER_LIST_SORT_FIELDS,
+  MAINTENANCE_SCHEDULE_LIST_DEFAULT_SORT,
+  MAINTENANCE_SCHEDULE_LIST_SORT_FIELDS,
+  MAINTENANCE_SCHEDULE_VEHICLE_LIST_DEFAULT_SORT,
+  MAINTENANCE_SCHEDULE_VEHICLE_LIST_SORT_FIELDS,
+} from './constants/workshop-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { UpdateWorkshopAmcStatusDto } from './dto/update-workshop-amc-status.dto';
 import { WorkshopRepository } from './repositories/workshop.repository';
@@ -34,13 +50,19 @@ export class WorkshopAmcService {
     private readonly workOrders: WorkOrdersService,
   ) {}
 
-  async listTiers(organizationId: string, page?: number, pageSize?: number) {
-    const p = page ?? DEFAULT_PAGE;
-    const ps = pageSize ?? DEFAULT_PAGE_SIZE;
+  async listTiers(query: ListAmcTiersQueryDto) {
+    const p = query.page ?? DEFAULT_PAGE;
+    const ps = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      AMC_TIER_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      AMC_TIER_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.workshopRepo.listAmcTiers(
-      organizationId,
+      query.organizationId,
       p,
       ps,
+      sort,
     );
     const items = rows.map((row) => ({
       id: row.id,
@@ -68,17 +90,19 @@ export class WorkshopAmcService {
     };
   }
 
-  async listSchedules(
-    organizationId: string,
-    page?: number,
-    pageSize?: number,
-  ) {
-    const p = page ?? DEFAULT_PAGE;
-    const ps = pageSize ?? DEFAULT_PAGE_SIZE;
+  async listSchedules(query: ListMaintenanceSchedulesQueryDto) {
+    const p = query.page ?? DEFAULT_PAGE;
+    const ps = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      MAINTENANCE_SCHEDULE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      MAINTENANCE_SCHEDULE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.workshopRepo.listMaintenanceSchedules(
-      organizationId,
+      query.organizationId,
       p,
       ps,
+      sort,
     );
     const items = rows.map((row) => this.mapScheduleListItem(row));
     return toPaginatedResult(items, p, ps, total);
@@ -103,6 +127,8 @@ export class WorkshopAmcService {
     scheduleId: string,
     page?: number,
     pageSize?: number,
+    sortBy?: MaintenanceScheduleVehicleListSortField,
+    sortOrder?: ListSortOrder,
   ) {
     const schedule = await this.workshopRepo.getMaintenanceScheduleInOrg(
       organizationId,
@@ -119,6 +145,11 @@ export class WorkshopAmcService {
       schedule.intervalType,
     );
 
+    const sort = resolveListSort(
+      MAINTENANCE_SCHEDULE_VEHICLE_LIST_SORT_FIELDS,
+      { sortBy, sortOrder },
+      MAINTENANCE_SCHEDULE_VEHICLE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } =
       await this.workshopRepo.listMaintenanceScheduleMatchedVehicles(
         organizationId,
@@ -126,6 +157,7 @@ export class WorkshopAmcService {
         schedule.vehicleApplicability,
         p,
         ps,
+        sort,
       );
 
     const vehicleIds = rows.map((row) => row.vehicleId);
@@ -191,11 +223,16 @@ export class WorkshopAmcService {
   async listSubscribers(query: ListAmcSubscribersQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      AMC_SUBSCRIBER_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      AMC_SUBSCRIBER_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.workshopRepo.listAmcSubscribers(
       query.organizationId,
       page,
       pageSize,
-      { amcTierId: query.amcTierId },
+      { amcTierId: query.amcTierId, sort },
     );
     const items = rows.map((row) => ({
       id: row.id,
@@ -288,7 +325,10 @@ export class WorkshopAmcService {
         organizationId: dto.organizationId,
         name: dto.name.trim(),
         description: dto.description?.trim() ?? null,
-        priceDisplayLabel: dto.priceDisplayLabel?.trim() ?? null,
+        priceDisplayLabel:
+          dto.pricePaise !== undefined
+            ? formatAmcTierPriceDisplayLabelFromPaise(dto.pricePaise)
+            : null,
         subscriberCount: 0,
         isActive: true,
       });
@@ -319,8 +359,13 @@ export class WorkshopAmcService {
         ...(dto.description !== undefined
           ? { description: dto.description?.trim() ?? null }
           : {}),
-        ...(dto.priceDisplayLabel !== undefined
-          ? { priceDisplayLabel: dto.priceDisplayLabel?.trim() ?? null }
+        ...(dto.pricePaise !== undefined
+          ? {
+              priceDisplayLabel:
+                dto.pricePaise === null
+                  ? null
+                  : formatAmcTierPriceDisplayLabelFromPaise(dto.pricePaise),
+            }
           : {}),
       });
     } catch (error) {

@@ -2,11 +2,15 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
   IsEnum,
-  IsNumber,
   IsOptional,
+  IsString,
   IsUUID,
-  Min,
+  Matches,
 } from 'class-validator';
+import {
+  DECIMAL_MONEY_PATTERN,
+  DECIMAL_MONEY_PATTERN_MESSAGE,
+} from '@grubpac/validation';
 
 export enum AssetRegisterComplianceRenewType {
   INSURANCE = 'insurance',
@@ -24,18 +28,18 @@ export class RenewAssetRegisterComplianceDto {
   type!: AssetRegisterComplianceRenewType;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   startDate!: string;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   endDate!: string;
 
   @ApiPropertyOptional({
     description: 'Required when type is insurance.',
   })
   @IsOptional()
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  insurancePremium?: number;
+  @IsString()
+  @Matches(DECIMAL_MONEY_PATTERN, { message: DECIMAL_MONEY_PATTERN_MESSAGE })
+  insurancePremium?: string;
 }

@@ -19,6 +19,11 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { INVENTORY_SPARE_PART_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   fetchStockRegisterListApi,
@@ -31,7 +36,7 @@ import {
   inventoryStockRegisterEditHref,
 } from "@/lib/navigation/inventory-static-routes";
 import {
-  showErrorToast,
+  showApiErrorToast,
   showSparePartActivatedToast,
   showSparePartDeactivatedToast,
 } from "@/lib/toast/show-toast";
@@ -60,6 +65,13 @@ export default function StockDashboardPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(INVENTORY_SPARE_PART_COLUMN_SORT);
+
   const [statusTarget, setStatusTarget] =
     useState<StockRegisterListItem | null>(null);
   const [activateOpen, setActivateOpen] = useState(false);
@@ -73,6 +85,7 @@ export default function StockDashboardPage() {
       currentPage,
       debouncedSearch,
       filters.compatibleClass,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       fetchStockRegisterListApi(
@@ -81,6 +94,7 @@ export default function StockDashboardPage() {
           page: currentPage,
           pageSize: PAGE_SIZE,
           search: debouncedSearch,
+          ...listSortParams,
         },
         token!,
       ),
@@ -90,7 +104,7 @@ export default function StockDashboardPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, filters.compatibleClass]);
+  }, [debouncedSearch, filters.compatibleClass, tableSort]);
 
   const statusMutation = useMutation({
     mutationFn: (input: {
@@ -117,7 +131,8 @@ export default function StockDashboardPage() {
       setDeactivateOpen(false);
       setStatusTarget(null);
     },
-    onError: () => showErrorToast("Could not update part status."),
+    onError: (error) =>
+      showApiErrorToast(error, "Could not update part status."),
   });
 
   const items = listQuery.data?.items ?? [];
@@ -162,6 +177,7 @@ export default function StockDashboardPage() {
     {
       key: "compatibleClass",
       label: "COMPATIBLE CLASS",
+      sortable: false,
       render: (part: StockRegisterListItem) => (
         <span className="text-sm text-gray-600">{part.compatibleClass}</span>
       ),
@@ -169,6 +185,7 @@ export default function StockDashboardPage() {
     {
       key: "threshold",
       label: "THRESHOLD",
+      sortable: false,
       render: (part: StockRegisterListItem) => (
         <span className="text-sm text-gray-600">{part.threshold}</span>
       ),
@@ -176,6 +193,7 @@ export default function StockDashboardPage() {
     {
       key: "unit",
       label: "UNIT",
+      sortable: false,
       render: (part: StockRegisterListItem) => (
         <span className="text-sm text-gray-600">{part.unit}</span>
       ),
@@ -280,6 +298,9 @@ export default function StockDashboardPage() {
             columns={stockColumns}
             data={filteredItems}
             getRowKey={(part) => part.id}
+            sortState={tableSort}
+            onSortChange={onSortChange}
+            serverSorted={serverSorted}
             renderActions={(part) => (
               <DashboardTableActions
                 status={part.status}

@@ -11,6 +11,8 @@ import {
   MinLength,
 } from 'class-validator';
 import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
+import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
+import { IsValidPostalForCountry } from '../../../common/decorators/is-valid-postal-for-country.decorator';
 import { ORGANISATION_SUPPLIER_TYPES } from '../constants/supplier-type.constants';
 
 export class CreateSupplierDto {
@@ -38,6 +40,7 @@ export class CreateSupplierDto {
   @IsString()
   @MinLength(1)
   @MaxLength(32)
+  @IsValidPhone()
   contactPhone!: string;
 
   @ApiProperty()
@@ -99,5 +102,6 @@ export class CreateSupplierDto {
   @IsString()
   @MinLength(1)
   @MaxLength(20)
+  @IsValidPostalForCountry('addressCountry')
   addressPincode!: string;
 }

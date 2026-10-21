@@ -137,7 +137,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       registrationEndDate: '2029-01-01',
       insuranceStartDate: '2024-01-01',
       insuranceEndDate: '2025-01-01',
-      insurancePremium: 12000,
+      insurancePremium: '12000.00',
       warrantyStartDate: '2024-01-01',
       warrantyEndDate: '2027-01-01',
       ...overrides,
@@ -357,6 +357,58 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .expect(400);
     });
 
+    it('accepts a normalized registration number with spaces', async () => {
+      const classId = await createAssetClass();
+      const suffix = String(Date.now()).slice(-4);
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildVehiclePayload(classId, {
+            registrationNumber: `  mh04 ab 10${suffix}  `,
+          }),
+        )
+        .expect(201);
+      expect((res.body as VehicleDetail).registrationNumber).toBe(
+        `MH04 AB 10${suffix}`,
+      );
+    });
+
+    it('returns 400 for registration number that is too short', async () => {
+      const classId = await createAssetClass();
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildVehiclePayload(classId, { registrationNumber: 'K' }))
+        .expect(400);
+    });
+
+    it('returns 400 for registration number over max length', async () => {
+      const classId = await createAssetClass();
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildVehiclePayload(classId, {
+            registrationNumber: `${'A1'.repeat(17)}`,
+          }),
+        )
+        .expect(400);
+    });
+
+    it('returns 400 for registration number with digits only', async () => {
+      const classId = await createAssetClass();
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildVehiclePayload(classId, { registrationNumber: '1234' }))
+        .expect(400);
+    });
+
     it('returns 409 when registration number duplicates another vehicle in the same org', async () => {
       const classId = await createAssetClass();
       const reg = `DUP-REG-${Date.now()}`.slice(0, 32);
@@ -420,6 +472,30 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
           buildVehiclePayload(classId, {
             registrationStartDate: '2025-01-01',
             registrationEndDate: '2024-01-01',
+          }),
+        )
+        .expect(400);
+    });
+
+    it('returns 400 for invalid insurancePremium decimal string on create', async () => {
+      const classId = await createAssetClass();
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildVehiclePayload(classId, { insurancePremium: 'not-money' }))
+        .expect(400);
+    });
+
+    it('returns 400 for invalid calendar date on create', async () => {
+      const classId = await createAssetClass();
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildVehiclePayload(classId, {
+            registrationStartDate: 'not-a-date',
           }),
         )
         .expect(400);
@@ -535,5 +611,14 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .set('x-organization-id', organizationId)
         .expect(403);
     });
+  });
+
+  it('returns 400 for invalid sortBy on vehicle list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/asset-register/vehicles')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

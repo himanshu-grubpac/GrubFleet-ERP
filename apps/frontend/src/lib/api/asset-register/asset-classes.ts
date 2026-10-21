@@ -1,11 +1,15 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type AssetRegisterClassStatus = "active" | "inactive";
 export type AssetRegisterVehicleTypeApi = "2W" | "3W" | "4W";
 
 export type AssetRegisterAssetClassListItem = {
   id: string;
+  /** Org-unique 6-digit display id (server-assigned). */
+  classId: string;
   name: string;
   specLabel: string;
   vehicleType: AssetRegisterVehicleTypeApi;
@@ -40,7 +44,7 @@ export type AssetRegisterAssetClassDetail = AssetRegisterAssetClassListItem & {
   updatedAt: string;
 };
 
-export type ListAssetRegisterAssetClassesParams = {
+export type ListAssetRegisterAssetClassesParams = ListSortParams & {
   organizationId: string;
   token: string;
   page?: number;
@@ -63,6 +67,7 @@ export async function fetchAssetRegisterAssetClassesApi(
   });
   if (params.search?.trim()) q.set("search", params.search.trim());
   if (params.status) q.set("status", params.status);
+  appendListSortSearchParams(q, params);
 
   return apiFetch<PaginatedResponse<AssetRegisterAssetClassListItem>>(
     `/asset-register/asset-classes?${q.toString()}`,

@@ -514,7 +514,7 @@ describe('Workshop module (integration)', () => {
         registrationEndDate: '2029-01-01',
         insuranceStartDate: '2024-01-01',
         insuranceEndDate: '2030-01-01',
-        insurancePremium: 10000,
+        insurancePremium: '10000.00',
         warrantyStartDate: '2024-01-01',
         warrantyEndDate: '2027-01-01',
       })
@@ -558,9 +558,23 @@ describe('Workshop module (integration)', () => {
           organizationId,
           name: `Tier ${unique}`,
           description: 'Integration tier',
+          pricePaise: 199900,
         })
         .expect(201);
       expect((res.body as { name: string }).name).toBe(`Tier ${unique}`);
+    });
+
+    it('returns 400 when AMC tier pricePaise is negative', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/workshop/amc/tiers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          name: `Bad price ${Date.now()}`,
+          pricePaise: -1,
+        })
+        .expect(400);
     });
 
     it('creates and updates maintenance schedule', async () => {
@@ -796,5 +810,14 @@ describe('Workshop module (integration)', () => {
         organizationId,
       });
     });
+  });
+
+  it('returns 400 for invalid sortBy on work order list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/workshop/work-orders')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

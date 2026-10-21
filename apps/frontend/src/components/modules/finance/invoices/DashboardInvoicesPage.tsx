@@ -23,6 +23,11 @@ import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pa
 
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { FINANCE_INVOICE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
 import {
   isDashboardCatalogEmptyState,
@@ -54,7 +59,7 @@ import {
 import {
   FINANCE_INVOICE_CANCEL_ERROR,
   FINANCE_INVOICE_REMOVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoiceCancelledToast,
   showFinanceInvoiceRemovedToast,
 } from "@/lib/toast/show-toast";
@@ -118,6 +123,13 @@ export default function DashboardInvoicesPage() {
   const [typeTab, setTypeTab] = useState<InvoiceTypeTab>("all");
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(FINANCE_INVOICE_COLUMN_SORT);
+
   const [cancelTarget, setCancelTarget] =
     useState<FinanceInvoiceListItem | null>(null);
 
@@ -126,7 +138,7 @@ export default function DashboardInvoicesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusFilter, typeTab]);
+  }, [debouncedSearch, statusFilter, typeTab, tableSort]);
 
   const listEnabled =
     Boolean(token) &&
@@ -141,6 +153,7 @@ export default function DashboardInvoicesPage() {
       statusFilter,
       typeTab,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       fetchFinanceInvoicesApi(token!, {
@@ -152,6 +165,7 @@ export default function DashboardInvoicesPage() {
           ? (statusFilter as FinanceInvoiceStatus)
           : undefined,
         invoiceType: typeTab === "all" ? undefined : typeTab,
+        ...listSortParams,
       }),
     enabled: listEnabled,
     ...dashboardListQueryOptions,
@@ -215,11 +229,7 @@ export default function DashboardInvoicesPage() {
       invalidateInvoiceQueries();
     },
     onError: (error) => {
-      showErrorToast(
-        error instanceof Error && error.message
-          ? error.message
-          : FINANCE_INVOICE_CANCEL_ERROR,
-      );
+      showApiErrorToast(error, FINANCE_INVOICE_CANCEL_ERROR);
     },
   });
 
@@ -236,11 +246,7 @@ export default function DashboardInvoicesPage() {
       invalidateInvoiceQueries();
     },
     onError: (error) => {
-      showErrorToast(
-        error instanceof Error && error.message
-          ? error.message
-          : FINANCE_INVOICE_REMOVE_ERROR,
-      );
+      showApiErrorToast(error, FINANCE_INVOICE_REMOVE_ERROR);
     },
   });
 
@@ -253,6 +259,7 @@ export default function DashboardInvoicesPage() {
     {
       key: "type",
       label: "Type",
+      sortable: false,
       render: (row) => typeLabel(row.invoiceType),
     },
     {
@@ -263,16 +270,19 @@ export default function DashboardInvoicesPage() {
     {
       key: "party",
       label: "Party",
+      sortable: false,
       render: (row) => row.partyName,
     },
     {
       key: "description",
       label: "Description",
+      sortable: false,
       render: (row) => row.description,
     },
     {
       key: "amount",
       label: "Amount",
+      sortable: false,
       render: (row) =>
         formatInrFromMinor(row.totalAmountMinor),
     },
@@ -493,6 +503,9 @@ export default function DashboardInvoicesPage() {
                     columns={columns}
                     data={items}
                     getRowKey={(row) => row.id}
+                    sortState={tableSort}
+                    onSortChange={onSortChange}
+                    serverSorted={serverSorted}
                     renderActions={renderRowActions}
                   />
                 </div>

@@ -12,7 +12,13 @@ import {
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
+  type ListSortOrder,
 } from '../../../common/dto/pagination-query.dto';
+import { LIST_SORT_ORDERS } from '../../../common/constants/list-sort.constants';
+import {
+  CLIENT_LIST_SORT_FIELDS,
+  type ClientListSortField,
+} from '../constants/organisation-list-sort.constants';
 
 export const CLIENT_LIST_MAX_PAGE_SIZE = 50;
 
@@ -49,4 +55,14 @@ export class ListOrganisationClientsQueryDto {
   @IsOptional()
   @IsIn(['active', 'inactive'])
   status?: 'active' | 'inactive';
+
+  @ApiPropertyOptional({ enum: CLIENT_LIST_SORT_FIELDS })
+  @IsOptional()
+  @IsIn(CLIENT_LIST_SORT_FIELDS)
+  sortBy?: ClientListSortField;
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
 }

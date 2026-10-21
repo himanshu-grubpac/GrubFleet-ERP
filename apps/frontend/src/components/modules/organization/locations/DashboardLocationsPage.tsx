@@ -14,6 +14,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ORGANISATION_LOCATION_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   LOCATION_STATUS_UPDATE_ERROR,
@@ -84,6 +89,13 @@ export default function LocationsPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(ORGANISATION_LOCATION_COLUMN_SORT);
+
   const [filters, setFilters] = useState<
     Record<string, string>
   >({
@@ -117,7 +129,7 @@ export default function LocationsPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filters.status, filters.type]);
+  }, [debouncedSearch, filters.status, filters.type, tableSort]);
 
   const locationsQuery = useQuery({
     queryKey: [
@@ -128,6 +140,7 @@ export default function LocationsPage() {
       filters.status,
       selectedTypeId,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () => {
       if (!token || !organizationId) {
@@ -143,6 +156,7 @@ export default function LocationsPage() {
           filters.status === "active" || filters.status === "inactive"
             ? filters.status
             : undefined,
+        ...listSortParams,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -267,21 +281,25 @@ export default function LocationsPage() {
     {
       key: "type",
       label: "Type",
+      sortable: false,
     },
 
     {
       key: "address",
       label: "Address",
+      sortable: false,
     },
 
     {
       key: "responsiblePerson",
       label: "Responsible Person",
+      sortable: false,
     },
 
     {
       key: "contact",
       label: "Contact",
+      sortable: false,
       render: (location: Location) => (
         <DashboardContact
           phone={formatPhoneDisplay(location.phone) || undefined}
@@ -295,6 +313,7 @@ export default function LocationsPage() {
     {
       key: "status",
       label: "Status",
+      sortable: false,
 
       render: (location: Location) => (
         <span
@@ -488,6 +507,9 @@ export default function LocationsPage() {
           <DashboardTable
             columns={locationColumns}
             data={filteredLocations}
+            sortState={tableSort}
+            onSortChange={onSortChange}
+            serverSorted={serverSorted}
             getRowKey={(location) => location.id}
             renderActions={(location) => (
               <DashboardTableActions

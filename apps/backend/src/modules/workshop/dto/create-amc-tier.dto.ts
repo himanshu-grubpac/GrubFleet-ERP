@@ -1,9 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
+  Min,
   MinLength,
 } from 'class-validator';
 
@@ -24,9 +27,12 @@ export class CreateAmcTierDto {
   @MaxLength(2000)
   description?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description: 'Annual price in minor currency units (paise for INR)',
+  })
   @IsOptional()
-  @IsString()
-  @MaxLength(120)
-  priceDisplayLabel?: string;
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  pricePaise?: number;
 }

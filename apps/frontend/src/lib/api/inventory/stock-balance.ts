@@ -1,4 +1,6 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { apiFetch } from "../client";
 
@@ -33,7 +35,7 @@ export type StockBalanceDetail = {
   locations: Array<{ location: string; quantity: number }>;
 };
 
-export type ListStockBalanceParams = {
+export type ListStockBalanceParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -49,6 +51,7 @@ export async function fetchStockBalanceListApi(
   if (params.page) query.set("page", String(params.page));
   if (params.pageSize) query.set("pageSize", String(params.pageSize));
   if (params.search?.trim()) query.set("search", params.search.trim());
+  appendListSortSearchParams(query, params);
 
   return apiFetch<PaginatedResponse<StockBalanceListItem>>(
     `/inventory/stock-balance?${query.toString()}`,

@@ -1,5 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql, type AnyColumn } from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../common/utils/list-sort.util';
+import {
+  ROLE_LIST_DEFAULT_SORT,
+  type RoleListSortField,
+} from './constants/roles-list-sort.constants';
 import type { AppDatabase } from '../../database/database.module';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import {
@@ -8,6 +16,12 @@ import {
   roles,
   userRoles,
 } from '../../database/schema';
+
+const ROLE_LIST_SORT_COLUMNS: Record<RoleListSortField, AnyColumn> = {
+  name: roles.name,
+  createdAt: roles.createdAt,
+  updatedAt: roles.updatedAt,
+};
 
 @Injectable()
 export class RolesRepository {
@@ -18,6 +32,7 @@ export class RolesRepository {
     page: number,
     pageSize: number,
     visibleRoleIds?: string[] | null,
+    sort?: ResolvedListSort<RoleListSortField>,
   ): Promise<{ rows: (typeof roles.$inferSelect)[]; total: number }> {
     const offset = (page - 1) * pageSize;
     const scopeFilter = and(
@@ -36,7 +51,13 @@ export class RolesRepository {
         .select()
         .from(roles)
         .where(whereClause)
-        .orderBy(roles.name)
+        .orderBy(
+          ...buildListOrderBy(
+            ROLE_LIST_SORT_COLUMNS,
+            sort ?? ROLE_LIST_DEFAULT_SORT,
+            roles.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db

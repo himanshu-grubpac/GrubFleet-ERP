@@ -6,6 +6,7 @@ import {
   IsEmail,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
   MaxLength,
@@ -22,6 +23,7 @@ export class CreateSaleInvoiceDto {
   vehicleId!: string;
 
   @ApiProperty({ maxLength: 255 })
+  @IsString()
   @MaxLength(255)
   buyerName!: string;
 
@@ -42,11 +44,12 @@ export class CreateSaleInvoiceDto {
   totalAmountMinor!: number;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   invoiceDate!: string;
 
   @ApiPropertyOptional({ maxLength: 2000 })
   @IsOptional()
+  @IsString()
   @MaxLength(2000)
   notes?: string;
 

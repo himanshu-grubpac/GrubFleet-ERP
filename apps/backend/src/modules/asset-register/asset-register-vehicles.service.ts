@@ -12,6 +12,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
+  ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
+} from './constants/asset-register-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateAssetRegisterVehicleDto } from './dto/create-asset-register-vehicle.dto';
 import type { ListAssetRegisterVehiclesQueryDto } from './dto/list-asset-register-vehicles-query.dto';
@@ -21,7 +26,10 @@ import {
   AssetRegisterRepository,
   type AssetRegisterVehicleWithRelations,
 } from './repositories/asset-register.repository';
-import { ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE } from './utils/registration-number.util';
+import {
+  ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE,
+  normalizeAssetRegisterRegistrationNumber,
+} from './utils/registration-number.util';
 
 @Injectable()
 export class AssetRegisterVehiclesService {
@@ -41,6 +49,11 @@ export class AssetRegisterVehiclesService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVehicles(
       query.organizationId,
       page,
@@ -50,6 +63,7 @@ export class AssetRegisterVehiclesService {
         isActive,
         assetClassId: query.assetClassId,
         operationalStatus: query.operationalStatus,
+        sort,
       },
     );
     const items = rows.map((row) => this.toListItem(row));
@@ -76,7 +90,9 @@ export class AssetRegisterVehiclesService {
       warrantyEndDate: dto.warrantyEndDate,
     });
 
-    const registrationNumber = dto.registrationNumber.trim();
+    const registrationNumber = normalizeAssetRegisterRegistrationNumber(
+      dto.registrationNumber,
+    );
     await this.assertRegistrationNumberUnique(
       dto.organizationId,
       registrationNumber,
@@ -166,7 +182,9 @@ export class AssetRegisterVehiclesService {
     });
 
     if (dto.registrationNumber !== undefined) {
-      const registrationNumber = dto.registrationNumber.trim();
+      const registrationNumber = normalizeAssetRegisterRegistrationNumber(
+        dto.registrationNumber,
+      );
       await this.assertRegistrationNumberUnique(
         organizationId,
         registrationNumber,
@@ -180,7 +198,11 @@ export class AssetRegisterVehiclesService {
           ? { assetClassId: dto.assetClassId, assetMasterId: null }
           : {}),
         ...(dto.registrationNumber !== undefined
-          ? { registrationNumber: dto.registrationNumber.trim() }
+          ? {
+              registrationNumber: normalizeAssetRegisterRegistrationNumber(
+                dto.registrationNumber,
+              ),
+            }
           : {}),
         ...(dto.chassisNumber !== undefined
           ? { chassisNumber: dto.chassisNumber.trim() }

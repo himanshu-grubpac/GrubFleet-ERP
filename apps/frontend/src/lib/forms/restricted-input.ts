@@ -80,6 +80,11 @@ export const WORKSHOP_INPUT_LIMITS = {
   maintenanceScheduleDescription: 2000,
 } as const;
 
+/** Fleet register vehicle — mirrors @grubpac/validation vehicle registration rules. */
+export const ASSET_REGISTER_VEHICLE_INPUT_LIMITS = {
+  registrationNumber: 32,
+} as const;
+
 export const ASSET_REGISTER_CLASS_INPUT_LIMITS = {
   brand: 255,
   modelName: 255,

@@ -7,12 +7,16 @@
  * Or standalone:
  *   ts-node -r tsconfig-paths/register src/database/seed/seed-staging-interconnected-demo.ts
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { SYSTEM_LOCATION_TYPE_PRESETS } from '../../modules/organisation/constants/system-location-type-presets';
 import { buildAssetClassNameFromSpec } from '../../modules/asset-register/utils/asset-class-name.util';
+import {
+  ASSET_CLASS_ID_SEQUENCE_START,
+  formatAssetClassId,
+} from '../../modules/asset-register/utils/asset-class-id.util';
 import { pgPoolOptions } from '../pg-pool-options';
 import * as schema from '../schema';
 import {
@@ -1036,6 +1040,7 @@ export async function seedStagingInterconnectedDemo(
   ] as const;
 
   const assetClassIds = new Map<string, { id: string; name: string }>();
+  let nextAssetClassIdSequence = ASSET_CLASS_ID_SEQUENCE_START;
   for (const seed of assetClassSeeds) {
     const className = buildAssetClassNameFromSpec({
       manufacturingYear: seed.manufacturingYear,
@@ -1067,6 +1072,7 @@ export async function seedStagingInterconnectedDemo(
       .insert(assetRegisterAssetClasses)
       .values({
         organizationId,
+        classId: formatAssetClassId(nextAssetClassIdSequence++),
         name: className,
         description: STAGING_DEMO_SEED_SOURCE,
         brand: seed.brand,
@@ -1209,6 +1215,17 @@ export async function seedStagingInterconnectedDemo(
       .limit(1);
     if (existing) {
       fleetClientIds.set(clientKey, existing.id);
+      if (orgClientId) {
+        await db
+          .update(fleetClients)
+          .set({ organisationClientId: orgClientId })
+          .where(
+            and(
+              eq(fleetClients.id, existing.id),
+              isNull(fleetClients.organisationClientId),
+            ),
+          );
+      }
       bump('fleetClients', false);
       continue;
     }

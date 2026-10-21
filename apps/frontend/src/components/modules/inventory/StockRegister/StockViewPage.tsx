@@ -12,7 +12,7 @@ import {
     updateSparePartStatusApi,
 } from "@/lib/api/inventory/stock-register";
 import {
-    showErrorToast,
+    showApiErrorToast,
     showSparePartActivatedToast,
     showSparePartDeactivatedToast,
 } from "@/lib/toast/show-toast";
@@ -128,8 +128,8 @@ export default function StockViewPage() {
             }
         },
 
-        onError: () => {
-            showErrorToast("Could not update part status.");
+        onError: (error) => {
+            showApiErrorToast(error, "Could not update part status.");
         },
     });
 

@@ -3,6 +3,8 @@ import type { DriverFormData } from "@/components/modules/organization/driver-re
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type DriverStatus = "active" | "inactive";
 
@@ -45,7 +47,7 @@ export type AssignableVehicleListItem = {
   activeLeaseId: string;
 };
 
-export type ListOrganisationDriversParams = {
+export type ListOrganisationDriversParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -94,6 +96,7 @@ export async function fetchOrganisationDriversApi(
   if (params.status) {
     query.set("status", params.status);
   }
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<OrganisationDriverListItem>>(
     `/organisation/drivers?${query.toString()}`,
     {

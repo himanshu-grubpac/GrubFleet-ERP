@@ -292,6 +292,30 @@ describe('Finance invoices (integration)', () => {
         )
         .expect(400);
     });
+
+    it('returns 400 for invalid invoiceDate on purchase vehicle create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/invoices/purchase/vehicle')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildVehiclePurchasePayload({
+            organizationId,
+            supplierId,
+            invoiceDate: 'not-a-date',
+            lines: [
+              {
+                assetClassId,
+                quantity: 1,
+                rateMinor: 10_000,
+                taxMode: 'INCLUSIVE',
+                vatPercent: 18,
+              },
+            ],
+          }),
+        )
+        .expect(400);
+    });
   });
 
   describe('purchase invoices — happy path', () => {
@@ -860,5 +884,39 @@ describe('Finance invoices (integration)', () => {
         })
         .expect(404);
     });
+  });
+
+  describe('inventory catalog parts — postgres unique mapping', () => {
+    it('returns 409 INVENTORY_PART_NAME_DUPLICATE for duplicate part name (not 500)', async () => {
+      const name = `Dup Catalog Part ${Date.now()}`;
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/inventory-parts')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ organizationId, name, partCode: null })
+        .expect(201);
+
+      const dup = await request(app.getHttpServer())
+        .post('/api/v1/finance/inventory-parts')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ organizationId, name, partCode: 'OTHER-CODE' })
+        .expect(409);
+
+      expect(dup.body).toMatchObject({
+        statusCode: 409,
+        code: 'INVENTORY_PART_NAME_DUPLICATE',
+      });
+      expect((dup.body as { code: string }).code).not.toBe('INTERNAL_ERROR');
+    });
+  });
+
+  it('returns 400 for invalid sortBy on invoice list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/invoices')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

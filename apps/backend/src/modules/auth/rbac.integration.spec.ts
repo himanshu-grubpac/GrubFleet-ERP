@@ -405,6 +405,19 @@ describe('RBAC admin (integration)', () => {
       .expect(403);
   });
 
+  it('returns 400 when role moduleAccess uses unknown moduleId', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('unknown-module'),
+        moduleAccess: [{ moduleId: 'not_a_real_module', accessLevel: 'VIEW' }],
+      })
+      .expect(400);
+  });
+
   it('GET /roles/:id returns org-scoped role and 404 for missing id', async () => {
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/roles')
@@ -545,6 +558,104 @@ describe('RBAC admin (integration)', () => {
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
+  });
+
+  it('expands permissionKeys on create (create implies view, manage implies full CRUD)', async () => {
+    const createOnlyRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('org-create-only-keys'),
+        permissionKeys: ['organisation.create'],
+      })
+      .expect(201);
+
+    const createOnly = createOnlyRes.body as {
+      id: string;
+      permissionKeys: string[];
+    };
+    expect(createOnly.permissionKeys).toContain('organisation.view');
+    expect(createOnly.permissionKeys).toContain('organisation.create');
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${createOnly.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    const manageOnlyRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('org-manage-only-keys'),
+        permissionKeys: ['organisation.manage'],
+      })
+      .expect(201);
+
+    const manageOnly = manageOnlyRes.body as { permissionKeys: string[] };
+    expect(manageOnly.permissionKeys).toEqual(
+      expect.arrayContaining([
+        'organisation.view',
+        'organisation.create',
+        'organisation.update',
+        'organisation.delete',
+        'organisation.manage',
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${(manageOnlyRes.body as { id: string }).id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+  });
+
+  it('returns 400 when permissionKeys include unknown catalog keys', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('invalid-perm-keys'),
+        permissionKeys: ['organisation.create', 'not.a.valid.permission.key'],
+      })
+      .expect(400);
+  });
+
+  it('returns 409 ROLE_NAME_CONFLICT when role name duplicates in org', async () => {
+    const roleName = rbacIntegrationTestRoleName('duplicate-name');
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: roleName,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+
+    const dup = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: roleName,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(409);
+
+    expect(dup.body).toMatchObject({
+      code: 'ROLE_NAME_CONFLICT',
+      statusCode: 409,
+    });
+    expect(dup.body).not.toMatchObject({ code: 'INTERNAL_ERROR' });
   });
 
   it('creates fleet_leasing VIEW role and denies admin manage actions', async () => {

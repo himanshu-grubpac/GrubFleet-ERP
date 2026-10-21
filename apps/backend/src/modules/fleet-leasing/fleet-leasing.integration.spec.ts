@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import { randomUUID } from 'crypto';
-import { INestApplication } from '@nestjs/common';
+import { BadRequestException, INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -27,8 +27,10 @@ import {
   createDraftLeaseContract,
   createFleetClientForIntegrationTest,
 } from '../../../test/helpers/fleet-leasing-test.util';
+import { fleetClientStructuredAddressIn } from '../../../test/helpers/fleet-client-address.fixture';
 import * as schema from '../../database/schema';
-import { organizations } from '../../database/schema';
+import { fleetClients, organizations } from '../../database/schema';
+import { FleetClientsService } from './fleet-clients.service';
 
 type AuthLoginResponse = { accessToken: string };
 type LeaseContractSummaryResponse = {
@@ -80,6 +82,7 @@ type ConfirmLeaseContractResponse = {
 };
 type FleetAssetClassListResponse = {
   items: string[];
+  catalog: Array<{ id: string; name: string; specLabel: string }>;
   page: number;
   pageSize: number;
   total: number;
@@ -204,7 +207,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         companyName: 'Meridian Logistics Pvt Ltd',
-        address: 'Mumbai',
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'Aditi Rao',
@@ -247,10 +250,91 @@ describe('Fleet leasing lease contracts (integration)', () => {
     expect(detailBody.availableActions.editContract.allowed).toBe(true);
   });
 
+  it('LEASE-CREATE: create validation lattice (client, dates, DTO, audit)', async () => {
+    const invalidClientRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/lease-contracts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        clientId: randomUUID(),
+      })
+      .expect(400);
+    const invalidClientBody = invalidClientRes.body as ApiErrorResponse;
+    expect(invalidClientBody.code).toBe('INVALID_CLIENT');
+
+    await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/lease-contracts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        termMonths: 0,
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/lease-contracts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        surpriseField: true,
+      })
+      .expect(400);
+
+    const leaseCreateToken = `lease-create-${randomUUID().slice(0, 8)}`;
+    const clientRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        companyName: `LEASE-CREATE Client ${leaseCreateToken}`,
+        ...fleetClientStructuredAddressIn(),
+        pointsOfContact: [
+          {
+            name: 'LEASE CREATE POC',
+            contactNumber: '+919999999991',
+            email: `lease-create-${leaseCreateToken}@example.com`,
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const clientId = (clientRes.body as FleetClientResponse).id;
+
+    const createdRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/lease-contracts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        clientId,
+        startDate: '2026-04-01',
+        termMonths: 12,
+        securityDeposit: '50000.00',
+        billingFrequency: 'monthly',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const created = createdRes.body as LeaseContractDetailResponse & {
+      id: string;
+      endDate?: string | null;
+    };
+
+    expect(created.endDate).toBe('2027-04-01');
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'lease_contract.create',
+      resourceId: created.id,
+    });
+  });
+
   it('LEASE-02: client search empty, create with taxId, reject unknown keys', async () => {
     const lease02Token = `lease02-${randomUUID()}`;
     const companyName = `Sunrise Freight Co ${lease02Token}`;
-    const taxId = `29ABCDE1234F1Z${lease02Token.slice(-2).toUpperCase()}`;
+    const taxId = '29ABCDE1234F1Z5';
 
     const noMatch = await request(app.getHttpServer())
       .get('/api/v1/fleet-leasing/clients')
@@ -270,8 +354,48 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
+        companyName: `Bad Postal ${lease02Token}`,
+        ...fleetClientStructuredAddressIn({ addressPincode: 'not-a-pin' }),
+        pointsOfContact: [
+          {
+            name: 'Bad Postal POC',
+            contactNumber: '+919876543210',
+            email: 'bad-postal@example.com',
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        companyName: `Bad Gstin ${lease02Token}`,
+        taxId: 'NOT-A-VALID-GSTIN',
+        ...fleetClientStructuredAddressIn(),
+        pointsOfContact: [
+          {
+            name: 'Bad Gstin POC',
+            contactNumber: '+919876543211',
+            email: 'bad-gstin@example.com',
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
         companyName,
         taxId,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
@@ -292,6 +416,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         organizationId,
         companyName,
         taxId,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
@@ -342,6 +467,86 @@ describe('Fleet leasing lease contracts (integration)', () => {
     expect(body.items.length).toBeGreaterThanOrEqual(1);
     for (const item of body.items) {
       expect(typeof item.contractCount).toBe('number');
+    }
+  });
+
+  it('FLEET-CLIENTS-LIST: returns 200 when sync fails for one organisation client (AUD-001)', async () => {
+    const token = `aud001-${randomUUID().slice(0, 8)}`;
+    const goodCreate = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        companyName: `Good ${token}`,
+        ...fleetClientStructuredAddressIn(),
+        pointsOfContact: [
+          {
+            name: 'Good Client POC',
+            contactNumber: '+919876543212',
+            email: `good-${token}@grubpac.local`,
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const goodFleetId = (goodCreate.body as FleetClientResponse).id;
+
+    const orgCreate = await request(app.getHttpServer())
+      .post('/api/v1/organisation/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        clientName: `Broken sync ${token}`,
+        addressLine1: 'Line 1',
+        addressCountry: 'IN',
+        addressState: 'Maharashtra',
+        addressDistrict: 'Mumbai',
+        addressPincode: '400001',
+        pointsOfContact: [
+          {
+            name: 'Broken Sync POC',
+            contactNumber: '+919888877771',
+            email: `broken-sync-${token}@grubpac.local`,
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const orgClientId = (orgCreate.body as { id: string }).id;
+    const linkedFleetId = (orgCreate.body as { linkedFleetClientId?: string })
+      .linkedFleetClientId;
+    expect(linkedFleetId).toBeTruthy();
+    await db.delete(fleetClients).where(eq(fleetClients.id, linkedFleetId!));
+
+    const fleetClientsService = app.get(FleetClientsService);
+    const syncOriginal =
+      fleetClientsService.syncFromOrganisationClient.bind(fleetClientsService);
+    const syncSpy = jest
+      .spyOn(fleetClientsService, 'syncFromOrganisationClient')
+      .mockImplementation(async (orgId, clientId, options) => {
+        if (clientId === orgClientId) {
+          throw new BadRequestException('Could not create fleet client link');
+        }
+        return syncOriginal(orgId, clientId, options);
+      });
+
+    try {
+      const list = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/clients')
+        .query({ organizationId, search: token, page: 1, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const body = list.body as PaginatedClientsResponse;
+      expect(body.items.some((row) => row.id === goodFleetId)).toBe(true);
+      expect(
+        body.items.some((row) => row.companyName.includes('Broken sync')),
+      ).toBe(false);
+    } finally {
+      syncSpy.mockRestore();
     }
   });
 
@@ -411,7 +616,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         registrationEndDate: '2029-01-01',
         insuranceStartDate: '2024-01-01',
         insuranceEndDate: '2030-01-01',
-        insurancePremium: 10000,
+        insurancePremium: '10000.00',
         warrantyStartDate: '2024-01-01',
         warrantyEndDate: '2027-01-01',
       })
@@ -445,6 +650,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         companyName: `LEASE05 Client ${unique}`,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'POC LEASE05',
@@ -539,6 +745,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         companyName: `LEASE05 Rate ${unique}`,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'POC',
@@ -692,6 +899,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         companyName: historyClientName,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'POC LEASE06 History',
@@ -840,6 +1048,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         companyName: `LEASE06 Term Client ${unique}`,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'Term POC',
@@ -1011,6 +1220,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         companyName: `Renew Client ${unique}`,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'POC Renew',
@@ -1204,6 +1414,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         .send({
           organizationId,
           companyName: `SUP-REP Client ${unique}`,
+          ...fleetClientStructuredAddressIn(),
           pointsOfContact: [
             {
               name: 'SUP POC',
@@ -1273,6 +1484,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
 
       return {
         contractId: draft.id,
+        clientId,
         onLeaseVehicleId: onLeaseVehicle.id,
         replacementVehicleId: replacementVehicle.id,
         onLeaseReg,
@@ -1377,23 +1589,9 @@ describe('Fleet leasing lease contracts (integration)', () => {
       const unique = Date.now();
       const seeded = await seedActiveContractWithTwoFleetVehicles(unique);
 
-      const clientRes = await request(app.getHttpServer())
-        .get('/api/v1/fleet-leasing/clients')
-        .query({ organizationId, pageSize: 50 })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .expect(200);
-      const clientsBody = clientRes.body as {
-        items: Array<{ id: string; companyName: string }>;
-      };
-      const client = clientsBody.items.find((c) =>
-        c.companyName.includes(`SUP-REP Client ${unique}`),
-      );
-      expect(client).toBeTruthy();
-
       const contractsRes = await request(app.getHttpServer())
         .get(
-          `/api/v1/fleet-leasing/support/clients/${client!.id}/active-contracts`,
+          `/api/v1/fleet-leasing/support/clients/${seeded.clientId}/active-contracts`,
         )
         .query({ organizationId })
         .set('Authorization', `Bearer ${accessToken}`)
@@ -1811,7 +2009,9 @@ describe('Fleet leasing lease contracts (integration)', () => {
         intakeChecklistItems: ['Helmet'],
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
-    const createdName = (createRes.body as { name: string }).name;
+    const created = createRes.body as { id: string; name: string };
+    const createdName = created.name;
+    const createdId = created.id;
 
     let page = 1;
     const pageSize = 50;
@@ -1826,7 +2026,11 @@ describe('Fleet leasing lease contracts (integration)', () => {
 
       const body = res.body as FleetAssetClassListResponse;
       expect(Array.isArray(body.items)).toBe(true);
-      if (body.items.includes(createdName)) {
+      expect(Array.isArray(body.catalog)).toBe(true);
+      const catalogRow = body.catalog.find((row) => row.id === createdId);
+      if (body.items.includes(createdName) && catalogRow) {
+        expect(catalogRow.name).toBe(createdName);
+        expect(catalogRow.specLabel.length).toBeGreaterThan(0);
         found = true;
         break;
       }
@@ -1836,5 +2040,74 @@ describe('Fleet leasing lease contracts (integration)', () => {
       page += 1;
     }
     expect(found).toBe(true);
+  });
+
+  it('creates lease asset line using assetClassId', async () => {
+    const unique = Date.now();
+    const classId = (
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          modelName: `LeaseById ${unique}`,
+          vehicleType: '2W',
+          fuelType: 'Petrol',
+          mileageFrom: 40,
+          mileageTo: 55,
+          mileageUnit: 'km/L',
+          fuelTankCapacity: 10,
+          ratedLoadFrom: 100,
+          ratedLoadTo: 200,
+          intakeChecklistItems: ['Helmet'],
+        })
+        .expect((res) => expect([200, 201]).toContain(res.status))
+    ).body as { id: string; name: string };
+
+    const draftRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/lease-contracts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({ organizationId })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const draft = draftRes.body as { id: string };
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClassId: classId.id,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '1000.00',
+          },
+        ],
+        confirmShortfall: true,
+      })
+      .expect(200);
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/fleet-leasing/lease-contracts/${draft.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const lines = (
+      detail.body as { assetLines: Array<{ assetClassId: string }> }
+    ).assetLines;
+    expect(lines[0]?.assetClassId).toBe(classId.id);
+  });
+
+  it('returns 400 for invalid sortBy on lease contract list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/lease-contracts')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

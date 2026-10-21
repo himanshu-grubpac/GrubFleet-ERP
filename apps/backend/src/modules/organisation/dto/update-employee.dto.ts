@@ -3,12 +3,14 @@ import {
   IsBoolean,
   IsEmail,
   IsIn,
+  IsDateString,
   IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
 
 const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract'] as const;
 
@@ -55,7 +57,7 @@ export class UpdateEmployeeDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
+  @IsDateString({ strict: true })
   @MaxLength(10)
   dateOfJoining?: string;
 
@@ -63,6 +65,7 @@ export class UpdateEmployeeDto {
   @IsOptional()
   @IsString()
   @MaxLength(32)
+  @IsValidPhone()
   phone?: string;
 
   @ApiPropertyOptional()

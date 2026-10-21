@@ -1,13 +1,19 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
+import {
+  MAINTENANCE_SCHEDULE_VEHICLE_LIST_SORT_FIELDS,
+  type MaintenanceScheduleVehicleListSortField,
+} from '../constants/workshop-list-sort.constants';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
+  PaginationQueryDto,
 } from '../../../common/dto/pagination-query.dto';
 import { WORKSHOP_LIST_MAX_PAGE_SIZE } from './list-labor-job-cards-query.dto';
 
-export class ListMaintenanceScheduleVehiclesQueryDto {
+export class ListMaintenanceScheduleVehiclesQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional()
   @IsUUID()
   organizationId!: string;
@@ -30,4 +36,7 @@ export class ListMaintenanceScheduleVehiclesQueryDto {
   @Min(1)
   @Max(WORKSHOP_LIST_MAX_PAGE_SIZE)
   pageSize?: number = DEFAULT_PAGE_SIZE;
+
+  @SortByQuery(MAINTENANCE_SCHEDULE_VEHICLE_LIST_SORT_FIELDS)
+  sortBy?: MaintenanceScheduleVehicleListSortField;
 }

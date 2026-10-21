@@ -19,6 +19,7 @@ import {
   updateRoleApi,
 } from "@/lib/api/roles";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
+import { getApiErrorMessage } from "@/lib/toast/show-toast";
 import {
   canCreateRole,
   canManageAdministration,
@@ -269,7 +270,7 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
     return (
       <ErrorState
         title="Failed to load role"
-        message={(roleError as Error).message}
+        message={getApiErrorMessage(roleError, "Failed to load role.")}
         onRetry={refetchRole}
       />
     );
@@ -361,7 +362,7 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
       ) : matrixError ? (
         <ErrorState
           title="Failed to load permissions"
-          message={(matrixError as Error).message}
+          message={getApiErrorMessage(matrixError, "Failed to load permissions.")}
           onRetry={refetchMatrix}
         />
       ) : (

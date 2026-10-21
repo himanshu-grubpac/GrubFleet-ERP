@@ -4,6 +4,7 @@ import {
   IsDateString,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
   MaxLength,
@@ -24,6 +25,7 @@ export class CreateBillingInvoiceDto {
   leaseContractId!: string;
 
   @ApiProperty({ maxLength: 120 })
+  @IsString()
   @MaxLength(120)
   billingPeriod!: string;
 
@@ -38,11 +40,12 @@ export class CreateBillingInvoiceDto {
   totalAmountMinor!: number;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   invoiceDate!: string;
 
   @ApiPropertyOptional({ maxLength: 2000 })
   @IsOptional()
+  @IsString()
   @MaxLength(2000)
   notes?: string;
 }

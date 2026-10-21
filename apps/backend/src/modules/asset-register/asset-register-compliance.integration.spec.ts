@@ -100,7 +100,7 @@ describe('Asset Register — compliance and renewals (integration)', () => {
         registrationEndDate: dates.registrationEndDate,
         insuranceStartDate: dates.insuranceStartDate ?? '2024-01-01',
         insuranceEndDate: dates.insuranceEndDate,
-        insurancePremium: 5000,
+        insurancePremium: '5000.00',
         warrantyStartDate: '2024-01-01',
         warrantyEndDate: dates.warrantyEndDate,
       })
@@ -113,6 +113,27 @@ describe('Asset Register — compliance and renewals (integration)', () => {
       .get('/api/v1/asset-register/compliance')
       .query({ organizationId, page: 1, pageSize: 10 })
       .expect(401);
+  });
+
+  it('returns 400 for invalid insurancePremium on insurance renew', async () => {
+    const vehicleId = await createVehicleWithDates({
+      insuranceEndDate: '2030-01-01',
+      registrationEndDate: '2030-01-01',
+      warrantyEndDate: '2030-01-01',
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/asset-register/compliance/${vehicleId}/renew`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        type: 'insurance',
+        startDate: '2026-01-01',
+        endDate: '2027-01-01',
+        insurancePremium: '12.999',
+      })
+      .expect(400);
   });
 
   it('returns 403 for view-only on renew', async () => {
@@ -131,7 +152,7 @@ describe('Asset Register — compliance and renewals (integration)', () => {
         type: 'insurance',
         startDate: '2026-01-01',
         endDate: '2027-01-01',
-        insurancePremium: 8000,
+        insurancePremium: '8000.00',
       })
       .expect(403);
   });
@@ -170,7 +191,7 @@ describe('Asset Register — compliance and renewals (integration)', () => {
         type: 'insurance',
         startDate: '2026-01-01',
         endDate: '2027-06-01',
-        insurancePremium: 9500,
+        insurancePremium: '9500.00',
       })
       .expect(200);
 
@@ -207,5 +228,14 @@ describe('Asset Register — compliance and renewals (integration)', () => {
     };
     expect(body.fleetCode).toMatch(/^VH-/);
     expect(body.overallComplianceStatus).toBe('valid');
+  });
+
+  it('returns 400 for invalid sortBy on compliance list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/asset-register/compliance')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

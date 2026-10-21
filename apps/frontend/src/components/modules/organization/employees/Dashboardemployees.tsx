@@ -18,6 +18,11 @@ import {
   dashboardCatalogQueryOptions,
   dashboardListQueryOptions,
 } from "@/lib/query/dashboard-list-query-options";
+import { ORGANISATION_EMPLOYEE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { ApiClientError } from "@/lib/api/client";
 import {
@@ -117,6 +122,13 @@ export default function EmployeesPage() {
   });
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(ORGANISATION_EMPLOYEE_COLUMN_SORT);
+
   const [deactivateTarget, setDeactivateTarget] =
     useState<EmployeeRecord | null>(null);
   const [activateTarget, setActivateTarget] =
@@ -125,7 +137,7 @@ export default function EmployeesPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filters.department, filters.status]);
+  }, [debouncedSearch, filters.department, filters.status, tableSort]);
 
   const departmentOptionsQuery = useQuery({
     queryKey: ["organization", "employees", organizationId, "departments"],
@@ -148,6 +160,7 @@ export default function EmployeesPage() {
       filters.department,
       filters.status,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () => {
       if (!token || !organizationId) {
@@ -163,6 +176,7 @@ export default function EmployeesPage() {
           filters.status === "active" || filters.status === "inactive"
             ? filters.status
             : undefined,
+        ...listSortParams,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -290,6 +304,7 @@ export default function EmployeesPage() {
     {
       key: "designation",
       label: "DESIGNATION",
+      sortable: false,
     },
 
     {
@@ -300,11 +315,13 @@ export default function EmployeesPage() {
     {
       key: "location",
       label: "LOCATION",
+      sortable: false,
     },
 
     {
       key: "reportsTo",
       label: "REPORTS TO",
+      sortable: false,
       render: (employee: Employee) => (
         <span className="text-sm uppercase text-gray-700">
           {employee.reportsTo || "—"}
@@ -315,6 +332,7 @@ export default function EmployeesPage() {
     {
       key: "contact",
       label: "CONTACT",
+      sortable: false,
       render: (employee: Employee) => (
         <DashboardContact
           phone={employee.phone}
@@ -459,6 +477,9 @@ export default function EmployeesPage() {
         <DashboardTable
           columns={employeeColumns}
           data={employees}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
           getRowKey={(employee) => employee.id}
           renderActions={(employee) => (
             <EmployeeTableActions

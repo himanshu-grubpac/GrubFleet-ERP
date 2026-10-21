@@ -71,7 +71,11 @@ After each portal deploy, set **`ClientOrigin`** on the matching SAM stack (scri
 
 ## Routing
 
-CloudFront serves `index.html` at `/` and maps **403/404 → `/index.html`** for client-side navigation on unknown paths. Next export uses `trailingSlash: true` so routes resolve as `/login/index.html` on S3.
+CloudFront serves `index.html` at `/` via the **viewer-request function** (directory paths → `index.html`, legacy UUID bookmarks → fixed shells + query params). **Do not** map **403/404 → `/index.html` globally — that makes missing `/_next/static/chunks/*.js` return HTML and triggers `ChunkLoadError` / `Unexpected token '<'` after deploys. Hashed assets under `/_next/static/*` must 404 as real 404 when absent.
+
+Next export uses `trailingSlash: true` so routes resolve as `/login/index.html` on S3. S3 sync sets **`Cache-Control: public,max-age=0,must-revalidate`** on HTML and **`public,max-age=31536000,immutable`** on `/_next/static/*`. GHA invalidates CloudFront `/*` after each portal deploy. The portal also ships a one-time **chunk load reload** in the root layout for browsers that still hold stale HTML.
+
+**Staging recovery after chunk errors:** merge/deploy portal stack (`grubfleet-portal.yaml`), run a full static sync + invalidation (promotion to `staging` or `.\scripts\sync-portal.ps1 -Tier staging`), hard-refresh or clear site data once if needed.
 
 **Do not browse `index.txt` URLs.** Next.js 15 static export also writes `index.txt` (RSC flight payloads) beside each route. Opening e.g. `/dashboard/index.txt` shows raw flight JSON (including embedded 404 fallback slots in the tree). Use **`/dashboard/`** (trailing slash). The portal stack’s viewer-request function rewrites non-RSC `*.txt` requests to the matching `index.html`; redeploy `grubfleet-portal-{tier}` after changing `infrastructure/grubfleet-portal.yaml`.
 

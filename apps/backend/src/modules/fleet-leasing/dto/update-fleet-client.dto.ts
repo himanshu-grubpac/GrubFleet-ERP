@@ -8,6 +8,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
+import { IsValidGstin } from '../../../common/decorators/is-valid-gstin.decorator';
 import { ClientPocDto } from './client-poc.dto';
 
 export class UpdateFleetClientDto {
@@ -21,6 +22,7 @@ export class UpdateFleetClientDto {
   @IsOptional()
   @IsString()
   @MaxLength(32)
+  @IsValidGstin()
   taxId?: string;
 
   @ApiPropertyOptional()

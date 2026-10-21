@@ -8,6 +8,11 @@ import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ASSET_REGISTER_VEHICLE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+    listSortQueryKeyPart,
+    useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
 import {
@@ -155,10 +160,17 @@ export default function FleetDashboardPage() {
 
     const [page, setPage] = useState(1);
 
+    const {
+        sort: tableSort,
+        onSortChange,
+        listSortParams,
+        serverSorted,
+    } = useDashboardTableListSort(ASSET_REGISTER_VEHICLE_COLUMN_SORT);
+
     // Reset pagination when the search or filter changes.
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, activeFilter]);
+    }, [debouncedSearch, activeFilter, tableSort]);
 
     const listQuery = useQuery({
         queryKey: [
@@ -168,6 +180,7 @@ export default function FleetDashboardPage() {
             debouncedSearch,
             activeFilter,
             page,
+            ...listSortQueryKeyPart(listSortParams),
         ],
         queryFn: () => {
             if (!token || !organizationId) {
@@ -189,6 +202,7 @@ export default function FleetDashboardPage() {
                 search: debouncedSearch.trim() || undefined,
                 operationalStatus,
                 status: "active",
+                ...listSortParams,
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -299,6 +313,7 @@ export default function FleetDashboardPage() {
         {
             key: "assetClass",
             label: "ASSET CLASS",
+            sortable: false,
         },
         {
             key: "registrationNumber",
@@ -307,6 +322,7 @@ export default function FleetDashboardPage() {
         {
             key: "odometer",
             label: "ODOMETER",
+            sortable: false,
             render: (vehicle: FleetVehicle) => (
                 <span className="text-gray-700">
                     {formatOdometer(vehicle.odometer)}
@@ -457,6 +473,9 @@ export default function FleetDashboardPage() {
                 <DashboardTable
                     columns={fleetColumns}
                     data={filteredVehicles}
+                    sortState={tableSort}
+                    onSortChange={onSortChange}
+                    serverSorted={serverSorted}
                     getRowKey={(vehicle) => vehicle.id}
                     renderActions={(vehicle) => (
                         <DashboardTableActions

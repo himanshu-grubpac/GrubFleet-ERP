@@ -11,6 +11,7 @@
     "dev": "node scripts/dev.mjs",
     "prepare": "node scripts/prepare-husky.mjs",
     "ci:local": "node scripts/ci-local.mjs",
+    "audit:openapi-routes": "node scripts/audit-openapi-route-gap.mjs",
     "build": "npm run build -w backend && npm run build -w frontend",
     "lint": "npm run lint -w backend && npm run lint -w frontend",
     "test": "npm run test -w backend",

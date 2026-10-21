@@ -30,6 +30,11 @@ import {
 import { formatInrFromMinor } from "@/lib/format/money-format";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { WORKSHOP_LABOR_JOB_CARD_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useAuth } from "@/providers/auth-provider";
 
 const PAGE_SIZE = 20;
@@ -60,9 +65,16 @@ export default function LaborJobCardsListPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(WORKSHOP_LABOR_JOB_CARD_COLUMN_SORT);
+
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, tableSort]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -71,6 +83,7 @@ export default function LaborJobCardsListPage() {
       organizationId,
       debouncedSearch,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () => {
       if (!token || !organizationId) {
@@ -81,6 +94,7 @@ export default function LaborJobCardsListPage() {
         page,
         pageSize: PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
+        ...listSortParams,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -143,6 +157,7 @@ export default function LaborJobCardsListPage() {
       {
         key: "laborChargeMinor",
         label: "LABOR CHARGE",
+        sortable: false,
         render: (row: WorkshopLaborJobCardListItem) =>
           formatInrFromMinor(row.laborChargeMinor),
       },
@@ -241,6 +256,9 @@ export default function LaborJobCardsListPage() {
           columns={columns}
           data={items}
           getRowKey={(row) => row.id}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
           renderActions={(row) => (
             <DashboardTableActions
               status={row.status}

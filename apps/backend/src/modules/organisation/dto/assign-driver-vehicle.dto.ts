@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsOptional,
   IsString,
+  IsUUID,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -21,10 +22,8 @@ export class AssignDriverVehicleDto {
   @MaxLength(L.assignedVehicleAssetClass)
   assetClass!: string;
 
-  @ApiProperty({ maxLength: L.assignedActiveLeaseId })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(L.assignedActiveLeaseId)
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
   activeLeaseId!: string;
 
   @ApiPropertyOptional({

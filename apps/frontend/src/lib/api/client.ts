@@ -17,13 +17,22 @@ interface AuthTokenPair {
 }
 
 export class ApiClientError extends Error {
+  readonly code?: string;
+  readonly correlationId?: string;
+  readonly details?: unknown;
+  readonly body?: ApiErrorResponse;
+
   constructor(
     message: string,
     public readonly status: number,
-    public readonly body?: ApiErrorResponse,
+    body?: ApiErrorResponse,
   ) {
     super(message);
     this.name = "ApiClientError";
+    this.body = body;
+    this.code = body?.code;
+    this.correlationId = body?.correlationId;
+    this.details = body?.details;
   }
 }
 
@@ -180,20 +189,48 @@ async function sendRequest(
 /**
  * Converts a failed HTTP response into the existing API error type.
  */
+function parseApiErrorBody(raw: unknown): ApiErrorResponse | undefined {
+  if (raw === null || typeof raw !== "object") {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  if (
+    typeof record.message === "string" &&
+    typeof record.code === "string" &&
+    typeof record.statusCode === "number"
+  ) {
+    return record as ApiErrorResponse;
+  }
+  const nested = record.error;
+  if (nested !== null && typeof nested === "object") {
+    return parseApiErrorBody(nested);
+  }
+  return undefined;
+}
+
 async function throwApiError(response: Response): Promise<never> {
   let body: ApiErrorResponse | undefined;
 
   try {
-    body = (await response.json()) as ApiErrorResponse;
+    body = parseApiErrorBody(await response.json());
   } catch {
     // Some responses have no JSON body.
   }
 
-  throw new ApiClientError(
-    body?.message ?? response.statusText,
-    response.status,
-    body,
-  );
+  const message =
+    body?.message?.trim() ||
+    response.statusText ||
+    `Request failed (${response.status})`;
+
+  if (process.env.NODE_ENV === "development") {
+    console.error(
+      `[apiFetch] ${response.status} ${message}`,
+      body?.code,
+      body?.correlationId,
+    );
+  }
+
+  throw new ApiClientError(message, response.status, body);
 }
 
 /**

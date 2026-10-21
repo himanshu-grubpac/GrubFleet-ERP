@@ -4,6 +4,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  INVENTORY_PART_LIST_SORT_FIELDS,
+  type InventoryPartListSortField,
+} from './constants/inventory-list-sort.constants';
 import type { ListInventoryQueryDto } from './dto/list-inventory-query.dto';
 import { InventoryRepository } from './repositories/inventory.repository';
 
@@ -23,11 +28,20 @@ export class StockBalanceService {
   async list(query: ListInventoryQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      INVENTORY_PART_LIST_SORT_FIELDS,
+      {
+        sortBy: query.sortBy as InventoryPartListSortField | undefined,
+        sortOrder: query.sortOrder,
+      },
+      { sortBy: 'name', sortOrder: 'asc' },
+    );
     const { rows, total } = await this.repo.listStockBalanceParts(
       query.organizationId,
       page,
       pageSize,
       query.search,
+      sort,
     );
     const locationsByPartId = await this.repo.quantitiesByPartIdsGrouped(
       query.organizationId,

@@ -330,4 +330,13 @@ describe('Finance client statements (integration)', () => {
         .expect(404);
     });
   });
+
+  it('returns 400 for invalid sortBy on client statement list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/client-statements')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
 });

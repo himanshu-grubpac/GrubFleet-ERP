@@ -1,6 +1,22 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsIn,
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  Min,
+} from 'class-validator';
+import {
+  LIST_SORT_ORDERS,
+  type ListSortOrder,
+} from '../../../common/constants/list-sort.constants';
+import {
+  WORKSHOP_TECHNICIAN_LIST_SORT_FIELDS,
+  type WorkshopTechnicianListSortField,
+} from '../constants/workshop-list-sort.constants';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -35,4 +51,14 @@ export class ListWorkshopTechniciansQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({ enum: WORKSHOP_TECHNICIAN_LIST_SORT_FIELDS })
+  @IsOptional()
+  @IsIn(WORKSHOP_TECHNICIAN_LIST_SORT_FIELDS)
+  sortBy?: WorkshopTechnicianListSortField;
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
 }

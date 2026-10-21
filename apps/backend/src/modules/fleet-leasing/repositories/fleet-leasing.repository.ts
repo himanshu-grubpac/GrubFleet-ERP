@@ -11,6 +11,7 @@ import {
   notInArray,
   or,
   sql,
+  type AnyColumn,
 } from 'drizzle-orm';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
@@ -20,6 +21,7 @@ import {
   fleetClients,
   fleetDamageRecords,
   fleetReturnInspections,
+  financeInvoiceLines,
   fleetVehicleAllocations,
   fleetVehicles,
   organisationClients,
@@ -31,6 +33,66 @@ import {
   users,
 } from '../../../database/schema';
 import type { LeaseContractStatus } from '../constants/lease-contract-status';
+import {
+  FLEET_RETURN_LIST_DEFAULT_SORT,
+  type FleetReturnListSortField,
+  FLEET_VEHICLE_LIST_DEFAULT_SORT,
+  type FleetVehicleListSortField,
+  LEASE_CONTRACT_LIST_DEFAULT_SORT,
+  type LeaseContractListSortField,
+  REPLACEMENT_CANDIDATE_LIST_DEFAULT_SORT,
+  type ReplacementCandidateListSortField,
+  VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+  type VehicleAllocationListSortField,
+} from '../constants/fleet-leasing-list-sort.constants';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../../common/utils/list-sort.util';
+
+const LEASE_CONTRACT_LIST_SORT_COLUMNS: Record<
+  LeaseContractListSortField,
+  AnyColumn
+> = {
+  createdAt: leaseContracts.createdAt,
+  contractNumber: leaseContracts.contractNumber,
+  status: leaseContracts.status,
+  startDate: leaseContracts.startDate,
+  endDate: leaseContracts.endDate,
+};
+
+const FLEET_VEHICLE_LIST_SORT_COLUMNS: Record<
+  FleetVehicleListSortField,
+  AnyColumn
+> = {
+  registrationNo: fleetVehicles.registrationNo,
+  assetClass: fleetVehicles.assetClass,
+  createdAt: fleetVehicles.createdAt,
+};
+
+const VEHICLE_ALLOCATION_LIST_SORT_COLUMNS: Record<
+  VehicleAllocationListSortField,
+  AnyColumn
+> = {
+  createdAt: fleetVehicleAllocations.createdAt,
+  status: fleetVehicles.status,
+};
+
+const FLEET_RETURN_LIST_SORT_COLUMNS: Record<
+  FleetReturnListSortField,
+  AnyColumn
+> = {
+  createdAt: fleetReturnInspections.createdAt,
+  status: fleetReturnInspections.registeredReturn,
+};
+
+const REPLACEMENT_CANDIDATE_LIST_SORT_COLUMNS: Record<
+  ReplacementCandidateListSortField,
+  AnyColumn
+> = {
+  registrationNo: fleetVehicles.registrationNo,
+  assetClass: fleetVehicles.assetClass,
+};
 
 @Injectable()
 export class FleetLeasingRepository {
@@ -82,8 +144,10 @@ export class FleetLeasingRepository {
     pageSize: number;
     statusFilter: LeaseContractStatus[] | null;
     search?: string;
+    sort?: ResolvedListSort<LeaseContractListSortField>;
   }) {
-    const { organizationId, page, pageSize, statusFilter, search } = params;
+    const { organizationId, page, pageSize, statusFilter, search, sort } =
+      params;
     const offset = (page - 1) * pageSize;
     const conditions = [eq(leaseContracts.organizationId, organizationId)];
     if (statusFilter?.length) {
@@ -107,6 +171,7 @@ export class FleetLeasingRepository {
           clientCompanyName: sql<
             string | null
           >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+          fleetOrganisationClientId: fleetClients.organisationClientId,
         })
         .from(leaseContracts)
         .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
@@ -115,7 +180,13 @@ export class FleetLeasingRepository {
           eq(fleetClients.organisationClientId, organisationClients.id),
         )
         .where(where)
-        .orderBy(desc(leaseContracts.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            LEASE_CONTRACT_LIST_SORT_COLUMNS,
+            sort ?? LEASE_CONTRACT_LIST_DEFAULT_SORT,
+            leaseContracts.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -436,18 +507,63 @@ export class FleetLeasingRepository {
   async insertContract(
     values: typeof leaseContracts.$inferInsert,
   ): Promise<typeof leaseContracts.$inferSelect> {
-    const { clientId, ...rest } = values;
-    const insertValues =
-      clientId === null ||
-      clientId === undefined ||
-      (typeof clientId === 'string' && clientId.trim() === '')
-        ? rest
-        : { ...rest, clientId };
+    const insertValues = this.normalizeContractInsertValues(values);
     const [row] = await this.db
       .insert(leaseContracts)
       .values(insertValues)
       .returning();
     return row;
+  }
+
+  /** Draft create — contract row + asset lines + vehicle links in one transaction. */
+  async insertDraftContractWithNested(input: {
+    contract: typeof leaseContracts.$inferInsert;
+    assetLines: Omit<
+      typeof leaseContractAssetLines.$inferInsert,
+      'id' | 'contractId' | 'createdAt' | 'updatedAt'
+    >[];
+    vehicleIds: string[];
+    awaitingFutureAssets: boolean;
+  }): Promise<typeof leaseContracts.$inferSelect> {
+    const insertValues = this.normalizeContractInsertValues(input.contract);
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(leaseContracts)
+        .values({
+          ...insertValues,
+          awaitingFutureAssets: input.awaitingFutureAssets,
+        })
+        .returning();
+      if (input.assetLines.length > 0) {
+        await tx.insert(leaseContractAssetLines).values(
+          input.assetLines.map((line, sortOrder) => ({
+            ...line,
+            contractId: row.id,
+            sortOrder,
+          })),
+        );
+      }
+      if (input.vehicleIds.length > 0) {
+        await tx.insert(leaseContractVehicles).values(
+          input.vehicleIds.map((vehicleId) => ({
+            contractId: row.id,
+            vehicleId,
+          })),
+        );
+      }
+      return row;
+    });
+  }
+
+  private normalizeContractInsertValues(
+    values: typeof leaseContracts.$inferInsert,
+  ) {
+    const { clientId, ...rest } = values;
+    return clientId === null ||
+      clientId === undefined ||
+      (typeof clientId === 'string' && clientId.trim() === '')
+      ? rest
+      : { ...rest, clientId };
   }
 
   async updateContract(
@@ -764,6 +880,7 @@ export class FleetLeasingRepository {
     pageSize: number,
     status?: string,
     assetClass?: string,
+    sort?: ResolvedListSort<FleetVehicleListSortField>,
   ) {
     const offset = (page - 1) * pageSize;
     const conditions = [eq(fleetVehicles.organizationId, organizationId)];
@@ -779,7 +896,13 @@ export class FleetLeasingRepository {
         .select()
         .from(fleetVehicles)
         .where(where)
-        .orderBy(fleetVehicles.registrationNo)
+        .orderBy(
+          ...buildListOrderBy(
+            FLEET_VEHICLE_LIST_SORT_COLUMNS,
+            sort ?? FLEET_VEHICLE_LIST_DEFAULT_SORT,
+            fleetVehicles.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -1055,8 +1178,9 @@ export class FleetLeasingRepository {
     page: number;
     pageSize: number;
     contractId?: string;
+    sort?: ResolvedListSort<VehicleAllocationListSortField>;
   }) {
-    const { organizationId, page, pageSize, contractId } = params;
+    const { organizationId, page, pageSize, contractId, sort } = params;
     const offset = (page - 1) * pageSize;
     const conditions = [
       eq(fleetVehicleAllocations.organizationId, organizationId),
@@ -1084,7 +1208,13 @@ export class FleetLeasingRepository {
           eq(fleetVehicleAllocations.vehicleId, fleetVehicles.id),
         )
         .where(where)
-        .orderBy(desc(fleetVehicleAllocations.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            VEHICLE_ALLOCATION_LIST_SORT_COLUMNS,
+            sort ?? VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+            fleetVehicleAllocations.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -1162,8 +1292,9 @@ export class FleetLeasingRepository {
     page: number;
     pageSize: number;
     contractId?: string;
+    sort?: ResolvedListSort<FleetReturnListSortField>;
   }) {
-    const { organizationId, page, pageSize, contractId } = params;
+    const { organizationId, page, pageSize, contractId, sort } = params;
     const offset = (page - 1) * pageSize;
     const conditions = [
       eq(fleetReturnInspections.organizationId, organizationId),
@@ -1189,7 +1320,13 @@ export class FleetLeasingRepository {
           eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
         )
         .where(where)
-        .orderBy(desc(fleetReturnInspections.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            FLEET_RETURN_LIST_SORT_COLUMNS,
+            sort ?? FLEET_RETURN_LIST_DEFAULT_SORT,
+            fleetReturnInspections.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -1546,8 +1683,14 @@ export class FleetLeasingRepository {
     excludeVehicleCodes?: string[];
     offset: number;
     limit: number;
+    sort?: import('../../../common/utils/list-sort.util').ResolvedListSort<
+      import('../../organisation/constants/organisation-list-sort.constants').AssignableVehicleListSortField
+    >;
   }) {
-    const { organizationId, excludeVehicleCodes, offset, limit } = params;
+    const { organizationId, excludeVehicleCodes, offset, limit, sort } = params;
+    const orderColumn =
+      sort?.sortBy === 'assetClass' ? sql`asset_class` : sql`vehicle_code`;
+    const orderDir = sort?.sortOrder === 'desc' ? sql`DESC` : sql`ASC`;
     const excludeClause =
       excludeVehicleCodes && excludeVehicleCodes.length > 0
         ? sql`AND v.registration_no NOT IN (${sql.join(
@@ -1597,7 +1740,7 @@ export class FleetLeasingRepository {
       )
       SELECT vehicle_id, vehicle_code, asset_class, active_lease_id
       FROM deduped
-      ORDER BY vehicle_code
+      ORDER BY ${orderColumn} ${orderDir}, vehicle_id DESC
       LIMIT ${limit}
       OFFSET ${offset}
     `);
@@ -1626,6 +1769,7 @@ export class FleetLeasingRepository {
     brand?: string;
     modelName?: string;
     excludeVehicleIds?: string[];
+    sort?: ResolvedListSort<ReplacementCandidateListSortField>;
   }) {
     const {
       organizationId,
@@ -1638,6 +1782,7 @@ export class FleetLeasingRepository {
       brand,
       modelName,
       excludeVehicleIds,
+      sort,
     } = params;
     if (vehicleType?.trim() || brand?.trim() || modelName?.trim()) {
       return { rows: [], total: 0 };
@@ -1671,7 +1816,13 @@ export class FleetLeasingRepository {
       })
       .from(fleetVehicles)
       .where(where)
-      .orderBy(asc(fleetVehicles.registrationNo))
+      .orderBy(
+        ...buildListOrderBy(
+          REPLACEMENT_CANDIDATE_LIST_SORT_COLUMNS,
+          sort ?? REPLACEMENT_CANDIDATE_LIST_DEFAULT_SORT,
+          fleetVehicles.id,
+        ),
+      )
       .limit(limit)
       .offset(offset);
     if (!includeTotal) {
@@ -1725,5 +1876,43 @@ export class FleetLeasingRepository {
           .where(eq(fleetVehicles.id, toVehicleId));
       }
     });
+  }
+
+  /**
+   * When asset register recomputes class `name`, update denormalized varchar copies.
+   * Lease lines match by stable assetClassId; fleet_vehicles still keyed by legacy name string.
+   */
+  async cascadeAssetClassDisplayName(
+    tx: Pick<AppDatabase, 'update'>,
+    organizationId: string,
+    assetClassId: string,
+    oldName: string,
+    newName: string,
+  ): Promise<void> {
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    if (!trimmedNew || trimmedOld === trimmedNew) {
+      return;
+    }
+
+    await tx
+      .update(leaseContractAssetLines)
+      .set({ assetClass: trimmedNew, updatedAt: new Date() })
+      .where(eq(leaseContractAssetLines.assetClassId, assetClassId));
+
+    await tx
+      .update(fleetVehicles)
+      .set({ assetClass: trimmedNew, updatedAt: new Date() })
+      .where(
+        and(
+          eq(fleetVehicles.organizationId, organizationId),
+          eq(fleetVehicles.assetClass, trimmedOld),
+        ),
+      );
+
+    await tx
+      .update(financeInvoiceLines)
+      .set({ assetClassName: trimmedNew })
+      .where(eq(financeInvoiceLines.assetClassId, assetClassId));
   }
 }

@@ -16,7 +16,7 @@ import {
   updateSparePartApi,
 } from "@/lib/api/inventory/stock-register";
 import {
-  showErrorToast,
+  showApiErrorToast,
   showSparePartUpdatedToast,
 } from "@/lib/toast/show-toast";
 
@@ -52,7 +52,7 @@ export default function StockEditPage() {
       showSparePartUpdatedToast(result.partName);
       router.push(inventoryStockRegisterDetailHref(stockId));
     },
-    onError: () => showErrorToast("Failed to update part."),
+    onError: (error) => showApiErrorToast(error, "Failed to update part."),
   });
 
   if (detailQuery.isLoading || isAuthLoading) {

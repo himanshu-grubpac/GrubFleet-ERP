@@ -11,7 +11,10 @@ import {
   type IntegrationAuthContext,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import { fleetClientStructuredAddressIn } from '../../../test/helpers/fleet-client-address.fixture';
 import { createDraftLeaseContract } from '../../../test/helpers/fleet-leasing-test.util';
+import { eq } from 'drizzle-orm';
+import { fleetClients } from '../../database/schema/fleet-leasing.schema';
 
 const ASSET_VIEW_ONLY_USER = {
   email: 'asset.assign.viewonly@grubpac.local',
@@ -103,7 +106,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
         registrationEndDate: '2029-01-01',
         insuranceStartDate: '2024-01-01',
         insuranceEndDate: '2030-01-01',
-        insurancePremium: 10000,
+        insurancePremium: '10000.00',
         warrantyStartDate: '2024-01-01',
         warrantyEndDate: '2027-01-01',
       })
@@ -143,7 +146,11 @@ describe('Asset Register — vehicle assignments (integration)', () => {
   async function createActiveLeaseForClass(
     assetClassName: string,
     committedQuantity: number,
-  ): Promise<{ contractId: string; organisationClientId: string }> {
+  ): Promise<{
+    contractId: string;
+    organisationClientId: string;
+    fleetClientId: string;
+  }> {
     const unique = Date.now();
     const companyName = `Assign Client ${unique}`;
     const organisationClientId =
@@ -156,6 +163,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       .send({
         organizationId,
         companyName,
+        ...fleetClientStructuredAddressIn(),
         pointsOfContact: [
           {
             name: 'POC',
@@ -222,7 +230,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       );
     }
 
-    return { contractId, organisationClientId };
+    return { contractId, organisationClientId, fleetClientId: clientId };
   }
 
   it('returns 401 without JWT on bulk assign', async () => {
@@ -358,7 +366,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     expect(JSON.stringify(res.body)).toContain('LEASE_CAPACITY_SHORTFALL');
   });
 
-  it('returns ORGANISATION_CLIENT_REQUIRED when lease has fleet client but body omits org client', async () => {
+  it('assigns when lease has fleet client and body omits org client (linked org resolved)', async () => {
     const unique = Date.now();
     const assetClass = await createAssetClass(`Sedan ${unique}`);
     const vehicle = await createVehicle(assetClass.id);
@@ -373,9 +381,63 @@ describe('Asset Register — vehicle assignments (integration)', () => {
         leaseContractId: contractId,
         vehicleIds: [vehicle.id],
       })
+      .expect(200);
+
+    expect((res.body as { assignedCount: number }).assignedCount).toBe(1);
+  });
+
+  it('assigns when body sends fleet client id as organisationClientId (portal lease detail)', async () => {
+    const unique = Date.now();
+    const assetClass = await createAssetClass(`Sedan ${unique}`);
+    const vehicle = await createVehicle(assetClass.id);
+    const { contractId, fleetClientId } = await createActiveLeaseForClass(
+      assetClass.name,
+      1,
+    );
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        leaseContractId: contractId,
+        organisationClientId: fleetClientId,
+        vehicleIds: [vehicle.id],
+      })
+      .expect(200);
+
+    expect((res.body as { assignedCount: number }).assignedCount).toBe(1);
+  });
+
+  it('returns FLEET_CLIENT_ORGANISATION_LINK_MISSING when fleet client has no org link', async () => {
+    const unique = Date.now();
+    const assetClass = await createAssetClass(`Sedan ${unique}`);
+    const vehicle = await createVehicle(assetClass.id);
+    const { contractId, fleetClientId } = await createActiveLeaseForClass(
+      assetClass.name,
+      1,
+    );
+
+    await db
+      .update(fleetClients)
+      .set({ organisationClientId: null })
+      .where(eq(fleetClients.id, fleetClientId));
+
+    const res = await request(app.getHttpServer())
+      .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        leaseContractId: contractId,
+        vehicleIds: [vehicle.id],
+      })
       .expect(400);
 
-    expect(JSON.stringify(res.body)).toContain('ORGANISATION_CLIENT_REQUIRED');
+    expect(JSON.stringify(res.body)).toContain(
+      'FLEET_CLIENT_ORGANISATION_LINK_MISSING',
+    );
   });
 
   it('returns ORGANISATION_CLIENT_MISMATCH when org client name differs from fleet client', async () => {

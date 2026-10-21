@@ -4,14 +4,13 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import {
     buildSupplierPayloadFromForm,
     createOrganisationSupplierApi,
 } from "@/lib/api/organisation/suppliers";
 import {
     SUPPLIER_SAVE_ERROR,
-    showErrorToast,
+    showApiErrorToast,
     showSupplierCreatedToast,
 } from "@/lib/toast/show-toast";
 import { organisationSupplierDetailHref } from "@/lib/navigation/organisation-static-routes";
@@ -51,9 +50,9 @@ export default function CreateSupplierPage() {
                 agreementReference: data.agreementReference,
                 address: data.address,
             });
-        } catch {
-            showErrorToast(SUPPLIER_SAVE_ERROR);
-            throw new Error(SUPPLIER_SAVE_ERROR);
+        } catch (error) {
+            showApiErrorToast(error, SUPPLIER_SAVE_ERROR);
+            throw error;
         }
 
         try {
@@ -64,11 +63,7 @@ export default function CreateSupplierPage() {
             showSupplierCreatedToast(created.name);
             router.push(organisationSupplierDetailHref(created.id));
         } catch (error) {
-            const message =
-                error instanceof ApiClientError
-                    ? error.message
-                    : SUPPLIER_SAVE_ERROR;
-            showErrorToast(message);
+            showApiErrorToast(error, SUPPLIER_SAVE_ERROR);
             throw error;
         }
     };

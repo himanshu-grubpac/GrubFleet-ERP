@@ -4,6 +4,12 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  PARTS_REQUEST_LIST_DEFAULT_SORT,
+  PARTS_REQUEST_LIST_SORT_FIELDS,
+  type PartsRequestListSortField,
+} from './constants/inventory-list-sort.constants';
 import type { ListPartsRequestsQueryDto } from './dto/list-parts-requests-query.dto';
 import { InventoryRepository } from './repositories/inventory.repository';
 
@@ -22,11 +28,19 @@ export class PartsRequestsService {
   async list(query: ListPartsRequestsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      PARTS_REQUEST_LIST_SORT_FIELDS,
+      {
+        sortBy: query.sortBy as PartsRequestListSortField | undefined,
+        sortOrder: query.sortOrder,
+      },
+      PARTS_REQUEST_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listPartsRequests(
       query.organizationId,
       page,
       pageSize,
-      { search: query.search, status: query.requestStatus },
+      { search: query.search, status: query.requestStatus, sort },
     );
     const partIds = [...new Set(rows.map((r) => r.partId))];
     const locationIds = [

@@ -1,4 +1,6 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
 
 export type WorkshopAmcTierListItem = {
@@ -63,12 +65,14 @@ export async function fetchWorkshopAmcTiersApi(
   organizationId: string,
   page = 1,
   pageSize = 50,
+  sort?: ListSortParams,
 ): Promise<PaginatedResponse<WorkshopAmcTierListItem>> {
   const query = new URLSearchParams({
     organizationId,
     page: String(page),
     pageSize: String(pageSize),
   });
+  appendListSortSearchParams(query, sort);
   return apiFetch<PaginatedResponse<WorkshopAmcTierListItem>>(
     `/workshop/amc/tiers?${query.toString()}`,
     {
@@ -84,12 +88,14 @@ export async function fetchWorkshopMaintenanceSchedulesApi(
   organizationId: string,
   page = 1,
   pageSize = 50,
+  sort?: ListSortParams,
 ): Promise<PaginatedResponse<WorkshopMaintenanceScheduleListItem>> {
   const query = new URLSearchParams({
     organizationId,
     page: String(page),
     pageSize: String(pageSize),
   });
+  appendListSortSearchParams(query, sort);
   return apiFetch<PaginatedResponse<WorkshopMaintenanceScheduleListItem>>(
     `/workshop/amc/schedules?${query.toString()}`,
     {
@@ -142,12 +148,14 @@ export async function fetchWorkshopMaintenanceScheduleVehiclesApi(
   scheduleId: string,
   page = 1,
   pageSize = 50,
+  sort?: ListSortParams,
 ): Promise<PaginatedResponse<WorkshopMaintenanceScheduleVehicleRow>> {
   const query = new URLSearchParams({
     organizationId,
     page: String(page),
     pageSize: String(pageSize),
   });
+  appendListSortSearchParams(query, sort);
   return apiFetch<PaginatedResponse<WorkshopMaintenanceScheduleVehicleRow>>(
     `/workshop/amc/schedules/${encodeURIComponent(scheduleId)}/vehicles?${query.toString()}`,
     {
@@ -193,7 +201,7 @@ export async function createWorkshopAmcTierApi(
 
 export async function fetchWorkshopAmcSubscribersApi(
   token: string,
-  params: {
+  params: ListSortParams & {
     organizationId: string;
     amcTierId?: string;
     page?: number;
@@ -206,6 +214,7 @@ export async function fetchWorkshopAmcSubscribersApi(
     pageSize: String(params.pageSize ?? 50),
   });
   if (params.amcTierId) query.set("amcTierId", params.amcTierId);
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<WorkshopAmcSubscriberListItem>>(
     `/workshop/amc/subscribers?${query.toString()}`,
     {

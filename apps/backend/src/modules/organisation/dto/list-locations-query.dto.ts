@@ -12,7 +12,13 @@ import {
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
+  type ListSortOrder,
 } from '../../../common/dto/pagination-query.dto';
+import { LIST_SORT_ORDERS } from '../../../common/constants/list-sort.constants';
+import {
+  LOCATION_LIST_SORT_FIELDS,
+  type LocationListSortField,
+} from '../constants/organisation-list-sort.constants';
 
 /** Form pickers (employee branch, etc.) may request a larger single page than table views. */
 export const LOCATION_LIST_MAX_PAGE_SIZE = 200;
@@ -55,6 +61,16 @@ export class ListLocationsQueryDto {
   @IsOptional()
   @IsIn(['active', 'inactive'])
   status?: 'active' | 'inactive';
+
+  @ApiPropertyOptional({ enum: LOCATION_LIST_SORT_FIELDS })
+  @IsOptional()
+  @IsIn(LOCATION_LIST_SORT_FIELDS)
+  sortBy?: LocationListSortField;
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
 }
 
 export class OrganisationOrgQueryDto {

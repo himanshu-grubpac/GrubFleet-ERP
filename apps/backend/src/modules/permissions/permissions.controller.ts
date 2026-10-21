@@ -1,7 +1,7 @@
 import { Controller, Get, Query, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
-import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { ListPermissionsQueryDto } from './dto/list-permissions-query.dto';
 import { RequireOrganizationContext } from '../auth/authorization/decorators/require-organization-context.decorator';
 import { RequirePermissions } from '../auth/authorization/decorators/require-permissions.decorator';
 import { PermissionKeys } from '../auth/authorization/constants/permission-keys';
@@ -17,11 +17,8 @@ export class PermissionsController {
   @RequireOrganizationContext()
   @RequirePermissions(PermissionKeys.ADMINISTRATION_VIEW)
   @ApiOperation({ summary: 'List permission catalog' })
-  list(@Query() pagination: PaginationQueryDto, @Req() req: Request) {
+  list(@Query() query: ListPermissionsQueryDto, @Req() req: Request) {
     void req.organizationId;
-    return this.permissionsService.listPermissions(
-      pagination.page,
-      pagination.pageSize,
-    );
+    return this.permissionsService.listPermissions(query);
   }
 }

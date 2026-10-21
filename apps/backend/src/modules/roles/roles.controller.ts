@@ -61,12 +61,7 @@ export class RolesController {
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: ListRolesQueryDto,
   ) {
-    return this.rolesService.listRoles(
-      user.userId,
-      query.organizationId,
-      query.page,
-      query.pageSize,
-    );
+    return this.rolesService.listRoles(user.userId, query);
   }
 
   @Post()

@@ -10,6 +10,7 @@ import {
   MinLength,
   IsDateString,
 } from 'class-validator';
+import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
 
 const EMPLOYMENT_TYPES = ['full_time', 'part_time', 'contract'] as const;
 
@@ -66,6 +67,7 @@ export class CreateEmployeeDto {
   @IsString()
   @MinLength(1)
   @MaxLength(32)
+  @IsValidPhone()
   phone!: string;
 
   @ApiProperty()

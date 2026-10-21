@@ -17,6 +17,7 @@ import { AssetRegisterModule } from './modules/asset-register/asset-register.mod
 import { FinanceModule } from './modules/finance/finance.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { WorkshopModule } from './modules/workshop/workshop.module';
+import { PortalSearchModule } from './modules/portal-search/portal-search.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { WorkshopModule } from './modules/workshop/workshop.module';
     FinanceModule,
     InventoryModule,
     WorkshopModule,
+    PortalSearchModule,
   ],
   providers: [StructuredLoggerService],
 })

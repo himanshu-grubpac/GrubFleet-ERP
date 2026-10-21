@@ -32,10 +32,15 @@ import {
 } from "@/lib/navigation/finance-static-routes";
 
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { FINANCE_VENDOR_PAYMENT_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 
 import {
   FINANCE_VENDOR_PAYMENT_REMOVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceVendorPaymentRemovedToast,
 } from "@/lib/toast/show-toast";
 
@@ -67,12 +72,19 @@ export default function VendorPaymentsPage() {
 
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(FINANCE_VENDOR_PAYMENT_COLUMN_SORT);
+
   const [removeTarget, setRemoveTarget] =
     useState<VendorPaymentListItem | null>(null);
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, tableSort]);
 
   const listEnabled =
     Boolean(token) && Boolean(organizationId) && !authLoading;
@@ -83,6 +95,7 @@ export default function VendorPaymentsPage() {
       organizationId,
       page,
       debouncedSearch,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       fetchVendorPaymentsApi(token!, {
@@ -90,6 +103,7 @@ export default function VendorPaymentsPage() {
         page,
         pageSize: PAGE_SIZE,
         search: debouncedSearch || undefined,
+        ...listSortParams,
       }),
     enabled: listEnabled,
     ...dashboardListQueryOptions,
@@ -116,8 +130,8 @@ export default function VendorPaymentsPage() {
       });
     },
 
-    onError: () => {
-      showErrorToast(FINANCE_VENDOR_PAYMENT_REMOVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_VENDOR_PAYMENT_REMOVE_ERROR);
     },
   });
 
@@ -262,6 +276,9 @@ export default function VendorPaymentsPage() {
             <DashboardTable<VendorPaymentListItem>
               data={items}
               getRowKey={(row) => row.id}
+              sortState={tableSort}
+              onSortChange={onSortChange}
+              serverSorted={serverSorted}
               columns={[
                 {
                   key: "paymentNumber",
@@ -276,22 +293,26 @@ export default function VendorPaymentsPage() {
                 {
                   key: "invoice",
                   label: "Purchase invoice",
+                  sortable: false,
                   render: (row) => row.purchaseInvoiceNumber,
                 },
                 {
                   key: "vendor",
                   label: "Vendor",
+                  sortable: false,
                   render: (row) => row.vendorName,
                 },
                 {
                   key: "amount",
                   label: "Amount",
+                  sortable: false,
                   render: (row) =>
                     formatInrFromMinor(row.amountMinor),
                 },
                 {
                   key: "method",
                   label: "Method",
+                  sortable: false,
                   render: (row) =>
                     row.paymentMethodLabel ??
                     row.paymentMethod ??
@@ -300,6 +321,7 @@ export default function VendorPaymentsPage() {
                 {
                   key: "reference",
                   label: "Reference",
+                  sortable: false,
                   render: (row) => row.paymentReference ?? "—",
                 },
               ]}

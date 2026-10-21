@@ -2,9 +2,13 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 
 import FormActions from "@/components/common/FormActions";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { useAuth } from "@/providers/auth-provider";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -82,13 +86,6 @@ const UNIT_OF_MEASURE_OPTIONS = [
     "Box",
 ];
 
-const ASSET_CLASS_OPTIONS = [
-    "Petrol Scooter — Standard",
-    "Petrol Auto — Cargo",
-    "Electric Scooter — Standard",
-    "Diesel Truck — Heavy",
-];
-
 /* -------------------------------------------------------------------------- */
 /* Component                                                                  */
 /* -------------------------------------------------------------------------- */
@@ -102,8 +99,39 @@ export default function CreatePartForm({
     onSaved,
 }: CreatePartFormProps) {
     const router = useRouter();
+    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
     const isEditMode = mode === "edit";
+
+    const assetClassesQuery = useQuery({
+        queryKey: [
+            "inventory",
+            "stock-register",
+            "asset-classes",
+            organizationId,
+        ],
+        queryFn: () =>
+            fetchAssetRegisterAssetClassesApi({
+                token: token!,
+                organizationId: organizationId!,
+                page: 1,
+                pageSize: 50,
+                status: "active",
+            }),
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardCatalogQueryOptions,
+    });
+
+    const assetClassOptions = useMemo(() => {
+        return (assetClassesQuery.data?.items ?? []).map(
+            (row) => row.specLabel?.trim() || row.name.trim(),
+        );
+    }, [assetClassesQuery.data?.items]);
+
+    const catalogLoading =
+        isCatalogLoading ||
+        assetClassesQuery.isLoading ||
+        assetClassesQuery.isFetching;
 
     /* ---------------------------------------------------------------------- */
     /* Form                                                                   */
@@ -140,7 +168,7 @@ export default function CreatePartForm({
 
     // Keep Save enabled for an invalid form so the first click can reveal errors.
     // Submission itself is blocked by handleSave until validation passes.
-    const canSubmit = canSave && !isSaving && !isCatalogLoading;
+    const canSubmit = canSave && !isSaving && !catalogLoading;
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -234,7 +262,7 @@ export default function CreatePartForm({
         if (
             !canSave ||
             isSaving ||
-            isCatalogLoading ||
+            catalogLoading ||
             isSubmittingRef.current
         ) {
             return;
@@ -409,29 +437,56 @@ export default function CreatePartForm({
                     {isAssetClassDropdownOpen && (
                         <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
                             <div className="max-h-56 overflow-y-auto py-1" role="listbox" aria-multiselectable="true" aria-labelledby="compatible-asset-classes">
-                                {ASSET_CLASS_OPTIONS.map((assetClass) => {
-                                    const isSelected = form.compatibleAssetClasses.includes(assetClass);
+                                {catalogLoading ? (
+                                    <p className="px-3 py-2 text-sm text-gray-500">
+                                        Loading asset classes…
+                                    </p>
+                                ) : assetClassOptions.length === 0 ? (
+                                    <p className="px-3 py-2 text-sm text-gray-500">
+                                        No active asset classes found. Add asset
+                                        classes in Asset Register first.
+                                    </p>
+                                ) : (
+                                    assetClassOptions.map((assetClass) => {
+                                        const isSelected =
+                                            form.compatibleAssetClasses.includes(
+                                                assetClass,
+                                            );
 
-                                    return (
-                                        <button
-                                            key={assetClass}
-                                            type="button"
-                                            role="option"
-                                            aria-selected={isSelected}
-                                            onClick={() => toggleAssetClass(assetClass)}
-                                            className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                        >
-                                            <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isSelected ? "border-[#FE5720] bg-[#FE5720] text-white" : "border-gray-300 bg-white"}`}>
-                                                {isSelected && (
-                                                    <svg className="h-3 w-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                        <path fillRule="evenodd" d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" />
-                                                    </svg>
-                                                )}
-                                            </span>
-                                            <span>{assetClass}</span>
-                                        </button>
-                                    );
-                                })}
+                                        return (
+                                            <button
+                                                key={assetClass}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={isSelected}
+                                                onClick={() =>
+                                                    toggleAssetClass(assetClass)
+                                                }
+                                                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                <span
+                                                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isSelected ? "border-[#FE5720] bg-[#FE5720] text-white" : "border-gray-300 bg-white"}`}
+                                                >
+                                                    {isSelected && (
+                                                        <svg
+                                                            className="h-3 w-3"
+                                                            viewBox="0 0 20 20"
+                                                            fill="currentColor"
+                                                            aria-hidden="true"
+                                                        >
+                                                            <path
+                                                                fillRule="evenodd"
+                                                                d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z"
+                                                                clipRule="evenodd"
+                                                            />
+                                                        </svg>
+                                                    )}
+                                                </span>
+                                                <span>{assetClass}</span>
+                                            </button>
+                                        );
+                                    })
+                                )}
                             </div>
                         </div>
                     )}

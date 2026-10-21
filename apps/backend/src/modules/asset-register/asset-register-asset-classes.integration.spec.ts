@@ -30,6 +30,7 @@ const ASSET_VIEW_ONLY_USER = {
 
 type AssetClassDetail = {
   id: string;
+  classId: string;
   name: string;
   isActive: boolean;
   status: string;
@@ -254,6 +255,31 @@ describe('Asset Register — asset classes (integration)', () => {
       expect((res.body as { vehicleType: string }).vehicleType).toBe('4W');
     });
 
+    it('assigns org-unique 6-digit classId on create (not UUID)', async () => {
+      const first = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildAssetClassCreatePayload())
+        .expect(201);
+      const second = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildAssetClassCreatePayload({
+            modelName: `Second ${Date.now()}`,
+          }),
+        )
+        .expect(201);
+      const a = first.body as AssetClassDetail;
+      const b = second.body as AssetClassDetail;
+      expect(a.classId).toMatch(/^\d{6}$/);
+      expect(b.classId).toMatch(/^\d{6}$/);
+      expect(a.classId).not.toBe(a.id);
+      expect(Number(b.classId)).toBeGreaterThan(Number(a.classId));
+    });
+
     it('returns 400 for unknown JSON key on PATCH', async () => {
       const id = await createAssetClassAsAdmin();
       await request(app.getHttpServer())
@@ -366,12 +392,13 @@ describe('Asset Register — asset classes (integration)', () => {
             fuelSystem: undefined,
             color: undefined,
             colorCode: undefined,
-            fuelType: `Petrol${unique}`,
+            modelName: `Partial Spec ${unique}`,
+            fuelType: 'Petrol',
           }),
         )
         .expect(201);
       expect((res.body as AssetClassDetail).name).toMatch(
-        /^0_na_0_petrol\d+_na_na$/,
+        /^0_partial-spec-\d+_0_petrol_na_na$/,
       );
     });
 
@@ -396,6 +423,74 @@ describe('Asset Register — asset classes (integration)', () => {
       expect((res.body as AssetClassDetail).name).toMatch(
         /^2026_activa-\d+_150_petrol_efi_bl$/,
       );
+    });
+
+    it('recomputes generated name when name-spec fields change on PATCH', async () => {
+      const unique = Date.now();
+      const id = await createAssetClassAsAdmin({
+        modelName: `PatchName ${unique}`,
+        manufacturingYear: 2024,
+        engineDisplacementCc: 125,
+        fuelType: 'Petrol',
+        fuelSystem: 'carb',
+        colorCode: 'rd',
+      });
+      const before = await request(app.getHttpServer())
+        .get(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const beforeName = (before.body as AssetClassDetail).name;
+
+      const patchRes = await request(app.getHttpServer())
+        .patch(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ manufacturingYear: 2026, engineDisplacementCc: 150 })
+        .expect(200);
+      const afterName = (patchRes.body as AssetClassDetail).name;
+      expect(afterName).not.toBe(beforeName);
+      expect(afterName).toMatch(/^2026_patchname-\d+_150_petrol_carb_rd$/);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ brand: 'Only brand label change' })
+        .expect(200);
+    });
+
+    it('list item id is full UUID and matches detail GET', async () => {
+      const id = await createAssetClassAsAdmin();
+
+      const listRes = await request(app.getHttpServer())
+        .get('/api/v1/asset-register/asset-classes')
+        .query({ organizationId, page: 1, pageSize: 50 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+
+      const listBody = listRes.body as {
+        items: Array<{ id: string; name: string }>;
+      };
+      const listRow = listBody.items.find((row) => row.id === id);
+      expect(listRow).toBeDefined();
+      expect(listRow!.id).toMatch(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      );
+      expect(listRow!.id.length).toBe(36);
+
+      const detailRes = await request(app.getHttpServer())
+        .get(`/api/v1/asset-register/asset-classes/${id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+
+      expect((detailRes.body as AssetClassDetail).id).toBe(listRow!.id);
     });
 
     it('lists only inactive classes when status=inactive', async () => {
@@ -469,5 +564,14 @@ describe('Asset Register — asset classes (integration)', () => {
         'Insurance policy copy',
       ]);
     });
+  });
+
+  it('returns 400 for invalid sortBy on asset class list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/asset-register/asset-classes')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

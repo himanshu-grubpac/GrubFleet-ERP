@@ -1,7 +1,7 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { PaginationQueryDto } from '../../common/dto/pagination-query.dto';
+import { ListOrganizationsQueryDto } from './dto/list-organizations-query.dto';
 import type { AuthenticatedUser } from '../auth/types/authenticated-user.type';
 import { OrganizationsService } from './organizations.service';
 
@@ -15,13 +15,9 @@ export class OrganizationsController {
   @ApiOperation({ summary: 'List organizations the caller can access' })
   list(
     @CurrentUser() user: AuthenticatedUser,
-    @Query() pagination: PaginationQueryDto,
+    @Query() query: ListOrganizationsQueryDto,
   ) {
-    return this.organizationsService.listOrganizations(
-      user.userId,
-      pagination.page,
-      pagination.pageSize,
-    );
+    return this.organizationsService.listOrganizations(user.userId, query);
   }
 
   @Get(':id')

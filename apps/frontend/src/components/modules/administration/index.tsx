@@ -9,6 +9,7 @@ import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { fetchRolesApi } from "@/lib/api/roles";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
+import { getApiErrorMessage } from "@/lib/toast/show-toast";
 import {
   canCreateRole,
   canDeleteRole,
@@ -121,7 +122,7 @@ export function AdministrationModule() {
       >
         <ErrorState
           title="Failed to load roles"
-          message={(error as Error).message}
+          message={getApiErrorMessage(error, "Failed to load roles.")}
           onRetry={refetch}
         />
       </DashboardLayout>

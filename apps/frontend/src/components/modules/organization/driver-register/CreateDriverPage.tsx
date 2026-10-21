@@ -27,6 +27,11 @@ import {
 } from "@/components/common/Commonvalidation";
 
 
+import {
+    getDriverLicenseValidationError,
+    normalizeDriverLicenseNumber,
+} from "@grubpac/validation";
+
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
 import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
@@ -250,6 +255,11 @@ export default function CreateDriverForm({
 
         if (!form.drivingLicenseNo.trim()) {
             errors.drivingLicenseNo = "Driving license no. is required.";
+        } else {
+            const licenseError = getDriverLicenseValidationError(
+                form.drivingLicenseNo,
+            );
+            if (licenseError) errors.drivingLicenseNo = licenseError;
         }
 
         if (!form.licenseExpiryDate.trim()) {
@@ -299,7 +309,9 @@ export default function CreateDriverForm({
             name: form.name.trim(),
             cprNo: form.cprNo.trim(),
             mobileNo: form.mobileNo.trim(),
-            drivingLicenseNo: form.drivingLicenseNo.trim(),
+            drivingLicenseNo: normalizeDriverLicenseNumber(
+                form.drivingLicenseNo,
+            ),
             licenseExpiryDate: form.licenseExpiryDate.trim(),
             supplier: form.supplier.trim(),
             email: form.email.trim(),

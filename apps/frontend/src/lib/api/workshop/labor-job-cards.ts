@@ -1,6 +1,8 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { WORKSHOP_FORM_CATALOG_PAGE_SIZE } from "./catalog-page-size";
 
 export type WorkshopLaborJobCardStatus = "active" | "inactive";
@@ -27,7 +29,7 @@ export type WorkshopLaborJobCardDetail = WorkshopLaborJobCardListItem & {
   parts: WorkshopLaborJobCardPartLine[];
 };
 
-export type ListWorkshopLaborJobCardsParams = {
+export type ListWorkshopLaborJobCardsParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -74,6 +76,7 @@ export async function fetchWorkshopLaborJobCardsApi(
   if (params.status) {
     query.set("status", params.status);
   }
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<WorkshopLaborJobCardListItem>>(
     `/workshop/labor-job-cards?${query.toString()}`,
     {

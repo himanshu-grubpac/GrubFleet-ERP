@@ -40,12 +40,12 @@ export class CreateStockReceiptDto {
   financeInvoiceId?: string;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   purchaseDate!: string;
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   expiryDate?: string;
 
   @ApiProperty()

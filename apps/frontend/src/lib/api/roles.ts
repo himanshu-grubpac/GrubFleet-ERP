@@ -3,6 +3,8 @@ import type {
   PaginatedResponse,
   ModuleAccessLevel,
 } from '@grubpac/shared-types';
+import type { ListSortParams } from '@/lib/query/list-sort-params';
+import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
 import { apiFetch } from './client';
 
 export type RoleEditorMatrixRow = {
@@ -66,12 +68,14 @@ export async function fetchRolesApi(
   organizationId: string,
   page = 1,
   pageSize = 50,
+  sort?: ListSortParams,
 ): Promise<PaginatedResponse<Role>> {
   const query = new URLSearchParams({
     organizationId,
     page: String(page),
     pageSize: String(pageSize),
   });
+  appendListSortSearchParams(query, sort);
 
   return apiFetch<PaginatedResponse<Role>>(`/roles?${query.toString()}`, {
     method: 'GET',

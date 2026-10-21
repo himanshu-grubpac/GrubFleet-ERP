@@ -214,4 +214,15 @@ describe('Inventory module (integration)', () => {
         .expect(200);
     });
   });
+
+  describe('list sort validation', () => {
+    it('returns 400 for invalid sortBy on stock register list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-register')
+        .query({ organizationId, sortBy: 'notAColumn' })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+  });
 });

@@ -9,6 +9,7 @@ import {
   inArray,
   or,
   sql,
+  type AnyColumn,
 } from 'drizzle-orm';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
@@ -31,6 +32,72 @@ import {
   type WorkshopLaborJobCardRow,
   type WorkshopWorkOrderRow,
 } from '../../../database/schema';
+import {
+  AMC_SUBSCRIBER_LIST_DEFAULT_SORT,
+  type AmcSubscriberListSortField,
+  AMC_TIER_LIST_DEFAULT_SORT,
+  type AmcTierListSortField,
+  LABOR_JOB_CARD_LIST_DEFAULT_SORT,
+  type LaborJobCardListSortField,
+  MAINTENANCE_SCHEDULE_LIST_DEFAULT_SORT,
+  type MaintenanceScheduleListSortField,
+  MAINTENANCE_SCHEDULE_VEHICLE_LIST_DEFAULT_SORT,
+  type MaintenanceScheduleVehicleListSortField,
+  WORK_ORDER_LIST_DEFAULT_SORT,
+  type WorkOrderListSortField,
+  WORKSHOP_TECHNICIAN_LIST_DEFAULT_SORT,
+  type WorkshopTechnicianListSortField,
+} from '../constants/workshop-list-sort.constants';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../../common/utils/list-sort.util';
+
+const WORK_ORDER_LIST_SORT_COLUMNS: Record<WorkOrderListSortField, AnyColumn> =
+  {
+    createdAt: workshopWorkOrders.createdAt,
+    workOrderNumber: workshopWorkOrders.workOrderNumber,
+    status: workshopWorkOrders.status,
+    closedAt: workshopWorkOrders.closedAt,
+  };
+
+const LABOR_JOB_CARD_LIST_SORT_COLUMNS: Record<
+  LaborJobCardListSortField,
+  AnyColumn
+> = {
+  createdAt: workshopLaborJobCards.createdAt,
+  jobCardNumber: workshopLaborJobCards.name,
+  status: workshopLaborJobCards.isActive,
+};
+
+const AMC_TIER_LIST_SORT_COLUMNS: Record<AmcTierListSortField, AnyColumn> = {
+  name: workshopAmcTiers.name,
+  createdAt: workshopAmcTiers.createdAt,
+};
+
+const MAINTENANCE_SCHEDULE_LIST_SORT_COLUMNS: Record<
+  MaintenanceScheduleListSortField,
+  AnyColumn
+> = {
+  name: workshopMaintenanceSchedules.name,
+  createdAt: workshopMaintenanceSchedules.createdAt,
+};
+
+const AMC_SUBSCRIBER_LIST_SORT_COLUMNS: Record<
+  AmcSubscriberListSortField,
+  AnyColumn
+> = {
+  subscriberCode: workshopAmcSubscribers.subscriberCode,
+  createdAt: workshopAmcSubscribers.createdAt,
+};
+
+const MAINTENANCE_SCHEDULE_VEHICLE_LIST_SORT_COLUMNS: Record<
+  MaintenanceScheduleVehicleListSortField,
+  AnyColumn
+> = {
+  fleetCode: assetRegisterVehicles.fleetCode,
+  registrationNumber: assetRegisterVehicles.registrationNumber,
+};
 
 export type LaborJobCardPartRow = typeof workshopLaborJobCardParts.$inferSelect;
 
@@ -42,7 +109,11 @@ export class WorkshopRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; isActive?: boolean },
+    opts: {
+      search?: string;
+      isActive?: boolean;
+      sort?: ResolvedListSort<LaborJobCardListSortField>;
+    },
   ) {
     const conditions = [
       eq(workshopLaborJobCards.organizationId, organizationId),
@@ -62,8 +133,11 @@ export class WorkshopRepository {
         .from(workshopLaborJobCards)
         .where(where)
         .orderBy(
-          desc(workshopLaborJobCards.createdAt),
-          desc(workshopLaborJobCards.id),
+          ...buildListOrderBy(
+            LABOR_JOB_CARD_LIST_SORT_COLUMNS,
+            opts.sort ?? LABOR_JOB_CARD_LIST_DEFAULT_SORT,
+            workshopLaborJobCards.id,
+          ),
         )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
@@ -322,7 +396,10 @@ export class WorkshopRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string },
+    opts: {
+      search?: string;
+      sort?: ResolvedListSort<WorkshopTechnicianListSortField>;
+    },
   ) {
     const conditions = [
       eq(organisationEmployees.organizationId, organizationId),
@@ -352,7 +429,24 @@ export class WorkshopRepository {
         .leftJoin(workshopWorkOrders, openWoJoin)
         .where(where)
         .groupBy(organisationEmployees.id, organisationEmployees.fullName)
-        .orderBy(asc(organisationEmployees.fullName))
+        .orderBy(
+          ...(() => {
+            const sort = opts.sort ?? WORKSHOP_TECHNICIAN_LIST_DEFAULT_SORT;
+            if (sort.sortBy === 'openWorkOrderCount') {
+              return [
+                sort.sortOrder === 'asc'
+                  ? asc(sql`count(${workshopWorkOrders.id})`)
+                  : desc(sql`count(${workshopWorkOrders.id})`),
+                asc(organisationEmployees.id),
+              ];
+            }
+            return buildListOrderBy(
+              { fullName: organisationEmployees.fullName },
+              { sortBy: 'fullName', sortOrder: sort.sortOrder },
+              organisationEmployees.id,
+            );
+          })(),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -403,7 +497,11 @@ export class WorkshopRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; status?: string },
+    opts: {
+      search?: string;
+      status?: string;
+      sort?: ResolvedListSort<WorkOrderListSortField>;
+    },
   ) {
     const conditions = [eq(workshopWorkOrders.organizationId, organizationId)];
     if (opts.status) {
@@ -447,8 +545,11 @@ export class WorkshopRepository {
         )
         .where(where)
         .orderBy(
-          desc(workshopWorkOrders.createdAt),
-          desc(workshopWorkOrders.id),
+          ...buildListOrderBy(
+            WORK_ORDER_LIST_SORT_COLUMNS,
+            opts.sort ?? WORK_ORDER_LIST_DEFAULT_SORT,
+            workshopWorkOrders.id,
+          ),
         )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
@@ -514,7 +615,12 @@ export class WorkshopRepository {
       .where(inArray(workshopLaborJobCardParts.laborJobCardId, cardIds));
   }
 
-  async listAmcTiers(organizationId: string, page: number, pageSize: number) {
+  async listAmcTiers(
+    organizationId: string,
+    page: number,
+    pageSize: number,
+    sort?: ResolvedListSort<AmcTierListSortField>,
+  ) {
     const where = and(
       eq(workshopAmcTiers.organizationId, organizationId),
       eq(workshopAmcTiers.isActive, true),
@@ -524,7 +630,13 @@ export class WorkshopRepository {
         .select()
         .from(workshopAmcTiers)
         .where(where)
-        .orderBy(asc(workshopAmcTiers.name))
+        .orderBy(
+          ...buildListOrderBy(
+            AMC_TIER_LIST_SORT_COLUMNS,
+            sort ?? AMC_TIER_LIST_DEFAULT_SORT,
+            workshopAmcTiers.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db.select({ total: count() }).from(workshopAmcTiers).where(where),
@@ -550,6 +662,7 @@ export class WorkshopRepository {
     organizationId: string,
     page: number,
     pageSize: number,
+    sort?: ResolvedListSort<MaintenanceScheduleListSortField>,
   ) {
     const where = and(
       eq(workshopMaintenanceSchedules.organizationId, organizationId),
@@ -560,7 +673,13 @@ export class WorkshopRepository {
         .select()
         .from(workshopMaintenanceSchedules)
         .where(where)
-        .orderBy(asc(workshopMaintenanceSchedules.name))
+        .orderBy(
+          ...buildListOrderBy(
+            MAINTENANCE_SCHEDULE_LIST_SORT_COLUMNS,
+            sort ?? MAINTENANCE_SCHEDULE_LIST_DEFAULT_SORT,
+            workshopMaintenanceSchedules.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -643,7 +762,10 @@ export class WorkshopRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { amcTierId?: string },
+    opts: {
+      amcTierId?: string;
+      sort?: ResolvedListSort<AmcSubscriberListSortField>;
+    },
   ) {
     const conditions = [
       eq(workshopAmcSubscribers.organizationId, organizationId),
@@ -680,7 +802,13 @@ export class WorkshopRepository {
           eq(workshopAmcSubscribers.amcTierId, workshopAmcTiers.id),
         )
         .where(where)
-        .orderBy(asc(workshopAmcSubscribers.subscriberCode))
+        .orderBy(
+          ...buildListOrderBy(
+            AMC_SUBSCRIBER_LIST_SORT_COLUMNS,
+            opts.sort ?? AMC_SUBSCRIBER_LIST_DEFAULT_SORT,
+            workshopAmcSubscribers.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -831,6 +959,7 @@ export class WorkshopRepository {
     vehicleApplicability: string | null,
     page: number,
     pageSize: number,
+    sort?: ResolvedListSort<MaintenanceScheduleVehicleListSortField>,
   ) {
     if (!assetClassLabel.trim()) {
       return { rows: [], total: 0 };
@@ -854,7 +983,13 @@ export class WorkshopRepository {
           eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
         )
         .where(where)
-        .orderBy(asc(assetRegisterVehicles.fleetCode))
+        .orderBy(
+          ...buildListOrderBy(
+            MAINTENANCE_SCHEDULE_VEHICLE_LIST_SORT_COLUMNS,
+            sort ?? MAINTENANCE_SCHEDULE_VEHICLE_LIST_DEFAULT_SORT,
+            assetRegisterVehicles.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
