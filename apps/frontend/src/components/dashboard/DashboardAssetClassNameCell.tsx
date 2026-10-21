@@ -4,7 +4,7 @@ import DashboardRowCopyButton from "@/components/dashboard/DashboardRowCopyButto
 import { formatAssetClassNameForDisplay } from "@/components/dashboard/dashboard-row-copy-text";
 
 type DashboardAssetClassNameCellProps = {
-  name: string;
+  name?: string | null;
   copyAriaLabel?: string;
 };
 
@@ -12,7 +12,7 @@ export default function DashboardAssetClassNameCell({
   name,
   copyAriaLabel = "Copy class name",
 }: DashboardAssetClassNameCellProps) {
-  const trimmed = name.trim();
+  const trimmed = (name ?? "").trim();
   if (!trimmed) {
     return <span className="text-gray-400">—</span>;
   }
