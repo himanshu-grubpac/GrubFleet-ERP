@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsBoolean,
   IsEmail,
   IsIn,
   IsOptional,
@@ -69,4 +70,9 @@ export class UpdateEmployeeDto {
   @IsEmail()
   @MaxLength(320)
   email?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isWorkshopTechnician?: boolean;
 }

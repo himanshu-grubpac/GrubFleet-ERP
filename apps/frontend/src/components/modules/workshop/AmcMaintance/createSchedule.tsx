@@ -2,11 +2,53 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Save } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+
+import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import Button from "@/components/ui/GrubpacButton";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { ApiClientError } from "@/lib/api/client";
+import { createWorkshopMaintenanceScheduleApi } from "@/lib/api/workshop/amc";
+import { WORKSHOP_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import {
+  workshopAmcMaintenanceListHref,
+  workshopAmcScheduleDetailHref,
+} from "@/lib/navigation/workshop-static-routes";
+import {
+  showErrorToast,
+  showSuccessToast,
+} from "@/lib/toast/show-toast";
+import { useAuth } from "@/providers/auth-provider";
 
 export default function CreateAmcSchedulePage() {
     const router = useRouter();
+    const { token, organizationId, permissions, isLoading: isAuthLoading } =
+        useAuth();
+    const canCreate =
+        permissions.has("workshop.create") ||
+        permissions.has("workshop.manage");
+
+    const assetClassesQuery = useQuery({
+        queryKey: ["workshop", "schedule-asset-classes", organizationId],
+        queryFn: () =>
+            fetchAssetRegisterAssetClassesApi({
+                token: token!,
+                organizationId: organizationId!,
+                page: 1,
+                pageSize: 200,
+                status: "active",
+            }),
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardCatalogQueryOptions,
+    });
+    const assetClasses = assetClassesQuery.data?.items ?? [];
 
     const [form, setForm] = useState({
         name: "",
@@ -24,6 +66,47 @@ export default function CreateAmcSchedulePage() {
         setForm((prev) => ({ ...prev, [field]: value }));
         setErrors((prev) => ({ ...prev, [field]: "" }));
     };
+
+    const intervalValueValid = useMemo(() => {
+        const trimmed = form.intervalValue.trim();
+        if (!trimmed) return false;
+        const n = Number(trimmed);
+        return Number.isFinite(n) && n > 0;
+    }, [form.intervalValue]);
+
+    const createMutation = useMutation({
+        mutationFn: (payload: {
+            name: string;
+            assetClassLabel: string;
+            intervalLabel: string;
+            maintenanceType: string;
+            intervalType: string;
+            vehicleApplicability: string;
+            description?: string;
+        }) =>
+            createWorkshopMaintenanceScheduleApi(token!, {
+                organizationId: organizationId!,
+                ...payload,
+            }),
+        onSuccess: (data) => {
+            showSuccessToast(`${data.name} was created`);
+            router.push(workshopAmcScheduleDetailHref(data.id));
+        },
+        onError: (error: Error) => {
+            const message =
+                error instanceof ApiClientError
+                    ? error.message
+                    : "Could not create schedule. Try again.";
+            showErrorToast(message);
+        },
+    });
+
+    const canSubmit =
+        canCreate &&
+        !!form.name.trim() &&
+        !!form.assetClass &&
+        intervalValueValid &&
+        !createMutation.isPending;
 
     const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -45,35 +128,35 @@ export default function CreateAmcSchedulePage() {
 
         if (Object.keys(nextErrors).length > 0) return;
 
-        // Connect this to your schedule creation API.
-        console.log("Create AMC schedule:", form);
+        if (!token || !organizationId || !canCreate) {
+            showErrorToast("You do not have permission to create schedules.");
+            return;
+        }
+
+        const intervalSuffix =
+            form.intervalType === "Odometer" ? " km" : " days";
+        createMutation.mutate({
+            name: form.name.trim(),
+            assetClassLabel: form.assetClass.trim(),
+            intervalLabel: `${form.intervalValue.trim()}${intervalSuffix}`,
+            maintenanceType: form.maintenanceType.trim(),
+            intervalType: form.intervalType.trim(),
+            vehicleApplicability: form.applicability.trim(),
+            description: form.description.trim() || undefined,
+        });
     };
 
     return (
-        <main className="min-h-full bg-gray-50 px-5 py-4 text-[14px] text-gray-800">
-            {/* Breadcrumb */}
-            <nav className="mb-5 flex items-center gap-2 text-xs text-gray-500">
-                <button
-                    onClick={() => router.push("/workshop/amc-maintenance")}
-                    className="hover:text-[#FE5720]"
-                >
-                    AMC &amp; Maintenance
-                </button>
-                <span>/</span>
-                <span>Create Schedule</span>
-            </nav>
-
-            {/* Header */}
-            <div className="mb-5">
-                <h1 className="text-[14px] font-semibold text-gray-900">
-                    Create Maintenance Schedule
-                </h1>
-                <p className="mt-1 text-xs text-gray-500">
-                    Configure maintenance intervals for applicable vehicle classes.
-                </p>
-            </div>
-
-            <form onSubmit={handleSubmit} className="max-w-4xl">
+        <OrganizationFormLayout
+            title="Create maintenance schedule"
+            description="Configure maintenance intervals for applicable vehicle classes."
+            backLink={{
+                label: "Back to AMC & Maintenance",
+                href: workshopAmcMaintenanceListHref,
+            }}
+            contentVariant="plain"
+        >
+            <form onSubmit={handleSubmit} className="w-full">
                 <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                     <div className="border-b border-gray-100 px-4 py-3">
                         <h2 className="text-[14px] font-semibold">
@@ -86,11 +169,16 @@ export default function CreateAmcSchedulePage() {
 
                     <div className="grid grid-cols-1 gap-x-5 gap-y-4 p-4 sm:grid-cols-2">
                         <FormField label="Schedule name" required error={errors.name}>
-                            <input
+                            <RestrictedInput
+                                restrictedKind="name"
+                                maxLength={WORKSHOP_INPUT_LIMITS.maintenanceScheduleName}
                                 value={form.name}
-                                onChange={(e) => updateField("name", e.target.value)}
+                                onChange={(value) => updateField("name", value)}
                                 placeholder="e.g. Cargo bed & hitch inspection"
-                                className={inputClass}
+                                className={mergeFormControlBorderClass(
+                                    !!errors.name,
+                                    inputClass,
+                                )}
                             />
                         </FormField>
 
@@ -102,14 +190,24 @@ export default function CreateAmcSchedulePage() {
                             <select
                                 value={form.assetClass}
                                 onChange={(e) => updateField("assetClass", e.target.value)}
-                                className={inputClass}
+                                className={mergeFormControlBorderClass(
+                                    !!errors.assetClass,
+                                    inputClass,
+                                )}
+                                disabled={assetClassesQuery.isLoading}
                             >
-                                <option value="">Select asset class</option>
-                                <option value="Petrol Auto — Cargo">
-                                    Petrol Auto — Cargo
+                                <option value="">
+                                    {assetClassesQuery.isLoading
+                                        ? "Loading asset classes…"
+                                        : assetClasses.length === 0
+                                          ? "No active asset classes"
+                                          : "Select asset class"}
                                 </option>
-                                <option value="Petrol Scooter">Petrol Scooter</option>
-                                <option value="Electric Scooter">Electric Scooter</option>
+                                {assetClasses.map((row) => (
+                                    <option key={row.id} value={row.specLabel}>
+                                        {row.specLabel}
+                                    </option>
+                                ))}
                             </select>
                         </FormField>
 
@@ -149,19 +247,21 @@ export default function CreateAmcSchedulePage() {
                             required
                             error={errors.intervalValue}
                         >
-                            <input
-                                type="number"
-                                min="1"
+                            <RestrictedInput
+                                restrictedKind="digits"
                                 value={form.intervalValue}
-                                onChange={(e) =>
-                                    updateField("intervalValue", e.target.value)
+                                onChange={(value) =>
+                                    updateField("intervalValue", value)
                                 }
                                 placeholder={
                                     form.intervalType === "Odometer"
                                         ? "e.g. 4000"
                                         : "e.g. 90"
                                 }
-                                className={inputClass}
+                                className={mergeFormControlBorderClass(
+                                    !!errors.intervalValue,
+                                    inputClass,
+                                )}
                             />
                         </FormField>
 
@@ -181,41 +281,38 @@ export default function CreateAmcSchedulePage() {
 
                         <div className="sm:col-span-2">
                             <FormField label="Description / Notes">
-                                <textarea
-                                    rows={3}
+                                <RestrictedInput
+                                    restrictedKind="text"
+                                    maxLength={
+                                        WORKSHOP_INPUT_LIMITS.maintenanceScheduleDescription
+                                    }
                                     value={form.description}
-                                    onChange={(e) =>
-                                        updateField("description", e.target.value)
+                                    onChange={(value) =>
+                                        updateField("description", value)
                                     }
                                     placeholder="Add schedule instructions or notes (optional)"
-                                    className={`${inputClass} h-auto py-2`}
+                                    className={inputClass}
                                 />
                             </FormField>
                         </div>
                     </div>
                 </section>
 
-                {/* Actions */}
-                <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
-                    <button
+                <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
+                    <Button
                         type="button"
-                        onClick={() => router.push("/workshop/amc-maintenance")}
-                        className="inline-flex h-9 items-center gap-2 rounded-md border border-gray-200 bg-white px-4 text-xs font-medium hover:bg-gray-50"
+                        variant="secondary"
+                        onClick={() => router.push(workshopAmcMaintenanceListHref)}
                     >
-                        <ArrowLeft size={14} />
                         Cancel
-                    </button>
+                    </Button>
 
-                    <button
-                        type="submit"
-                        className="inline-flex h-9 items-center gap-2 rounded-md bg-[#FE5720] px-4 text-xs font-medium text-white hover:bg-[#E94B18]"
-                    >
-                        <Save size={14} />
-                        Save Schedule
-                    </button>
+                    <Button type="submit" disabled={!canSubmit}>
+                        {createMutation.isPending ? "Saving…" : "Save Schedule"}
+                    </Button>
                 </div>
             </form>
-        </main>
+        </OrganizationFormLayout>
     );
 }
 
@@ -240,9 +337,7 @@ function FormField({
                 {required && <span className="ml-1 text-red-500">*</span>}
             </label>
             {children}
-            {error && (
-                <p className="mt-1 text-[11px] text-red-600">{error}</p>
-            )}
+            <FormFieldInlineError message={error} />
         </div>
     );
 }

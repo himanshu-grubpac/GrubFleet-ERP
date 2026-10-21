@@ -2,7 +2,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useRef } from "react";
 import Button from "@/components/ui/GrubpacButton";
@@ -46,6 +46,9 @@ type CreateClientFormProps = {
 
     /** When embedded in another flow (e.g. lease wizard), skip page shell layout. */
     variant?: "standalone" | "embedded";
+
+    /** Explicit edit mode — do not infer from partial `initialData` (lease wizard passes name only). */
+    mode?: "create" | "edit";
 };
 
 const createEmptyContact = (
@@ -63,10 +66,11 @@ export default function CreateClientPage({
     onSaved,
     initialData,
     variant = "standalone",
+    mode = "create",
 }: CreateClientFormProps) {
     const router = useRouter();
 
-    const isEditMode = Boolean(initialData);
+    const isEditMode = mode === "edit";
 
     const [companyName, setCompanyName] = useState(
         initialData?.companyName ?? ""
@@ -98,32 +102,6 @@ export default function CreateClientPage({
 
     const [saving, setSaving] = useState(false);
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
-
-    useEffect(() => {
-        if (!initialData) {
-            return;
-        }
-
-        setCompanyName(
-            initialData.companyName ?? ""
-        );
-
-        setAddress({
-            line1: initialData.address?.line1 ?? "",
-            line2: initialData.address?.line2 ?? "",
-            city: initialData.address?.city ?? "",
-            state: initialData.address?.state ?? "",
-            district: initialData.address?.district ?? "",
-            pincode: initialData.address?.pincode ?? "",
-            country: initialData.address?.country ?? "",
-        });
-
-        setPointsOfContact(
-            initialData.pointsOfContact?.length
-                ? initialData.pointsOfContact
-                : [createEmptyContact(true)]
-        );
-    }, [initialData]);
 
     const updateContact = (
         id: string,

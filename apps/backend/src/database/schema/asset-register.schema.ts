@@ -189,10 +189,6 @@ export const assetRegisterVehicles = pgTable(
       t.organizationId,
       t.operationalStatus,
     ),
-    index('asset_register_vehicles_registration_number_idx').on(
-      t.organizationId,
-      t.registrationNumber,
-    ),
   ],
 );
 

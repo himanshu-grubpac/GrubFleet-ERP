@@ -397,6 +397,7 @@ export class OrganisationRepository {
           reportsToLocationOverride:
             organisationEmployees.reportsToLocationOverride,
           linkedUserId: organisationEmployees.linkedUserId,
+          isWorkshopTechnician: organisationEmployees.isWorkshopTechnician,
           employmentType: organisationEmployees.employmentType,
           dateOfJoining: organisationEmployees.dateOfJoining,
           mobile: organisationEmployees.mobile,
@@ -493,6 +494,7 @@ export class OrganisationRepository {
         reportsToLocationOverride:
           organisationEmployees.reportsToLocationOverride,
         linkedUserId: organisationEmployees.linkedUserId,
+        isWorkshopTechnician: organisationEmployees.isWorkshopTechnician,
         employmentType: organisationEmployees.employmentType,
         dateOfJoining: organisationEmployees.dateOfJoining,
         mobile: organisationEmployees.mobile,
@@ -523,6 +525,24 @@ export class OrganisationRepository {
       )
       .limit(1);
     return row;
+  }
+
+  async findEmployeeIdByLinkedUserInOrg(
+    organizationId: string,
+    linkedUserId: string,
+  ): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: organisationEmployees.id })
+      .from(organisationEmployees)
+      .where(
+        and(
+          eq(organisationEmployees.organizationId, organizationId),
+          eq(organisationEmployees.linkedUserId, linkedUserId),
+          eq(organisationEmployees.isActive, true),
+        ),
+      )
+      .limit(1);
+    return row?.id ?? null;
   }
 
   async insertEmployee(values: EmployeeInsert): Promise<EmployeeRow> {

@@ -1,7 +1,7 @@
 /// <reference types="jest" />
 
 import { randomUUID } from 'crypto';
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
@@ -9,7 +9,6 @@ import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { eq } from 'drizzle-orm';
 import { AppModule } from '../../app.module';
-import { GlobalHttpExceptionFilter } from '../../common/filters/http-exception.filter';
 import {
   DEV_ADMIN_EMAIL,
   DEV_ADMIN_PASSWORD,
@@ -18,6 +17,8 @@ import {
 } from '../../database/seed/dev-admin-bootstrap';
 import { ensureTestSchema } from '../../../test/helpers/ensure-test-schema';
 import {
+  closeIntegrationResources,
+  configureIntegrationNestApp,
   ensureUserWithPermissions,
   loginAs,
 } from '../../../test/helpers/integration-auth';
@@ -137,15 +138,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       imports: [AppModule],
     }).compile();
     app = moduleFixture.createNestApplication();
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalFilters(new GlobalHttpExceptionFilter());
-    app.setGlobalPrefix('api/v1');
+    configureIntegrationNestApp(app);
     await app.init();
     const login = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
@@ -161,8 +154,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   afterAll(async () => {
-    await app?.close();
-    await pool?.end();
+    await closeIntegrationResources(app, pool);
   });
 
   it('LEASE-01: list and create require authentication', async () => {

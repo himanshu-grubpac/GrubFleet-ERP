@@ -65,6 +65,21 @@ export const ORGANISATION_CLIENT_INPUT_LIMITS = {
 } as const;
 
 /** Fleet client register — mirrors backend CreateFleetClientDto @MaxLength. */
+/** Workshop labor job cards — mirrors backend workshop-field.constants. */
+export const WORKSHOP_INPUT_LIMITS = {
+  laborJobCardName: 255,
+  laborJobCardDescription: 2000,
+  workOrderReportedBy: 255,
+  workOrderIssueDescription: 2000,
+  workOrderNotes: 2000,
+  laborLineDescription: 255,
+  amcTierName: 120,
+  amcTierDescription: 2000,
+  amcTierPriceLabel: 120,
+  maintenanceScheduleName: 255,
+  maintenanceScheduleDescription: 2000,
+} as const;
+
 export const ASSET_REGISTER_CLASS_INPUT_LIMITS = {
   brand: 255,
   modelName: 255,

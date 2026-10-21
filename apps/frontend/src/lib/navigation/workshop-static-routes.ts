@@ -7,7 +7,8 @@ export type WorkshopEntityQueryKey =
   | "workOrderId"
   | "tierId"
   | "scheduleId"
-  | "subscriberCode";
+  | "subscriberCode"
+  | "laborJobCardId";
 
 const WORK_ORDER_BASE = "/workshop/work-order";
 const AMC_TIER_BASE = "/workshop/amc-maintenance/tier";
@@ -62,6 +63,20 @@ export const workshopAmcMaintenanceListHref = "/workshop/amc-maintenance/";
 export const workshopAmcScheduleCreateHref =
   "/workshop/amc-maintenance/schedule/create/";
 
+export const workshopAmcTierCreateHref =
+  "/workshop/amc-maintenance/tier/create/";
+
+const LABOUR_RATE_CARD_BASE = "/workshop/labour-rate-cards";
+
+export const workshopLabourRateCardListHref = `${LABOUR_RATE_CARD_BASE}/`;
+export const workshopLabourRateCardCreateHref = `${LABOUR_RATE_CARD_BASE}/create/`;
+
+export const workshopLabourRateCardDetailHref = (id: string) =>
+  detailHref(LABOUR_RATE_CARD_BASE, "laborJobCardId", id);
+
+export const workshopLabourRateCardEditHref = (id: string) =>
+  editHref(LABOUR_RATE_CARD_BASE, "laborJobCardId", id);
+
 export const workshopAmcTierDetailHref = (tierId: string) =>
   detailHref(AMC_TIER_BASE, "tierId", tierId);
 
@@ -76,3 +91,11 @@ export const workshopAmcScheduleEditHref = (scheduleId: string) =>
 
 export const workshopAmcSubscriberDetailHref = (subscriberCode: string) =>
   detailHref(AMC_SUBSCRIBER_BASE, "subscriberCode", subscriberCode);
+
+/** Detail/edit shells share one component; dev has no trailing slash, static export uses `/edit/`. */
+export function isWorkshopStaticEditPath(pathname: string | null): boolean {
+  if (!pathname) {
+    return false;
+  }
+  return /\/edit\/?$/.test(pathname);
+}

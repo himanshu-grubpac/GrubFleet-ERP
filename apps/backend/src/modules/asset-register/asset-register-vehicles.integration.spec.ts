@@ -357,6 +357,59 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .expect(400);
     });
 
+    it('returns 409 when registration number duplicates another vehicle in the same org', async () => {
+      const classId = await createAssetClass();
+      const reg = `DUP-REG-${Date.now()}`.slice(0, 32);
+      await createVehicleAsAdmin(classId, { registrationNumber: reg });
+
+      const res = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildVehiclePayload(classId, { registrationNumber: reg }))
+        .expect(409);
+      expect((res.body as { message: string }).message).toContain(
+        'registration number already exists',
+      );
+    });
+
+    it('returns 409 for duplicate registration ignoring case and surrounding spaces', async () => {
+      const classId = await createAssetClass();
+      const base = `CASE-${Date.now()}`.slice(0, 24);
+      await createVehicleAsAdmin(classId, {
+        registrationNumber: `${base}aa`.toUpperCase(),
+      });
+
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildVehiclePayload(classId, {
+            registrationNumber: `  ${base}AA  `,
+          }),
+        )
+        .expect(409);
+    });
+
+    it('returns 409 when PATCH registration collides with another vehicle', async () => {
+      const classId = await createAssetClass();
+      const regA = `PAT-A-${Date.now()}`.slice(0, 32);
+      const regB = `PAT-B-${Date.now()}`.slice(0, 32);
+      const first = await createVehicleAsAdmin(classId, {
+        registrationNumber: regA,
+      });
+      await createVehicleAsAdmin(classId, { registrationNumber: regB });
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/asset-register/vehicles/${first.id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ registrationNumber: regB })
+        .expect(409);
+    });
+
     it('returns 400 when registration end is before start', async () => {
       const classId = await createAssetClass();
       await request(app.getHttpServer())

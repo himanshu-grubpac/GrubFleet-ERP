@@ -63,7 +63,7 @@ function DashboardPagination({
     );
 
     return (
-        <div className="mt-3 flex items-center justify-between">
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             {/* Showing Count */}
             <p className="text-xs text-gray-500">
                 Showing {startItem}–{endItem} of {totalItems}
@@ -200,10 +200,10 @@ export default function DashboardLayout({
     };
 
     return (
-        <div className="flex min-h-full flex-col bg-[#f8f8f8]">
+        <div className="flex min-h-full min-w-0 flex-col bg-[#f8f8f8]">
             {/* Header */}
-            <div className="px-6 py-5">
-                <div className="flex items-start justify-between gap-4">
+            <div className="px-4 py-4 sm:px-6 sm:py-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     {/* Title + Description */}
                     <div className="min-w-0">
                         <h1 className="text-xl font-semibold text-gray-900">
@@ -219,7 +219,7 @@ export default function DashboardLayout({
 
                     {/* Header Action */}
                     {action && (
-                        <div className="shrink-0">
+                        <div className="w-full shrink-0 sm:w-auto">
                             {action}
                         </div>
                     )}
@@ -227,7 +227,7 @@ export default function DashboardLayout({
 
                 {/* Sub Navigation */}
                 {tabs.length > 0 && (
-                    <nav className="mt-5 flex gap-6">
+                    <nav className="mt-5 flex gap-4 overflow-x-auto sm:gap-6">
                         {tabs.map((tab) => {
                             const isActive =
                                 activeTab === tab.href;
@@ -252,7 +252,7 @@ export default function DashboardLayout({
             </div>
 
             {/* Content */}
-            <main className="flex-1 p-6">
+            <main className="min-w-0 flex-1 p-4 sm:p-6">
                 {children}
 
                 {/* Common Pagination */}

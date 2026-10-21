@@ -4,6 +4,7 @@
  *
  * Requires: Docker Postgres + Redis (same as npm run dev), or set DATABASE_URL / REDIS_URL.
  * Skip hook: SKIP_PREPUSH=1 git push …  or  HUSKY=0 git push …
+ * After a green ci:local: CI_LOCAL_RAN=1 git push … (skips re-running the full gate on push).
  */
 import { spawnSync } from 'node:child_process';
 import { createConnection } from 'node:net';

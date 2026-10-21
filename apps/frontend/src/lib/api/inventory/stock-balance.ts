@@ -1,5 +1,9 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
+import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { apiFetch } from "../client";
+
+/** Must match backend `INVENTORY_LIST_MAX_PAGE_SIZE` (50). */
+const STOCK_BALANCE_CATALOG_PAGE_SIZE = 50;
 
 function orgHeaders(organizationId: string, token: string) {
   return {
@@ -49,6 +53,17 @@ export async function fetchStockBalanceListApi(
   return apiFetch<PaginatedResponse<StockBalanceListItem>>(
     `/inventory/stock-balance?${query.toString()}`,
     { method: "GET", ...orgHeaders(params.organizationId, token) },
+  );
+}
+
+export async function fetchAllStockBalanceListApi(
+  organizationId: string,
+  token: string,
+): Promise<StockBalanceListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchStockBalanceListApi({ organizationId, page, pageSize }, token),
+    STOCK_BALANCE_CATALOG_PAGE_SIZE,
   );
 }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import SelectClientStep from "./SelectClientStep";
@@ -143,6 +143,13 @@ export default function NewLeaseContractPage() {
 
     const [wizardError, setWizardError] = useState<string | null>(null);
     const [isPersistingStep, setIsPersistingStep] = useState(false);
+
+    const registerClientInitialData = useMemo(
+        () => ({
+            companyName: registerClientDraftName,
+        }),
+        [registerClientDraftName],
+    );
 
     const ensureDraftWithClient = useCallback(
         async (clientId: string): Promise<string> => {
@@ -298,9 +305,7 @@ export default function NewLeaseContractPage() {
                 )}
                 <CreateClientPage
                     variant="embedded"
-                    initialData={{
-                        companyName: registerClientDraftName,
-                    }}
+                    initialData={registerClientInitialData}
                     onSaved={handleRegisterClientSaved}
                     onCancel={() => {
                         setRegisterClientDraftName("");

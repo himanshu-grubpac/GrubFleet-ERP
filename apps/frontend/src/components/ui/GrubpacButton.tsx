@@ -15,7 +15,7 @@ type GrubPacButtonProps = ButtonProps &
 
 /** Brand primary must read as disabled (slate), not orange, when non-actionable. */
 const PRIMARY_DISABLED_CLASSES =
-  "disabled:!cursor-not-allowed disabled:!pointer-events-none disabled:!bg-slate-200 disabled:!text-slate-500 disabled:!border-slate-200 disabled:!opacity-100 disabled:hover:!bg-slate-200 disabled:hover:!text-slate-500 disabled:shadow-none";
+  "disabled:!cursor-not-allowed disabled:!pointer-events-none disabled:!bg-slate-200 disabled:!text-slate-500 disabled:!border-slate-200 disabled:!opacity-100 disabled:!transition-none disabled:hover:!bg-slate-200 disabled:hover:!text-slate-500 disabled:shadow-none";
 
 const UiKitButton =
   GrubPacButton as React.ComponentType<GrubPacButtonProps>;

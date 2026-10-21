@@ -182,6 +182,12 @@ export default function EditLeaseContractPage({
     const [selectedClientId, setSelectedClientId] = useState("");
     const [selectedClientName, setSelectedClientName] = useState("");
     const [registerClientDraftName, setRegisterClientDraftName] = useState("");
+    const registerClientInitialData = useMemo(
+        () => ({
+            companyName: registerClientDraftName,
+        }),
+        [registerClientDraftName],
+    );
     const [assetLines, setAssetLines] = useState<AssetLine[]>([]);
     const [terms, setTerms] = useState<LeaseTerms>({
         startDate: "",
@@ -397,9 +403,7 @@ export default function EditLeaseContractPage({
                 )}
                 <CreateClientPage
                     variant="embedded"
-                    initialData={{
-                        companyName: registerClientDraftName,
-                    }}
+                    initialData={registerClientInitialData}
                     onSaved={handleRegisterClientSaved}
                     onCancel={() => {
                         setRegisterClientDraftName("");

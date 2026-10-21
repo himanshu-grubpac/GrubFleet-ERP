@@ -43,6 +43,8 @@ tags:
     description: Finance — invoices, interim inventory parts catalog
   - name: inventory
     description: Inventory — stock register, receipts, balance, parts requests (read)
+  - name: workshop
+    description: Workshop — labor job card templates, work orders, AMC (phased)
 paths:
   /health:
     get:
@@ -2659,6 +2661,564 @@ paths:
           description: Request detail
         '404':
           $ref: '#/components/responses/NotFound'
+  /workshop/labor-job-cards:
+    get:
+      tags: [workshop]
+      summary: List labor job card templates (paginated)
+      operationId: listWorkshopLaborJobCards
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated labor job card templates
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [workshop]
+      summary: Create labor job card template
+      operationId: createWorkshopLaborJobCard
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopLaborJobCardRequest'
+      responses:
+        '201':
+          description: Labor job card created
+        '400':
+          description: Validation error
+        '409':
+          description: Duplicate name in organization
+  /workshop/labor-job-cards/{id}:
+    get:
+      tags: [workshop]
+      summary: Labor job card template detail
+      operationId: getWorkshopLaborJobCard
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Template with parts
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update labor job card template
+      operationId: updateWorkshopLaborJobCard
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopLaborJobCardRequest'
+      responses:
+        '200':
+          description: Updated labor job card
+        '400':
+          description: Validation or inactive edit blocked
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/labor-job-cards/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Activate or deactivate labor job card
+      operationId: updateWorkshopLaborJobCardStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopLaborJobCardStatusRequest'
+      responses:
+        '200':
+          description: Labor job card after status change
+        '400':
+          description: Validation error
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/work-orders:
+    get:
+      tags: [workshop]
+      summary: List work orders (paginated)
+      operationId: listWorkshopWorkOrders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, closed, cancelled]
+      responses:
+        '200':
+          description: Paginated work orders
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [workshop]
+      summary: Create work order
+      operationId: createWorkshopWorkOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopWorkOrderRequest'
+      responses:
+        '201':
+          description: Work order created with lines, totals, and inventory parts_requests reserved when stock is available
+        '400':
+          description: Validation error or insufficient inventory stock for part lines
+        '404':
+          description: Vehicle, template, or technician not found
+  /workshop/work-orders/{id}:
+    get:
+      tags: [workshop]
+      summary: Work order detail
+      operationId: getWorkshopWorkOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Work order with fleet snapshot, line items, parts fulfillment, and availableActions for the current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopWorkOrderDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update work order header fields
+      operationId: updateWorkshopWorkOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopWorkOrderRequest'
+      responses:
+        '200':
+          description: Updated work order detail
+        '400':
+          description: Validation error or closed/cancelled edit blocked
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/work-orders/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Start, close, or cancel work order
+      operationId: updateWorkshopWorkOrderStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopWorkOrderStatusRequest'
+      responses:
+        '200':
+          description: Work order after status change
+        '400':
+          description: Invalid transition
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/technicians:
+    get:
+      tags: [workshop]
+      summary: List technicians with open work order counts
+      operationId: listWorkshopTechnicians
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated employees with open work order counts
+  /workshop/amc/tiers:
+    get:
+      tags: [workshop]
+      summary: List AMC tiers
+      operationId: listWorkshopAmcTiers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated AMC tiers
+    post:
+      tags: [workshop]
+      summary: Create AMC tier
+      operationId: createWorkshopAmcTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopAmcTierRequest'
+      responses:
+        '201':
+          description: Created AMC tier
+        '409':
+          description: Tier name already exists
+  /workshop/amc/tiers/{id}:
+    get:
+      tags: [workshop]
+      summary: AMC tier detail
+      operationId: getWorkshopAmcTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: AMC tier detail
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update AMC tier
+      operationId: updateWorkshopAmcTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopAmcTierRequest'
+      responses:
+        '200':
+          description: Updated AMC tier
+        '400':
+          description: Inactive tier cannot be edited
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/tiers/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Activate or deactivate AMC tier
+      operationId: updateWorkshopAmcTierStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopAmcStatusRequest'
+      responses:
+        '200':
+          description: AMC tier after status change
+        '400':
+          description: Invalid transition or missing deactivate reason
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/schedules:
+    get:
+      tags: [workshop]
+      summary: List maintenance schedules
+      operationId: listWorkshopAmcSchedules
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated maintenance schedules
+    post:
+      tags: [workshop]
+      summary: Create maintenance schedule
+      operationId: createWorkshopMaintenanceSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopMaintenanceScheduleRequest'
+      responses:
+        '201':
+          description: Created maintenance schedule
+  /workshop/amc/schedules/{id}/vehicles:
+    get:
+      tags: [workshop]
+      summary: List vehicles on maintenance schedule with threshold status
+      operationId: listWorkshopMaintenanceScheduleVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated vehicles matched by schedule asset class
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/schedules/{id}:
+    get:
+      tags: [workshop]
+      summary: Maintenance schedule detail
+      operationId: getWorkshopMaintenanceSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Schedule detail
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update maintenance schedule
+      operationId: updateWorkshopMaintenanceSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopMaintenanceScheduleRequest'
+      responses:
+        '200':
+          description: Updated schedule
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/schedules/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Activate or deactivate maintenance schedule
+      operationId: updateWorkshopMaintenanceScheduleStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopAmcStatusRequest'
+      responses:
+        '200':
+          description: Schedule after status change
+        '400':
+          description: Invalid transition or missing deactivate reason
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/subscribers:
+    get:
+      tags: [workshop]
+      summary: List AMC subscribers
+      operationId: listWorkshopAmcSubscribers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: amcTierId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: Paginated AMC subscribers
+    post:
+      tags: [workshop]
+      summary: Subscribe vehicle to AMC tier
+      operationId: createWorkshopAmcSubscriber
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopAmcSubscriberRequest'
+      responses:
+        '201':
+          description: Created subscriber
+        '409':
+          description: Vehicle already subscribed to tier
+  /workshop/amc/subscribers/by-code/{subscriberCode}:
+    get:
+      tags: [workshop]
+      summary: AMC subscriber detail by fleet code
+      operationId: getWorkshopAmcSubscriberByCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: subscriberCode
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: Subscriber detail
+        '404':
+          $ref: '#/components/responses/NotFound'
   /finance/invoices:
     get:
       tags: [finance]
@@ -3692,6 +4252,8 @@ paths:
           description: Validation error or inactive class/master
         '403':
           description: Forbidden
+        '409':
+          description: Registration number already exists in the organisation
   /asset-register/vehicles/{id}:
     get:
       tags: [asset-register]
@@ -3737,6 +4299,8 @@ paths:
           description: Updated vehicle
         '400':
           description: Inactive vehicle or validation error
+        '409':
+          description: Registration number already exists in the organisation
   /asset-register/vehicles/{id}/lease-history:
     get:
       tags: [asset-register]
@@ -5753,6 +6317,311 @@ components:
         partCode:
           type: string
           maxLength: 64
+    CreateWorkshopLaborJobCardRequest:
+      type: object
+      required: [organizationId, name, laborChargeMinor]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        laborChargeMinor:
+          type: integer
+          minimum: 0
+          description: Labor charge in minor currency units (paise for INR)
+        parts:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [partId, quantity]
+            properties:
+              partId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+    CreateWorkshopWorkOrderRequest:
+      type: object
+      required: [organizationId, vehicleId]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+          description: Asset register fleet vehicle id
+        laborJobCardId:
+          type: string
+          format: uuid
+        technicianEmployeeId:
+          type: string
+          format: uuid
+        expectedCompletionDate:
+          type: string
+          format: date
+        reportedBy:
+          type: string
+          maxLength: 255
+        odometerReading:
+          type: integer
+          minimum: 0
+        issueDescription:
+          type: string
+          maxLength: 2000
+        notes:
+          type: string
+          maxLength: 2000
+        additionalParts:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [partId, quantity]
+            properties:
+              partId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+              unitCostMinor:
+                type: integer
+                minimum: 0
+        additionalLabor:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [description, amountMinor]
+            properties:
+              description:
+                type: string
+                maxLength: 255
+              amountMinor:
+                type: integer
+                minimum: 0
+    UpdateWorkshopWorkOrderRequest:
+      type: object
+      properties:
+        technicianEmployeeId:
+          type: string
+          format: uuid
+          nullable: true
+        expectedCompletionDate:
+          type: string
+          format: date
+          nullable: true
+        reportedBy:
+          type: string
+          maxLength: 255
+          nullable: true
+        odometerReading:
+          type: integer
+          minimum: 0
+          nullable: true
+        issueDescription:
+          type: string
+          maxLength: 2000
+          nullable: true
+        notes:
+          type: string
+          maxLength: 2000
+          nullable: true
+    UpdateWorkshopWorkOrderStatusRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [start, close, cancel]
+    WorkshopWorkOrderPartLine:
+      type: object
+      properties:
+        fulfillmentStatus:
+          type: string
+          enum: [reserved, issued, cancelled]
+    WorkshopWorkOrderAvailableActions:
+      type: object
+      properties:
+        edit:
+          type: boolean
+        start:
+          type: boolean
+        complete:
+          type: boolean
+    WorkshopWorkOrderDetailResponse:
+      type: object
+      description: Work order detail including source label, parts fulfillment summary, and viewer-specific availableActions
+      properties:
+        partsFulfillmentSummary:
+          type: string
+          enum: [none, reserved, issued, mixed]
+        sourceLabel:
+          type: string
+        availableActions:
+          $ref: '#/components/schemas/WorkshopWorkOrderAvailableActions'
+        partLines:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkshopWorkOrderPartLine'
+    UpdateWorkshopLaborJobCardRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        laborChargeMinor:
+          type: integer
+          minimum: 0
+        parts:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [partId, quantity]
+            properties:
+              partId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+    UpdateWorkshopLaborJobCardStatusRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [activate, deactivate]
+        reason:
+          type: string
+          maxLength: 2000
+    UpdateWorkshopAmcStatusRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [activate, deactivate]
+        reason:
+          type: string
+          maxLength: 2000
+    CreateWorkshopAmcTierRequest:
+      type: object
+      required: [organizationId, name]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+        priceDisplayLabel:
+          type: string
+          maxLength: 120
+    UpdateWorkshopAmcTierRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        priceDisplayLabel:
+          type: string
+          maxLength: 120
+          nullable: true
+    CreateWorkshopMaintenanceScheduleRequest:
+      type: object
+      required: [organizationId, name]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        assetClassLabel:
+          type: string
+          maxLength: 255
+        intervalLabel:
+          type: string
+          maxLength: 120
+        maintenanceType:
+          type: string
+          maxLength: 64
+        intervalType:
+          type: string
+          maxLength: 32
+        vehicleApplicability:
+          type: string
+          maxLength: 32
+        description:
+          type: string
+          maxLength: 2000
+    UpdateWorkshopMaintenanceScheduleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        assetClassLabel:
+          type: string
+          maxLength: 255
+          nullable: true
+        intervalLabel:
+          type: string
+          maxLength: 120
+          nullable: true
+        maintenanceType:
+          type: string
+          maxLength: 64
+          nullable: true
+        intervalType:
+          type: string
+          maxLength: 32
+          nullable: true
+        vehicleApplicability:
+          type: string
+          maxLength: 32
+          nullable: true
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+    CreateWorkshopAmcSubscriberRequest:
+      type: object
+      required: [organizationId, amcTierId, vehicleId]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        amcTierId:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date
     ApiError:
       type: object
       required: [message, code, statusCode]

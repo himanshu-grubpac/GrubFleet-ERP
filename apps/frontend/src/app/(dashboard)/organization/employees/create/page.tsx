@@ -54,9 +54,13 @@ export default function CreatePage() {
         phone,
         email: data.email,
         reportsToEmployeeId: data.reportsToEmployeeId,
+        isWorkshopTechnician: data.isWorkshopTechnician,
       });
       await queryClient.invalidateQueries({
         queryKey: ["organization", "employees"],
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["workshop", "technicians-all"],
       });
       showEmployeeCreatedToast(created.fullName);
       router.push(organisationEmployeeDetailHref(created.id));
