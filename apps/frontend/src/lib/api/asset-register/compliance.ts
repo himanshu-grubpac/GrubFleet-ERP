@@ -2,7 +2,14 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
+import { parseRupeeInputToMajorNumber } from "@/lib/format/money-format";
 import { apiFetch } from "../client";
+
+function insurancePremiumToApiNumber(value: string | number): number {
+  return typeof value === "number"
+    ? value
+    : parseRupeeInputToMajorNumber(value);
+}
 
 export type AssetRegisterComplianceFilterStatus =
   | "expired"
@@ -100,7 +107,7 @@ export async function renewAssetRegisterComplianceApi(params: {
   type: "insurance" | "registration" | "warranty";
   startDate: string;
   endDate: string;
-  insurancePremium?: number;
+  insurancePremium?: string | number;
 }): Promise<AssetRegisterComplianceDetail> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
@@ -117,7 +124,13 @@ export async function renewAssetRegisterComplianceApi(params: {
         type: params.type,
         startDate: params.startDate,
         endDate: params.endDate,
-        insurancePremium: params.insurancePremium,
+        ...(params.insurancePremium !== undefined
+          ? {
+              insurancePremium: insurancePremiumToApiNumber(
+                params.insurancePremium,
+              ),
+            }
+          : {}),
       }),
     },
   );

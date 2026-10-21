@@ -1,12 +1,10 @@
 "use client";
 
-import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
 import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
 import { useQuery } from "@tanstack/react-query";
 
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
-import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
 import { fetchLeaseContractChangeHistory } from "@/lib/api/lease-contracts";
 import { useGrubpacAuth } from "@/lib/auth-context";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
@@ -49,10 +47,6 @@ export default function LeaseContractChangeHistoryPage() {
         enabled: Boolean(token && organizationId && leaseId),
         ...dashboardListQueryOptions,
     });
-
-    const backHref = leaseId
-        ? fleetLeaseContractDetailHref(leaseId)
-        : "/fleet-leasing/lease-contracts";
 
     const rows: HistoryRow[] =
         historyQuery.data?.items.map((item) => ({

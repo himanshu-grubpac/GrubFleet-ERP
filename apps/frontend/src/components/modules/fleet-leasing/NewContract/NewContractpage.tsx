@@ -624,10 +624,6 @@ export default function NewLeaseContractPage() {
             title={wizardTitle(screen, selectedClientName)}
             description={wizardDescription(screen)}
             contentVariant="plain"
-            backLink={{
-                label: "Back to lease contracts",
-                href: "/fleet-leasing/lease-contracts/",
-            }}
             beforeHeader={
                 <LeaseContractStepper currentStep={SCREEN_STEP[screen]} />
             }

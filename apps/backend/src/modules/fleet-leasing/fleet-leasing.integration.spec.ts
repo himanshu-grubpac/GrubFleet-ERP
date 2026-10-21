@@ -201,6 +201,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       'draft',
     );
 
+    const meridianSeed = `meridian-${Date.now()}`;
     const clientRes = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/clients')
       .set('Authorization', `Bearer ${accessToken}`)
@@ -212,8 +213,8 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Aditi Rao',
-            contactNumber: uniqueIntegrationPhone('meridian-aditi'),
-            email: 'aditi@meridian.example',
+            contactNumber: uniqueIntegrationPhone(meridianSeed),
+            email: `${meridianSeed}@example.com`,
             isPrimary: true,
           },
         ],
@@ -400,8 +401,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
-            contactNumber: uniqueIntegrationPhone(lease02Token),
-            email: 'arjun@sunrise-freight.example',
+            contactNumber: uniqueIntegrationPhone(
+              `${lease02Token}-unknown-key`,
+            ),
+            email: `arjun-${lease02Token}@example.com`,
             isPrimary: true,
           },
         ],
@@ -421,8 +424,8 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
-            contactNumber: uniqueIntegrationPhone(lease02Token),
-            email: 'arjun@sunrise-freight.example',
+            contactNumber: uniqueIntegrationPhone(`${lease02Token}-create`),
+            email: `arjun-${lease02Token}@example.com`,
             isPrimary: true,
           },
         ],
@@ -508,7 +511,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Broken Sync POC',
-            contactNumber: uniqueIntegrationPhone('broken-sync'),
+            contactNumber: uniqueIntegrationPhone(`broken-sync-${token}`),
             email: `broken-sync-${token}@grubpac.local`,
             isPrimary: true,
           },
@@ -617,7 +620,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
         registrationEndDate: '2029-01-01',
         insuranceStartDate: '2024-01-01',
         insuranceEndDate: '2030-01-01',
-        insurancePremium: '10000.00',
+        insurancePremium: 10000,
         warrantyStartDate: '2024-01-01',
         warrantyEndDate: '2027-01-01',
       })
