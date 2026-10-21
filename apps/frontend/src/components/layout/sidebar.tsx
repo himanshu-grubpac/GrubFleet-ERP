@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 import { usePathname } from "next/navigation";
 
 import {
@@ -34,13 +32,9 @@ import {
 
 } from "@/lib/navigation/modules";
 
-import {
+import { isNavHrefActive } from "@/lib/navigation/nav-path-match";
 
-    internalHref,
-
-    isNavHrefActive,
-
-} from "@/lib/navigation/nav-path-match";
+import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 
 import { useAuth } from "@/providers/auth-provider";
 
@@ -1015,11 +1009,11 @@ function SidebarItem({
 
                                 return (
 
-                                    <Link
+                                    <DashboardNavLink
 
                                         key={child.href}
 
-                                        href={internalHref(child.href)}
+                                        href={child.href}
 
                                         role="menuitem"
 
@@ -1041,7 +1035,7 @@ function SidebarItem({
 
                                         {child.label}
 
-                                    </Link>
+                                    </DashboardNavLink>
 
                                 );
 
@@ -1086,9 +1080,9 @@ function SidebarItem({
 
                 <div className="flex items-center gap-1">
 
-                    <Link
+                    <DashboardNavLink
 
-                        href={internalHref(item.href)}
+                        href={item.href}
 
                         className={cn(
 
@@ -1120,7 +1114,7 @@ function SidebarItem({
 
                         </span>
 
-                    </Link>
+                    </DashboardNavLink>
 
                     <button
 
@@ -1178,11 +1172,11 @@ function SidebarItem({
 
                             return (
 
-                                <Link
+                                <DashboardNavLink
 
                                     key={child.href}
 
-                                    href={internalHref(child.href)}
+                                    href={child.href}
 
                                     className={cn(
 
@@ -1200,7 +1194,7 @@ function SidebarItem({
 
                                     {child.label}
 
-                                </Link>
+                                </DashboardNavLink>
 
                             );
 
@@ -1218,9 +1212,9 @@ function SidebarItem({
 
     return (
 
-        <Link
+        <DashboardNavLink
 
-            href={internalHref(item.href)}
+            href={item.href}
 
             title={collapsed ? item.label : undefined}
 
@@ -1256,7 +1250,7 @@ function SidebarItem({
 
             )}
 
-        </Link>
+        </DashboardNavLink>
 
     );
 

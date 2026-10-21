@@ -26,6 +26,8 @@ function findNavMatch(pathname: string): {
   section?: NavItem;
   baseHref: string;
 } | null {
+  const path = normalizeNavPath(pathname);
+
   let best: {
     module: NavItem;
     section?: NavItem;
@@ -36,11 +38,9 @@ function findNavMatch(pathname: string): {
   for (const moduleItem of mainNavItems) {
     if (moduleItem.children) {
       for (const child of moduleItem.children) {
-        if (
-          pathname === child.href ||
-          pathname.startsWith(`${child.href}/`)
-        ) {
-          const matchLen = child.href.length;
+        const childPath = normalizeNavPath(child.href);
+        if (path === childPath || path.startsWith(`${childPath}/`)) {
+          const matchLen = childPath.length;
           if (!best || matchLen > best.matchLen) {
             best = {
               module: moduleItem,
@@ -53,11 +53,9 @@ function findNavMatch(pathname: string): {
       }
     }
 
-    if (
-      pathname === moduleItem.href ||
-      pathname.startsWith(`${moduleItem.href}/`)
-    ) {
-      const matchLen = moduleItem.href.length;
+    const modulePath = normalizeNavPath(moduleItem.href);
+    if (path === modulePath || path.startsWith(`${modulePath}/`)) {
+      const matchLen = modulePath.length;
       if (!best || matchLen > best.matchLen) {
         best = {
           module: moduleItem,
