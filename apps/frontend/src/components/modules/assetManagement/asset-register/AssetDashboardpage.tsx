@@ -8,12 +8,14 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import DashboardTable, {
+  type DashboardColumn,
+} from "@/components/dashboard/DashboardTable";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
-import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import { useAuth } from "@/providers/auth-provider";
@@ -253,23 +255,40 @@ export default function AssetClassesPage() {
     setActiveFilter("all");
     setPage(1);
   };
-
-  const assetClassColumns = [
+  const assetClassColumns: DashboardColumn<AssetClass>[] = [
     {
       key: "name",
       label: "Class name",
-      render: (assetClass: AssetClass) => (
+      sortType: "alphabetical",
+      render: (assetClass) => (
         <AssetClassNameCell name={assetClass.name} />
       ),
     },
-    { key: "vehicleType", label: "VEHICLE TYPE" },
-    { key: "fuelType", label: "FUEL TYPE" },
-    { key: "inFleet", label: "IN FLEET" },
-    { key: "available", label: "AVAILABLE" },
+    {
+      key: "vehicleType",
+      label: "VEHICLE TYPE",
+      sortType: "vehicleType",
+    },
+    {
+      key: "fuelType",
+      label: "FUEL TYPE",
+      sortType: "alphabetical",
+    },
+    {
+      key: "inFleet",
+      label: "IN FLEET",
+      sortType: "number",
+    },
+    {
+      key: "available",
+      label: "AVAILABLE",
+      sortType: "number",
+    },
     {
       key: "status",
       label: "STATUS",
-      render: (assetClass: AssetClass) => (
+      sortType: "status",
+      render: (assetClass) => (
         <span
           className={[
             "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
@@ -283,7 +302,6 @@ export default function AssetClassesPage() {
       ),
     },
   ];
-
   const addAction = canCreate ? (
     <Button type="button" onClick={handleAddAssetClass}>
       + Add Class

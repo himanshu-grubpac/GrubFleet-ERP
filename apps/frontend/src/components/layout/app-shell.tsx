@@ -1,8 +1,10 @@
+
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
 
 import LayoutHeader from "@/components/layout/LayoutHeader";
+import ModuleSubHeader from "@/components/layout/ModuleSubHeader";
 import { Sidebar } from "@/components/layout/sidebar";
 
 import {
@@ -16,9 +18,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
   const [preferenceReady, setPreferenceReady] = useState(false);
 
   useEffect(() => {
@@ -39,11 +39,14 @@ export function AppShell({
       return;
     }
 
-    const previousOverflow = document.documentElement.style.overflow;
+    const previousOverflow =
+      document.documentElement.style.overflow;
+
     document.documentElement.style.overflow = "hidden";
 
     return () => {
-      document.documentElement.style.overflow = previousOverflow;
+      document.documentElement.style.overflow =
+        previousOverflow;
     };
   }, [mobileNavOpen]);
 
@@ -61,8 +64,15 @@ export function AppShell({
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <LayoutHeader onMenuClick={() => setMobileNavOpen(true)} />
+        {/* Main Header */}
+        <LayoutHeader
+          onMenuClick={() => setMobileNavOpen(true)}
+        />
 
+        {/* Breadcrumb Sub-header */}
+        <ModuleSubHeader />
+
+        {/* Page Content */}
         <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-y-contain">
           {children}
         </main>
