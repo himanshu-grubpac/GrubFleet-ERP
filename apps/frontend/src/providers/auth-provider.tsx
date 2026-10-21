@@ -430,6 +430,46 @@ export function GrubpacAuthProvider({
     }
   }, [token, router]);
 
+  // Keep React session in sync when apiFetch silently refreshes tokens (401 retry path).
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const onTokensRefreshed = (event: Event) => {
+      const accessToken = (event as CustomEvent<{ accessToken: string }>).detail
+        ?.accessToken;
+      if (!accessToken || !mountedRef.current) {
+        return;
+      }
+
+      setTokenState(accessToken);
+
+      void (async () => {
+        try {
+          const me = await getMeApi(accessToken);
+          if (mountedRef.current) {
+            applyMeData(me);
+          }
+        } catch {
+          // Access token was validated by refresh; ignore transient /auth/me failures.
+        }
+      })();
+    };
+
+    const onSessionExpired = () => {
+      void logout();
+    };
+
+    window.addEventListener("auth:tokens-refreshed", onTokensRefreshed);
+    window.addEventListener("auth:session-expired", onSessionExpired);
+
+    return () => {
+      window.removeEventListener("auth:tokens-refreshed", onTokensRefreshed);
+      window.removeEventListener("auth:session-expired", onSessionExpired);
+    };
+  }, [applyMeData, logout]);
+
   const showSuccess = useCallback((message: string) => {
     if (process.env.NODE_ENV !== "production") {
       console.log("[Auth Success]:", message);

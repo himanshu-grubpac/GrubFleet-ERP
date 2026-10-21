@@ -32,6 +32,7 @@ import {
 } from '../schema/organisation.schema';
 import { organizations } from '../schema';
 import { DEV_ORG_SLUG } from './dev-admin-bootstrap';
+import { purgeStagingWorkshopDemo } from './seed-staging-workshop-demo';
 import {
   STAGING_DEMO_EMAIL_DOMAIN,
   STAGING_DEMO_LEGACY_SEED_MARKERS,
@@ -86,6 +87,8 @@ export async function purgeStagingInterconnectedDemo(
   const bump = (key: string, n: number) => {
     if (n > 0) counts[key] = (counts[key] ?? 0) + n;
   };
+
+  await purgeStagingWorkshopDemo(db, organizationId, bump);
 
   const seededSiteEmails = [
     stagingSeedContactEmail('location', 'blr-hq'),

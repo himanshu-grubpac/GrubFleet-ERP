@@ -10,6 +10,9 @@ export const STAGING_DEMO_SEED_SOURCE = 'staging-interconnected-seed-v2';
 /** Prior seed runs (purge matches these too). */
 export const STAGING_DEMO_LEGACY_SEED_MARKERS = ['staging-demo-v1'] as const;
 
+/** Workshop staging demo rows (notes / descriptions). */
+export const STAGING_WORKSHOP_DEMO_SEED_SOURCE = 'staging-workshop-demo-v1';
+
 /** Legacy demo inbox domain — purge only. */
 export const STAGING_DEMO_EMAIL_DOMAIN = '@grubpac-demo.local';
 

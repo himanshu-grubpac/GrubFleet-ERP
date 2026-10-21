@@ -51,6 +51,7 @@ export type EmployeeFormData = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician: boolean;
 };
 
 export type EmployeeFormInitialData = {
@@ -63,6 +64,7 @@ export type EmployeeFormInitialData = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician?: boolean;
 };
 
 type CreateEmployeePageProps = {
@@ -82,6 +84,7 @@ type FormState = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician: boolean;
 };
 
 function buildDepartmentTypes(
@@ -185,6 +188,7 @@ export default function CreateEmployeePage({
       : "",
     phone: initialData?.phone ?? "",
     email: initialData?.email ?? "",
+    isWorkshopTechnician: initialData?.isWorkshopTechnician ?? false,
   });
 
   const [validationErrors, setValidationErrors] =
@@ -485,50 +489,7 @@ export default function CreateEmployeePage({
         dateOfJoining,
         phone: form.phone.trim(),
         email: form.email.trim(),
-      };
-
-      await onSaved?.(employee);
-
-      if (!onSaved) {
-        router.push("/organization/employees");
-      }
-    } catch (saveError) {
-      console.error("Failed to save employee:", saveError);
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Failed to save employee. Please try again.",
-      );
-    } finally {
-      setIsSaving(false);
-    }
-
-
-    try {
-      const errors = validateForm();
-      setValidationErrors(errors);
-
-      if (Object.keys(errors).length > 0) {
-        return;
-      }
-
-      const employmentType = employmentTypeUiToApi(form.employmentTypeUi);
-      const dateOfJoining = parseEmployeeDateForApi(form.dateOfJoining);
-
-      if (!employmentType || !dateOfJoining) {
-        return;
-      }
-
-      const employee: EmployeeFormData = {
-        fullName: form.fullName.trim(),
-        designation: form.designation.trim(),
-        department: form.department.trim(),
-        locationId: form.locationId,
-        reportsToEmployeeId: form.reportsToEmployeeId.trim() || undefined,
-        employmentType,
-        dateOfJoining,
-        phone: form.phone.trim(),
-        email: form.email.trim(),
+        isWorkshopTechnician: form.isWorkshopTechnician,
       };
 
       await onSaved?.(employee);
@@ -886,6 +847,33 @@ export default function CreateEmployeePage({
             </p>
           )}
         </div>
+      </div>
+
+      <div className="mt-3">
+        <label
+          htmlFor="employee-workshop-technician"
+          className="flex cursor-pointer items-start gap-2.5"
+        >
+          <input
+            id="employee-workshop-technician"
+            type="checkbox"
+            checked={form.isWorkshopTechnician}
+            onChange={(event) =>
+              updateForm("isWorkshopTechnician", event.target.checked)
+            }
+            className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 text-[#FE5720] focus:ring-[#FE5720]/20"
+          />
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-gray-700">
+              Workshop technician
+            </span>
+            <span className="mt-0.5 block text-xs leading-5 text-gray-500">
+              When enabled, this employee can be assigned as a technician on
+              Workshop work orders. Only active employees appear in technician
+              pickers.
+            </span>
+          </span>
+        </label>
       </div>
 
       {error && (
