@@ -7,6 +7,10 @@ const staticExport = process.env.NEXT_STATIC_EXPORT === 'true';
 const nextConfig: NextConfig = {
   transpilePackages: ['@grubpac/shared-types', '@grubpac/validation'],
   outputFileTracingRoot: path.join(__dirname, '../..'),
+  /** Client bundles read this at runtime; must match `trailingSlash` when static export. */
+  env: {
+    NEXT_PUBLIC_PORTAL_TRAILING_SLASH: staticExport ? 'true' : 'false',
+  },
   ...(staticExport
     ? {
         output: 'export',

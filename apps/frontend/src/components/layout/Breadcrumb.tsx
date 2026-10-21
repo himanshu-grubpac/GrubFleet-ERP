@@ -1,9 +1,9 @@
 
 "use client";
 
-import Link from "next/link";
 import { ChevronRight } from "lucide-react";
 
+import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 import type { BreadcrumbItem } from "@/config/breadcrumb-config";
 
 interface BreadcrumbProps {
@@ -32,12 +32,12 @@ export default function Breadcrumb({
                             className="flex min-w-0 shrink items-center gap-1.5"
                         >
                             {item.href && !isLast ? (
-                                <Link
+                                <DashboardNavLink
                                     href={item.href}
                                     className="min-w-0 truncate text-slate-400 transition-colors hover:text-[#FE5720]"
                                 >
                                     {item.label}
-                                </Link>
+                                </DashboardNavLink>
                             ) : (
                                 <span
                                     aria-current={isLast ? "page" : undefined}

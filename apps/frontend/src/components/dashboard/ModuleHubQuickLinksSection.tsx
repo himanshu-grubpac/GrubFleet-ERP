@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 
+import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 import { getModuleHubQuickLinks } from "@/lib/navigation/module-hub-quick-links";
-import { internalHref } from "@/lib/navigation/nav-path-match";
 
 type ModuleHubQuickLinksSectionProps = {
   moduleRootHref: string;
@@ -29,9 +28,9 @@ export function ModuleHubQuickLinksSection({
           const Icon = module.icon;
 
           return (
-            <Link
+            <DashboardNavLink
               key={module.href}
-              href={internalHref(module.href)}
+              href={module.href}
               className="group rounded-lg border border-gray-200 bg-white p-5 transition-colors hover:border-[#FE5720]/50 hover:bg-orange-50/20"
             >
               <div className="flex items-start justify-between gap-3">
@@ -55,7 +54,7 @@ export function ModuleHubQuickLinksSection({
                   Open section
                 </span>
               </div>
-            </Link>
+            </DashboardNavLink>
           );
         })}
       </div>

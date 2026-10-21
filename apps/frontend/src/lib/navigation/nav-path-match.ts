@@ -1,5 +1,6 @@
-/** Matches `next.config` trailingSlash when `NEXT_STATIC_EXPORT=true` (CloudFront portal). */
-const USE_TRAILING_SLASH = process.env.NEXT_STATIC_EXPORT === 'true';
+/** Matches `next.config` trailingSlash on CloudFront portal (see `NEXT_PUBLIC_PORTAL_TRAILING_SLASH`). */
+const USE_TRAILING_SLASH =
+  process.env.NEXT_PUBLIC_PORTAL_TRAILING_SLASH === 'true';
 
 function normalizePathnameForRouter(pathname: string): string {
   if (pathname === '/') {
