@@ -3,11 +3,13 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+import { internalHref } from "@/lib/navigation/nav-path-match";
+
 export default function AssetMasterRetiredRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace("/asset-register/assestclass");
+    router.replace(internalHref("/asset-register/assestclass/"));
   }, [router]);
 
   return (

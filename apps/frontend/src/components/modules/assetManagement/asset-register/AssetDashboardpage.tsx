@@ -85,7 +85,7 @@ const PAGE_SIZE = 50;
 function mapListItem(row: AssetRegisterAssetClassListItem): AssetClass {
   return {
     id: row.id,
-    classId: row.classId,
+    classId: row.classId ?? "",
     name: row.name,
     vehicleType: mapAssetRegisterVehicleTypeToUiLabel(row.vehicleType),
     fuelType: row.fuelType,
