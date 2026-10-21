@@ -2,14 +2,14 @@
 
 type DashboardAssetClassIdCellProps = {
   /** Org-unique 6-digit class identifier (API `classId`). Not UUID `id` or `name`. */
-  classId: string;
+  classId?: string | null;
 };
 
 /** Class ID column — full 6-digit id only; no UUID, no copy, no hover expansion. */
 export default function DashboardAssetClassIdCell({
   classId,
 }: DashboardAssetClassIdCellProps) {
-  const trimmed = classId.trim();
+  const trimmed = (classId ?? "").trim();
   if (!trimmed) {
     return <span className="text-gray-400">—</span>;
   }

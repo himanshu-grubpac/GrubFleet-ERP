@@ -123,7 +123,7 @@ export default function LocationsPage() {
       (type) =>
         type.presetKey === filters.type ||
         type.id === filters.type ||
-        type.name.toLowerCase() === filters.type.toLowerCase(),
+        (type.name?.toLowerCase() ?? "") === filters.type.toLowerCase(),
     )?.id;
   }, [filters.type, locationTypesQuery.data?.items]);
 
