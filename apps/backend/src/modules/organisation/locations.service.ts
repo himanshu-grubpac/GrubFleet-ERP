@@ -26,6 +26,11 @@ import {
   assertValidLocationCountry,
   assertValidLocationPostal,
 } from './utils/validate-location-geo.util';
+import {
+  normalizeOrgContactEmail,
+  normalizeOrgContactPhone,
+} from './utils/org-contact-normalize.util';
+import { assertLocationSiteContactUniqueInOrg } from './utils/organisation-contact-uniqueness.util';
 
 @Injectable()
 export class LocationsService {
@@ -96,6 +101,18 @@ export class LocationsService {
     }
     const addressCountry = assertValidLocationCountry(dto.addressCountry);
     assertValidLocationPostal(addressCountry, dto.addressPincode);
+    const siteContactPhone =
+      dto.siteContactPhone !== undefined && dto.siteContactPhone !== null
+        ? normalizeOrgContactPhone(dto.siteContactPhone)
+        : null;
+    const siteContactEmail =
+      dto.siteContactEmail !== undefined && dto.siteContactEmail !== null
+        ? normalizeOrgContactEmail(dto.siteContactEmail)
+        : null;
+    await assertLocationSiteContactUniqueInOrg(this.repo, dto.organizationId, {
+      siteContactEmail,
+      siteContactPhone,
+    });
     const inserted = await this.repo.insertLocation({
       organizationId: dto.organizationId,
       name: dto.name.trim(),
@@ -107,8 +124,8 @@ export class LocationsService {
       addressState: dto.addressState?.trim() ?? null,
       addressDistrict: dto.addressDistrict?.trim() ?? null,
       addressPincode: dto.addressPincode?.trim() ?? null,
-      siteContactPhone: dto.siteContactPhone?.trim() ?? null,
-      siteContactEmail: dto.siteContactEmail?.trim() ?? null,
+      siteContactPhone,
+      siteContactEmail,
       responsibleEmployeeId: dto.responsibleEmployeeId ?? null,
       deputyEmployeeId: dto.deputyEmployeeId ?? null,
       isActive: true,
@@ -168,6 +185,23 @@ export class LocationsService {
           : (existing.addressPincode ?? '');
       assertValidLocationPostal(nextCountry, postal);
     }
+    const nextSiteContactPhone =
+      dto.siteContactPhone !== undefined
+        ? dto.siteContactPhone
+          ? normalizeOrgContactPhone(dto.siteContactPhone)
+          : null
+        : undefined;
+    const nextSiteContactEmail =
+      dto.siteContactEmail !== undefined
+        ? dto.siteContactEmail
+          ? normalizeOrgContactEmail(dto.siteContactEmail)
+          : null
+        : undefined;
+    await assertLocationSiteContactUniqueInOrg(this.repo, organizationId, {
+      siteContactEmail: nextSiteContactEmail,
+      siteContactPhone: nextSiteContactPhone,
+      excludeLocationId: locationId,
+    });
     await this.repo.updateLocation(organizationId, locationId, {
       ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
       ...(dto.locationTypeId !== undefined
@@ -194,11 +228,11 @@ export class LocationsService {
       ...(dto.addressPincode !== undefined
         ? { addressPincode: dto.addressPincode?.trim() ?? null }
         : {}),
-      ...(dto.siteContactPhone !== undefined
-        ? { siteContactPhone: dto.siteContactPhone?.trim() ?? null }
+      ...(nextSiteContactPhone !== undefined
+        ? { siteContactPhone: nextSiteContactPhone }
         : {}),
-      ...(dto.siteContactEmail !== undefined
-        ? { siteContactEmail: dto.siteContactEmail?.trim() ?? null }
+      ...(nextSiteContactEmail !== undefined
+        ? { siteContactEmail: nextSiteContactEmail }
         : {}),
       ...(dto.responsibleEmployeeId !== undefined
         ? { responsibleEmployeeId: dto.responsibleEmployeeId }

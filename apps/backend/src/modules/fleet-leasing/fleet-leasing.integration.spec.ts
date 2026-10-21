@@ -355,7 +355,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({
         organizationId,
         companyName: `Bad Postal ${lease02Token}`,
-        ...fleetClientStructuredAddressIn({ addressPincode: 'not-a-pin' }),
+        ...fleetClientStructuredAddressIn({ addressPincode: '@invalid' }),
         pointsOfContact: [
           {
             name: 'Bad Postal POC',

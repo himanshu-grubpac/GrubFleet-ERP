@@ -33,6 +33,7 @@ import {
   assertValidLocationCountry,
   assertValidLocationPostal,
 } from './utils/validate-location-geo.util';
+import { assertClientPocsContactUniqueInOrg } from './utils/organisation-contact-uniqueness.util';
 
 export type OrganisationClientContractHistoryItem = {
   id: string;
@@ -119,6 +120,11 @@ export class ClientsService {
     this.assertPrimaryPocRules(dto.pointsOfContact);
     const addressCountry = assertValidLocationCountry(dto.addressCountry);
     assertValidLocationPostal(addressCountry, dto.addressPincode);
+    await assertClientPocsContactUniqueInOrg(
+      this.repo,
+      dto.organizationId,
+      dto.pointsOfContact,
+    );
     const inserted = await this.repo.insertOrganisationClient({
       organizationId: dto.organizationId,
       name: dto.clientName.trim(),
@@ -160,6 +166,12 @@ export class ClientsService {
     }
     if (dto.pointsOfContact) {
       this.assertPrimaryPocRules(dto.pointsOfContact);
+      await assertClientPocsContactUniqueInOrg(
+        this.repo,
+        organizationId,
+        dto.pointsOfContact,
+        clientId,
+      );
     }
     const nextCountry =
       dto.addressCountry !== undefined

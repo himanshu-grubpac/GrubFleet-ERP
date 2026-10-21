@@ -20,6 +20,8 @@ import type { UpdateEmployeeDto } from './dto/update-employee.dto';
 import type { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto';
 import type { EmployeeRow } from './repositories/organisation.repository';
 import { OrganisationRepository } from './repositories/organisation.repository';
+import { normalizeOrgContactEmail, normalizeOrgContactPhone } from './utils/org-contact-normalize.util';
+import { assertEmployeeContactUniqueInOrg } from './utils/organisation-contact-uniqueness.util';
 
 @Injectable()
 export class EmployeesService {
@@ -94,6 +96,12 @@ export class EmployeesService {
     if (!location) {
       throw new BadRequestException('Invalid location for organization');
     }
+    const email = normalizeOrgContactEmail(dto.email);
+    const mobile = normalizeOrgContactPhone(dto.phone);
+    await assertEmployeeContactUniqueInOrg(this.repo, dto.organizationId, {
+      email,
+      phone: mobile,
+    });
     const inserted = await this.repo.insertEmployee({
       organizationId: dto.organizationId,
       employeeCode: this.generateEmployeeCode(),
@@ -105,8 +113,8 @@ export class EmployeesService {
       reportsToEmployeeId: dto.reportsToEmployeeId ?? null,
       employmentType: dto.employmentType,
       dateOfJoining: dto.dateOfJoining.trim(),
-      mobile: dto.phone.trim(),
-      companyEmail: dto.email.trim(),
+      mobile,
+      companyEmail: email,
       isWorkshopTechnician: dto.isWorkshopTechnician ?? false,
       isActive: true,
     });
@@ -147,6 +155,19 @@ export class EmployeesService {
         throw new BadRequestException('Invalid location for organization');
       }
     }
+    const nextEmail =
+      dto.email !== undefined
+        ? normalizeOrgContactEmail(dto.email)
+        : undefined;
+    const nextPhone =
+      dto.phone !== undefined
+        ? normalizeOrgContactPhone(dto.phone)
+        : undefined;
+    await assertEmployeeContactUniqueInOrg(this.repo, organizationId, {
+      email: nextEmail,
+      phone: nextPhone,
+      excludeEmployeeId: employeeId,
+    });
     await this.repo.updateEmployee(organizationId, employeeId, {
       ...(dto.fullName !== undefined ? { fullName: dto.fullName.trim() } : {}),
       ...(dto.designation !== undefined
@@ -170,10 +191,8 @@ export class EmployeesService {
       ...(dto.dateOfJoining !== undefined
         ? { dateOfJoining: dto.dateOfJoining?.trim() || null }
         : {}),
-      ...(dto.phone !== undefined ? { mobile: dto.phone?.trim() ?? null } : {}),
-      ...(dto.email !== undefined
-        ? { companyEmail: dto.email?.trim() ?? null }
-        : {}),
+      ...(nextPhone !== undefined ? { mobile: nextPhone || null } : {}),
+      ...(nextEmail !== undefined ? { companyEmail: nextEmail || null } : {}),
       ...(dto.isWorkshopTechnician !== undefined
         ? { isWorkshopTechnician: dto.isWorkshopTechnician }
         : {}),

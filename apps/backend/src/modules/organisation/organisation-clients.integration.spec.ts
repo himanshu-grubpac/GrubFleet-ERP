@@ -77,7 +77,7 @@ describe('Organisation clients (integration)', () => {
       pointsOfContact: [
         {
           name: 'Primary Contact',
-          contactNumber: '+919888877770',
+          contactNumber: `+9198${String(unique).slice(-8)}`,
           email: `client.${unique}@grubpac.local`,
           isPrimary: true,
         },
@@ -299,6 +299,46 @@ describe('Organisation clients (integration)', () => {
           }),
         )
         .expect(400);
+    });
+
+    it('returns 409 when client POC email duplicates another client in the org', async () => {
+      const marker = Date.now();
+      const duplicateEmail = `client.poc.dup.${marker}@grubpac.local`;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/clients')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildClientCreatePayload({
+            pointsOfContact: [
+              {
+                name: 'First POC',
+                contactNumber: `+9194${String(marker).slice(-8)}`,
+                email: duplicateEmail,
+                isPrimary: true,
+              },
+            ],
+          }),
+        )
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/clients')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildClientCreatePayload({
+            pointsOfContact: [
+              {
+                name: 'Second POC',
+                contactNumber: `+9195${String(marker + 1).slice(-8)}`,
+                email: duplicateEmail,
+                isPrimary: true,
+              },
+            ],
+          }),
+        )
+        .expect(409);
     });
 
     it('returns 400 for invalid addressCountry on create', async () => {

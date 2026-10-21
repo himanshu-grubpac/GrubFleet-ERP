@@ -20,6 +20,7 @@ const POSTAL_PLACEHOLDER_BY_COUNTRY: Record<string, string> = {
   IN: "110 001",
   US: "10001",
   AE: "00000",
+  BH: "701",
   GB: "SW1A 1AA",
   CA: "K1A 0B1",
   AU: "2000",
