@@ -401,7 +401,9 @@ describe('Fleet leasing lease contracts (integration)', () => {
         pointsOfContact: [
           {
             name: 'Arjun Mehta',
-            contactNumber: uniqueIntegrationPhone(`${lease02Token}-unknown-key`),
+            contactNumber: uniqueIntegrationPhone(
+              `${lease02Token}-unknown-key`,
+            ),
             email: `arjun-${lease02Token}@example.com`,
             isPrimary: true,
           },
