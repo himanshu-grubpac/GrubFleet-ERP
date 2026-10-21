@@ -1,6 +1,7 @@
+
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
@@ -42,6 +43,14 @@ const BILLABLE_RAW_STATUSES = new Set([
   "billing_paused",
 ]);
 
+type InvoiceValidationErrors = {
+  clientId?: string;
+  leaseContractId?: string;
+  billingPeriod?: string;
+  amount?: string;
+  invoiceDate?: string;
+};
+
 export default function NewBillingInvoicePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,6 +72,10 @@ export default function NewBillingInvoicePage() {
     new Date().toISOString().slice(0, 10),
   );
   const [notes, setNotes] = useState("");
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
+  // Prevent duplicate submissions, including rapid repeated clicks.
+  const isSubmittingRef = useRef(false);
 
   const catalogEnabled = !!token && !!organizationId && !authLoading;
 
@@ -75,11 +88,16 @@ export default function NewBillingInvoicePage() {
 
   useEffect(() => {
     const data = editQuery.data;
+
     if (!data || data.invoiceType !== "billing") return;
+
     if (data.clientId) setClientId(data.clientId);
     if (data.leaseContractId) setLeaseContractId(data.leaseContractId);
+
     setBillingPeriod(data.billingPeriod ?? "");
-    setAmount(formatRupeeInputDisplay(String(data.totalAmountMinor / 100)));
+    setAmount(
+      formatRupeeInputDisplay(String(data.totalAmountMinor / 100)),
+    );
     setInvoiceDate(data.invoiceDate);
     setNotes(data.notes ?? "");
   }, [editQuery.data]);
@@ -114,47 +132,101 @@ export default function NewBillingInvoicePage() {
     enabled: catalogEnabled,
   });
 
-  const fleetClientId = clientDetailQuery.data?.linkedFleetClientId ?? null;
+  const fleetClientId =
+    clientDetailQuery.data?.linkedFleetClientId ?? null;
 
   const contractOptions = useMemo(() => {
     const items = contractsQuery.data?.items ?? [];
+
     return items.filter(
-      (c) =>
-        BILLABLE_RAW_STATUSES.has(c.rawStatus) &&
-        (!fleetClientId || c.clientId === fleetClientId),
+      (contract) =>
+        BILLABLE_RAW_STATUSES.has(contract.rawStatus) &&
+        (!fleetClientId || contract.clientId === fleetClientId),
     );
   }, [contractsQuery.data, fleetClientId]);
 
   useEffect(() => {
     if (
       leaseContractId &&
-      !contractOptions.some((c) => c.id === leaseContractId)
+      !contractOptions.some((contract) => contract.id === leaseContractId)
     ) {
       setLeaseContractId("");
     }
   }, [contractOptions, leaseContractId]);
 
-  const isFormValid =
-    !!clientId &&
-    !!leaseContractId &&
-    !!billingPeriod.trim() &&
-    parseRupeeInputToMinor(amount) != null &&
-    !!invoiceDate;
+  const validateForm = (): InvoiceValidationErrors => {
+    const errors: InvoiceValidationErrors = {};
+    const parsedAmount = parseRupeeInputToMinor(amount);
+
+    if (!clientId.trim()) {
+      errors.clientId = "Please select a client.";
+    }
+
+    if (!leaseContractId.trim()) {
+      errors.leaseContractId = "Please select a lease contract.";
+    }
+
+    if (!billingPeriod.trim()) {
+      errors.billingPeriod = "Please enter the billing period.";
+    }
+
+    if (!amount.trim()) {
+      errors.amount = "Please enter the invoice amount.";
+    } else if (parsedAmount == null) {
+      errors.amount = "Please enter a valid invoice amount.";
+    } else if (parsedAmount <= 0) {
+      errors.amount = "Invoice amount must be greater than zero.";
+    }
+
+    if (!invoiceDate) {
+      errors.invoiceDate = "Please select the invoice date.";
+    }
+
+    return errors;
+  };
+
+  const liveErrors = useMemo(
+    () => validateForm(),
+    [clientId, leaseContractId, billingPeriod, amount, invoiceDate],
+  );
+
+  const displayedErrors: InvoiceValidationErrors = hasAttemptedSubmit
+    ? liveErrors
+    : {};
+
+  const validationSummary = Object.values(displayedErrors).filter(
+    (error): error is string => Boolean(error),
+  );
+
+  const isFormValid = Object.keys(liveErrors).length === 0;
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      if (!token || !organizationId) throw new Error("Not authenticated");
-      const totalAmountMinor = parseRupeeInputToMinor(amount);
-      if (totalAmountMinor == null) throw new Error("Invalid amount");
-      if (editInvoiceId) {
-        return updateFinanceInvoiceApi(token, organizationId, editInvoiceId, {
-          organizationId,
-          totalAmountMinor,
-          invoiceDate,
-          notes: notes.trim() || undefined,
-          billingPeriod: billingPeriod.trim(),
-        });
+      if (!token || !organizationId) {
+        throw new Error("Not authenticated");
       }
+
+      const totalAmountMinor = parseRupeeInputToMinor(amount);
+
+      if (totalAmountMinor == null || totalAmountMinor <= 0) {
+        throw new Error("Invalid amount");
+      }
+
+      if (editInvoiceId) {
+        return updateFinanceInvoiceApi(
+          token,
+          organizationId,
+          editInvoiceId,
+          {
+            organizationId,
+            totalAmountMinor,
+            invoiceDate,
+            notes: notes.trim() || undefined,
+            billingPeriod: billingPeriod.trim(),
+          },
+        );
+      }
+
       return createBillingInvoiceApi(token, organizationId, {
         organizationId,
         clientId,
@@ -165,6 +237,7 @@ export default function NewBillingInvoicePage() {
         notes: notes.trim() || undefined,
       });
     },
+
     onSuccess: (detail) => {
       if (editInvoiceId) {
         showFinanceInvoiceUpdatedToast(detail.invoiceNumber);
@@ -174,23 +247,68 @@ export default function NewBillingInvoicePage() {
         router.push(financeInvoicesListHref);
       }
     },
+
     onError: () => {
       showErrorToast(FINANCE_INVOICE_SAVE_ERROR);
+    },
+
+    onSettled: () => {
+      isSubmittingRef.current = false;
     },
   });
 
   const isEdit = !!editInvoiceId;
   const canSave = isEdit ? canUpdate : canCreate;
+
   const canSubmit =
-    canSave && isFormValid && !saveMutation.isPending && !editQuery.isLoading;
+    canSave &&
+    !saveMutation.isPending &&
+    !editQuery.isLoading &&
+    (!hasAttemptedSubmit || isFormValid);
+
+  const handleSave = () => {
+    setHasAttemptedSubmit(true);
+
+    // Do not submit if any required field is invalid.
+    if (!isFormValid) return;
+
+    // Protect against rapid repeated clicks.
+    if (isSubmittingRef.current || saveMutation.isPending) return;
+
+    isSubmittingRef.current = true;
+    saveMutation.mutate();
+  };
 
   const clients = clientsQuery.data?.items ?? [];
+
+  const isLoading =
+    clientsQuery.isLoading ||
+    contractsQuery.isLoading ||
+    editQuery.isLoading;
+
+  const fieldClassName = (hasError: boolean) =>
+    [
+      "w-full rounded-md border px-3 py-2 text-sm",
+      hasError
+        ? "border-red-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
+        : "border-slate-200",
+    ].join(" ");
+
+  const renderFieldError = (message?: string) =>
+    message ? (
+      <p className="mt-1 text-xs text-red-600" role="alert">
+        {message}
+      </p>
+    ) : null;
 
   if (!canSave && !authLoading) {
     return (
       <OrganizationFormLayout
         title={isEdit ? "Edit billing invoice" : "Add billing invoice"}
-        backLink={{ label: "Back", href: financeInvoiceNewTypeHref }}
+        backLink={{
+          label: "Back",
+          href: financeInvoiceNewTypeHref,
+        }}
       >
         <p className="text-sm text-slate-600">
           You do not have permission to {isEdit ? "edit" : "create"} invoices.
@@ -212,75 +330,133 @@ export default function NewBillingInvoicePage() {
       infoText="Invoice number is assigned automatically (BINV-YYYY-####)."
       contentVariant="form-card"
       actions={
-        <>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() =>
-              router.push(
-                isEdit
-                  ? financeInvoiceDetailHref(editInvoiceId!)
-                  : financeInvoicesListHref,
-              )
-            }
-            disabled={saveMutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!canSubmit}
-            onClick={() => saveMutation.mutate()}
-          >
-            {saveMutation.isPending ? "Saving…" : "Save invoice"}
-          </Button>
-        </>
+        <div className="flex flex-col gap-3">
+          {hasAttemptedSubmit && validationSummary.length > 0 && (
+            <div
+              className="rounded-md border border-red-200 bg-red-50 px-3 py-2"
+              role="alert"
+            >
+              <p className="text-sm font-medium text-red-700">
+                Please fix the following before saving:
+              </p>
+              <ul className="mt-1 list-disc pl-5 text-sm text-red-600">
+                {validationSummary.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3">
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() =>
+                router.push(
+                  isEdit
+                    ? financeInvoiceDetailHref(editInvoiceId!)
+                    : financeInvoicesListHref,
+                )
+              }
+              disabled={saveMutation.isPending}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              type="button"
+              disabled={!canSubmit}
+              onClick={handleSave}
+            >
+              {saveMutation.isPending ? "Saving…" : "Save invoice"}
+            </Button>
+          </div>
+        </div>
       }
     >
-      {clientsQuery.isLoading || contractsQuery.isLoading || editQuery.isLoading ? (
+      {isLoading ? (
         <p className="text-sm text-slate-500">Loading…</p>
       ) : (
         <div className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="billing-client"
+              className="mb-1 block text-sm font-medium text-slate-700"
+            >
               Client *
             </label>
+
             <select
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              id="billing-client"
+              className={fieldClassName(!!displayedErrors.clientId)}
               value={clientId}
-              onChange={(e) => {
-                setClientId(e.target.value);
+              onChange={(event) => {
+                setClientId(event.target.value);
                 setLeaseContractId("");
               }}
               disabled={isEdit || clients.length === 0}
+              aria-invalid={!!displayedErrors.clientId}
+              aria-describedby={
+                displayedErrors.clientId ? "billing-client-error" : undefined
+              }
             >
               <option value="">Select client</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.clientName}
+              {clients.map((client) => (
+                <option key={client.id} value={client.id}>
+                  {client.clientName}
                 </option>
               ))}
             </select>
+
+            {displayedErrors.clientId && (
+              <div id="billing-client-error">
+                {renderFieldError(displayedErrors.clientId)}
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="billing-contract"
+              className="mb-1 block text-sm font-medium text-slate-700"
+            >
               Lease contract *
             </label>
+
             <select
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              id="billing-contract"
+              className={fieldClassName(!!displayedErrors.leaseContractId)}
               value={leaseContractId}
-              onChange={(e) => setLeaseContractId(e.target.value)}
-              disabled={isEdit || !clientId || contractOptions.length === 0}
+              onChange={(event) => setLeaseContractId(event.target.value)}
+              disabled={
+                isEdit ||
+                !clientId ||
+                contractOptions.length === 0
+              }
+              aria-invalid={!!displayedErrors.leaseContractId}
+              aria-describedby={
+                displayedErrors.leaseContractId
+                  ? "billing-contract-error"
+                  : undefined
+              }
             >
               <option value="">Select contract</option>
-              {contractOptions.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.contractNumber} — {c.clientName}
+              {contractOptions.map((contract) => (
+                <option key={contract.id} value={contract.id}>
+                  {contract.contractNumber} — {contract.clientName}
                 </option>
               ))}
             </select>
-            {clientId && !fleetClientId && !clientDetailQuery.isLoading ? (
+
+            {displayedErrors.leaseContractId && (
+              <div id="billing-contract-error">
+                {renderFieldError(displayedErrors.leaseContractId)}
+              </div>
+            )}
+
+            {clientId &&
+              !fleetClientId &&
+              !clientDetailQuery.isLoading ? (
               <p className="mt-1 text-xs text-amber-700">
                 Client is not linked to fleet leasing yet; billing cannot be
                 created until the link exists.
@@ -289,9 +465,13 @@ export default function NewBillingInvoicePage() {
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="billing-period"
+              className="mb-1 block text-sm font-medium text-slate-700"
+            >
               Billing period *
             </label>
+
             <RestrictedInput
               restrictedKind="text"
               value={billingPeriod}
@@ -299,36 +479,65 @@ export default function NewBillingInvoicePage() {
               maxLength={120}
               placeholder="e.g. April 2026"
             />
+
+            {renderFieldError(displayedErrors.billingPeriod)}
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="billing-amount"
+              className="mb-1 block text-sm font-medium text-slate-700"
+            >
               Amount (₹) *
             </label>
+
             <RestrictedInput
               restrictedKind="inrRupee"
               value={amount}
               onChange={setAmount}
               placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
             />
+
+            {renderFieldError(displayedErrors.amount)}
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="billing-invoice-date"
+              className="mb-1 block text-sm font-medium text-slate-700"
+            >
               Invoice date *
             </label>
+
             <input
+              id="billing-invoice-date"
               type="date"
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={fieldClassName(!!displayedErrors.invoiceDate)}
               value={invoiceDate}
-              onChange={(e) => setInvoiceDate(e.target.value)}
+              onChange={(event) => setInvoiceDate(event.target.value)}
+              aria-invalid={!!displayedErrors.invoiceDate}
+              aria-describedby={
+                displayedErrors.invoiceDate
+                  ? "billing-invoice-date-error"
+                  : undefined
+              }
             />
+
+            {displayedErrors.invoiceDate && (
+              <div id="billing-invoice-date-error">
+                {renderFieldError(displayedErrors.invoiceDate)}
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">
+            <label
+              htmlFor="billing-notes"
+              className="mb-1 block text-sm font-medium text-slate-700"
+            >
               Notes (optional)
             </label>
+
             <RestrictedInput
               restrictedKind="text"
               value={notes}

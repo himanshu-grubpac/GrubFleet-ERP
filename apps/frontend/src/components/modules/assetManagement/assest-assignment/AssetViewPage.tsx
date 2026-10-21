@@ -6,6 +6,7 @@ import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-en
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { validateRequired, type ValidationErrors } from "@/components/common/Commonvalidation"
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
@@ -37,6 +38,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
         </div>
     );
 }
+
 
 export default function AssetAssignmentViewPage() {
     const router = useRouter();
@@ -99,6 +101,8 @@ export default function AssetAssignmentViewPage() {
     const [selectedLeaseContractId, setSelectedLeaseContractId] =
         useState("");
     const [isAssigned, setIsAssigned] = useState(false);
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
     useEffect(() => {
         if (matchingLeaseListItems.length > 0 && !selectedLeaseContractId) {
@@ -171,6 +175,11 @@ export default function AssetAssignmentViewPage() {
             }
             const detail = leaseDetailQuery.data;
             const organisationClientId = detail?.client?.id;
+
+
+            console.log("Lease contract detail:", detail);
+            console.log("Client ID being sent:", organisationClientId);
+            console.log("Selected lease contract ID:", selectedLeaseContractId);
             return bulkAssignAssetRegisterVehiclesApi({
                 token,
                 body: {
@@ -197,8 +206,33 @@ export default function AssetAssignmentViewPage() {
         router.push("/asset-register/asset-assign");
     };
 
+    const validateForm = (): ValidationErrors => {
+        const errors: ValidationErrors = {};
+        const requiredMessage = validateRequired(
+            selectedLeaseContractId,
+            "Lease contract",
+        );
+        if (requiredMessage) {
+            errors.leaseContract = requiredMessage;
+            return errors;
+        }
+
+        const selectedExists = matchingLeaseListItems.some(
+            (contract) => contract.id === selectedLeaseContractId,
+        );
+        if (!selectedExists) {
+            errors.leaseContract = "Select a valid lease contract.";
+        }
+
+        return errors;
+    };
+
     const handleAssign = () => {
-        if (!canAssign || !selectedLeaseContract || isAssigned) return;
+        if (!canAssign || isAssigned || assignMutation.isPending) return;
+        setHasAttemptedSubmit(true);
+        const errors = validateForm();
+        setValidationErrors(errors);
+        if (Object.keys(errors).length > 0) return;
         assignMutation.mutate();
     };
 
@@ -296,17 +330,29 @@ export default function AssetAssignmentViewPage() {
                                 id="lease-contract"
                                 value={selectedLeaseContractId}
                                 disabled={isAssigned}
-                                onChange={(event) =>
-                                    setSelectedLeaseContractId(event.target.value)
-                                }
+                                onChange={(event) => {
+                                    setSelectedLeaseContractId(event.target.value);
+                                    setValidationErrors((previous) => {
+                                        if (!previous.leaseContract) return previous;
+                                        const next = { ...previous };
+                                        delete next.leaseContract;
+                                        return next;
+                                    });
+                                }}
                                 className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-800 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                             >
+                                <option value="">Select a lease contract</option>
                                 {matchingLeaseListItems.map((contract) => (
                                     <option key={contract.id} value={contract.id}>
                                         {contract.contractNumber} — {contract.clientName}
                                     </option>
                                 ))}
                             </select>
+                        )}
+                        {hasAttemptedSubmit && validationErrors.leaseContract && (
+                            <p className="mt-1 text-xs text-red-600" role="alert">
+                                {validationErrors.leaseContract}
+                            </p>
                         )}
                     </div>
 
@@ -345,7 +391,7 @@ export default function AssetAssignmentViewPage() {
                         onClick={handleAssign}
                         disabled={
                             !canAssign ||
-                            !selectedLeaseContract ||
+                            matchingLeaseListItems.length === 0 ||
                             isAssigned ||
                             assignMutation.isPending
                         }

@@ -357,38 +357,31 @@ export default function ClientStatementsPage() {
                 onButtonClick={handleClearFilters}
               />
             ) : (
-              <div
-                className={showFilters ? "mt-4" : undefined}
-                aria-busy={
-                  listQuery.isFetching &&
-                  listQuery.isPlaceholderData
-                }
-              >
-                <DashboardTable
-                  columns={columns}
-                  data={items}
-                  getRowKey={(row) => row.clientId}
-                  renderActions={(row) => (
-                    <DashboardTableActions
-                      status="active"
-                      hideEdit
-                      alwaysShowOverflowMenu
-                      viewHref={financeClientStatementDetailHref(
-                        row.clientId,
-                        periodStart,
-                        periodEnd,
-                      )}
-                      copyText={[
-                        row.clientName,
-                        String(row.invoiceCount),
-                        formatInrFromMinor(row.totalBilledMinor),
-                        formatInrFromMinor(row.totalPaidMinor),
-                        formatInrFromMinor(row.balanceDueMinor),
-                      ].join("\t")}
-                    />
-                  )}
-                />
-              </div>
+              <DashboardTable
+                columns={columns}
+                data={items}
+                getRowKey={(row) => row.clientId}
+                allowOverflow
+                renderActions={(row) => (
+                  <DashboardTableActions
+                    status="active"
+                    hideEdit
+                    alwaysShowOverflowMenu
+                    viewHref={financeClientStatementDetailHref(
+                      row.clientId,
+                      periodStart,
+                      periodEnd
+                    )}
+                    copyText={[
+                      row.clientName,
+                      String(row.invoiceCount),
+                      formatInrFromMinor(row.totalBilledMinor),
+                      formatInrFromMinor(row.totalPaidMinor),
+                      formatInrFromMinor(row.balanceDueMinor),
+                    ].join("\t")}
+                  />
+                )}
+              />
             )}
           </>
         )}

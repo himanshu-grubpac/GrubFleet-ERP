@@ -14,6 +14,11 @@ import {
   mergeFormControlBorderClass,
 } from "@/components/ui/form-field-inline-error";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import {
+  hasValidationErrors,
+  validateRequired,
+  type ValidationErrors,
+} from "@/components/common/Commonvalidation";
 import { useAuth } from "@/providers/auth-provider";
 import { ASSET_REGISTER_CLASS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { fetchAssetRegisterIntakeCatalogApi } from "@/lib/api/asset-register/catalog";
@@ -129,11 +134,13 @@ export default function CreateAssetClassForm({
   const [error, setError] = useState("");
   const [validationErrors, setValidationErrors] =
     useState<AssetClassFormFieldErrors>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [intakePanelExpanded, setIntakePanelExpanded] = useState(false);
   const [intakeCustomAddOpen, setIntakeCustomAddOpen] = useState(false);
   const [customIntakeOptions, setCustomIntakeOptions] = useState<string[]>([]);
   const intakeDropdownRef = useRef<HTMLDivElement>(null);
+  const isSubmittingRef = useRef(false);
 
   const closeIntakeDropdown = () => {
     setIntakePanelExpanded(false);
@@ -279,10 +286,41 @@ export default function CreateAssetClassForm({
     setError("");
   };
 
-  const canSubmit = useMemo(() => {
-    if (isSaving) return false;
-    return validateAssetClassFormForSubmit(form, { isSaving: false }).canSubmit;
-  }, [form, isSaving]);
+  // Keep asset-class-specific rules from the existing mapper and use the
+  // shared CommonValidation helpers for the common required-field checks.
+  const validateForm = (): AssetClassFormFieldErrors => {
+    const errors = validateAssetClassFormFields(form, { isSaving: false });
+
+    const requiredFields: Array<[AssetClassFormFieldKey, string, string]> = [
+      ["vehicleType", form.vehicleType, "Vehicle type"],
+      ["fuelType", form.fuelType, "Fuel type"],
+      ["mileageFrom", form.mileageFrom, "Mileage from"],
+      ["mileageTo", form.mileageTo, "Mileage to"],
+      ["ratedLoadCapacityFrom", form.ratedLoadCapacityFrom, "Rated load capacity from"],
+      ["ratedLoadCapacityTo", form.ratedLoadCapacityTo, "Rated load capacity to"],
+      ["fuelTankCapacity", form.fuelTankCapacity, "Fuel tank capacity"],
+    ];
+
+    for (const [field, value, label] of requiredFields) {
+      const message = validateRequired(value, label);
+      if (message && !errors[field]) errors[field] = message;
+    }
+
+    if (form.intakeChecklistItems.length === 0 && !errors.intakeChecklistItems) {
+      errors.intakeChecklistItems = validateRequired(
+        form.intakeChecklistItems.join(","),
+        "Default intake checklist",
+      ) ?? undefined;
+    }
+
+    return errors;
+  };
+
+  const liveErrors = useMemo(() => validateForm(), [form]);
+  const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
+  const validationSummary = Object.values(displayedErrors).filter(
+    (message): message is string => Boolean(message),
+  );
 
   const handleCancel = () => {
     if (onCancel) {
@@ -293,17 +331,17 @@ export default function CreateAssetClassForm({
   };
 
   const handleSave = async () => {
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
+    setIsSaving(true);
     setError("");
-    setValidationErrors({});
-
-    const errors = validateAssetClassFormFields(form, { isSaving: false });
-    setValidationErrors(errors);
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
+    setHasAttemptedSubmit(true);
 
     try {
-      setIsSaving(true);
+      const errors = validateForm();
+      setValidationErrors(errors);
+      if (hasValidationErrors(errors as ValidationErrors)) return;
+
       if (onSaved) {
         await onSaved(form);
       } else {
@@ -316,6 +354,7 @@ export default function CreateAssetClassForm({
           : "Failed to save asset class.",
       );
     } finally {
+      isSubmittingRef.current = false;
       setIsSaving(false);
     }
   };
@@ -324,31 +363,46 @@ export default function CreateAssetClassForm({
     <OrganizationFormLayout
       title={isEditMode ? "Edit Asset Class" : "Add Asset Class"}
       description="Define a vehicle class and its specifications."
-      actions={
-        <>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={isSaving}
-            className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
 
-          <Button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={!canSubmit}
-            className="h-10 px-5"
-          >
-            {isSaving
-              ? "Saving..."
-              : isEditMode
-                ? "Save changes"
-                : "Save class"}
-          </Button>
-        </>
+      actions={
+        <div className="flex w-full flex-col gap-4">
+          {hasAttemptedSubmit && validationSummary.length > 0 && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="w-full text-xs leading-5 text-red-600"
+            >
+              <span className="font-semibold">Please fix:</span>{" "}
+              {validationSummary.join(" | ")}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancel
+            </button>
+
+            <Button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={isSaving}
+              className="h-10 px-5"
+            >
+              {isSaving
+                ? "Saving..."
+                : isEditMode
+                  ? "Save changes"
+                  : "Save class"}
+            </Button>
+          </div>
+        </div>
       }
+
     >
       {isEditMode ? (
         <div className="max-w-xl">
@@ -375,9 +429,9 @@ export default function CreateAssetClassForm({
             id="vehicle-type"
             value={form.vehicleType}
             onChange={(event) => updateForm("vehicleType", event.target.value)}
-            aria-invalid={Boolean(validationErrors.vehicleType)}
+            aria-invalid={Boolean(displayedErrors.vehicleType)}
             className={mergeFormControlBorderClass(
-              Boolean(validationErrors.vehicleType),
+              Boolean(displayedErrors.vehicleType),
               selectClassName,
             )}
           >
@@ -388,7 +442,7 @@ export default function CreateAssetClassForm({
               </option>
             ))}
           </select>
-          <FormFieldInlineError message={validationErrors.vehicleType} />
+          <FormFieldInlineError message={displayedErrors.vehicleType} />
         </div>
         <div>
           <label htmlFor="asset-class-brand" className={labelClass}>
@@ -429,13 +483,13 @@ export default function CreateAssetClassForm({
             maxLength={4}
             value={form.manufacturingYear}
             onChange={(value) => updateForm("manufacturingYear", value)}
-            aria-invalid={Boolean(validationErrors.manufacturingYear)}
+            aria-invalid={Boolean(displayedErrors.manufacturingYear)}
             className={mergeFormControlBorderClass(
-              Boolean(validationErrors.manufacturingYear),
+              Boolean(displayedErrors.manufacturingYear),
               inputClassName,
             )}
           />
-          <FormFieldInlineError message={validationErrors.manufacturingYear} />
+          <FormFieldInlineError message={displayedErrors.manufacturingYear} />
         </div>
       </div>
 
@@ -449,9 +503,9 @@ export default function CreateAssetClassForm({
             id="fuel-type"
             value={form.fuelType}
             onChange={(event) => updateForm("fuelType", event.target.value)}
-            aria-invalid={Boolean(validationErrors.fuelType)}
+            aria-invalid={Boolean(displayedErrors.fuelType)}
             className={mergeFormControlBorderClass(
-              Boolean(validationErrors.fuelType),
+              Boolean(displayedErrors.fuelType),
               selectClassName,
             )}
           >
@@ -462,7 +516,7 @@ export default function CreateAssetClassForm({
               </option>
             ))}
           </select>
-          <FormFieldInlineError message={validationErrors.fuelType} />
+          <FormFieldInlineError message={displayedErrors.fuelType} />
         </div>
         <div>
           <label htmlFor="fuel-system" className={labelClass}>
@@ -519,13 +573,13 @@ export default function CreateAssetClassForm({
             maxLength={5}
             value={form.engineDisplacementCc}
             onChange={(value) => updateForm("engineDisplacementCc", value)}
-            aria-invalid={Boolean(validationErrors.engineDisplacementCc)}
+            aria-invalid={Boolean(displayedErrors.engineDisplacementCc)}
             className={mergeFormControlBorderClass(
-              Boolean(validationErrors.engineDisplacementCc),
+              Boolean(displayedErrors.engineDisplacementCc),
               inputClassName,
             )}
           />
-          <FormFieldInlineError message={validationErrors.engineDisplacementCc} />
+          <FormFieldInlineError message={displayedErrors.engineDisplacementCc} />
         </div>
         <div>
           <label htmlFor="mileage-from" className={labelClass}>
@@ -535,9 +589,9 @@ export default function CreateAssetClassForm({
           <div
             className={mergeCompositeShellBorderClass(
               Boolean(
-                validationErrors.mileageFrom ||
-                validationErrors.mileageTo ||
-                validationErrors.mileageUnit,
+                displayedErrors.mileageFrom ||
+                displayedErrors.mileageTo ||
+                displayedErrors.mileageUnit,
               ),
               compositeShellClass,
             )}
@@ -555,7 +609,7 @@ export default function CreateAssetClassForm({
                   updateForm("mileageFrom", event.target.value)
                 }
                 placeholder="40"
-                aria-invalid={Boolean(validationErrors.mileageFrom)}
+                aria-invalid={Boolean(displayedErrors.mileageFrom)}
                 className={compositeInputClass}
               />
             </div>
@@ -572,7 +626,7 @@ export default function CreateAssetClassForm({
                   updateForm("mileageTo", event.target.value)
                 }
                 placeholder="50"
-                aria-invalid={Boolean(validationErrors.mileageTo)}
+                aria-invalid={Boolean(displayedErrors.mileageTo)}
                 className={compositeInputClass}
               />
             </div>
@@ -582,7 +636,7 @@ export default function CreateAssetClassForm({
               onChange={(event) =>
                 updateForm("mileageUnit", event.target.value)
               }
-              aria-invalid={Boolean(validationErrors.mileageUnit)}
+              aria-invalid={Boolean(displayedErrors.mileageUnit)}
               className="w-[36%] shrink-0 border-0 border-l border-gray-200 bg-white px-1.5 text-xs text-gray-700 outline-none"
               aria-label="Mileage unit"
             >
@@ -595,9 +649,9 @@ export default function CreateAssetClassForm({
           </div>
           <FormFieldInlineError
             message={
-              validationErrors.mileageFrom ||
-              validationErrors.mileageTo ||
-              validationErrors.mileageUnit
+              displayedErrors.mileageFrom ||
+              displayedErrors.mileageTo ||
+              displayedErrors.mileageUnit
             }
           />
         </div>
@@ -612,8 +666,8 @@ export default function CreateAssetClassForm({
           <div
             className={mergeCompositeShellBorderClass(
               Boolean(
-                validationErrors.ratedLoadCapacityFrom ||
-                validationErrors.ratedLoadCapacityTo,
+                displayedErrors.ratedLoadCapacityFrom ||
+                displayedErrors.ratedLoadCapacityTo,
               ),
               compositeShellClass,
             )}
@@ -632,7 +686,7 @@ export default function CreateAssetClassForm({
                   updateForm("ratedLoadCapacityFrom", event.target.value)
                 }
                 placeholder="150"
-                aria-invalid={Boolean(validationErrors.ratedLoadCapacityFrom)}
+                aria-invalid={Boolean(displayedErrors.ratedLoadCapacityFrom)}
                 className={compositeInputClass}
               />
             </div>
@@ -650,7 +704,7 @@ export default function CreateAssetClassForm({
                   updateForm("ratedLoadCapacityTo", event.target.value)
                 }
                 placeholder="250"
-                aria-invalid={Boolean(validationErrors.ratedLoadCapacityTo)}
+                aria-invalid={Boolean(displayedErrors.ratedLoadCapacityTo)}
                 className={compositeInputClass}
               />
             </div>
@@ -660,8 +714,8 @@ export default function CreateAssetClassForm({
           </div>
           <FormFieldInlineError
             message={
-              validationErrors.ratedLoadCapacityFrom ||
-              validationErrors.ratedLoadCapacityTo
+              displayedErrors.ratedLoadCapacityFrom ||
+              displayedErrors.ratedLoadCapacityTo
             }
           />
         </div>
@@ -672,7 +726,7 @@ export default function CreateAssetClassForm({
           </label>
           <div
             className={mergeCompositeShellBorderClass(
-              Boolean(validationErrors.fuelTankCapacity),
+              Boolean(displayedErrors.fuelTankCapacity),
               compositeShellClass,
             )}
           >
@@ -686,14 +740,14 @@ export default function CreateAssetClassForm({
                 updateForm("fuelTankCapacity", event.target.value)
               }
               placeholder="e.g. 5.5"
-              aria-invalid={Boolean(validationErrors.fuelTankCapacity)}
+              aria-invalid={Boolean(displayedErrors.fuelTankCapacity)}
               className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-gray-900 outline-none"
             />
             <span className="flex w-10 shrink-0 items-center justify-center border-l border-gray-200 text-xs text-gray-500">
               L
             </span>
           </div>
-          <FormFieldInlineError message={validationErrors.fuelTankCapacity} />
+          <FormFieldInlineError message={displayedErrors.fuelTankCapacity} />
         </div>
       </div>
 
@@ -716,10 +770,10 @@ export default function CreateAssetClassForm({
                   return !open;
                 })
               }
-              aria-invalid={Boolean(validationErrors.intakeChecklistItems)}
+              aria-invalid={Boolean(displayedErrors.intakeChecklistItems)}
               className={[
                 mergeFormControlBorderClass(
-                  Boolean(validationErrors.intakeChecklistItems),
+                  Boolean(displayedErrors.intakeChecklistItems),
                   selectClassName,
                 ),
                 "w-full pr-10 text-left",
@@ -814,7 +868,7 @@ export default function CreateAssetClassForm({
             </div>
           ) : null}
         </div>
-        <FormFieldInlineError message={validationErrors.intakeChecklistItems} />
+        <FormFieldInlineError message={displayedErrors.intakeChecklistItems} />
 
         {form.intakeChecklistItems.length === 0 && !intakePanelExpanded ? (
           <div className="mt-2">

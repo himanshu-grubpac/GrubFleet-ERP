@@ -27,12 +27,18 @@ type ComplianceItem = {
     id: string;
     fleetCode: string;
     assetClass: string;
+
+    insuranceStart: string;
     insuranceExpiry: string;
+
+    registrationStart: string;
     registrationExpiry: string;
+
+    warrantyStart: string;
     warrantyExpiry: string;
+
     status: ComplianceStatus;
 };
-
 const STATUS_FILTERS: Array<"All" | ComplianceStatus> = [
     "All",
     "Expired",
@@ -101,27 +107,42 @@ export default function ComplianceDashboardPage() {
         ...dashboardListQueryOptions,
     });
 
+
     const paginatedComplianceItems = useMemo(
         (): ComplianceItem[] =>
             (listQuery.data?.items ?? []).map((row) => ({
                 id: row.vehicleId,
                 fleetCode: row.fleetCode,
                 assetClass: row.assetClassName,
+
+                insuranceStart: formatAssetRegisterIsoDate(
+                    row.insurance?.startDate,
+                ),
                 insuranceExpiry: formatAssetRegisterIsoDate(
-                    row.insuranceEndDate,
+                    row.insurance?.endDate,
+                ),
+
+                registrationStart: formatAssetRegisterIsoDate(
+                    row.registration?.startDate,
                 ),
                 registrationExpiry: formatAssetRegisterIsoDate(
-                    row.registrationEndDate,
+                    row.registration?.endDate,
+                ),
+
+                warrantyStart: formatAssetRegisterIsoDate(
+                    row.warranty?.startDate,
                 ),
                 warrantyExpiry: formatAssetRegisterIsoDate(
-                    row.warrantyEndDate,
+                    row.warranty?.endDate,
                 ),
+
                 status: mapComplianceStatusToUi(
-                    row.complianceStatus,
+                    row.overallComplianceStatus,
                 ),
             })),
         [listQuery.data?.items],
     );
+
 
     const totalItems = listQuery.data?.total ?? 0;
     const totalPages = Math.max(
@@ -160,9 +181,16 @@ export default function ComplianceDashboardPage() {
     const complianceColumns = [
         { key: "fleetCode", label: "FLEET CODE" },
         { key: "assetClass", label: "ASSET CLASS" },
+
+        { key: "insuranceStart", label: "INSURANCE START" },
         { key: "insuranceExpiry", label: "INSURANCE EXP." },
+
+        { key: "registrationStart", label: "REGISTRATION START" },
         { key: "registrationExpiry", label: "REGISTRATION EXP." },
+
+        { key: "warrantyStart", label: "WARRANTY START" },
         { key: "warrantyExpiry", label: "WARRANTY EXP." },
+
         {
             key: "status",
             label: "STATUS",

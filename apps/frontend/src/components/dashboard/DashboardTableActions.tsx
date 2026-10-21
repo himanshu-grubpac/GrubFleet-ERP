@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, type ReactNode } from "react";
@@ -126,11 +125,11 @@ export default function DashboardTableActions({
         !!onToggleStatus;
 
     return (
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-3 whitespace-nowrap">
             {/* View */}
             <Link
                 href={resolvedViewHref}
-                className="text-sm font-medium text-[#FE5720] hover:underline"
+                className="shrink-0 text-sm font-medium text-[#FE5720] hover:underline"
             >
                 View
             </Link>
@@ -143,8 +142,8 @@ export default function DashboardTableActions({
                 aria-label={copied ? "Copied!" : "Copy row"}
                 title={copied ? "Copied!" : "Copy row"}
                 className="
-                    inline-flex h-8 items-center justify-center gap-1.5
-                    rounded-md px-1.5 text-sm font-medium
+                    inline-flex h-8 shrink-0 items-center justify-center gap-1.5
+                    whitespace-nowrap rounded-md px-1.5 text-sm font-medium
                     text-gray-500 transition-colors
                     hover:bg-gray-100 hover:text-gray-900
                     disabled:cursor-not-allowed disabled:opacity-40

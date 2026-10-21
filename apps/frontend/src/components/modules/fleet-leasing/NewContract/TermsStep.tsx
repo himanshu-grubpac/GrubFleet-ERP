@@ -1,10 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Button from "@/components/ui/GrubpacButton";
+import FormActions from "@/components/common/FormActions";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
-import { AlertTriangle } from "lucide-react";
 import { FLEET_LEASE_TERMS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import {
+    validateDate,
+    validateNumber,
+    validateRequired,
+} from "@/components/common/Commonvalidation";
 
 import type { AssetLine } from "./AssetLinesStep";
 
@@ -24,13 +28,15 @@ const BILLING_FREQUENCY_LABELS: Record<
 };
 
 const FIELD_INPUT_CLASS =
-    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5728]/20";
 
 const MONEY_INPUT_CLASS =
     "h-10 w-full rounded-md border border-gray-300 bg-white pl-12 pr-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
 const FIELD_LABEL_CLASS =
     "mb-1.5 block text-sm font-medium text-gray-700";
+
+const FIELD_ERROR_CLASS = "mt-1 text-xs text-red-600";
 
 export interface LeaseTerms {
     startDate: string;
@@ -59,22 +65,30 @@ function MoneyField({
     value,
     onChange,
     placeholder,
+    error,
+    showError,
 }: {
     id: string;
     label: string;
     value: string;
     onChange: (value: string) => void;
     placeholder: string;
+    error?: string;
+    showError: boolean;
 }) {
+    const errorId = `${id} -error`;
+
     return (
         <div>
             <label htmlFor={id} className={FIELD_LABEL_CLASS}>
                 {label}
             </label>
+
             <div className="relative">
                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500">
                     Rs.
                 </span>
+
                 <RestrictedInput
                     id={id}
                     restrictedKind="digits"
@@ -83,8 +97,18 @@ function MoneyField({
                     onChange={onChange}
                     placeholder={placeholder}
                     className={MONEY_INPUT_CLASS}
+                    aria-invalid={showError && Boolean(error)}
+                    aria-describedby={
+                        showError && error ? errorId : undefined
+                    }
                 />
             </div>
+
+            {showError && error && (
+                <p id={errorId} className={FIELD_ERROR_CLASS} role="alert">
+                    {error}
+                </p>
+            )}
         </div>
     );
 }
@@ -113,47 +137,52 @@ export default function TermsStep({
 
     const [lineRates, setLineRates] = useState<Record<string, string>>(() => {
         const initial: Record<string, string> = {};
+
         for (const line of assetLines) {
             initial[line.id] = line.ratePerVehicleMonth ?? "";
         }
+
         return initial;
     });
 
-    const [formError, setFormError] = useState<string | null>(null);
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
     const [isContinuing, setIsContinuing] = useState(false);
 
     const primaryLine = assetLines[0];
     const additionalLines = assetLines.slice(1);
     const fallbackAssetClass = "Petrol Scooter";
 
-    const canSubmit = useMemo(() => {
-        if (!startDate.trim()) {
-            return false;
-        }
-        if (termMonths === "" || Number(termMonths) < 1) {
-            return false;
-        }
-        if (
-            securityDeposit === "" ||
-            Number.isNaN(Number(securityDeposit)) ||
-            Number(securityDeposit) < 0
-        ) {
-            return false;
-        }
-        if (!assetLines.length) {
-            return false;
-        }
+    const fieldErrors = useMemo(() => {
+        const errors: Record<string, string | undefined> = {};
+
+        errors.startDate =
+            validateRequired(startDate, "Start date") ??
+            (startDate
+                ? validateDate(startDate, { label: "Start date" })
+                : undefined);
+
+        errors.termMonths = validateNumber(termMonths, {
+            label: "Contract term",
+            min: 1,
+            integer: true,
+        });
+
+        errors.securityDeposit = validateNumber(securityDeposit, {
+            label: "Security deposit",
+            min: 0,
+        });
+
         for (const line of assetLines) {
-            const rate = lineRates[line.id] ?? "";
-            if (
-                rate === "" ||
-                Number.isNaN(Number(rate)) ||
-                Number(rate) < 0
-            ) {
-                return false;
-            }
+            errors[`rate - ${line.id} `] = validateNumber(
+                lineRates[line.id] ?? "",
+                {
+                    label: `Monthly rate for ${line.assetClass || "the asset class"}`,
+                    min: 0,
+                },
+            );
         }
-        return true;
+
+        return errors;
     }, [
         assetLines,
         lineRates,
@@ -162,61 +191,36 @@ export default function TermsStep({
         termMonths,
     ]);
 
-    const handleContinue = () => {
-        setFormError(null);
+    const validationSummary = useMemo(() => {
+        const errors = Object.values(fieldErrors).filter(
+            (message): message is string => Boolean(message),
+        );
 
-        if (!canSubmit) {
-            setFormError("Complete all required contract terms to continue.");
+        if (assetLines.length === 0) {
+            errors.unshift("Add at least one asset-class line.");
+        }
+
+        return errors;
+    }, [assetLines.length, fieldErrors]);
+
+    const canSubmit = validationSummary.length === 0;
+
+    const handleContinue = async () => {
+        setHasAttemptedSubmit(true);
+
+        if (!canSubmit || isContinuing) {
             return;
         }
 
-        if (!startDate) {
-            setFormError("Please select a start date.");
-            return;
-        }
-
-        if (termMonths === "") {
-            setFormError("Please enter the contract term in months.");
-            return;
-        }
-
-        if (Number(termMonths) < 1) {
-            setFormError("Term must be at least 1 month.");
-            return;
-        }
-
-        if (securityDeposit === "") {
-            setFormError("Please enter the security deposit.");
-            return;
-        }
-
-        if (Number.isNaN(Number(securityDeposit)) || Number(securityDeposit) < 0) {
-            setFormError("Security deposit must be a valid amount.");
-            return;
-        }
-
-        const linesWithRates: AssetLine[] = [];
-        for (const line of assetLines) {
-            const rate = lineRates[line.id] ?? "";
-            if (
-                rate === "" ||
-                Number.isNaN(Number(rate)) ||
-                Number(rate) < 0
-            ) {
-                setFormError(
-                    `Enter a valid monthly rate for ${line.assetClass}.`,
-                );
-                return;
-            }
-            linesWithRates.push({
-                ...line,
-                ratePerVehicleMonth: rate,
-            });
-        }
+        const linesWithRates: AssetLine[] = assetLines.map((line) => ({
+            ...line,
+            ratePerVehicleMonth: lineRates[line.id] ?? "",
+        }));
 
         setIsContinuing(true);
-        void Promise.resolve(
-            onContinue(
+
+        try {
+            await onContinue(
                 {
                     startDate,
                     termMonths,
@@ -224,16 +228,16 @@ export default function TermsStep({
                     billingFrequency,
                 },
                 linesWithRates,
-            ),
-        ).finally(() => {
+            );
+        } finally {
             setIsContinuing(false);
-        });
+        }
     };
 
     const renderRateField = (line: AssetLine) => (
         <MoneyField
             key={line.id}
-            id={`lease-rate-${line.id}`}
+            id={`lease - rate - ${line.id} `}
             label={rateFieldLabel(line.assetClass || fallbackAssetClass)}
             value={lineRates[line.id] ?? ""}
             onChange={(value) =>
@@ -243,18 +247,13 @@ export default function TermsStep({
                 }))
             }
             placeholder="e.g. 3200"
+            error={fieldErrors[`rate - ${line.id} `]}
+            showError={hasAttemptedSubmit}
         />
     );
 
     return (
         <>
-            {formError && (
-                <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
-                    <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-                    <span>{formError}</span>
-                </div>
-            )}
-
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
                 <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 sm:py-5 md:grid-cols-2">
                     <div>
@@ -264,13 +263,13 @@ export default function TermsStep({
                         >
                             Billing frequency
                         </label>
+
                         <select
                             id="lease-billing-frequency"
                             value={billingFrequency}
                             onChange={(event) =>
                                 setBillingFrequency(
-                                    event.target
-                                        .value as typeof billingFrequency,
+                                    event.target.value as typeof billingFrequency,
                                 )
                             }
                             className={FIELD_INPUT_CLASS}
@@ -290,6 +289,7 @@ export default function TermsStep({
                             <p className={FIELD_LABEL_CLASS}>
                                 {rateFieldLabel(fallbackAssetClass)}
                             </p>
+
                             <p className="text-sm text-gray-500">
                                 Add asset-class lines on the previous step to
                                 set rates.
@@ -303,6 +303,8 @@ export default function TermsStep({
                         value={securityDeposit}
                         onChange={setSecurityDeposit}
                         placeholder="e.g. 45000"
+                        error={fieldErrors.securityDeposit}
+                        showError={hasAttemptedSubmit}
                     />
 
                     <div>
@@ -312,6 +314,7 @@ export default function TermsStep({
                         >
                             Term (months)
                         </label>
+
                         <RestrictedInput
                             id="lease-term-months"
                             restrictedKind="digits"
@@ -330,7 +333,26 @@ export default function TermsStep({
                             }
                             placeholder="24"
                             className={FIELD_INPUT_CLASS}
+                            aria-invalid={
+                                hasAttemptedSubmit &&
+                                Boolean(fieldErrors.termMonths)
+                            }
+                            aria-describedby={
+                                hasAttemptedSubmit && fieldErrors.termMonths
+                                    ? "lease-term-months-error"
+                                    : undefined
+                            }
                         />
+
+                        {hasAttemptedSubmit && fieldErrors.termMonths && (
+                            <p
+                                id="lease-term-months-error"
+                                className={FIELD_ERROR_CLASS}
+                                role="alert"
+                            >
+                                {fieldErrors.termMonths}
+                            </p>
+                        )}
                     </div>
 
                     <div>
@@ -340,6 +362,7 @@ export default function TermsStep({
                         >
                             Start date
                         </label>
+
                         <input
                             id="lease-start-date"
                             type="date"
@@ -348,8 +371,27 @@ export default function TermsStep({
                                 setStartDate(event.target.value)
                             }
                             className={FIELD_INPUT_CLASS}
-                            aria-describedby="lease-start-date-hint"
+                            aria-invalid={
+                                hasAttemptedSubmit &&
+                                Boolean(fieldErrors.startDate)
+                            }
+                            aria-describedby={
+                                hasAttemptedSubmit && fieldErrors.startDate
+                                    ? "lease-start-date-error"
+                                    : "lease-start-date-hint"
+                            }
                         />
+
+                        {hasAttemptedSubmit && fieldErrors.startDate && (
+                            <p
+                                id="lease-start-date-error"
+                                className={FIELD_ERROR_CLASS}
+                                role="alert"
+                            >
+                                {fieldErrors.startDate}
+                            </p>
+                        )}
+
                         <p
                             id="lease-start-date-hint"
                             className="mt-1 text-xs text-gray-400"
@@ -361,7 +403,10 @@ export default function TermsStep({
                     {additionalLines.map((line) => (
                         <div key={line.id} className="md:col-span-2">
                             <div className="md:grid md:grid-cols-2 md:gap-4">
-                                <div className="hidden md:block" aria-hidden />
+                                <div
+                                    className="hidden md:block"
+                                    aria-hidden="true"
+                                />
                                 {renderRateField(line)}
                             </div>
                         </div>
@@ -369,23 +414,17 @@ export default function TermsStep({
                 </div>
             </div>
 
-            <div className="mt-5 flex items-center justify-between">
-                <button
-                    type="button"
-                    onClick={onBack}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-md border border-gray-300 bg-white px-4 text-sm font-semibold text-gray-700 transition hover:bg-gray-50"
-                >
-                    Back
-                </button>
-
-                <Button
-                    type="button"
-                    variant="primary"
-                    onClick={handleContinue}
-                    disabled={!canSubmit || isContinuing}
-                >
-                    {isContinuing ? "Saving…" : "Continue"}
-                </Button>
+            <div className="mt-5">
+                <FormActions
+                    hasAttemptedSubmit={hasAttemptedSubmit}
+                    validationSummary={validationSummary}
+                    isSaving={isContinuing}
+                    onCancel={onBack}
+                    onSave={handleContinue}
+                    cancelLabel="Back"
+                    saveLabel="Continue"
+                    savingLabel="Saving..."
+                />
             </div>
         </>
     );

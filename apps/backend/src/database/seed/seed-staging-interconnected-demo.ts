@@ -48,6 +48,7 @@ import {
 import { organizations } from '../schema';
 import { DEV_ORG_SLUG } from './dev-admin-bootstrap';
 import { purgeStagingInterconnectedDemo } from './purge-staging-interconnected-demo';
+import { seedStagingWorkshopDemo } from './seed-staging-workshop-demo';
 import {
   assertStagingDemoSeedAllowed,
   maskDatabaseUrl,
@@ -65,6 +66,7 @@ export type StagingDemoSeedSummary = {
   purged: Record<string, number>;
   inserted: Record<string, number>;
   skipped: Record<string, number>;
+  workshopSummary?: Record<string, number>;
 };
 
 const SEED_COMPANY_DOMAIN = 'grubfleet-logistics.in';
@@ -1853,12 +1855,19 @@ export async function seedStagingInterconnectedDemo(
     bump('saleInvoices', true);
   }
 
+  const workshopSummary = await seedStagingWorkshopDemo(db, {
+    organizationId,
+    inserted,
+    skipped,
+  });
+
   return {
     seedSource: STAGING_DEMO_SEED_SOURCE,
     organizationId,
     purged,
     inserted,
     skipped,
+    workshopSummary,
   };
 }
 

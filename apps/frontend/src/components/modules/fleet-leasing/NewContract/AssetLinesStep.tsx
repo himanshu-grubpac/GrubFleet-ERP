@@ -461,7 +461,7 @@ export default function AssetLinesStep({
                                         updateAssetLine(line.id, {
                                             committedQuantity:
                                                 Number.isFinite(numericValue) &&
-                                                numericValue >= 1
+                                                    numericValue >= 1
                                                     ? Math.floor(numericValue)
                                                     : 1,
                                         });

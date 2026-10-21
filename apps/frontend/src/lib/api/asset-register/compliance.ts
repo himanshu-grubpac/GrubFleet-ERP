@@ -7,16 +7,24 @@ export type AssetRegisterComplianceFilterStatus =
   | "expiring_soon"
   | "valid";
 
+
+export type AssetRegisterComplianceCredential = {
+  kind: "insurance" | "registration" | "warranty";
+  startDate: string | null;
+  endDate: string | null;
+  status: AssetRegisterComplianceFilterStatus;
+  premium?: string;
+};
 export type AssetRegisterComplianceListItem = {
   vehicleId: string;
   fleetCode: string;
   registrationNumber: string;
   assetClassName: string;
-  operationalStatus: string;
-  complianceStatus: AssetRegisterComplianceFilterStatus;
-  registrationEndDate: string;
-  insuranceEndDate: string;
-  warrantyEndDate: string;
+  overallComplianceStatus: AssetRegisterComplianceFilterStatus;
+
+  insurance: AssetRegisterComplianceCredential;
+  registration: AssetRegisterComplianceCredential;
+  warranty: AssetRegisterComplianceCredential;
 };
 
 export type AssetRegisterComplianceDetail =
@@ -100,6 +108,7 @@ export async function renewAssetRegisterComplianceApi(params: {
       token: params.token,
       headers: orgHeaders(params.organizationId),
       body: JSON.stringify({
+        organizationId: params.organizationId,
         type: params.type,
         startDate: params.startDate,
         endDate: params.endDate,
