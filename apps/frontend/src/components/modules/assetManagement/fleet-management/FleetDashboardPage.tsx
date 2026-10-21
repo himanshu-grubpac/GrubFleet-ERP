@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CarFront, Search } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -8,11 +8,16 @@ import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ASSET_REGISTER_VEHICLE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+    listSortQueryKeyPart,
+    useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
 import {
-  assetRegisterFleetDetailHref,
-  assetRegisterFleetEditHref,
+    assetRegisterFleetDetailHref,
+    assetRegisterFleetEditHref,
 } from "@/lib/navigation/asset-register-static-routes";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
@@ -31,15 +36,10 @@ type FleetStatus =
 
 type FleetVehicle = {
     id: string;
-
     fleetCode: string;
-
     assetClass: string;
-
     registrationNumber: string;
-
     odometer: number;
-
     status: FleetStatus;
 
     /* Registration */
@@ -84,39 +84,22 @@ type FleetFilter =
 /* Filters                                                                    */
 /* -------------------------------------------------------------------------- */
 
-/* -------------------------------------------------------------------------- */
-/* Filters                                                                    */
-/* -------------------------------------------------------------------------- */
-
 const FLEET_FILTERS: {
     label: string;
     value: FleetFilter;
 }[] = [
-        {
-            label: "All",
-            value: "all",
-        },
-        {
-            label: "Available",
-            value: "available",
-        },
-        {
-            label: "Leased",
-            value: "leased",
-        },
-        {
-            label: "Workshop",
-            value: "workshop",
-        },
-        {
-            label: "Sold",
-            value: "sold",
-        },
+        { label: "All", value: "all" },
+        { label: "Available", value: "available" },
+        { label: "Leased", value: "leased" },
+        { label: "Workshop", value: "workshop" },
+        { label: "Sold", value: "sold" },
     ];
 
 /* -------------------------------------------------------------------------- */
 /* Helpers                                                                    */
 /* -------------------------------------------------------------------------- */
+
+const PAGE_SIZE = 50;
 
 const formatOdometer = (value: number) => {
     return `${value.toLocaleString("en-IN")} km`;
@@ -126,16 +109,12 @@ const getStatusLabel = (status: FleetStatus) => {
     switch (status) {
         case "available":
             return "Available";
-
         case "leased":
             return "Leased";
-
         case "workshop":
             return "Workshop";
-
         case "sold":
             return "Sold";
-
         default:
             return status;
     }
@@ -145,16 +124,12 @@ const getStatusClass = (status: FleetStatus) => {
     switch (status) {
         case "available":
             return "bg-green-50 text-green-700";
-
         case "leased":
             return "bg-blue-50 text-blue-700";
-
         case "workshop":
             return "bg-orange-50 text-orange-700";
-
         case "sold":
             return "bg-gray-100 text-gray-600";
-
         default:
             return "bg-gray-100 text-gray-600";
     }
@@ -166,7 +141,12 @@ const getStatusClass = (status: FleetStatus) => {
 
 export default function FleetDashboardPage() {
     const router = useRouter();
-    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
+
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+    } = useAuth();
 
     /* ---------------------------------------------------------------------- */
     /* State                                                                  */
@@ -178,6 +158,20 @@ export default function FleetDashboardPage() {
     const [activeFilter, setActiveFilter] =
         useState<FleetFilter>("all");
 
+    const [page, setPage] = useState(1);
+
+    const {
+        sort: tableSort,
+        onSortChange,
+        listSortParams,
+        serverSorted,
+    } = useDashboardTableListSort(ASSET_REGISTER_VEHICLE_COLUMN_SORT);
+
+    // Reset pagination when the search or filter changes.
+    useEffect(() => {
+        setPage(1);
+    }, [debouncedSearch, activeFilter, tableSort]);
+
     const listQuery = useQuery({
         queryKey: [
             "asset-register",
@@ -185,30 +179,42 @@ export default function FleetDashboardPage() {
             organizationId,
             debouncedSearch,
             activeFilter,
+            page,
+            ...listSortQueryKeyPart(listSortParams),
         ],
         queryFn: () => {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
+
             const operationalStatus =
                 activeFilter === "all"
                     ? undefined
                     : activeFilter === "sold"
-                      ? "sold"
-                      : activeFilter;
+                        ? "sold"
+                        : activeFilter;
+
             return fetchAssetRegisterVehiclesApi({
                 token,
                 organizationId,
-                page: 1,
-                pageSize: 50,
+                page,
+                pageSize: PAGE_SIZE,
                 search: debouncedSearch.trim() || undefined,
                 operationalStatus,
                 status: "active",
+                ...listSortParams,
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardListQueryOptions,
     });
+
+    const totalItems = listQuery.data?.total ?? 0;
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(totalItems / PAGE_SIZE),
+    );
 
     const apiVehicles = useMemo((): FleetVehicle[] => {
         return (listQuery.data?.items ?? []).map((row) => ({
@@ -241,44 +247,30 @@ export default function FleetDashboardPage() {
     /* ---------------------------------------------------------------------- */
 
     const filteredVehicles = useMemo(() => {
-        const searchValue = search.trim().toLowerCase();
+        const searchValue = debouncedSearch.trim().toLowerCase();
 
         return apiVehicles.filter((vehicle) => {
             const matchesSearch =
                 !searchValue ||
-                vehicle.fleetCode
-                    .toLowerCase()
-                    .includes(searchValue) ||
-                vehicle.assetClass
-                    .toLowerCase()
-                    .includes(searchValue) ||
-                vehicle.registrationNumber
-                    .toLowerCase()
-                    .includes(searchValue);
+                vehicle.fleetCode.toLowerCase().includes(searchValue) ||
+                vehicle.assetClass.toLowerCase().includes(searchValue) ||
+                vehicle.registrationNumber.toLowerCase().includes(searchValue);
 
             let matchesFilter = true;
 
             switch (activeFilter) {
                 case "available":
-                    matchesFilter =
-                        vehicle.status === "available";
+                    matchesFilter = vehicle.status === "available";
                     break;
-
                 case "leased":
-                    matchesFilter =
-                        vehicle.status === "leased";
+                    matchesFilter = vehicle.status === "leased";
                     break;
-
                 case "workshop":
-                    matchesFilter =
-                        vehicle.status === "workshop";
+                    matchesFilter = vehicle.status === "workshop";
                     break;
-
                 case "sold":
-                    matchesFilter =
-                        vehicle.status === "sold";
+                    matchesFilter = vehicle.status === "sold";
                     break;
-
                 case "all":
                 default:
                     matchesFilter = true;
@@ -287,14 +279,15 @@ export default function FleetDashboardPage() {
 
             return matchesSearch && matchesFilter;
         });
-    }, [search, activeFilter, apiVehicles]);
+    }, [debouncedSearch, activeFilter, apiVehicles]);
 
     const isInitialLoading =
         isAuthLoading || (listQuery.isLoading && !listQuery.data);
+
     const isEmptyOrgList =
         !isInitialLoading &&
         !listQuery.isError &&
-        (listQuery.data?.total ?? 0) === 0 &&
+        totalItems === 0 &&
         activeFilter === "all" &&
         !debouncedSearch.trim();
 
@@ -305,6 +298,7 @@ export default function FleetDashboardPage() {
     const handleClearFilters = () => {
         setSearch("");
         setActiveFilter("all");
+        setPage(1);
     };
 
     /* ---------------------------------------------------------------------- */
@@ -316,27 +310,25 @@ export default function FleetDashboardPage() {
             key: "fleetCode",
             label: "FLEET CODE",
         },
-
         {
             key: "assetClass",
             label: "ASSET CLASS",
+            sortable: false,
         },
-
         {
             key: "registrationNumber",
             label: "REGISTRATION NO.",
         },
-
         {
             key: "odometer",
             label: "ODOMETER",
+            sortable: false,
             render: (vehicle: FleetVehicle) => (
                 <span className="text-gray-700">
                     {formatOdometer(vehicle.odometer)}
                 </span>
             ),
         },
-
         {
             key: "status",
             label: "STATUS",
@@ -371,13 +363,20 @@ export default function FleetDashboardPage() {
                     + Add Vehicle
                 </Button>
             }
+            pagination={
+                totalItems > 0
+                    ? {
+                        currentPage: page,
+                        totalPages,
+                        totalItems,
+                        pageSize: PAGE_SIZE,
+                        onPageChange: setPage,
+                    }
+                    : undefined
+            }
         >
-            {/* ---------------------------------------------------------------- */}
-            {/* Filters                                                           */}
-            {/* ---------------------------------------------------------------- */}
-
+            {/* Filters */}
             <div className="mb-4 flex items-center gap-3">
-                {/* Search */}
                 <div className="relative min-w-0 flex-1">
                     <Search
                         className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
@@ -387,32 +386,25 @@ export default function FleetDashboardPage() {
                     <input
                         type="text"
                         value={search}
-                        onChange={(event) =>
-                            setSearch(event.target.value)
-                        }
+                        onChange={(event) => setSearch(event.target.value)}
                         placeholder="Search by fleet code or registration number"
                         className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
                     />
                 </div>
 
-                {/* Filters */}
                 <div className="flex shrink-0 items-center gap-1.5">
                     {FLEET_FILTERS.map((filter) => {
-                        const isActive =
-                            activeFilter === filter.value;
+                        const isActive = activeFilter === filter.value;
 
                         return (
                             <button
                                 key={filter.value}
                                 type="button"
-                                onClick={() =>
-                                    setActiveFilter(filter.value)
-                                }
+                                onClick={() => setActiveFilter(filter.value)}
                                 className={[
                                     "h-8 rounded-md border px-3",
                                     "text-xs font-medium",
                                     "transition-colors",
-
                                     isActive
                                         ? "border-gray-900 bg-gray-900 text-white"
                                         : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50",
@@ -425,10 +417,7 @@ export default function FleetDashboardPage() {
                 </div>
             </div>
 
-            {/* ---------------------------------------------------------------- */}
-            {/* Empty / Table                                                     */}
-            {/* ---------------------------------------------------------------- */}
-
+            {/* Empty / Table */}
             {listQuery.isError ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                     Could not load fleet register.{" "}
@@ -484,6 +473,9 @@ export default function FleetDashboardPage() {
                 <DashboardTable
                     columns={fleetColumns}
                     data={filteredVehicles}
+                    sortState={tableSort}
+                    onSortChange={onSortChange}
+                    serverSorted={serverSorted}
                     getRowKey={(vehicle) => vehicle.id}
                     renderActions={(vehicle) => (
                         <DashboardTableActions
@@ -494,9 +486,7 @@ export default function FleetDashboardPage() {
                             }
                             locationId={vehicle.id}
                             viewHref={assetRegisterFleetDetailHref(vehicle.id)}
-                            onEdit={() =>
-                                handleEdit(vehicle)
-                            }
+                            onEdit={() => handleEdit(vehicle)}
                             onToggleStatus={() => {
                                 console.log(
                                     "Toggle vehicle status:",

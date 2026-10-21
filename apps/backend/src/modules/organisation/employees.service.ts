@@ -8,6 +8,11 @@ import {
   DEFAULT_PAGE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  EMPLOYEE_LIST_DEFAULT_SORT,
+  EMPLOYEE_LIST_SORT_FIELDS,
+} from './constants/organisation-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateEmployeeDto } from './dto/create-employee.dto';
 import type { ListEmployeesQueryDto } from './dto/list-employees-query.dto';
@@ -38,6 +43,11 @@ export class EmployeesService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      EMPLOYEE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      EMPLOYEE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listEmployees(
       query.organizationId,
       page,
@@ -46,6 +56,7 @@ export class EmployeesService {
         search: query.search,
         department: query.department,
         isActive,
+        sort,
       },
     );
     const reportsToIds = rows
@@ -96,6 +107,7 @@ export class EmployeesService {
       dateOfJoining: dto.dateOfJoining.trim(),
       mobile: dto.phone.trim(),
       companyEmail: dto.email.trim(),
+      isWorkshopTechnician: dto.isWorkshopTechnician ?? false,
       isActive: true,
     });
     return this.getById(dto.organizationId, inserted.id);
@@ -161,6 +173,9 @@ export class EmployeesService {
       ...(dto.phone !== undefined ? { mobile: dto.phone?.trim() ?? null } : {}),
       ...(dto.email !== undefined
         ? { companyEmail: dto.email?.trim() ?? null }
+        : {}),
+      ...(dto.isWorkshopTechnician !== undefined
+        ? { isWorkshopTechnician: dto.isWorkshopTechnician }
         : {}),
     });
     return this.getById(organizationId, employeeId);
@@ -275,6 +290,7 @@ export class EmployeesService {
         : '',
       phone: row.mobile ?? '',
       email: row.companyEmail ?? '',
+      isWorkshopTechnician: row.isWorkshopTechnician ?? false,
       status: row.isActive ? ('active' as const) : ('inactive' as const),
     };
   }

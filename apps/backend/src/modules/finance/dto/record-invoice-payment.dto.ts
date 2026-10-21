@@ -28,7 +28,7 @@ export class RecordInvoicePaymentDto {
   amountMinor!: number;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   paymentDate!: string;
 
   @ApiPropertyOptional({ enum: FINANCE_INVOICE_PAYMENT_METHODS })

@@ -7,6 +7,21 @@ export const ASSET_CLASS_DESCRIPTION_MAX_LENGTH = 2000;
 export const ASSET_CLASS_BRAND_MAX_LENGTH = 255;
 export const ASSET_CLASS_MODEL_NAME_MAX_LENGTH = 255;
 export const ASSET_CLASS_FUEL_TYPE_MAX_LENGTH = 64;
+
+/** Product fuel types (asset class spec). */
+export const ASSET_CLASS_FUEL_TYPES = [
+  'Petrol',
+  'Diesel',
+  'CNG',
+  'Electric',
+  'Hybrid',
+] as const;
+
+export type AssetClassFuelType = (typeof ASSET_CLASS_FUEL_TYPES)[number];
+
+export const ASSET_CLASS_MILEAGE_UNITS = ['km/L', 'km/kg', 'km/kWh'] as const;
+
+export type AssetClassMileageUnit = (typeof ASSET_CLASS_MILEAGE_UNITS)[number];
 export const ASSET_CLASS_FUEL_SYSTEM_MAX_LENGTH = 64;
 export const ASSET_CLASS_COLOR_MAX_LENGTH = 128;
 export const ASSET_CLASS_COLOR_CODE_MAX_LENGTH = 32;

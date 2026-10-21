@@ -11,7 +11,13 @@ import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { INVENTORY_STOCK_BALANCE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
   fetchStockBalanceListApi,
   type StockBalanceListItem,
@@ -25,10 +31,16 @@ export default function StockBalanceDashboardPage() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebouncedValue(search, 300);
   const [currentPage, setCurrentPage] = useState(1);
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(INVENTORY_STOCK_BALANCE_COLUMN_SORT);
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, listSortParams?.sortBy, listSortParams?.sortOrder]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -37,6 +49,7 @@ export default function StockBalanceDashboardPage() {
       organizationId,
       currentPage,
       debouncedSearch,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       fetchStockBalanceListApi(
@@ -45,6 +58,7 @@ export default function StockBalanceDashboardPage() {
           page: currentPage,
           pageSize: PAGE_SIZE,
           search: debouncedSearch,
+          ...listSortParams,
         },
         token!,
       ),
@@ -79,6 +93,7 @@ export default function StockBalanceDashboardPage() {
     {
       key: "status",
       label: "STATUS",
+      sortable: false,
       render: (row: StockBalanceListItem) => (
         <span className="text-sm text-gray-600">{row.stockStatus}</span>
       ),
@@ -86,6 +101,7 @@ export default function StockBalanceDashboardPage() {
     {
       key: "onHand",
       label: "ON HAND",
+      sortable: false,
       render: (row: StockBalanceListItem) => (
         <span className="text-sm text-gray-600">
           {row.locations.reduce((sum, loc) => sum + loc.quantity, 0)}
@@ -132,11 +148,27 @@ export default function StockBalanceDashboardPage() {
           onButtonClick={() => setSearch("")}
         />
       ) : (
+
+
         <DashboardTable
           columns={columns}
           data={items}
           getRowKey={(row) => row.id}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
+          renderActions={(row) => (
+            <div className="flex w-full items-center justify-center">
+              <Link
+                href={inventoryStockBalanceDetailHref(row.id)}
+                className="inline-flex h-12 min-w-[98px] items-center justify-center rounded-lg bg-white px-5 text-[14px] font-normal leading-none text-[#FE5720] underline transition-colors hover:text-[#E64A19]"
+              >
+                View
+              </Link>
+            </div>
+          )}
         />
+
       )}
     </DashboardLayout>
   );

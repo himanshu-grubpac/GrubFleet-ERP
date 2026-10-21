@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
-import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import InlineAddField from "@/components/ui/inline-add-field";
 import {
     Plus,
@@ -60,19 +59,25 @@ interface AssetLinesStepProps {
     clientId: string;
     clientName: string;
     initialAssetLines?: AssetLine[];
+    /** Bump when re-entering this step to refresh availability preview. */
+    availabilityRefreshKey?: number;
     onBack: () => void;
-    onContinue: (
-        assetLines: AssetLine[],
-        options?: { confirmShortfall?: boolean },
-    ) => void | Promise<void>;
+    onContinue: (assetLines: AssetLine[]) => void | Promise<void>;
+    onSaveDraft?: (assetLines: AssetLine[]) => void;
+    isSaveDraftPending?: boolean;
+    showSaveDraft?: boolean;
 }
 
 export default function AssetLinesStep({
     clientId,
     clientName: _clientName,
     initialAssetLines,
+    availabilityRefreshKey = 0,
     onBack,
     onContinue,
+    onSaveDraft,
+    isSaveDraftPending = false,
+    showSaveDraft = false,
 }: AssetLinesStepProps) {
     void _clientName;
     const { token, organizationId, permissions } = useGrubpacAuth();
@@ -88,7 +93,6 @@ export default function AssetLinesStep({
 
     const [formError, setFormError] = useState<string | null>(null);
     const [isContinuing, setIsContinuing] = useState(false);
-    const [shortfallConfirmOpen, setShortfallConfirmOpen] = useState(false);
 
     const assetClassesQuery = useQuery({
         queryKey: ["fleet-leasing-asset-classes", organizationId],
@@ -185,6 +189,7 @@ export default function AssetLinesStep({
         queryKey: [
             "fleet-leasing-availability-batch",
             organizationId,
+            availabilityRefreshKey,
             assetLines.map(
                 (line) =>
                     `${line.id}:${line.assetClass}:${line.committedQuantity}`,
@@ -227,6 +232,18 @@ export default function AssetLinesStep({
 
     const mvpAllLinesCovered =
         availabilityPreviewQuery.data?.mvpAllLinesCovered ?? false;
+
+    const availabilityReady =
+        !availabilityPreviewQuery.isLoading &&
+        !availabilityPreviewQuery.isError &&
+        assetLines.length > 0 &&
+        assetLines.every(
+            (line) =>
+                line.assetClass.trim().length > 0 &&
+                line.committedQuantity >= 1,
+        );
+
+    const hasShortfall = availabilityReady && !mvpAllLinesCovered;
 
     const firstShortfallLine = useMemo(() => {
         for (let i = 0; i < assetLines.length; i += 1) {
@@ -288,7 +305,7 @@ export default function AssetLinesStep({
         );
     };
 
-    const validateAndContinue = (confirmShortfall: boolean) => {
+    const handleContinue = () => {
         setFormError(null);
 
         if (!clientId) {
@@ -317,23 +334,30 @@ export default function AssetLinesStep({
             return;
         }
 
-        if (!mvpAllLinesCovered && !confirmShortfall) {
-            setShortfallConfirmOpen(true);
+        if (hasShortfall) {
+            setFormError(
+                "Reduce requested quantities so each line is within available fleet.",
+            );
             return;
         }
 
         setIsContinuing(true);
-        void Promise.resolve(
-            onContinue(assetLines, {
-                confirmShortfall: confirmShortfall || !mvpAllLinesCovered,
-            }),
-        ).finally(() => {
+        void Promise.resolve(onContinue(assetLines)).finally(() => {
             setIsContinuing(false);
-            setShortfallConfirmOpen(false);
         });
     };
 
-    const handleContinue = () => validateAndContinue(false);
+    const linesValidForContinue =
+        assetLines.length > 0 &&
+        assetLines.every((line) => line.assetClass.trim().length > 0);
+
+    const canContinue =
+        !isContinuing &&
+        !isSaveDraftPending &&
+        !assetClassesQuery.isLoading &&
+        linesValidForContinue &&
+        availabilityReady &&
+        !hasShortfall;
 
     const showAvailabilitySubtitle =
         mvpAllLinesCovered ||
@@ -461,7 +485,7 @@ export default function AssetLinesStep({
                                         updateAssetLine(line.id, {
                                             committedQuantity:
                                                 Number.isFinite(numericValue) &&
-                                                numericValue >= 1
+                                                    numericValue >= 1
                                                     ? Math.floor(numericValue)
                                                     : 1,
                                         });
@@ -488,18 +512,20 @@ export default function AssetLinesStep({
                 })}
             </div>
 
-            {!mvpAllLinesCovered && firstShortfallLine && (
-                <div className="mt-4 flex items-start gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-700">
-                    <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#FE5720]" />
-                    <p>
-                        <span className="font-semibold">
-                            {firstShortfallLine.line.assetClass}
-                        </span>{" "}
-                        requests more than currently available fleet (
-                        {firstShortfallLine.snapshot.availableNow} available).
-                        Reduce quantities, or continue to mark lines as awaiting
-                        assets after you confirm.
-                    </p>
+            {hasShortfall && firstShortfallLine && (
+                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="flex items-start gap-2.5 text-xs leading-5 text-slate-700">
+                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#FE5720]" />
+                        <p>
+                            <span className="font-semibold">
+                                {firstShortfallLine.line.assetClass}
+                            </span>{" "}
+                            requests more than currently available fleet (
+                            {firstShortfallLine.snapshot.availableNow}{" "}
+                            available). Reduce quantities to continue or save
+                            other draft fields without these lines.
+                        </p>
+                    </div>
                 </div>
             )}
 
@@ -548,42 +574,35 @@ export default function AssetLinesStep({
                 <button
                     type="button"
                     onClick={onBack}
-                    className="inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 sm:w-auto"
+                    disabled={isContinuing || isSaveDraftPending}
+                    className="inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                     Back
                 </button>
 
-                <Button
-                    type="button"
-                    variant="primary"
-                    onClick={handleContinue}
-                    disabled={
-                        isContinuing ||
-                        assetClassesQuery.isLoading ||
-                        !assetLines.length ||
-                        assetLines.some(
-                            (line) => !line.assetClass.trim().length,
-                        ) ||
-                        availabilityPreviewQuery.isLoading
-                    }
-                >
-                    {isContinuing ? "Saving…" : "Continue"}
-                </Button>
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                    {showSaveDraft && onSaveDraft ? (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={() => onSaveDraft(assetLines)}
+                            disabled={isContinuing || isSaveDraftPending}
+                            className="w-full sm:w-auto"
+                        >
+                            {isSaveDraftPending ? "Saving…" : "Save draft"}
+                        </Button>
+                    ) : null}
+                    <Button
+                        type="button"
+                        variant="primary"
+                        onClick={handleContinue}
+                        disabled={!canContinue}
+                        className="w-full sm:w-auto"
+                    >
+                        {isContinuing ? "Saving…" : "Continue"}
+                    </Button>
+                </div>
             </div>
-
-            <ConfirmDialog
-                open={shortfallConfirmOpen}
-                title="Proceed with asset shortfall?"
-                message="One or more lines exceed available fleet. Continuing marks those lines as awaiting assets on this contract."
-                confirmLabel="Proceed anyway"
-                isConfirmPending={isContinuing}
-                onClose={() => {
-                    if (!isContinuing) {
-                        setShortfallConfirmOpen(false);
-                    }
-                }}
-                onConfirm={() => validateAndContinue(true)}
-            />
         </>
     );
 }

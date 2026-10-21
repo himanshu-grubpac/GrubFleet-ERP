@@ -14,6 +14,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ORGANISATION_CLIENT_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   CLIENT_STATUS_UPDATE_ERROR,
@@ -71,6 +76,13 @@ export default function ClientDashboardPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(ORGANISATION_CLIENT_COLUMN_SORT);
+
   const [deactivateTarget, setDeactivateTarget] = useState<Client | null>(
     null,
   );
@@ -79,7 +91,7 @@ export default function ClientDashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, tableSort]);
 
   const clientsQuery = useQuery({
     queryKey: [
@@ -88,6 +100,7 @@ export default function ClientDashboardPage() {
       organizationId,
       debouncedSearch,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () => {
       if (!token || !organizationId) {
@@ -98,6 +111,7 @@ export default function ClientDashboardPage() {
         page,
         pageSize: CLIENTS_PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
+        ...listSortParams,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -193,6 +207,7 @@ export default function ClientDashboardPage() {
     {
       key: "primaryPoc",
       label: "PRIMARY POC",
+      sortable: false,
       render: (client: Client) => (
         <span className="text-sm text-gray-700">{client.primaryPoc}</span>
       ),
@@ -201,6 +216,7 @@ export default function ClientDashboardPage() {
     {
       key: "contact",
       label: "CONTACT",
+      sortable: false,
       render: (client: Client) => (
         <DashboardContact phone={client.phone} email={client.email} />
       ),
@@ -209,6 +225,7 @@ export default function ClientDashboardPage() {
     {
       key: "contracts",
       label: "CONTRACTS",
+      sortable: false,
       render: (client: Client) => (
         <span className="text-sm text-gray-700">{client.contracts}</span>
       ),
@@ -235,12 +252,7 @@ export default function ClientDashboardPage() {
       <DashboardLayout
         title="Clients"
         description="Client register — companies, primary points of contact, contact details, and active contracts."
-        tabs={[
-          {
-            label: "Clients",
-            href: "/customer",
-          },
-        ]}
+
         activeTab="/customer"
         action={addClientAction}
       >
@@ -264,12 +276,7 @@ export default function ClientDashboardPage() {
     <DashboardLayout
       title="Clients"
       description="Client register — companies, primary points of contact, contact details, and active contracts."
-      tabs={[
-        {
-          label: "Clients",
-          href: "/customer",
-        },
-      ]}
+
       activeTab="/customer"
       action={addClientAction}
       pagination={
@@ -374,6 +381,9 @@ export default function ClientDashboardPage() {
         <DashboardTable
           columns={clientColumns}
           data={clients}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
           getRowKey={(client) => client.id}
           renderActions={(client) => (
             <DashboardTableActions

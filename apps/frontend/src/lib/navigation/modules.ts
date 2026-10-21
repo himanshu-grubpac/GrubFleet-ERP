@@ -69,6 +69,13 @@ export const mainNavItems: NavItem[] = [
         label: "Support",
         href: "/fleet-leasing/support/",
         icon: LifeBuoy,
+        children: [
+          {
+            label: "Vehicle Replacement",
+            href: "/fleet-leasing/support/vehicle-replacement/",
+            icon: RefreshCw,
+          },
+        ],
       },
     ],
   },
@@ -241,16 +248,13 @@ export const mainNavItems: NavItem[] = [
     href: "/administration/",
     icon: Shield,
     requiredPermission: "administration.view",
-  },
-
-  // ============================================================
-  // PLATFORM
-  // ============================================================
-  {
-    label: "Platform",
-    href: "/platform/",
-    icon: Settings,
-    requiredPermission: "platform.view",
+    children: [
+      {
+        label: "Roles & Permissions",
+        href: "/administration/roles/",
+        requiredPermission: "administration.view",
+      },
+    ],
   },
 ];
 

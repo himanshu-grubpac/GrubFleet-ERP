@@ -9,6 +9,13 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ASSIGNABLE_VEHICLE_LIST_DEFAULT_SORT,
+  ASSIGNABLE_VEHICLE_LIST_SORT_FIELDS,
+  DRIVER_LIST_DEFAULT_SORT,
+  DRIVER_LIST_SORT_FIELDS,
+} from './constants/organisation-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { AssignDriverVehicleDto } from './dto/assign-driver-vehicle.dto';
 import type { CreateDriverDto } from './dto/create-driver.dto';
@@ -25,6 +32,10 @@ import {
   assertValidLocationCountry,
   assertValidLocationPostal,
 } from './utils/validate-location-geo.util';
+import {
+  normalizeOrganisationDriverLicenseNumber,
+  ORGANISATION_DRIVER_LICENSE_DUPLICATE_MESSAGE,
+} from './utils/driver-license-number.util';
 
 @Injectable()
 export class DriversService {
@@ -44,6 +55,11 @@ export class DriversService {
           ? false
           : undefined;
     const licenseExpired = query.status === 'license-expired';
+    const sort = resolveListSort(
+      DRIVER_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      DRIVER_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listDrivers(
       query.organizationId,
       page,
@@ -52,6 +68,7 @@ export class DriversService {
         search: query.search,
         isActive,
         licenseExpired,
+        sort,
       },
     );
     const items = rows.map((row) => this.toListItem(row));
@@ -64,11 +81,17 @@ export class DriversService {
     const assignedCodes = await this.repo.listAssignedVehicleCodes(
       query.organizationId,
     );
+    const sort = resolveListSort(
+      ASSIGNABLE_VEHICLE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ASSIGNABLE_VEHICLE_LIST_DEFAULT_SORT,
+    );
     return this.vehicleAllocations.listAssignableForDriverRegister(
       query.organizationId,
       page,
       pageSize,
       assignedCodes,
+      sort,
     );
   }
 
@@ -85,6 +108,10 @@ export class DriversService {
     await this.assertDriverSupplier(dto.organizationId, dto.supplierId);
     const addressCountry = assertValidLocationCountry(dto.addressCountry);
     assertValidLocationPostal(addressCountry, dto.addressPincode);
+    const licenseNumber = normalizeOrganisationDriverLicenseNumber(
+      dto.licenseNumber,
+    );
+    await this.assertDriverLicenseUnique(dto.organizationId, licenseNumber);
     try {
       const inserted = await this.repo.insertDriver({
         organizationId: dto.organizationId,
@@ -92,7 +119,7 @@ export class DriversService {
         cprNo: dto.cprNo.trim(),
         phone: dto.phone.trim(),
         email: dto.email.trim().toLowerCase(),
-        licenseNumber: dto.licenseNumber.trim(),
+        licenseNumber,
         licenseExpiry: dto.licenseExpiry,
         supplierId: dto.supplierId,
         addressLine1: dto.addressLine1.trim(),
@@ -106,12 +133,7 @@ export class DriversService {
       });
       return this.getById(dto.organizationId, inserted.id);
     } catch (error) {
-      if (this.isUniqueViolation(error)) {
-        throw new ConflictException(
-          'A driver with this CPR number already exists in the organisation',
-        );
-      }
-      throw error;
+      this.rethrowDriverUniqueViolation(error);
     }
   }
 
@@ -137,6 +159,17 @@ export class DriversService {
           : (existing.addressPincode ?? '');
       assertValidLocationPostal(nextCountry, postal);
     }
+    let licenseNumber: string | undefined;
+    if (dto.licenseNumber !== undefined) {
+      licenseNumber = normalizeOrganisationDriverLicenseNumber(
+        dto.licenseNumber,
+      );
+      await this.assertDriverLicenseUnique(
+        organizationId,
+        licenseNumber,
+        driverId,
+      );
+    }
     try {
       await this.repo.updateDriver(organizationId, driverId, {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
@@ -145,9 +178,7 @@ export class DriversService {
         ...(dto.email !== undefined
           ? { email: dto.email.trim().toLowerCase() }
           : {}),
-        ...(dto.licenseNumber !== undefined
-          ? { licenseNumber: dto.licenseNumber.trim() }
-          : {}),
+        ...(licenseNumber !== undefined ? { licenseNumber } : {}),
         ...(dto.licenseExpiry !== undefined
           ? { licenseExpiry: dto.licenseExpiry }
           : {}),
@@ -175,12 +206,7 @@ export class DriversService {
           : {}),
       });
     } catch (error) {
-      if (this.isUniqueViolation(error)) {
-        throw new ConflictException(
-          'A driver with this CPR number already exists in the organisation',
-        );
-      }
-      throw error;
+      this.rethrowDriverUniqueViolation(error);
     }
     return this.getById(organizationId, driverId);
   }
@@ -411,6 +437,44 @@ export class DriversService {
     today.setHours(0, 0, 0, 0);
     const expiry = new Date(`${licenseExpiry}T00:00:00.000Z`);
     return expiry.getTime() < today.getTime();
+  }
+
+  private async assertDriverLicenseUnique(
+    organizationId: string,
+    licenseNumber: string,
+    excludeDriverId?: string,
+  ): Promise<void> {
+    const existingId = await this.repo.findDriverIdByNormalizedLicenseNumber(
+      organizationId,
+      licenseNumber,
+      excludeDriverId,
+    );
+    if (existingId) {
+      throw new ConflictException(
+        ORGANISATION_DRIVER_LICENSE_DUPLICATE_MESSAGE,
+      );
+    }
+  }
+
+  private rethrowDriverUniqueViolation(error: unknown): never {
+    if (!this.isUniqueViolation(error)) {
+      throw error;
+    }
+    const detail =
+      typeof error === 'object' &&
+      error !== null &&
+      'constraint' in error &&
+      typeof (error as { constraint?: string }).constraint === 'string'
+        ? (error as { constraint: string }).constraint
+        : '';
+    if (detail.includes('license')) {
+      throw new ConflictException(
+        ORGANISATION_DRIVER_LICENSE_DUPLICATE_MESSAGE,
+      );
+    }
+    throw new ConflictException(
+      'A driver with this CPR number already exists in the organisation',
+    );
   }
 
   private isUniqueViolation(error: unknown): boolean {

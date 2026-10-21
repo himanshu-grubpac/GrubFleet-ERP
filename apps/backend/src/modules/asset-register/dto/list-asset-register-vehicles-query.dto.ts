@@ -9,37 +9,32 @@ import {
   Max,
   Min,
 } from 'class-validator';
+import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
 import {
-  DEFAULT_PAGE,
-  DEFAULT_PAGE_SIZE,
-} from '../../../common/dto/pagination-query.dto';
+  ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
+  type AssetRegisterVehicleListSortField,
+} from '../constants/asset-register-list-sort.constants';
 import { ASSET_REGISTER_VEHICLE_OPERATIONAL_STATUSES } from '../constants/asset-register-vehicle.constants';
 
 export const ASSET_REGISTER_VEHICLE_LIST_MAX_PAGE_SIZE = 50;
 
-export class ListAssetRegisterVehiclesQueryDto {
+export class ListAssetRegisterVehiclesQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional()
   @IsUUID()
   organizationId!: string;
 
-  @ApiPropertyOptional({ minimum: 1, default: DEFAULT_PAGE })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number = DEFAULT_PAGE;
-
   @ApiPropertyOptional({
     minimum: 1,
     maximum: ASSET_REGISTER_VEHICLE_LIST_MAX_PAGE_SIZE,
-    default: DEFAULT_PAGE_SIZE,
+    default: 20,
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(ASSET_REGISTER_VEHICLE_LIST_MAX_PAGE_SIZE)
-  pageSize?: number = DEFAULT_PAGE_SIZE;
+  declare pageSize?: number;
 
   @ApiPropertyOptional({ description: 'Filter by asset class UUID' })
   @IsOptional()
@@ -65,4 +60,7 @@ export class ListAssetRegisterVehiclesQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @SortByQuery(ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS)
+  sortBy?: AssetRegisterVehicleListSortField;
 }

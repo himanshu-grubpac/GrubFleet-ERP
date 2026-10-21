@@ -19,6 +19,7 @@ import {
   updateRoleApi,
 } from "@/lib/api/roles";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
+import { getApiErrorMessage } from "@/lib/toast/show-toast";
 import {
   canCreateRole,
   canManageAdministration,
@@ -225,7 +226,7 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
       });
       await refetchMe?.();
       if (!isEdit) {
-        router.push("/administration/");
+        router.push("/administration/roles/");
       }
     },
     onError: (err: Error) => {
@@ -269,7 +270,7 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
     return (
       <ErrorState
         title="Failed to load role"
-        message={(roleError as Error).message}
+        message={getApiErrorMessage(roleError, "Failed to load role.")}
         onRetry={refetchRole}
       />
     );
@@ -322,7 +323,6 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
     <OrganizationFormLayout
       title={pageTitle}
       description={pageDescription}
-      backLink={{ href: "/administration/", label: "Back to roles" }}
       actions={formActions}
     >
       {isSystemRole ? (
@@ -334,11 +334,10 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
 
       {feedback ? (
         <div
-          className={`mb-4 flex items-center justify-between rounded-lg p-4 text-sm ${
-            feedback.type === "success"
-              ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border border-red-200 bg-red-50 text-red-800"
-          }`}
+          className={`mb-4 flex items-center justify-between rounded-lg p-4 text-sm ${feedback.type === "success"
+            ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
+            : "border border-red-200 bg-red-50 text-red-800"
+            }`}
         >
           <div className="flex items-center gap-2">
             {feedback.type === "success" ? (
@@ -363,7 +362,7 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
       ) : matrixError ? (
         <ErrorState
           title="Failed to load permissions"
-          message={(matrixError as Error).message}
+          message={getApiErrorMessage(matrixError, "Failed to load permissions.")}
           onRetry={refetchMatrix}
         />
       ) : (
@@ -445,7 +444,7 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
                       </option>
                     )}
                     {parentRoleId &&
-                    !parentRoleOptions.some((r) => r.id === parentRoleId) ? (
+                      !parentRoleOptions.some((r) => r.id === parentRoleId) ? (
                       <option value={parentRoleId}>
                         {resolvedParentLabel}
                       </option>

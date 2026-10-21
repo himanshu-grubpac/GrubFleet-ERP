@@ -1,21 +1,29 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMinSize,
   IsArray,
   IsInt,
+  IsOptional,
   IsString,
   IsUUID,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class PreviewAssetAvailabilityLineDto {
-  @ApiProperty({ example: 'Petrol Scooter — Standard' })
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  assetClassId?: string;
+
+  @ApiPropertyOptional({ example: '2026_activa_150_petrol_efi_bl' })
+  @ValidateIf((line: PreviewAssetAvailabilityLineDto) => !line.assetClassId)
   @IsString()
   @MaxLength(64)
-  assetClass!: string;
+  assetClass?: string;
 
   @ApiProperty({ minimum: 1 })
   @IsInt()

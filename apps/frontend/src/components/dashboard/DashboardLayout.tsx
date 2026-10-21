@@ -1,3 +1,4 @@
+
 "use client";
 
 import Link from "next/link";
@@ -25,18 +26,11 @@ type DashboardPaginationProps = {
 type DashboardLayoutProps = {
     title: string;
     description?: string;
+    descriptionBreakAfter?: string;
     tabs?: DashboardTab[];
     activeTab?: string;
     action?: React.ReactNode;
     children: React.ReactNode;
-
-    /**
-     * Optional pagination.
-     *
-     * Pass this from dashboards that contain paginated
-     * table data. Dashboards without pagination can
-     * simply omit this prop.
-     */
     pagination?: DashboardPaginationProps;
 };
 
@@ -51,72 +45,39 @@ function DashboardPagination({
     pageSize,
     onPageChange,
 }: DashboardPaginationProps) {
-    /* ---------------------------------------------------------------------- */
-    /* Safe Pagination Values                                                 */
-    /* ---------------------------------------------------------------------- */
-
-    const safeTotalPages = Math.max(
-        1,
-        totalPages,
-    );
+    const safeTotalPages = Math.max(1, totalPages);
 
     const safeCurrentPage = Math.max(
         1,
-        Math.min(
-            currentPage,
-            safeTotalPages,
-        ),
+        Math.min(currentPage, safeTotalPages),
     );
-
-    /* ---------------------------------------------------------------------- */
-    /* Showing Count                                                          */
-    /* ---------------------------------------------------------------------- */
 
     const startItem =
         totalItems === 0
             ? 0
-            : (safeCurrentPage - 1) *
-            pageSize +
-            1;
+            : (safeCurrentPage - 1) * pageSize + 1;
 
     const endItem = Math.min(
         safeCurrentPage * pageSize,
         totalItems,
     );
 
-    /* ---------------------------------------------------------------------- */
-    /* Render                                                                 */
-    /* ---------------------------------------------------------------------- */
-
     return (
-        <div className="mt-3 flex items-center justify-between">
-            {/* ========================================================== */}
-            {/* Showing Count                                               */}
-            {/* ========================================================== */}
-
+        <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            {/* Showing Count */}
             <p className="text-xs text-gray-500">
-                Showing {startItem}–{endItem} of{" "}
-                {totalItems}
+                Showing {startItem}–{endItem} of {totalItems}
             </p>
 
-            {/* ========================================================== */}
-            {/* Pagination Controls                                         */}
-            {/* ========================================================== */}
-
+            {/* Pagination Controls */}
             <div className="flex items-center gap-1.5">
                 {/* Previous */}
-
                 <button
                     type="button"
-                    disabled={
-                        safeCurrentPage === 1
-                    }
+                    disabled={safeCurrentPage === 1}
                     onClick={() =>
                         onPageChange(
-                            Math.max(
-                                1,
-                                safeCurrentPage - 1,
-                            ),
+                            Math.max(1, safeCurrentPage - 1),
                         )
                     }
                     className="
@@ -139,9 +100,9 @@ function DashboardPagination({
                 </button>
 
                 {/* Current Page */}
-
                 <button
                     type="button"
+                    aria-current="page"
                     className="
                         h-8
                         min-w-8
@@ -157,13 +118,9 @@ function DashboardPagination({
                 </button>
 
                 {/* Next */}
-
                 <button
                     type="button"
-                    disabled={
-                        safeCurrentPage >=
-                        safeTotalPages
-                    }
+                    disabled={safeCurrentPage >= safeTotalPages}
                     onClick={() =>
                         onPageChange(
                             Math.min(
@@ -202,52 +159,78 @@ function DashboardPagination({
 export default function DashboardLayout({
     title,
     description,
+    descriptionBreakAfter,
     tabs = [],
     activeTab,
     action,
     children,
     pagination,
 }: DashboardLayoutProps) {
-    return (
-        <div className="flex min-h-full flex-col bg-[#f8f8f8]">
-            {/* ========================================================== */}
-            {/* Header                                                      */}
-            {/* ========================================================== */}
-            <div className=" px-6 py-5">
-                <div className="flex items-start justify-between">
-                    {/* Title + Description */}
+    const renderDescription = () => {
+        if (!description) {
+            return null;
+        }
 
-                    <div>
+        if (
+            !descriptionBreakAfter ||
+            !description.includes(descriptionBreakAfter)
+        ) {
+            return description;
+        }
+
+        const breakIndex = description.indexOf(
+            descriptionBreakAfter,
+        );
+
+        const firstLineEnd =
+            breakIndex + descriptionBreakAfter.length;
+
+        const firstLine = description.slice(0, firstLineEnd);
+        const secondLine = description
+            .slice(firstLineEnd)
+            .trim();
+
+        return (
+            <>
+                {firstLine}
+                <br />
+                {secondLine}
+            </>
+        );
+    };
+
+    return (
+        <div className="flex min-h-full min-w-0 flex-col bg-[#f8f8f8]">
+            {/* Header */}
+            <div className="px-4 py-4 sm:px-6 sm:py-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
+                    {/* Title + Description */}
+                    <div className="min-w-0">
                         <h1 className="text-xl font-semibold text-gray-900">
                             {title}
                         </h1>
 
                         {description && (
                             <p className="mt-1 text-sm text-gray-500">
-                                {description}
+                                {renderDescription()}
                             </p>
                         )}
                     </div>
 
                     {/* Header Action */}
-
                     {action && (
-                        <div>
+                        <div className="w-full shrink-0 sm:w-auto">
                             {action}
                         </div>
                     )}
                 </div>
 
-                {/* ====================================================== */}
-                {/* Sub Navigation                                          */}
-                {/* ====================================================== */}
-
+                {/* Sub Navigation */}
                 {tabs.length > 0 && (
-                    <nav className="mt-5 flex gap-6">
+                    <nav className="mt-5 flex gap-4 overflow-x-auto sm:gap-6">
                         {tabs.map((tab) => {
                             const isActive =
-                                activeTab ===
-                                tab.href;
+                                activeTab === tab.href;
 
                             return (
                                 <Link
@@ -268,17 +251,11 @@ export default function DashboardLayout({
                 )}
             </div>
 
-            {/* ========================================================== */}
-            {/* Content                                                     */}
-            {/* ========================================================== */}
-
-            <main className="flex-1 p-6">
+            {/* Content */}
+            <main className="min-w-0 flex-1 p-4 sm:p-6">
                 {children}
 
-                {/* ====================================================== */}
-                {/* Common Pagination                                       */}
-                {/* ====================================================== */}
-
+                {/* Common Pagination */}
                 {pagination && pagination.totalItems > 0 && (
                     <DashboardPagination
                         currentPage={pagination.currentPage}

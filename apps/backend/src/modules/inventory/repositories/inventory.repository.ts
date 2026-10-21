@@ -1,5 +1,26 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, ilike, inArray, or, sum } from 'drizzle-orm';
+import {
+  and,
+  count,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sum,
+  type AnyColumn,
+} from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../../common/utils/list-sort.util';
+import {
+  INVENTORY_PART_LIST_DEFAULT_SORT,
+  type InventoryPartListSortField,
+  PARTS_REQUEST_LIST_DEFAULT_SORT,
+  type PartsRequestListSortField,
+  STOCK_RECEIPT_LIST_DEFAULT_SORT,
+  type StockReceiptListSortField,
+} from '../constants/inventory-list-sort.constants';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
 import {
@@ -10,6 +31,33 @@ import {
   inventoryStockReceipts,
   organisationLocations,
 } from '../../../database/schema';
+
+const INVENTORY_PART_LIST_SORT_COLUMNS: Record<
+  InventoryPartListSortField,
+  AnyColumn
+> = {
+  createdAt: inventoryCatalogParts.createdAt,
+  name: inventoryCatalogParts.name,
+  sku: inventoryCatalogParts.partCode,
+  updatedAt: inventoryCatalogParts.updatedAt,
+};
+
+const STOCK_RECEIPT_LIST_SORT_COLUMNS: Record<
+  StockReceiptListSortField,
+  AnyColumn
+> = {
+  createdAt: inventoryStockReceipts.createdAt,
+  receiptNumber: inventoryStockReceipts.receiptNumber,
+};
+
+const PARTS_REQUEST_LIST_SORT_COLUMNS: Record<
+  PartsRequestListSortField,
+  AnyColumn
+> = {
+  requestedAt: inventoryPartsRequests.requestedAt,
+  status: inventoryPartsRequests.status,
+  requestNumber: inventoryPartsRequests.requestNumber,
+};
 
 export type SparePartRow = typeof inventoryCatalogParts.$inferSelect;
 export type StockReceiptRow = typeof inventoryStockReceipts.$inferSelect;
@@ -83,7 +131,11 @@ export class InventoryRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; isActive?: boolean },
+    opts: {
+      search?: string;
+      isActive?: boolean;
+      sort?: ResolvedListSort<InventoryPartListSortField>;
+    },
   ) {
     const conditions = [
       eq(inventoryCatalogParts.organizationId, organizationId),
@@ -106,7 +158,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryCatalogParts)
         .where(where)
-        .orderBy(desc(inventoryCatalogParts.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            INVENTORY_PART_LIST_SORT_COLUMNS,
+            opts.sort ?? INVENTORY_PART_LIST_DEFAULT_SORT,
+            inventoryCatalogParts.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -163,7 +221,11 @@ export class InventoryRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; isActive?: boolean },
+    opts: {
+      search?: string;
+      isActive?: boolean;
+      sort?: ResolvedListSort<StockReceiptListSortField>;
+    },
   ) {
     const conditions = [
       eq(inventoryStockReceipts.organizationId, organizationId),
@@ -187,7 +249,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryStockReceipts)
         .where(where)
-        .orderBy(desc(inventoryStockReceipts.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            STOCK_RECEIPT_LIST_SORT_COLUMNS,
+            opts.sort ?? STOCK_RECEIPT_LIST_DEFAULT_SORT,
+            inventoryStockReceipts.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -241,8 +309,43 @@ export class InventoryRepository {
   }
 
   async quantityByPartAndLocation(organizationId: string, partId: string) {
-    return this.db
+    const map = await this.quantitiesByPartIdsGrouped(organizationId, [partId]);
+    return map.get(partId) ?? [];
+  }
+
+  /** One query for all part IDs on a list page (avoids N+1 per part). */
+  async quantitiesByPartIdsGrouped(
+    organizationId: string,
+    partIds: string[],
+  ): Promise<
+    Map<
+      string,
+      Array<{
+        locationId: string;
+        locationName: string;
+        quantity: number;
+      }>
+    >
+  > {
+    const uniqueIds = [...new Set(partIds)];
+    const result = new Map<
+      string,
+      Array<{
+        locationId: string;
+        locationName: string;
+        quantity: number;
+      }>
+    >();
+    for (const id of uniqueIds) {
+      result.set(id, []);
+    }
+    if (uniqueIds.length === 0) {
+      return result;
+    }
+
+    const rows = await this.db
       .select({
+        partId: inventoryStockReceipts.partId,
         locationId: inventoryStockReceipts.locationId,
         locationName: organisationLocations.name,
         quantity: sum(inventoryStockReceipts.quantityReceived).mapWith(Number),
@@ -255,11 +358,26 @@ export class InventoryRepository {
       .where(
         and(
           eq(inventoryStockReceipts.organizationId, organizationId),
-          eq(inventoryStockReceipts.partId, partId),
+          inArray(inventoryStockReceipts.partId, uniqueIds),
           eq(inventoryStockReceipts.isActive, true),
         ),
       )
-      .groupBy(inventoryStockReceipts.locationId, organisationLocations.name);
+      .groupBy(
+        inventoryStockReceipts.partId,
+        inventoryStockReceipts.locationId,
+        organisationLocations.name,
+      );
+
+    for (const row of rows) {
+      const list = result.get(row.partId);
+      if (!list) continue;
+      list.push({
+        locationId: row.locationId,
+        locationName: row.locationName,
+        quantity: Number(row.quantity ?? 0),
+      });
+    }
+    return result;
   }
 
   async listStockBalanceParts(
@@ -267,6 +385,7 @@ export class InventoryRepository {
     page: number,
     pageSize: number,
     search?: string,
+    sort?: ResolvedListSort<InventoryPartListSortField>,
   ) {
     const partConditions = [
       eq(inventoryCatalogParts.organizationId, organizationId),
@@ -287,7 +406,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryCatalogParts)
         .where(where)
-        .orderBy(inventoryCatalogParts.name)
+        .orderBy(
+          ...buildListOrderBy(
+            INVENTORY_PART_LIST_SORT_COLUMNS,
+            sort ?? { sortBy: 'name', sortOrder: 'asc' },
+            inventoryCatalogParts.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -318,7 +443,11 @@ export class InventoryRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; status?: string },
+    opts: {
+      search?: string;
+      status?: string;
+      sort?: ResolvedListSort<PartsRequestListSortField>;
+    },
   ) {
     const conditions = [
       eq(inventoryPartsRequests.organizationId, organizationId),
@@ -347,7 +476,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryPartsRequests)
         .where(where)
-        .orderBy(desc(inventoryPartsRequests.requestedAt))
+        .orderBy(
+          ...buildListOrderBy(
+            PARTS_REQUEST_LIST_SORT_COLUMNS,
+            opts.sort ?? PARTS_REQUEST_LIST_DEFAULT_SORT,
+            inventoryPartsRequests.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -409,5 +544,71 @@ export class InventoryRepository {
       .values(values)
       .returning();
     return rows[0];
+  }
+
+  async pickStockLocationForPart(
+    organizationId: string,
+    partId: string,
+    quantityNeeded: number,
+  ): Promise<{ locationId: string } | null> {
+    const grouped = await this.quantitiesByPartIdsGrouped(organizationId, [
+      partId,
+    ]);
+    const locations = grouped.get(partId) ?? [];
+    if (locations.length === 0) return null;
+    const sorted = [...locations].sort((a, b) => b.quantity - a.quantity);
+    const sufficient = sorted.find((row) => row.quantity >= quantityNeeded);
+    const pick = sufficient ?? sorted[0];
+    return pick ? { locationId: pick.locationId } : null;
+  }
+
+  async createWorkOrderPartReservation(input: {
+    organizationId: string;
+    workOrderNumber: string;
+    vehicleFleetCode: string;
+    partId: string;
+    quantity: number;
+    lineKey: string;
+  }): Promise<PartsRequestRow> {
+    const location = await this.pickStockLocationForPart(
+      input.organizationId,
+      input.partId,
+      input.quantity,
+    );
+    const base = `PR-${input.workOrderNumber}-${input.lineKey}`.replace(
+      /\s+/g,
+      '',
+    );
+    const requestNumber = base.slice(0, 32);
+    return this.insertPartsRequest({
+      organizationId: input.organizationId,
+      requestNumber,
+      workOrderRef: input.workOrderNumber,
+      partId: input.partId,
+      locationId: location?.locationId ?? null,
+      quantityRequested: input.quantity,
+      requestType: 'internal',
+      vehicleRef: input.vehicleFleetCode,
+      status: 'reserved',
+      compatibilityOk: true,
+    });
+  }
+
+  async transitionPartsRequestsByWorkOrderRef(
+    organizationId: string,
+    workOrderRef: string,
+    fromStatus: PartsRequestRow['status'],
+    toStatus: PartsRequestRow['status'],
+  ): Promise<void> {
+    await this.db
+      .update(inventoryPartsRequests)
+      .set({ status: toStatus, updatedAt: new Date() })
+      .where(
+        and(
+          eq(inventoryPartsRequests.organizationId, organizationId),
+          eq(inventoryPartsRequests.workOrderRef, workOrderRef),
+          eq(inventoryPartsRequests.status, fromStatus),
+        ),
+      );
   }
 }

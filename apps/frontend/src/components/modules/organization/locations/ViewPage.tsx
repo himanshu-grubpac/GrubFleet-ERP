@@ -153,95 +153,95 @@ export default function LocationDetailsPage() {
 
   return (
     <OrganizationViewLayout>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <h1 className="text-[15px] font-semibold text-gray-900">
-              {location.name}
-            </h1>
-            <span className="inline-flex shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-[#FE5720]">
-              {location.type}
-            </span>
-            <span
-              className={[
-                "inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
-                isActive
-                  ? "bg-green-50 text-green-700"
-                  : "bg-gray-100 text-gray-500",
-              ].join(" ")}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h1 className="text-[15px] font-semibold text-gray-900">
+            {location.name}
+          </h1>
+          <span className="inline-flex shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-[#FE5720]">
+            {location.type}
+          </span>
+          <span
+            className={[
+              "inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
+              isActive
+                ? "bg-green-50 text-green-700"
+                : "bg-gray-100 text-gray-500",
+            ].join(" ")}
+          >
+            {isActive ? "Active" : "Deactivated"}
+          </span>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {canUpdate && isActive ? (
+            <Button type="button" variant="outline" onClick={handleEdit}>
+              Edit
+            </Button>
+          ) : null}
+          {canUpdate ? (
+            <Button
+              type="button"
+              onClick={handleToggleStatus}
+              disabled={statusMutation.isPending}
             >
-              {isActive ? "Active" : "Deactivated"}
-            </span>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {canUpdate && isActive ? (
-              <Button type="button" variant="secondary" onClick={handleEdit}>
-                Edit
-              </Button>
-            ) : null}
-            {canUpdate ? (
-              <Button
-                type="button"
-                onClick={handleToggleStatus}
-                disabled={statusMutation.isPending}
-              >
-                {isActive ? "Deactivate" : "Activate"}
-              </Button>
-            ) : null}
-          </div>
+              {isActive ? "Deactivate" : "Activate"}
+            </Button>
+          ) : null}
         </div>
+      </div>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <dl className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="sm:col-span-2 lg:col-span-4">
-              <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Address
-              </dt>
-              <dd className="mt-1.5 whitespace-pre-line text-sm font-medium text-gray-900">
-                {addressDisplay || EMPTY}
-              </dd>
-            </div>
-            <DetailField
-              label="Site contact phone"
-              value={
-                formatPhoneDisplay(
-                  location.siteContactPhone,
-                  sitePhoneCountry,
-                ) || EMPTY
-              }
-            />
-            <DetailField
-              label="Site contact email"
-              value={location.siteContactEmail || EMPTY}
-            />
-            <DetailField
-              label="Responsible person"
-              value={location.responsiblePerson || EMPTY}
-            />
-            <DetailField
-              label="Responsible phone"
-              value={
-                formatPhoneDisplay(location.responsiblePersonPhone) || EMPTY
-              }
-            />
-            <DetailField
-              label="Responsible email"
-              value={location.responsiblePersonEmail || EMPTY}
-            />
-            <DetailField
-              label="Deputy"
-              value={location.deputyName || EMPTY}
-            />
-            <DetailField
-              label="Deputy phone"
-              value={formatPhoneDisplay(location.deputyPhone) || EMPTY}
-            />
-            <DetailField
-              label="Deputy email"
-              value={location.deputyEmail || EMPTY}
-            />
-          </dl>
-        </div>
+      <div className="rounded-lg border border-gray-200 bg-white p-5">
+        <dl className="grid grid-cols-1 gap-x-6 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="sm:col-span-2 lg:col-span-4">
+            <dt className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Address
+            </dt>
+            <dd className="mt-1.5 whitespace-pre-line text-sm font-medium text-gray-900">
+              {addressDisplay || EMPTY}
+            </dd>
+          </div>
+          <DetailField
+            label="Site contact phone"
+            value={
+              formatPhoneDisplay(
+                location.siteContactPhone,
+                sitePhoneCountry,
+              ) || EMPTY
+            }
+          />
+          <DetailField
+            label="Site contact email"
+            value={location.siteContactEmail || EMPTY}
+          />
+          <DetailField
+            label="Responsible person"
+            value={location.responsiblePerson || EMPTY}
+          />
+          <DetailField
+            label="Responsible phone"
+            value={
+              formatPhoneDisplay(location.responsiblePersonPhone) || EMPTY
+            }
+          />
+          <DetailField
+            label="Responsible email"
+            value={location.responsiblePersonEmail || EMPTY}
+          />
+          <DetailField
+            label="Deputy"
+            value={location.deputyName || EMPTY}
+          />
+          <DetailField
+            label="Deputy phone"
+            value={formatPhoneDisplay(location.deputyPhone) || EMPTY}
+          />
+          <DetailField
+            label="Deputy email"
+            value={location.deputyEmail || EMPTY}
+          />
+        </dl>
+      </div>
 
       <ConfirmDialog
         open={activateOpen}

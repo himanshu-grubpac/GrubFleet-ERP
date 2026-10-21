@@ -1,11 +1,10 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { Pool } from 'pg';
 import { AppModule } from '../../app.module';
-import { GlobalHttpExceptionFilter } from '../../common/filters/http-exception.filter';
 import {
   DEV_ADMIN_EMAIL,
   DEV_ADMIN_PASSWORD,
@@ -27,6 +26,7 @@ import {
 import { and, eq, inArray } from 'drizzle-orm';
 import * as bcrypt from 'bcrypt';
 import {
+  configureIntegrationNestApp,
   ensureUserWithPermissions,
   loginAs,
   ORG_VIEW_ONLY_USER,
@@ -85,6 +85,8 @@ describe('RBAC admin (integration)', () => {
     if (!organizationId) {
       throw new Error('Dev organization missing after seed');
     }
+
+    await purgeRbacIntegrationTestRoles(db, organizationId);
 
     const viewerEmail = 'viewer.rbac@grubpac.local';
     const viewerPassword = 'ViewerTest123!';
@@ -306,15 +308,7 @@ describe('RBAC admin (integration)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    app.setGlobalPrefix('api/v1');
-    app.useGlobalPipes(
-      new ValidationPipe({
-        whitelist: true,
-        forbidNonWhitelisted: true,
-        transform: true,
-      }),
-    );
-    app.useGlobalFilters(new GlobalHttpExceptionFilter());
+    configureIntegrationNestApp(app);
     await app.init();
 
     const adminLogin = await request(app.getHttpServer())
@@ -411,6 +405,19 @@ describe('RBAC admin (integration)', () => {
       .expect(403);
   });
 
+  it('returns 400 when role moduleAccess uses unknown moduleId', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('unknown-module'),
+        moduleAccess: [{ moduleId: 'not_a_real_module', accessLevel: 'VIEW' }],
+      })
+      .expect(400);
+  });
+
   it('GET /roles/:id returns org-scoped role and 404 for missing id', async () => {
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/roles')
@@ -463,13 +470,17 @@ describe('RBAC admin (integration)', () => {
   });
 
   it('DELETE custom role, PATCH isActive, DELETE system role returns 409', async () => {
+    const lifecycleRoleName = rbacIntegrationTestRoleName('lifecycle');
+    const db = drizzle(pool, { schema });
+    await deleteOrgRoleByNameIfExists(db, organizationId, lifecycleRoleName);
+
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/roles')
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .send({
         organizationId,
-        name: rbacIntegrationTestRoleName('lifecycle'),
+        name: lifecycleRoleName,
         moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
       })
       .expect(201);
@@ -547,6 +558,104 @@ describe('RBAC admin (integration)', () => {
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
+  });
+
+  it('expands permissionKeys on create (create implies view, manage implies full CRUD)', async () => {
+    const createOnlyRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('org-create-only-keys'),
+        permissionKeys: ['organisation.create'],
+      })
+      .expect(201);
+
+    const createOnly = createOnlyRes.body as {
+      id: string;
+      permissionKeys: string[];
+    };
+    expect(createOnly.permissionKeys).toContain('organisation.view');
+    expect(createOnly.permissionKeys).toContain('organisation.create');
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${createOnly.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+
+    const manageOnlyRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('org-manage-only-keys'),
+        permissionKeys: ['organisation.manage'],
+      })
+      .expect(201);
+
+    const manageOnly = manageOnlyRes.body as { permissionKeys: string[] };
+    expect(manageOnly.permissionKeys).toEqual(
+      expect.arrayContaining([
+        'organisation.view',
+        'organisation.create',
+        'organisation.update',
+        'organisation.delete',
+        'organisation.manage',
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${(manageOnlyRes.body as { id: string }).id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+  });
+
+  it('returns 400 when permissionKeys include unknown catalog keys', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('invalid-perm-keys'),
+        permissionKeys: ['organisation.create', 'not.a.valid.permission.key'],
+      })
+      .expect(400);
+  });
+
+  it('returns 409 ROLE_NAME_CONFLICT when role name duplicates in org', async () => {
+    const roleName = rbacIntegrationTestRoleName('duplicate-name');
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: roleName,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+
+    const dup = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: roleName,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(409);
+
+    expect(dup.body).toMatchObject({
+      code: 'ROLE_NAME_CONFLICT',
+      statusCode: 409,
+    });
+    expect(dup.body).not.toMatchObject({ code: 'INTERNAL_ERROR' });
   });
 
   it('creates fleet_leasing VIEW role and denies admin manage actions', async () => {

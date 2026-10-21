@@ -20,3 +20,11 @@ export const logoutSchema = z.object({
 export type LogoutInput = z.infer<typeof logoutSchema>;
 
 export * from './geo';
+export * from './vehicle-registration';
+export * from './driver-license';
+export * from './phone';
+export * from './gstin';
+export * from './color-code';
+export * from './chassis-vin';
+export * from './cpr-no';
+export * from './money';

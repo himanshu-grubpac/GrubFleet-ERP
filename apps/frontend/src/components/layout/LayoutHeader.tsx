@@ -1,316 +1,198 @@
-// src/components/layout/LayoutHeader.tsx
 
 "use client";
 
-import { Bell, Menu } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { useMemo, useState } from "react";
+import {
+  Bell,
+  ChevronDown,
+  LogOut,
+  Menu,
+  Search,
+} from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
-import Breadcrumb from "./Breadcrumb";
-
-import {
-  breadcrumbConfig,
-  type BreadcrumbItem,
-} from "@/config/breadcrumb-config";
+import GlobalSearchInput from "@/components/layout/GlobalSearchInput";
+import { useAuth } from "@/providers/auth-provider";
+import { cn } from "@/lib/utils";
 
 interface LayoutHeaderProps {
   onMenuClick?: () => void;
 }
 
+function headerUserInitials(
+  fullName?: string | null,
+  email?: string,
+): string {
+  const trimmed = fullName?.trim();
+  if (trimmed) {
+    const parts = trimmed.split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return `${parts[0]![0]!}${parts[parts.length - 1]![0]!}`.toUpperCase();
+    }
+    return parts[0]!.slice(0, 2).toUpperCase();
+  }
+  if (email) {
+    return email.trim().charAt(0).toUpperCase() || "U";
+  }
+  return "U";
+}
+
 export default function LayoutHeader({
   onMenuClick,
 }: LayoutHeaderProps) {
-  const pathname = usePathname();
+  const { isAuthenticated, isLoggingOut, logout, user } = useAuth();
 
-  const breadcrumbs = getBreadcrumbs(pathname);
+  const [profileOpen, setProfileOpen] = useState(false);
+
+  const userName = useMemo(
+    () =>
+      user?.fullName?.trim() ||
+      user?.name?.trim() ||
+      user?.email?.trim() ||
+      "Account",
+    [user?.email, user?.fullName, user?.name],
+  );
+  const userEmail = user?.email?.trim() ?? "";
+  const userInitial = headerUserInitials(
+    user?.fullName ?? user?.name,
+    user?.email,
+  );
+
+  const handleLogout = () => {
+    if (isLoggingOut) return;
+
+    setProfileOpen(false);
+    void logout?.();
+  };
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4">
-      {/* ============================================================
-          LEFT
-      ============================================================ */}
-      <div className="flex min-w-0 items-center gap-3">
-        {/* Mobile menu */}
-        <div className="md:hidden">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            aria-label="Open navigation menu"
-            onClick={onMenuClick}
-            className="!border-slate-200 !text-slate-700"
-          >
-            <Menu className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* Breadcrumb */}
-        <Breadcrumb items={breadcrumbs} />
+    <header className="relative z-30 flex min-h-[64px] min-w-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3 md:px-6">
+      {/* Left: Mobile Navigation */}
+      <div className="flex shrink-0 items-center">
+        <button
+          type="button"
+          onClick={onMenuClick}
+          aria-label="Open navigation menu"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-600 transition-colors hover:bg-slate-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FE5720] md:hidden"
+        >
+          <Menu className="h-5 w-5" />
+        </button>
       </div>
 
-      {/* ============================================================
-          RIGHT
-      ============================================================ */}
-      <div className="ml-4 flex shrink-0 items-center gap-3">
-        {/* Search */}
-        <div className="hidden sm:block">
-          <input
-            type="search"
-            placeholder="Search across GrubERP..."
-            className="h-8 w-48 rounded-md border border-slate-200 bg-slate-50 px-3 text-xs text-slate-700 outline-none placeholder:text-slate-400 focus:border-slate-300 focus:bg-white"
-          />
-        </div>
+      {/* Right: Search and Profile Actions */}
+      <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
+        {/* Global Search */}
+        <GlobalSearchInput className="hidden w-full max-w-xl sm:block" />
+
+        {/* Mobile Search */}
+        <button
+          type="button"
+          aria-label="Focus global search"
+          onClick={() => {
+            const searchInput =
+              document.querySelector<HTMLInputElement>(
+                'input[aria-label="Global search"]',
+              );
+
+            searchInput?.focus();
+          }}
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 sm:hidden"
+        >
+          <Search className="h-5 w-5" />
+        </button>
 
         {/* Notifications */}
-        <button
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           aria-label="Notifications"
-          className="flex h-8 w-8 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
         >
-          <Bell
-            className="h-4 w-4"
-            strokeWidth={1.7}
-          />
-        </button>
+          <Bell className="h-5 w-5" />
+        </Button>
 
-        {/* User */}
-        <button
-          type="button"
-          aria-label="Account"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-200 text-xs font-medium text-slate-600"
-        >
-          K
-        </button>
+        {/* Profile Dropdown */}
+        {isAuthenticated && (
+          <div
+            className="group relative shrink-0"
+            onMouseEnter={() => setProfileOpen(true)}
+            onMouseLeave={() => setProfileOpen(false)}
+          >
+            {/* Profile Trigger */}
+            <button
+              type="button"
+              onClick={() =>
+                setProfileOpen((open) => !open)
+              }
+              aria-label={`Profile menu for ${userName}`}
+              aria-haspopup="menu"
+              aria-expanded={profileOpen}
+              className={cn(
+                "inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 transition-colors hover:bg-slate-50",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#FE5720]",
+              )}
+            >
+              {/* Circular Avatar */}
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900 text-sm font-medium text-white">
+                {userInitial}
+              </span>
+
+              <ChevronDown
+                className={cn(
+                  "h-4 w-4 text-slate-500 transition-transform duration-150",
+                  profileOpen && "rotate-180",
+                )}
+                aria-hidden="true"
+              />
+            </button>
+
+            {/* Dropdown with Connected Hover Area */}
+            <div
+              className={cn(
+                "invisible absolute right-0 top-full z-50 w-64 pt-2 opacity-0 transition-all duration-150",
+                "group-hover:visible group-hover:opacity-100",
+                "group-focus-within:visible group-focus-within:opacity-100",
+                profileOpen &&
+                "visible translate-y-0 opacity-100",
+              )}
+            >
+              <div
+                role="menu"
+                aria-label="Profile options"
+                className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg"
+              >
+                {/* User Information */}
+                <div className="border-b border-slate-100 px-4 py-3">
+                  <p className="text-base font-semibold text-slate-900">
+                    {userName}
+                  </p>
+                  {userEmail ? (
+                    <p className="mt-0.5 truncate text-sm text-slate-500">
+                      {userEmail}
+                    </p>
+                  ) : null}
+                </div>
+
+                {/* Logout */}
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={isLoggingOut}
+                  onClick={handleLogout}
+                  className="flex w-full items-center gap-3 px-4 py-3.5 text-left text-sm text-red-600 transition-colors hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <LogOut className="h-5 w-5" />
+                  <span>
+                    {isLoggingOut
+                      ? "Signing out..."
+                      : "Logout"}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </header>
-  );
-}
-
-/* ================================================================
-   BREADCRUMB RESOLUTION
-================================================================ */
-
-/**
- * Builds breadcrumbs for the current pathname.
- *
- * Static route:
- * /organization/locations
- *
- * Result:
- * Organisation > Locations
- *
- * Dynamic route:
- * /organization/locations/123
- *
- * Result:
- * Organisation > Locations > 123
- *
- * Dynamic edit route:
- * /organization/locations/123/edit
- *
- * Result:
- * Organisation > Locations > 123 > Edit
- */
-function getBreadcrumbs(
-  pathname: string,
-): BreadcrumbItem[] {
-  /* ==============================================================
-     1. EXACT ROUTE MATCH
-     ============================================================== */
-
-  if (breadcrumbConfig[pathname]) {
-    return breadcrumbConfig[pathname];
-  }
-
-  /* ==============================================================
-     2. FIND THE MOST SPECIFIC STATIC PARENT
-     ============================================================== */
-
-  const matchingRoute = Object.keys(breadcrumbConfig)
-    .sort((a, b) => b.length - a.length)
-    .find((route) =>
-      pathname.startsWith(`${route}/`),
-    );
-
-  if (!matchingRoute) {
-    return [];
-  }
-
-  const baseBreadcrumbs =
-    breadcrumbConfig[matchingRoute];
-
-  /* ==============================================================
-     3. GET REMAINING URL SEGMENTS
-     ============================================================== */
-
-  const remainingPath = pathname.slice(
-    matchingRoute.length,
-  );
-
-  const segments = remainingPath
-    .split("/")
-    .filter(Boolean);
-
-  if (!segments.length) {
-    return baseBreadcrumbs;
-  }
-
-  /* ==============================================================
-     4. BUILD DYNAMIC BREADCRUMBS
-     ============================================================== */
-
-  const dynamicBreadcrumbs: BreadcrumbItem[] = [
-    ...baseBreadcrumbs,
-  ];
-
-  let currentPath = matchingRoute;
-
-  segments.forEach((segment, index) => {
-    currentPath += `/${segment}`;
-
-    const isLastSegment =
-      index === segments.length - 1;
-
-    const label = getDynamicSegmentLabel(
-      segment,
-      matchingRoute,
-      segments,
-      index,
-    );
-
-    const isActionSegment =
-      isActionPageSegment(segment);
-
-    dynamicBreadcrumbs.push({
-      label,
-      href:
-        !isLastSegment && !isActionSegment
-          ? currentPath
-          : undefined,
-    });
-  });
-
-  return dynamicBreadcrumbs;
-}
-
-/* ================================================================
-   DYNAMIC SEGMENT LABEL
-================================================================ */
-
-/**
- * Converts URL segments into readable breadcrumb labels.
- *
- * Examples:
- *
- * VH-1006
- *     -> VH-1006
- *
- * vehicle-001
- *     -> Vehicle 001
- *
- * location-001
- *     -> Location 001
- *
- * edit
- *     -> Edit
- *
- * lease-history
- *     -> Lease History
- */
-function getDynamicSegmentLabel(
-  segment: string,
-  matchingRoute: string,
-  segments: string[],
-  index: number,
-): string {
-  /* ==============================================================
-     ACTION PAGES
-     ============================================================== */
-
-  if (segment === "edit") {
-    return "Edit";
-  }
-
-  if (segment === "lease-history") {
-    return "Lease History";
-  }
-
-  /* ==============================================================
-     COMPLIANCE RENEWAL
-     ============================================================== */
-
-  if (
-    matchingRoute ===
-    "/asset-register/compliance-renewals" &&
-    index === segments.length - 1
-  ) {
-    return "Renew";
-  }
-
-  /* ==============================================================
-     NORMAL DYNAMIC ID
-     ============================================================== */
-
-  return formatDynamicId(segment);
-}
-
-/* ================================================================
-   FORMAT DYNAMIC ID
-================================================================ */
-
-/**
- * Formats a dynamic URL ID for display.
- *
- * Examples:
- *
- * VH-1006
- *     -> VH-1006
- *
- * vehicle-001
- *     -> Vehicle 001
- *
- * location-001
- *     -> Location 001
- *
- * abc123
- *     -> Abc123
- */
-function formatDynamicId(
-  value: string,
-): string {
-  /*
-   * Preserve codes such as:
-   *
-   * VH-1006
-   * DL-01-AB-1234
-   * KA-05-MN-1234
-   */
-  if (
-    /^[A-Z0-9]+(?:-[A-Z0-9]+)+$/.test(
-      value,
-    )
-  ) {
-    return value;
-  }
-
-  return value
-    .replace(/[-_]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .replace(/\b\w/g, (char) =>
-      char.toUpperCase(),
-    );
-}
-
-/* ================================================================
-   ACTION PAGE CHECK
-================================================================ */
-
-function isActionPageSegment(
-  segment: string,
-): boolean {
-  return (
-    segment === "edit" ||
-    segment === "lease-history"
   );
 }

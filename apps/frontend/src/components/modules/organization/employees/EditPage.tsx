@@ -12,7 +12,6 @@ import CreateEmployeePage, {
   type EmployeeFormData,
 } from "@/components/modules/organization/employees/CreateEmployeePage";
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import {
   fetchOrganisationEmployeeByIdApi,
   updateOrganisationEmployeeApi,
@@ -20,6 +19,8 @@ import {
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import {
   EMPLOYEE_SAVE_ERROR,
+  getApiErrorMessage,
+  showApiErrorToast,
   showEmployeeUpdatedToast,
   showErrorToast,
 } from "@/lib/toast/show-toast";
@@ -76,6 +77,7 @@ export default function EditEmployeePage() {
       dateOfJoining: detail.dateOfJoining,
       phone: detail.phone,
       email: detail.email,
+      isWorkshopTechnician: detail.isWorkshopTechnician,
     };
   }, [employeeQuery.data]);
 
@@ -109,6 +111,7 @@ export default function EditEmployeePage() {
           phone,
           email: data.email,
           reportsToEmployeeId: data.reportsToEmployeeId ?? null,
+          isWorkshopTechnician: data.isWorkshopTechnician,
         },
       );
       await queryClient.invalidateQueries({
@@ -117,14 +120,13 @@ export default function EditEmployeePage() {
       await queryClient.invalidateQueries({
         queryKey: ["organization", "employee", organizationId, employeeId],
       });
+      await queryClient.invalidateQueries({
+        queryKey: ["workshop", "technicians-all"],
+      });
       showEmployeeUpdatedToast(updated.fullName);
       router.push(organisationEmployeeDetailHref(employeeId));
     } catch (error) {
-      const message =
-        error instanceof ApiClientError
-          ? error.message
-          : EMPLOYEE_SAVE_ERROR;
-      showErrorToast(message);
+      showApiErrorToast(error, EMPLOYEE_SAVE_ERROR);
       throw error;
     }
   };
@@ -149,9 +151,7 @@ export default function EditEmployeePage() {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
         <p className="text-sm font-medium text-red-600">
-          {employeeQuery.error instanceof ApiClientError
-            ? employeeQuery.error.message
-            : "Employee not found."}
+          {getApiErrorMessage(employeeQuery.error, "Employee not found.")}
         </p>
         <button
           type="button"

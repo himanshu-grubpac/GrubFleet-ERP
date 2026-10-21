@@ -1,5 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql, type AnyColumn } from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../common/utils/list-sort.util';
+import {
+  ROLE_LIST_DEFAULT_SORT,
+  type RoleListSortField,
+} from './constants/roles-list-sort.constants';
 import type { AppDatabase } from '../../database/database.module';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import {
@@ -8,6 +16,12 @@ import {
   roles,
   userRoles,
 } from '../../database/schema';
+
+const ROLE_LIST_SORT_COLUMNS: Record<RoleListSortField, AnyColumn> = {
+  name: roles.name,
+  createdAt: roles.createdAt,
+  updatedAt: roles.updatedAt,
+};
 
 @Injectable()
 export class RolesRepository {
@@ -18,6 +32,7 @@ export class RolesRepository {
     page: number,
     pageSize: number,
     visibleRoleIds?: string[] | null,
+    sort?: ResolvedListSort<RoleListSortField>,
   ): Promise<{ rows: (typeof roles.$inferSelect)[]; total: number }> {
     const offset = (page - 1) * pageSize;
     const scopeFilter = and(
@@ -36,7 +51,13 @@ export class RolesRepository {
         .select()
         .from(roles)
         .where(whereClause)
-        .orderBy(roles.name)
+        .orderBy(
+          ...buildListOrderBy(
+            ROLE_LIST_SORT_COLUMNS,
+            sort ?? ROLE_LIST_DEFAULT_SORT,
+            roles.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -112,12 +133,34 @@ export class RolesRepository {
   }
 
   async getPermissionKeysForRole(roleId: string): Promise<string[]> {
+    const map = await this.getPermissionKeysForRoles([roleId]);
+    return map.get(roleId) ?? [];
+  }
+
+  async getPermissionKeysForRoles(
+    roleIds: string[],
+  ): Promise<Map<string, string[]>> {
+    const uniqueIds = [...new Set(roleIds)];
+    const result = new Map<string, string[]>();
+    for (const id of uniqueIds) {
+      result.set(id, []);
+    }
+    if (uniqueIds.length === 0) {
+      return result;
+    }
     const rows = await this.db
-      .select({ key: permissions.key })
+      .select({
+        roleId: rolePermissions.roleId,
+        key: permissions.key,
+      })
       .from(rolePermissions)
       .innerJoin(permissions, eq(rolePermissions.permissionId, permissions.id))
-      .where(eq(rolePermissions.roleId, roleId));
-    return rows.map((r) => r.key);
+      .where(inArray(rolePermissions.roleId, uniqueIds));
+    for (const row of rows) {
+      const keys = result.get(row.roleId);
+      if (keys) keys.push(row.key);
+    }
+    return result;
   }
 
   async insertRole(params: {

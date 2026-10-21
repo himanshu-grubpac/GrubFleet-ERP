@@ -20,6 +20,11 @@ import { useLeaseApi } from "@/lib/api/lease-contracts-context";
 import type { LeaseContractListItem } from "@/lib/api/lease-contracts";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { LEASE_CONTRACT_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import {
   isDashboardCatalogEmptyState,
   shouldShowDashboardListFilters,
@@ -50,9 +55,16 @@ export default function RenewalsExtensionsTable() {
 
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(LEASE_CONTRACT_COLUMN_SORT);
+
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, tableSort]);
 
   const listEnabled = !!organizationId && !isAuthLoading;
 
@@ -62,12 +74,14 @@ export default function RenewalsExtensionsTable() {
       organizationId,
       debouncedSearch,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       api.getRenewalEligibleList({
         page,
         pageSize: DASHBOARD_DEFAULT_PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
+        ...listSortParams,
       }),
     enabled: listEnabled,
     ...dashboardListQueryOptions,
@@ -110,6 +124,7 @@ export default function RenewalsExtensionsTable() {
     {
       key: "clientName",
       label: "Client",
+      sortable: false,
     },
     {
       key: "startDate",
@@ -119,6 +134,7 @@ export default function RenewalsExtensionsTable() {
     {
       key: "termMonths",
       label: "Term",
+      sortable: false,
       render: (row) => formatTermMonths(row.termMonths),
     },
   ];
@@ -219,6 +235,9 @@ export default function RenewalsExtensionsTable() {
               <DashboardTable
                 columns={columns}
                 data={contracts}
+                sortState={tableSort}
+                onSortChange={onSortChange}
+                serverSorted={serverSorted}
                 getRowKey={(row) => row.id}
                 renderActions={(row) => (
                   <DashboardTableActions

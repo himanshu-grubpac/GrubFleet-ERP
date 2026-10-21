@@ -6,12 +6,13 @@ import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-en
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { validateRequired, type ValidationErrors } from "@/components/common/Commonvalidation"
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
-  showErrorToast,
-  showVehicleAssignedToLeaseToast,
-  VEHICLE_ASSIGN_ERROR,
+    showErrorToast,
+    showVehicleAssignedToLeaseToast,
+    VEHICLE_ASSIGN_ERROR,
 } from "@/lib/toast/show-toast";
 import { fetchAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
 import { bulkAssignAssetRegisterVehiclesApi } from "@/lib/api/asset-register/assignments";
@@ -30,13 +31,14 @@ type LeaseContractOption = {
 function InfoRow({ label, value }: { label: string; value: string }) {
     return (
         <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
-            <p className="w-1/2 text-[10px] font-medium text-gray-400">{label}</p>
-            <p className="w-1/2 text-right text-[10px] font-medium text-gray-800">
-                {value}
+            <p className="w-1/2 text-xs font-medium text-gray-400">{label}</p>
+            <p className="w-1/2 text-right text-xs font-semibold text-gray-800 truncate">
+                {value || "-"}
             </p>
         </div>
     );
 }
+
 
 export default function AssetAssignmentViewPage() {
     const router = useRouter();
@@ -99,6 +101,8 @@ export default function AssetAssignmentViewPage() {
     const [selectedLeaseContractId, setSelectedLeaseContractId] =
         useState("");
     const [isAssigned, setIsAssigned] = useState(false);
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
     useEffect(() => {
         if (matchingLeaseListItems.length > 0 && !selectedLeaseContractId) {
@@ -170,7 +174,9 @@ export default function AssetAssignmentViewPage() {
                 throw new Error("Missing auth context");
             }
             const detail = leaseDetailQuery.data;
-            const organisationClientId = detail?.client?.id;
+            const organisationClientId =
+                detail?.client?.organisationClientId ??
+                detail?.client?.id;
             return bulkAssignAssetRegisterVehiclesApi({
                 token,
                 body: {
@@ -197,8 +203,33 @@ export default function AssetAssignmentViewPage() {
         router.push("/asset-register/asset-assign");
     };
 
+    const validateForm = (): ValidationErrors => {
+        const errors: ValidationErrors = {};
+        const requiredMessage = validateRequired(
+            selectedLeaseContractId,
+            "Lease contract",
+        );
+        if (requiredMessage) {
+            errors.leaseContract = requiredMessage;
+            return errors;
+        }
+
+        const selectedExists = matchingLeaseListItems.some(
+            (contract) => contract.id === selectedLeaseContractId,
+        );
+        if (!selectedExists) {
+            errors.leaseContract = "Select a valid lease contract.";
+        }
+
+        return errors;
+    };
+
     const handleAssign = () => {
-        if (!canAssign || !selectedLeaseContract || isAssigned) return;
+        if (!canAssign || isAssigned || assignMutation.isPending) return;
+        setHasAttemptedSubmit(true);
+        const errors = validateForm();
+        setValidationErrors(errors);
+        if (Object.keys(errors).length > 0) return;
         assignMutation.mutate();
     };
 
@@ -242,19 +273,19 @@ export default function AssetAssignmentViewPage() {
                             Assign {vehicle.fleetCode}
                         </h1>
                         {isAssigned && (
-                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-medium text-blue-700">
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[14px] font-medium text-blue-700">
                                 Assigned
                             </span>
                         )}
                     </div>
-                    <p className="mt-0.5 text-[10px] text-gray-500">
+                    <p className="mt-0.5 text-[14px] text-gray-500">
                         Allocates this vehicle to a lease contract. This isn&apos;t
                         be undone from here once confirmed.
                     </p>
                 </div>
 
                 <section>
-                    <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    <h2 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-400">
                         Vehicle
                     </h2>
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
@@ -277,13 +308,13 @@ export default function AssetAssignmentViewPage() {
                 </section>
 
                 <section className="mt-4">
-                    <h2 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                    <h2 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-400">
                         Assign To
                     </h2>
                     <div className="rounded-lg border border-gray-200 bg-white px-3 py-3">
                         <label
                             htmlFor="lease-contract"
-                            className="mb-1.5 block text-[10px] font-semibold text-gray-700"
+                            className="mb-1.5 block text-[14px] font-semibold text-gray-700"
                         >
                             Lease contract
                         </label>
@@ -296,17 +327,29 @@ export default function AssetAssignmentViewPage() {
                                 id="lease-contract"
                                 value={selectedLeaseContractId}
                                 disabled={isAssigned}
-                                onChange={(event) =>
-                                    setSelectedLeaseContractId(event.target.value)
-                                }
+                                onChange={(event) => {
+                                    setSelectedLeaseContractId(event.target.value);
+                                    setValidationErrors((previous) => {
+                                        if (!previous.leaseContract) return previous;
+                                        const next = { ...previous };
+                                        delete next.leaseContract;
+                                        return next;
+                                    });
+                                }}
                                 className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-xs text-gray-800 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720] disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-500"
                             >
+                                <option value="">Select a lease contract</option>
                                 {matchingLeaseListItems.map((contract) => (
                                     <option key={contract.id} value={contract.id}>
                                         {contract.contractNumber} — {contract.clientName}
                                     </option>
                                 ))}
                             </select>
+                        )}
+                        {hasAttemptedSubmit && validationErrors.leaseContract && (
+                            <p className="mt-1 text-xs text-red-600" role="alert">
+                                {validationErrors.leaseContract}
+                            </p>
                         )}
                     </div>
 
@@ -317,10 +360,10 @@ export default function AssetAssignmentViewPage() {
                                 value={selectedLeaseContract.matchingLine}
                             />
                             <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
-                                <p className="w-1/2 text-[10px] font-medium text-gray-400">
+                                <p className="w-1/2 text-[12px] font-medium text-gray-400">
                                     Current allocation
                                 </p>
-                                <p className="w-1/2 text-right text-[10px] font-semibold text-[#FE5720]">
+                                <p className="w-1/2 text-right text-[14px] font-semibold text-[#FE5720]">
                                     {selectedLeaseContract.allocated} of{" "}
                                     {selectedLeaseContract.total} allocated
                                 </p>
@@ -345,7 +388,7 @@ export default function AssetAssignmentViewPage() {
                         onClick={handleAssign}
                         disabled={
                             !canAssign ||
-                            !selectedLeaseContract ||
+                            matchingLeaseListItems.length === 0 ||
                             isAssigned ||
                             assignMutation.isPending
                         }
@@ -357,7 +400,7 @@ export default function AssetAssignmentViewPage() {
 
                 {isAssigned && selectedLeaseContract && (
                     <div className="mt-3 rounded-lg border border-orange-100 bg-orange-50 px-3 py-2.5">
-                        <p className="text-[10px] font-medium text-[#FE5720]">
+                        <p className="text-[14px] font-medium text-[#FE5720]">
                             Vehicle assigned successfully to{" "}
                             {selectedLeaseContract.contractNumber} —{" "}
                             {selectedLeaseContract.clientName}.

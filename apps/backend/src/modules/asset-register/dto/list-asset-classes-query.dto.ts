@@ -12,7 +12,13 @@ import {
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
+  type ListSortOrder,
 } from '../../../common/dto/pagination-query.dto';
+import { LIST_SORT_ORDERS } from '../../../common/constants/list-sort.constants';
+import {
+  ASSET_CLASS_LIST_SORT_FIELDS,
+  type AssetClassListSortField,
+} from '../constants/asset-register-list-sort.constants';
 
 export const ASSET_CLASS_LIST_MAX_PAGE_SIZE = 50;
 
@@ -51,4 +57,14 @@ export class ListAssetClassesQueryDto {
   @IsOptional()
   @IsIn(['active', 'inactive'])
   status?: 'active' | 'inactive';
+
+  @ApiPropertyOptional({ enum: ASSET_CLASS_LIST_SORT_FIELDS })
+  @IsOptional()
+  @IsIn(ASSET_CLASS_LIST_SORT_FIELDS)
+  sortBy?: AssetClassListSortField;
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
 }

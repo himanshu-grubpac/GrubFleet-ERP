@@ -1,5 +1,8 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
+import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import type { AssetRegisterClassStatus } from "./asset-classes";
 
 export type AssetRegisterVehicleOperationalStatus =
@@ -43,16 +46,18 @@ function orgHeaders(organizationId: string): HeadersInit {
   return { "x-organization-id": organizationId };
 }
 
-export async function fetchAssetRegisterVehiclesApi(params: {
-  organizationId: string;
-  token: string;
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  assetClassId?: string;
-  operationalStatus?: AssetRegisterVehicleOperationalStatus;
-  status?: AssetRegisterClassStatus;
-}): Promise<PaginatedResponse<AssetRegisterVehicleListItem>> {
+export async function fetchAssetRegisterVehiclesApi(
+  params: ListSortParams & {
+    organizationId: string;
+    token: string;
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    assetClassId?: string;
+    operationalStatus?: AssetRegisterVehicleOperationalStatus;
+    status?: AssetRegisterClassStatus;
+  },
+): Promise<PaginatedResponse<AssetRegisterVehicleListItem>> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
     page: String(params.page ?? 1),
@@ -63,6 +68,7 @@ export async function fetchAssetRegisterVehiclesApi(params: {
   if (params.operationalStatus)
     q.set("operationalStatus", params.operationalStatus);
   if (params.status) q.set("status", params.status);
+  appendListSortSearchParams(q, params);
 
   return apiFetch<PaginatedResponse<AssetRegisterVehicleListItem>>(
     `/asset-register/vehicles?${q.toString()}`,
@@ -70,6 +76,25 @@ export async function fetchAssetRegisterVehiclesApi(params: {
       token: params.token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+const ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE = 50;
+
+/** Loads every page of active fleet vehicles for workshop dropdowns. */
+export async function fetchAllActiveAssetRegisterVehiclesApi(params: {
+  organizationId: string;
+  token: string;
+}): Promise<AssetRegisterVehicleListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchAssetRegisterVehiclesApi({
+        ...params,
+        page,
+        pageSize,
+        status: "active",
+      }),
+    ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE,
   );
 }
 

@@ -9,6 +9,12 @@ import {
   toPaginatedResult,
   type PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ORGANIZATION_LIST_DEFAULT_SORT,
+  ORGANIZATION_LIST_SORT_FIELDS,
+} from './constants/organizations-list-sort.constants';
+import type { ListOrganizationsQueryDto } from './dto/list-organizations-query.dto';
 import { AuthorizationRepository } from '../auth/authorization/authorization.repository';
 import { OrganizationsRepository } from './organizations.repository';
 
@@ -30,9 +36,15 @@ export class OrganizationsService {
 
   async listOrganizations(
     userId: string,
-    page = DEFAULT_PAGE,
-    pageSize = DEFAULT_PAGE_SIZE,
+    query: ListOrganizationsQueryDto,
   ): Promise<PaginatedResult<OrganizationDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      ORGANIZATION_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ORGANIZATION_LIST_DEFAULT_SORT,
+    );
     const systemAccess =
       await this.authorizationRepository.userHasSystemScopeRole(userId);
     const { rows, total } = await this.organizationsRepository.listForUser(
@@ -40,6 +52,7 @@ export class OrganizationsService {
       page,
       pageSize,
       systemAccess,
+      sort,
     );
     return toPaginatedResult(
       rows.map((o) => this.toDto(o)),

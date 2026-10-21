@@ -1,6 +1,7 @@
 import {
   assertModuleAccessDelegatable,
   deriveModuleAccessFromKeys,
+  expandImpliedPermissionKeys,
   expandModuleAccess,
   resolveModuleAccessLevel,
 } from './module-access.util';
@@ -53,6 +54,34 @@ describe('module-access.util', () => {
       expect(
         expandModuleAccess([{ moduleId: 'dashboard', accessLevel: 'FULL' }]),
       ).toEqual(['dashboard.view']);
+    });
+  });
+
+  describe('expandImpliedPermissionKeys', () => {
+    it('adds view when only create is granted', () => {
+      expect(
+        expandImpliedPermissionKeys(['organisation.create']).sort(),
+      ).toEqual(['organisation.create', 'organisation.view'].sort());
+    });
+
+    it('expands manage to full CRUD and view', () => {
+      expect(
+        expandImpliedPermissionKeys(['organisation.manage']).sort(),
+      ).toEqual(
+        [
+          'organisation.create',
+          'organisation.delete',
+          'organisation.manage',
+          'organisation.update',
+          'organisation.view',
+        ].sort(),
+      );
+    });
+
+    it('preserves invalid keys for boundary validation', () => {
+      expect(
+        expandImpliedPermissionKeys(['not.a.valid.key', 'organisation.create']),
+      ).toContain('not.a.valid.key');
     });
   });
 

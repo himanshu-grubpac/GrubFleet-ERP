@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  assetRegisterFleetEditHref,
-  assetRegisterFleetLeaseHistoryHref,
+    assetRegisterFleetEditHref,
+    assetRegisterFleetLeaseHistoryHref,
 } from "@/lib/navigation/asset-register-static-routes";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -15,10 +15,10 @@ import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
-  FLEET_VEHICLE_STATUS_UPDATE_ERROR,
-  showErrorToast,
-  showFleetVehicleActivatedToast,
-  showFleetVehicleDeactivatedToast,
+    FLEET_VEHICLE_STATUS_UPDATE_ERROR,
+    showErrorToast,
+    showFleetVehicleActivatedToast,
+    showFleetVehicleDeactivatedToast,
 } from "@/lib/toast/show-toast";
 import {
     fetchAssetRegisterVehicleApi,
@@ -193,38 +193,38 @@ export default function FleetViewPage() {
 
     const asset: FleetAsset | undefined = detailQuery.data
         ? {
-              id: detailQuery.data.id,
-              fleetCode: detailQuery.data.fleetCode,
-              assetClass: detailQuery.data.assetClassName,
-              vehicleName: detailQuery.data.assetClassName,
-              registrationNumber: detailQuery.data.registrationNumber,
-              odometerReading: `${detailQuery.data.odometer.toLocaleString("en-IN")} km`,
-              registrationStartDate: formatAssetRegisterIsoDate(
-                  detailQuery.data.registrationStartDate,
-              ),
-              registrationEndDate: formatAssetRegisterIsoDate(
-                  detailQuery.data.registrationEndDate,
-              ),
-              modelYear: String(detailQuery.data.modelYear),
-              chassisNumber: detailQuery.data.chassisNumber,
-              insuranceSupplier: "—",
-              insurancePremium: detailQuery.data.insurancePremium,
-              insuranceStartDate: formatAssetRegisterIsoDate(
-                  detailQuery.data.insuranceStartDate,
-              ),
-              insuranceEndDate: formatAssetRegisterIsoDate(
-                  detailQuery.data.insuranceEndDate,
-              ),
-              warrantyStartDate: formatAssetRegisterIsoDate(
-                  detailQuery.data.warrantyStartDate,
-              ),
-              warrantyEndDate: formatAssetRegisterIsoDate(
-                  detailQuery.data.warrantyEndDate,
-              ),
-              purchaseInvoice: detailQuery.data.purchaseInvoiceId ?? "—",
-              notes: detailQuery.data.specialNotes ?? "",
-              status: detailQuery.data.operationalStatus as FleetStatus,
-          }
+            id: detailQuery.data.id,
+            fleetCode: detailQuery.data.fleetCode,
+            assetClass: detailQuery.data.assetClassName,
+            vehicleName: detailQuery.data.assetClassName,
+            registrationNumber: detailQuery.data.registrationNumber,
+            odometerReading: `${detailQuery.data.odometer.toLocaleString("en-IN")} km`,
+            registrationStartDate: formatAssetRegisterIsoDate(
+                detailQuery.data.registrationStartDate,
+            ),
+            registrationEndDate: formatAssetRegisterIsoDate(
+                detailQuery.data.registrationEndDate,
+            ),
+            modelYear: String(detailQuery.data.modelYear),
+            chassisNumber: detailQuery.data.chassisNumber,
+            insuranceSupplier: "—",
+            insurancePremium: detailQuery.data.insurancePremium,
+            insuranceStartDate: formatAssetRegisterIsoDate(
+                detailQuery.data.insuranceStartDate,
+            ),
+            insuranceEndDate: formatAssetRegisterIsoDate(
+                detailQuery.data.insuranceEndDate,
+            ),
+            warrantyStartDate: formatAssetRegisterIsoDate(
+                detailQuery.data.warrantyStartDate,
+            ),
+            warrantyEndDate: formatAssetRegisterIsoDate(
+                detailQuery.data.warrantyEndDate,
+            ),
+            purchaseInvoice: detailQuery.data.purchaseInvoiceId ?? "—",
+            notes: detailQuery.data.specialNotes ?? "",
+            status: detailQuery.data.operationalStatus as FleetStatus,
+        }
         : undefined;
 
     const handleEdit = () => {
@@ -280,7 +280,7 @@ export default function FleetViewPage() {
                             <span
                                 className={[
                                     "rounded-full px-2 py-0.5",
-                                    "text-[10px] font-medium",
+                                    "text-[14px] font-medium",
                                     getStatusClass(asset.status),
                                 ].join(" ")}
                             >
@@ -289,7 +289,7 @@ export default function FleetViewPage() {
                         </div>
 
                         {/* Updated: Asset Class + Vehicle Name + Registration */}
-                        <p className="mt-0.5 text-[10px] text-gray-500">
+                        <p className="mt-0.5 text-[14px] text-gray-500">
                             {asset.assetClass} · {asset.vehicleName} ·{" "}
                             {asset.registrationNumber}
                         </p>
@@ -314,19 +314,19 @@ export default function FleetViewPage() {
                         {canUpdate && isInactive ? (
                             <Button
                                 type="button"
-                                variant="neutral"
+                                variant="primary"
                                 onClick={() => setShowActivateConfirm(true)}
                                 disabled={statusMutation.isPending}
-                                className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
+                                className="h-9"
                             >
                                 Activate
                             </Button>
                         ) : canUpdate ? (
                             <Button
                                 type="button"
-                                variant="neutral"
+                                variant="primary"
                                 onClick={() => setDeactivateOpen(true)}
-                                className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
+                                className="h-9"
                             >
                                 Deactivate
                             </Button>
@@ -457,7 +457,7 @@ export default function FleetViewPage() {
                         TCO
                     </h2>
 
-                    <p className="mb-3 mt-0.5 text-[10px] text-gray-500">
+                    <p className="mb-3 mt-0.5 text-[14px] text-gray-500">
                         Running costs plus every Work Order raised against
                         this vehicle — summed unconditionally, no comparative
                         view.
@@ -493,11 +493,11 @@ export default function FleetViewPage() {
                         {/* TCO Total */}
 
                         <div className="flex min-h-[30px] items-center border-t border-gray-200 px-3">
-                            <p className="w-1/2 text-[10px] font-semibold text-gray-700">
+                            <p className="w-1/2 text-[14px] font-semibold text-gray-700">
                                 TCO
                             </p>
 
-                            <p className="w-1/2 text-right text-[10px] font-bold text-gray-900">
+                            <p className="w-1/2 text-right text-[14px] font-bold text-gray-900">
                                 Rs. 83,000
                             </p>
                         </div>
@@ -513,13 +513,13 @@ export default function FleetViewPage() {
                         Accident &amp; Damage
                     </h2>
 
-                    <p className="mb-3 mt-0.5 text-[10px] text-gray-500">
+                    <p className="mb-3 mt-0.5 text-[14px] text-gray-500">
                         Read-only — logged and managed by Workshop.
                     </p>
 
                     {!asset.accidentDamage ? (
                         <div className="rounded-lg border border-gray-200 bg-white px-4 py-3">
-                            <p className="text-[10px] text-gray-500">
+                            <p className="text-[12px] text-gray-500">
                                 No accident or damage recorded for this vehicle.
                             </p>
                         </div>
@@ -664,11 +664,11 @@ function InfoRow({
 }) {
     return (
         <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
-            <p className="w-1/2 text-[10px] font-medium text-gray-400">
+            <p className="w-1/2 text-[12px] font-medium text-gray-400">
                 {label}
             </p>
 
-            <p className="w-1/2 text-right text-[10px] font-medium text-gray-800">
+            <p className="w-1/2 text-right text-[12px] font-medium text-gray-800">
                 {value}
             </p>
         </div>

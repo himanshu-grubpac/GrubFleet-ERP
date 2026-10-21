@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -10,9 +10,9 @@ import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
-  COMPLIANCE_RENEWAL_SAVE_ERROR,
-  showComplianceRenewalSavedToast,
-  showErrorToast,
+    COMPLIANCE_RENEWAL_SAVE_ERROR,
+    showComplianceRenewalSavedToast,
+    showErrorToast,
 } from "@/lib/toast/show-toast";
 import {
     fetchAssetRegisterComplianceDetailApi,
@@ -82,23 +82,27 @@ export default function RenewCompliancePage() {
 
     const vehicle: ComplianceVehicle | undefined = detailQuery.data
         ? {
-              id: detailQuery.data.vehicleId,
-              fleetCode: detailQuery.data.fleetCode,
-              assetClass: detailQuery.data.assetClassName,
-              registrationNumber: detailQuery.data.registrationNumber,
-              insuranceExpiry: formatAssetRegisterIsoDate(
-                  detailQuery.data.insuranceEndDate,
-              ),
-              registrationExpiry: formatAssetRegisterIsoDate(
-                  detailQuery.data.registrationEndDate,
-              ),
-              insuranceSupplier: "—",
-              contactPerson: "—",
-              phone: "—",
-              email: "—",
-          }
-        : undefined;
+            id: detailQuery.data.vehicleId,
+            fleetCode: detailQuery.data.fleetCode,
+            assetClass: detailQuery.data.assetClassName,
 
+            registrationNumber: detailQuery.data.registrationNumber,
+
+            registrationExpiry: formatAssetRegisterIsoDate(
+                detailQuery.data.registration?.endDate,
+            ),
+
+            insuranceExpiry: formatAssetRegisterIsoDate(
+                detailQuery.data.insurance?.endDate,
+            ),
+
+            // Keep your other existing fields unchanged.
+            insuranceSupplier: "-",
+            contactPerson: "-",
+            phone: "-",
+            email: "-",
+        }
+        : undefined;
     const renewMutation = useMutation({
         mutationFn: async (input: {
             endDate: string;
@@ -111,14 +115,22 @@ export default function RenewCompliancePage() {
                 renewalType === "Insurance"
                     ? "insurance"
                     : renewalType === "Registration"
-                      ? "registration"
-                      : "warranty";
+                        ? "registration"
+                        : "warranty";
+
             const startDate =
                 renewalType === "Insurance"
-                    ? detailQuery.data.insuranceStartDate
+                    ? detailQuery.data.insurance?.startDate
                     : renewalType === "Registration"
-                      ? detailQuery.data.registrationStartDate
-                      : detailQuery.data.warrantyStartDate;
+                        ? detailQuery.data.registration?.startDate
+                        : detailQuery.data.warranty?.startDate;
+
+            if (!startDate) {
+                throw new Error(
+                    `A valid start date is missing for ${renewalType.toLowerCase()}.`,
+                );
+            }
+
             return renewAssetRegisterComplianceApi({
                 token,
                 organizationId,
@@ -159,9 +171,13 @@ export default function RenewCompliancePage() {
 
     const [isSaving, setIsSaving] =
         useState(false);
+    const isSubmittingRef = useRef(false);
 
     const [error, setError] =
         useState("");
+
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+    const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
     /* ---------------------------------------------------------------------- */
     /* Input Classes                                                          */
@@ -173,20 +189,81 @@ export default function RenewCompliancePage() {
     const selectClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
-    const canSubmit = useMemo(() => {
-        if (isSaving) {
-            return false;
-        }
+    const validateForm = (): Record<string, string> => {
+        const errors: Record<string, string> = {};
+        const endDate = parseRenewalEndDate(newExpiryDate);
+
         if (!newExpiryDate.trim()) {
-            return false;
+            errors.endDate = "New expiry date is required.";
+        } else if (
+            !endDate ||
+            Number.isNaN(Date.parse(`${endDate}T00:00:00Z`)) ||
+            new Date(`${endDate}T00:00:00Z`).toISOString().slice(0, 10) !== endDate
+        ) {
+            errors.endDate = "Enter a valid date in YYYY-MM-DD format.";
         }
+
         if (renewalType === "Insurance") {
-            if (!premium.trim() || !policyNumber.trim()) {
-                return false;
+            if (!premium.trim()) {
+                errors.premium = "Premium is required.";
+            } else {
+                const premiumValue = Number(premium.replace(/[^\d.]/g, ""));
+                if (!Number.isFinite(premiumValue) || premiumValue < 0) {
+                    errors.premium = "Enter a valid, non-negative premium.";
+                }
+            }
+
+            if (!policyNumber.trim()) {
+                errors.policyNumber = "Policy number is required.";
             }
         }
-        return parseRenewalEndDate(newExpiryDate) !== null;
-    }, [isSaving, newExpiryDate, renewalType, premium, policyNumber]);
+
+        if (!organizationId) {
+            errors.organizationId = "Organization ID is missing.";
+        } else if (
+            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId)
+        ) {
+            errors.organizationId = "Organization ID must be a valid UUID.";
+        }
+
+        const startDate =
+            renewalType === "Insurance"
+                ? detailQuery.data?.insurance?.startDate
+                : renewalType === "Registration"
+                    ? detailQuery.data?.registration?.startDate
+                    : detailQuery.data?.warranty?.startDate;
+
+        if (!startDate) {
+            errors.startDate = `A valid start date is missing for ${renewalType.toLowerCase()}.`;
+        } else if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+            Number.isNaN(Date.parse(`${startDate}T00:00:00Z`)) ||
+            new Date(`${startDate}T00:00:00Z`).toISOString().slice(0, 10) !== startDate
+        ) {
+            errors.startDate = "The existing start date is invalid.";
+        }
+
+        return errors;
+    };
+
+    const liveErrors = useMemo(() => validateForm(), [
+        newExpiryDate,
+        renewalType,
+        premium,
+        policyNumber,
+        organizationId,
+        detailQuery.data,
+    ]);
+    const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
+    const validationSummary = Object.values(displayedErrors).filter(
+        (message): message is string => Boolean(message),
+    );
+
+    const getInputClassName = (field: string) =>
+        `h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition ${displayedErrors[field]
+            ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
+            : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+        }`;
 
     /* ---------------------------------------------------------------------- */
     /* Cancel                                                                 */
@@ -203,28 +280,22 @@ export default function RenewCompliancePage() {
     /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
+        if (isSubmittingRef.current) return;
+        isSubmittingRef.current = true;
+        setHasAttemptedSubmit(true);
         setError("");
 
-        if (!newExpiryDate.trim()) {
-            setError("New expiry date is required.");
+        const errors = validateForm();
+        setValidationErrors(errors);
+
+        if (Object.keys(errors).length > 0) {
+            isSubmittingRef.current = false;
             return;
-        }
-
-        if (renewalType === "Insurance") {
-            if (!premium.trim()) {
-                setError("Premium is required.");
-                return;
-            }
-
-            if (!policyNumber.trim()) {
-                setError("Policy number is required.");
-                return;
-            }
         }
 
         const endDate = parseRenewalEndDate(newExpiryDate);
         if (!endDate) {
-            setError("Enter new expiry as YYYY-MM-DD.");
+            isSubmittingRef.current = false;
             return;
         }
 
@@ -234,18 +305,15 @@ export default function RenewCompliancePage() {
                 renewalType === "Insurance"
                     ? Number(premium.replace(/[^\d.]/g, ""))
                     : undefined;
+
             await renewMutation.mutateAsync({
                 endDate,
-                premium:
-                    premiumValue !== undefined && !Number.isNaN(premiumValue)
-                        ? premiumValue
-                        : undefined,
+                premium: premiumValue,
             });
         } catch {
-            setError(
-                "Failed to save renewal. Please try again.",
-            );
+            setError("Failed to save renewal. Please try again.");
         } finally {
+            isSubmittingRef.current = false;
             setIsSaving(false);
         }
     };
@@ -281,27 +349,39 @@ export default function RenewCompliancePage() {
                 title={`Renew ${vehicle.fleetCode}`}
                 description="Insurance and registration are tracked and renewed independently."
                 actions={
-                    <>
-                        <button
-                            type="button"
-                            onClick={handleCancel}
-                            disabled={isSaving}
-                            className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                        >
-                            Cancel
-                        </button>
+                    <div className="flex w-full flex-col gap-4">
+                        {hasAttemptedSubmit && validationSummary.length > 0 && (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                className="w-full text-xs leading-5 text-red-600"
+                            >
+                                <span className="font-semibold">Please fix:</span>{" "}
+                                {validationSummary.join(" | ")}
+                            </div>
+                        )}
+                        <div className="flex items-center justify-end gap-3">
+                            <button
+                                type="button"
+                                onClick={handleCancel}
+                                disabled={isSaving}
+                                className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
 
-                        <Button
-                            type="button"
-                            onClick={handleSave}
-                            disabled={!canSubmit}
-                            className="h-10 px-5"
-                        >
-                            {isSaving
-                                ? "Saving..."
-                                : "Save renewal"}
-                        </Button>
-                    </>
+                            <Button
+                                type="button"
+                                onClick={handleSave}
+                                disabled={isSaving}
+                                className="h-10 px-5"
+                            >
+                                {isSaving
+                                    ? "Saving..."
+                                    : "Save renewal"}
+                            </Button>
+                        </div>
+                    </div>
                 }
             >
                 {/* ============================================================ */}
@@ -405,6 +485,7 @@ export default function RenewCompliancePage() {
                                             event.target.value as RenewalType,
                                         );
                                         setError("");
+                                        setValidationErrors({});
                                     }}
                                     className={selectClassName}
                                 >
@@ -438,17 +519,20 @@ export default function RenewCompliancePage() {
                                     value={
                                         newExpiryDate
                                     }
-                                    onChange={(event) =>
-                                        setNewExpiryDate(
-                                            event.target
-                                                .value,
-                                        )
-                                    }
+                                    onChange={(event) => {
+                                        setNewExpiryDate(event.target.value);
+                                        setValidationErrors((previous) => {
+                                            const next = { ...previous };
+                                            delete next.endDate;
+                                            return next;
+                                        });
+                                    }}
                                     placeholder="YYYY-MM-DD"
-                                    className={
-                                        inputClassName
-                                    }
+                                    className={getInputClassName("endDate")}
                                 />
+                                {displayedErrors.endDate && (
+                                    <p className="mt-1 text-xs text-red-500">{displayedErrors.endDate}</p>
+                                )}
                             </div>
 
                             {/* Insurance-only fields */}
@@ -470,20 +554,20 @@ export default function RenewCompliancePage() {
                                                 id="premium"
                                                 type="text"
                                                 value={premium}
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    setPremium(
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
+                                                onChange={(event) => {
+                                                    setPremium(event.target.value);
+                                                    setValidationErrors((previous) => {
+                                                        const next = { ...previous };
+                                                        delete next.premium;
+                                                        return next;
+                                                    });
+                                                }}
                                                 placeholder="e.g. Rs. 3,400/yr"
-                                                className={
-                                                    inputClassName
-                                                }
+                                                className={getInputClassName("premium")}
                                             />
+                                            {displayedErrors.premium && (
+                                                <p className="mt-1 text-xs text-red-500">{displayedErrors.premium}</p>
+                                            )}
                                         </div>
 
                                         {/* Policy number */}
@@ -502,20 +586,20 @@ export default function RenewCompliancePage() {
                                                 value={
                                                     policyNumber
                                                 }
-                                                onChange={(
-                                                    event,
-                                                ) =>
-                                                    setPolicyNumber(
-                                                        event
-                                                            .target
-                                                            .value,
-                                                    )
-                                                }
+                                                onChange={(event) => {
+                                                    setPolicyNumber(event.target.value);
+                                                    setValidationErrors((previous) => {
+                                                        const next = { ...previous };
+                                                        delete next.policyNumber;
+                                                        return next;
+                                                    });
+                                                }}
                                                 placeholder="Reference number"
-                                                className={
-                                                    inputClassName
-                                                }
+                                                className={getInputClassName("policyNumber")}
                                             />
+                                            {displayedErrors.policyNumber && (
+                                                <p className="mt-1 text-xs text-red-500">{displayedErrors.policyNumber}</p>
+                                            )}
                                         </div>
                                     </>
                                 )}

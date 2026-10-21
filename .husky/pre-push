@@ -1,6 +1,7 @@
 # Husky v9+ — no husky.sh (removed before v10). Skip: SKIP_PREPUSH=1 or HUSKY=0
-if [ -n "$SKIP_PREPUSH" ]; then
-  echo "SKIP_PREPUSH set — skipping local CI gate"
+# CI_LOCAL_RAN=1 — you already passed `npm run ci:local` in this session (avoids duplicate ~10min gate).
+if [ -n "$SKIP_PREPUSH" ] || [ -n "$CI_LOCAL_RAN" ]; then
+  echo "Pre-push CI gate skipped (SKIP_PREPUSH or CI_LOCAL_RAN)."
   exit 0
 fi
 

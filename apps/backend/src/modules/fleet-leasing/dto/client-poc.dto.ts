@@ -7,6 +7,7 @@ import {
   IsUUID,
   MaxLength,
 } from 'class-validator';
+import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
 
 export class ClientPocDto {
   @ApiPropertyOptional({ description: 'Set when updating an existing POC row' })
@@ -22,6 +23,7 @@ export class ClientPocDto {
   @ApiProperty()
   @IsString()
   @MaxLength(32)
+  @IsValidPhone()
   contactNumber!: string;
 
   @ApiProperty()

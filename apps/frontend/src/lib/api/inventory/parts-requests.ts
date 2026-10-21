@@ -1,5 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 function orgHeaders(organizationId: string, token: string) {
   return {
@@ -28,7 +30,7 @@ export type PartsRequestDetail = PartsRequestListItem & {
   compatibilityOk: boolean;
 };
 
-export type ListPartsRequestsParams = {
+export type ListPartsRequestsParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -46,6 +48,7 @@ export async function fetchPartsRequestsListApi(
   if (params.pageSize) query.set("pageSize", String(params.pageSize));
   if (params.search?.trim()) query.set("search", params.search.trim());
   if (params.requestStatus) query.set("requestStatus", params.requestStatus);
+  appendListSortSearchParams(query, params);
 
   return apiFetch<PaginatedResponse<PartsRequestListItem>>(
     `/inventory/parts-requests?${query.toString()}`,

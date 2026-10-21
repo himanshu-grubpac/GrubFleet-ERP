@@ -12,7 +12,20 @@ import {
   ne,
   or,
   sql,
+  type AnyColumn,
 } from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../../common/utils/list-sort.util';
+import {
+  FINANCE_INVENTORY_PART_LIST_DEFAULT_SORT,
+  type FinanceInventoryPartListSortField,
+  INVOICE_LIST_DEFAULT_SORT,
+  type InvoiceListSortField,
+  VENDOR_PAYMENT_LIST_DEFAULT_SORT,
+  type VendorPaymentListSortField,
+} from '../constants/finance-list-sort.constants';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
 import {
@@ -30,6 +43,30 @@ import {
   type FinanceInvoiceStatus,
   type FinanceInvoiceType,
 } from '../constants/invoice.constants';
+
+const INVOICE_LIST_SORT_COLUMNS: Record<InvoiceListSortField, AnyColumn> = {
+  invoiceDate: financeInvoices.invoiceDate,
+  invoiceNumber: financeInvoices.invoiceNumber,
+  status: financeInvoices.status,
+  createdAt: financeInvoices.createdAt,
+};
+
+const VENDOR_PAYMENT_LIST_SORT_COLUMNS: Record<
+  VendorPaymentListSortField,
+  AnyColumn
+> = {
+  paymentDate: financeInvoicePayments.paymentDate,
+  paymentNumber: financeInvoicePayments.paymentNumber,
+  createdAt: financeInvoicePayments.createdAt,
+};
+
+const FINANCE_INVENTORY_PART_LIST_SORT_COLUMNS: Record<
+  FinanceInventoryPartListSortField,
+  AnyColumn
+> = {
+  name: inventoryCatalogParts.name,
+  sku: inventoryCatalogParts.partCode,
+};
 
 export type InvoiceRow = typeof financeInvoices.$inferSelect;
 export type InvoiceLineRow = typeof financeInvoiceLines.$inferSelect;
@@ -149,6 +186,7 @@ export class FinanceRepository {
       search?: string;
       status?: FinanceInvoiceStatus;
       invoiceType?: FinanceInvoiceType;
+      sort?: ResolvedListSort<InvoiceListSortField>;
     },
   ) {
     const conditions = [eq(financeInvoices.organizationId, organizationId)];
@@ -186,7 +224,13 @@ export class FinanceRepository {
       .select()
       .from(financeInvoices)
       .where(where)
-      .orderBy(desc(financeInvoices.invoiceDate), desc(financeInvoices.id))
+      .orderBy(
+        ...buildListOrderBy(
+          INVOICE_LIST_SORT_COLUMNS,
+          filters.sort ?? INVOICE_LIST_DEFAULT_SORT,
+          financeInvoices.id,
+        ),
+      )
       .limit(pageSize)
       .offset((page - 1) * pageSize);
 
@@ -348,6 +392,7 @@ export class FinanceRepository {
     page: number,
     pageSize: number,
     search?: string,
+    sort?: ResolvedListSort<FinanceInventoryPartListSortField>,
   ) {
     const conditions = [
       eq(inventoryCatalogParts.organizationId, organizationId),
@@ -376,7 +421,13 @@ export class FinanceRepository {
       .select()
       .from(inventoryCatalogParts)
       .where(where)
-      .orderBy(inventoryCatalogParts.name)
+      .orderBy(
+        ...buildListOrderBy(
+          FINANCE_INVENTORY_PART_LIST_SORT_COLUMNS,
+          sort ?? FINANCE_INVENTORY_PART_LIST_DEFAULT_SORT,
+          inventoryCatalogParts.id,
+        ),
+      )
       .limit(pageSize)
       .offset((page - 1) * pageSize);
 
@@ -508,20 +559,42 @@ export class FinanceRepository {
     clientId: string,
     periodStart: string,
     periodEnd: string,
-  ): Promise<InvoiceRow[]> {
-    return this.db
-      .select()
-      .from(financeInvoices)
-      .where(
-        and(
-          eq(financeInvoices.organizationId, organizationId),
-          eq(financeInvoices.invoiceType, 'billing'),
-          eq(financeInvoices.clientId, clientId),
-          gte(financeInvoices.invoiceDate, periodStart),
-          lte(financeInvoices.invoiceDate, periodEnd),
-        ),
-      )
-      .orderBy(desc(financeInvoices.invoiceDate), desc(financeInvoices.id));
+    pagination?: { page: number; pageSize: number },
+  ): Promise<{ rows: InvoiceRow[]; total: number }> {
+    const where = and(
+      eq(financeInvoices.organizationId, organizationId),
+      eq(financeInvoices.invoiceType, 'billing'),
+      eq(financeInvoices.clientId, clientId),
+      gte(financeInvoices.invoiceDate, periodStart),
+      lte(financeInvoices.invoiceDate, periodEnd),
+    );
+    const order = [
+      desc(financeInvoices.invoiceDate),
+      desc(financeInvoices.id),
+    ] as const;
+    if (!pagination) {
+      const rows = await this.db
+        .select()
+        .from(financeInvoices)
+        .where(where)
+        .orderBy(...order);
+      return { rows, total: rows.length };
+    }
+    const offset = (pagination.page - 1) * pagination.pageSize;
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select()
+        .from(financeInvoices)
+        .where(where)
+        .orderBy(...order)
+        .limit(pagination.pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(financeInvoices)
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
   }
 
   async allocateVendorPaymentNumber(
@@ -564,6 +637,7 @@ export class FinanceRepository {
     page: number,
     pageSize: number,
     search?: string,
+    sort?: ResolvedListSort<VendorPaymentListSortField>,
   ) {
     const baseConditions = [
       eq(financeInvoicePayments.organizationId, organizationId),
@@ -607,9 +681,11 @@ export class FinanceRepository {
       )
       .where(where)
       .orderBy(
-        desc(financeInvoicePayments.paymentDate),
-        desc(financeInvoicePayments.createdAt),
-        desc(financeInvoicePayments.id),
+        ...buildListOrderBy(
+          VENDOR_PAYMENT_LIST_SORT_COLUMNS,
+          sort ?? VENDOR_PAYMENT_LIST_DEFAULT_SORT,
+          financeInvoicePayments.id,
+        ),
       )
       .limit(pageSize)
       .offset((page - 1) * pageSize);

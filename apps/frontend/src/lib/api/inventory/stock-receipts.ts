@@ -1,5 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 function orgHeaders(organizationId: string, token: string) {
   return {
@@ -58,7 +60,7 @@ export type UpdateStockReceiptPayload = Partial<
   Omit<CreateStockReceiptPayload, "organizationId" | "partId">
 >;
 
-export type ListStockReceiptsParams = {
+export type ListStockReceiptsParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -76,6 +78,7 @@ export async function fetchStockReceiptsListApi(
   if (params.pageSize) query.set("pageSize", String(params.pageSize));
   if (params.search?.trim()) query.set("search", params.search.trim());
   if (params.status) query.set("status", params.status);
+  appendListSortSearchParams(query, params);
 
   return apiFetch<PaginatedResponse<StockReceiptListItem>>(
     `/inventory/stock-receipts?${query.toString()}`,

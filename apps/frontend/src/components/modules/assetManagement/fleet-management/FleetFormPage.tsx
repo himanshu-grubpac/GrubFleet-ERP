@@ -1,22 +1,32 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { useAuth } from "@/providers/auth-provider";
+import {
+    validateRequired,
+    hasValidationErrors,
+    type ValidationErrors,
+} from "@/components/common/Commonvalidation";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
-  fetchAssetRegisterAssetClassApi,
-  fetchAssetRegisterAssetClassesApi,
+    fetchAssetRegisterAssetClassApi,
+    fetchAssetRegisterAssetClassesApi,
 } from "@/lib/api/asset-register/asset-classes";
 import {
-  formatMileageRangeFromSpec,
-  formatRatedLoadRange,
-  mapAssetRegisterVehicleTypeToUiLabel,
+    formatMileageRangeFromSpec,
+    formatRatedLoadRange,
+    mapAssetRegisterVehicleTypeToUiLabel,
 } from "@/lib/api/asset-register/mappers";
+import FormActions from "@/components/common/FormActions";
+import {
+    getVehicleRegistrationValidationError,
+    normalizeVehicleRegistrationNumber,
+} from "@grubpac/validation";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -36,7 +46,6 @@ export type FleetVehicleFormData = {
     registrationStartDate: string;
     registrationEndDate: string;
 
-    insuranceSupplier: string;
     insurancePremium: string;
     insuranceStartDate: string;
     insuranceEndDate: string;
@@ -63,34 +72,6 @@ type AssetClass = {
 
     defaultIntakeChecklist: string;
 };
-
-type InsuranceSupplier = {
-    id: string;
-    name: string;
-};
-
-/* -------------------------------------------------------------------------- */
-/* Mock data                                                                  */
-/* -------------------------------------------------------------------------- */
-
-/* -------------------------------------------------------------------------- */
-/* Insurance suppliers                                                        */
-/* -------------------------------------------------------------------------- */
-
-const INSURANCE_SUPPLIERS: InsuranceSupplier[] = [
-    {
-        id: "insurance-001",
-        name: "ICICI Lombard",
-    },
-    {
-        id: "insurance-002",
-        name: "HDFC ERGO",
-    },
-    {
-        id: "insurance-003",
-        name: "Bajaj Allianz",
-    },
-];
 
 /* -------------------------------------------------------------------------- */
 /* Props                                                                      */
@@ -184,9 +165,6 @@ export default function CreateFleetVehicleForm({
         registrationEndDate:
             initialData?.registrationEndDate ?? "",
 
-        insuranceSupplier:
-            initialData?.insuranceSupplier ?? "",
-
         insurancePremium:
             initialData?.insurancePremium ?? "",
 
@@ -208,6 +186,9 @@ export default function CreateFleetVehicleForm({
 
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+    const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
+    const isSubmittingRef = useRef(false);
 
     const selectedAssetClass = assetClassOptions.find(
         (item) => item.id === form.assetClassId,
@@ -256,6 +237,13 @@ export default function CreateFleetVehicleForm({
         }));
 
         setError("");
+        const field = key as keyof FleetVehicleFormData;
+        setValidationErrors((previous) => {
+            if (!previous[field]) return previous;
+            const next = { ...previous };
+            delete next[field];
+            return next;
+        });
     };
 
     /* ---------------------------------------------------------------------- */
@@ -275,181 +263,108 @@ export default function CreateFleetVehicleForm({
     /* Save                                                                   */
     /* ---------------------------------------------------------------------- */
 
+    const validateForm = (): ValidationErrors => {
+        const errors: ValidationErrors = {};
+        const requiredFields: Array<[keyof FleetVehicleFormData, string]> = [
+            ["assetClassId", "Asset class"],
+            ["registrationNumber", "Registration number"],
+            ["chassisNumber", "Chassis number"],
+            ["modelYear", "Model year"],
+            ["odometerReading", "Odometer reading"],
+            ["registrationStartDate", "Registration start date"],
+            ["registrationEndDate", "Registration end date"],
+            ["insurancePremium", "Insurance premium"],
+            ["insuranceStartDate", "Insurance start date"],
+            ["insuranceEndDate", "Insurance end date"],
+            ["warrantyStartDate", "Warranty start date"],
+            ["warrantyEndDate", "Warranty end date"],
+        ];
+
+        for (const [field, label] of requiredFields) {
+            const message = validateRequired(String(form[field] ?? ""), label);
+            if (message) errors[field] = message;
+        }
+
+        if (form.registrationNumber.trim()) {
+            const regError = getVehicleRegistrationValidationError(
+                form.registrationNumber,
+            );
+            if (regError) errors.registrationNumber = regError;
+        }
+
+        if (form.modelYear.trim()) {
+            const year = Number(form.modelYear.trim());
+
+            if (!/^\d{4}$/.test(form.modelYear.trim()) || year < 1900 || year > 2100) {
+                errors.modelYear = "Enter a valid model year between 1900 and 2100.";
+            }
+        }
+        if (form.odometerReading.trim()) {
+            const reading = Number(form.odometerReading);
+            if (!Number.isFinite(reading) || reading < 0) errors.odometerReading = "Odometer reading must be a non-negative number.";
+        }
+        if (form.insurancePremium.trim()) {
+            const premium = Number(form.insurancePremium);
+            if (!Number.isFinite(premium) || premium < 0) errors.insurancePremium = "Insurance premium must be a non-negative number.";
+        }
+        if (form.registrationStartDate && form.registrationEndDate && form.registrationStartDate > form.registrationEndDate) {
+            errors.registrationEndDate = "Registration end date cannot be before registration start date.";
+        }
+        if (form.insuranceStartDate && form.insuranceEndDate && form.insuranceStartDate > form.insuranceEndDate) {
+            errors.insuranceEndDate = "Insurance end date cannot be before insurance start date.";
+        }
+        if (form.warrantyStartDate && form.warrantyEndDate && form.warrantyStartDate > form.warrantyEndDate) {
+            errors.warrantyEndDate = "Warranty end date cannot be before warranty start date.";
+        }
+        return errors;
+    };
+
+    const liveErrors = useMemo(() => validateForm(), [form]);
+    const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
+    const validationSummary = Object.values(displayedErrors).filter(
+        (message): message is string => Boolean(message),
+    );
+
     const handleSave = async () => {
+        if (isSubmittingRef.current) return;
         setError("");
+        setHasAttemptedSubmit(true);
+        const errors = validateForm();
+        setValidationErrors(errors);
+        if (hasValidationErrors(errors)) return;
 
-        if (!form.assetClassId) {
-            setError("Asset class is required.");
-            return;
-        }
-
-        if (!form.registrationNumber.trim()) {
-            setError("Registration number is required.");
-            return;
-        }
-
-        if (!form.chassisNumber.trim()) {
-            setError("Chassis number is required.");
-            return;
-        }
-
-        if (!form.modelYear.trim()) {
-            setError("Model year is required.");
-            return;
-        }
-
-        if (!form.odometerReading.trim()) {
-            setError("Odometer reading is required.");
-            return;
-        }
-
-        /* Registration dates */
-
-        if (!form.registrationStartDate) {
-            setError("Registration start date is required.");
-            return;
-        }
-
-        if (!form.registrationEndDate) {
-            setError("Registration end date is required.");
-            return;
-        }
-
-        if (
-            form.registrationStartDate >
-            form.registrationEndDate
-        ) {
-            setError(
-                "Registration start date cannot be after registration end date.",
-            );
-            return;
-        }
-
-        /* Insurance */
-
-        if (!form.insuranceSupplier) {
-            setError("Insurance supplier is required.");
-            return;
-        }
-
-        if (!form.insurancePremium.trim()) {
-            setError("Insurance premium is required.");
-            return;
-        }
-
-        if (!form.insuranceStartDate) {
-            setError("Insurance start date is required.");
-            return;
-        }
-
-        if (!form.insuranceEndDate) {
-            setError("Insurance end date is required.");
-            return;
-        }
-
-        if (
-            form.insuranceStartDate >
-            form.insuranceEndDate
-        ) {
-            setError(
-                "Insurance start date cannot be after insurance end date.",
-            );
-            return;
-        }
-
-        /* Warranty */
-
-        if (!form.warrantyStartDate) {
-            setError("Warranty start date is required.");
-            return;
-        }
-
-        if (!form.warrantyEndDate) {
-            setError("Warranty end date is required.");
-            return;
-        }
-
-        if (
-            form.warrantyStartDate >
-            form.warrantyEndDate
-        ) {
-            setError(
-                "Warranty start date cannot be after warranty end date.",
-            );
-            return;
-        }
-
+        isSubmittingRef.current = true;
         try {
             setIsSaving(true);
-
             const vehicle: FleetVehicleFormData = {
-                assetClassId:
-                    form.assetClassId.trim(),
-                vehicleName:
-                    form.vehicleName.trim(),
-
-                purchaseInvoiceId:
-                    form.purchaseInvoiceId.trim(),
-
-                registrationNumber:
-                    form.registrationNumber.trim(),
-
-                chassisNumber:
-                    form.chassisNumber.trim(),
-
-                modelYear:
-                    form.modelYear.trim(),
-
-                odometerReading:
-                    form.odometerReading.trim(),
-
-                registrationStartDate:
-                    form.registrationStartDate,
-
-                registrationEndDate:
-                    form.registrationEndDate,
-
-                insuranceSupplier:
-                    form.insuranceSupplier.trim(),
-
-                insurancePremium:
-                    form.insurancePremium.trim(),
-
-                insuranceStartDate:
-                    form.insuranceStartDate,
-
-                insuranceEndDate:
-                    form.insuranceEndDate,
-
-                warrantyStartDate:
-                    form.warrantyStartDate,
-
-                warrantyEndDate:
-                    form.warrantyEndDate,
-
-                notes:
-                    form.notes.trim(),
+                assetClassId: form.assetClassId.trim(),
+                vehicleName: form.vehicleName.trim(),
+                purchaseInvoiceId: form.purchaseInvoiceId.trim(),
+                registrationNumber: normalizeVehicleRegistrationNumber(
+                    form.registrationNumber,
+                ),
+                chassisNumber: form.chassisNumber.trim(),
+                modelYear: form.modelYear.trim(),
+                odometerReading: form.odometerReading.trim(),
+                registrationStartDate: form.registrationStartDate,
+                registrationEndDate: form.registrationEndDate,
+                insurancePremium: form.insurancePremium.trim(),
+                insuranceStartDate: form.insuranceStartDate,
+                insuranceEndDate: form.insuranceEndDate,
+                warrantyStartDate: form.warrantyStartDate,
+                warrantyEndDate: form.warrantyEndDate,
+                notes: form.notes.trim(),
             };
-
-            if (onSaved) {
-                await onSaved(vehicle);
-            } else {
-                router.push(
-                    "/asset-register/fleetregister",
-                );
-            }
+            if (onSaved) await onSaved(vehicle);
+            else router.push("/asset-register/fleetregister");
         } catch {
-            setError(
-                isEditMode
-                    ? "Failed to update vehicle."
-                    : "Failed to add vehicle.",
-            );
+            setError(isEditMode ? "Failed to update vehicle." : "Failed to add vehicle.");
         } finally {
+            isSubmittingRef.current = false;
             setIsSaving(false);
         }
     };
 
-    /* ---------------------------------------------------------------------- */
     /* Input classes                                                          */
     /* ---------------------------------------------------------------------- */
 
@@ -459,35 +374,7 @@ export default function CreateFleetVehicleForm({
     const selectClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
-    const canSubmit = useMemo(() => {
-        if (isSaving) {
-            return false;
-        }
-        if (
-            !form.assetClassId ||
-            !form.registrationNumber.trim() ||
-            !form.chassisNumber.trim() ||
-            !form.modelYear.trim() ||
-            !form.odometerReading.trim() ||
-            !form.registrationStartDate ||
-            !form.registrationEndDate ||
-            form.registrationStartDate > form.registrationEndDate ||
-            !form.insuranceSupplier ||
-            !form.insurancePremium.trim() ||
-            !form.insuranceStartDate ||
-            !form.insuranceEndDate ||
-            form.insuranceStartDate > form.insuranceEndDate ||
-            !form.warrantyStartDate ||
-            !form.warrantyEndDate ||
-            form.warrantyStartDate > form.warrantyEndDate
-        ) {
-            return false;
-        }
-        return true;
-    }, [form, isSaving]);
-
-    /* ---------------------------------------------------------------------- */
-    /* UI                                                                     */
+    const canSubmit = !isSaving;    /* UI                                                                     */
     /* ---------------------------------------------------------------------- */
 
     return (
@@ -503,29 +390,16 @@ export default function CreateFleetVehicleForm({
                     : "Add a vehicle to the Fleet Register by selecting an asset class (spec is loaded from the class)."
             }
             actions={
-                <>
-                    <button
-                        type="button"
-                        onClick={handleCancel}
-                        disabled={isSaving}
-                        className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        Cancel
-                    </button>
-
-                    <Button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={!canSubmit}
-                        className="h-10 px-5"
-                    >
-                        {isSaving
-                            ? "Saving..."
-                            : isEditMode
-                                ? "Save changes"
-                                : "Add"}
-                    </Button>
-                </>
+                <FormActions
+                    hasAttemptedSubmit={hasAttemptedSubmit}
+                    validationSummary={validationSummary}
+                    isSaving={isSaving}
+                    canSubmit={canSubmit}
+                    onCancel={handleCancel}
+                    onSave={handleSave}
+                    saveLabel={isEditMode ? "Save changes" : "Add"}
+                    savingLabel="Saving..."
+                />
             }
         >
             {/* ============================================================ */}
@@ -565,6 +439,11 @@ export default function CreateFleetVehicleForm({
                         </option>
                     ))}
                 </select>
+                {displayedErrors.assetClassId && (
+                    <p className="mt-1 text-xs text-red-600" role="alert">
+                        {displayedErrors.assetClassId}
+                    </p>
+                )}
             </div>
 
             {/* ============================================================ */}
@@ -670,6 +549,11 @@ export default function CreateFleetVehicleForm({
                         placeholder="e.g. MH04 AB 1011"
                         className={inputClassName}
                     />
+                    {displayedErrors.registrationNumber && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.registrationNumber}
+                        </p>
+                    )}
                 </div>
 
                 <div>
@@ -697,6 +581,11 @@ export default function CreateFleetVehicleForm({
                         placeholder="e.g. 12500"
                         className={inputClassName}
                     />
+                    {displayedErrors.odometerReading && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.odometerReading}
+                        </p>
+                    )}
                 </div>
             </div>
 
@@ -729,6 +618,11 @@ export default function CreateFleetVehicleForm({
                         }
                         className={inputClassName}
                     />
+                    {displayedErrors.registrationStartDate && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.registrationStartDate}
+                        </p>
+                    )}
                 </div>
 
                 <div>
@@ -754,6 +648,11 @@ export default function CreateFleetVehicleForm({
                         }
                         className={inputClassName}
                     />
+                    {displayedErrors.registrationEndDate && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.registrationEndDate}
+                        </p>
+                    )}
                 </div>
 
             </div>
@@ -790,6 +689,11 @@ export default function CreateFleetVehicleForm({
                         placeholder="e.g. 2026"
                         className={inputClassName}
                     />
+                    {displayedErrors.modelYear && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.modelYear}
+                        </p>
+                    )}
                 </div>
 
                 <div>
@@ -816,54 +720,20 @@ export default function CreateFleetVehicleForm({
                         placeholder="e.g. MD2A1XX..."
                         className={inputClassName}
                     />
+                    {displayedErrors.chassisNumber && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.chassisNumber}
+                        </p>
+                    )}
                 </div>
 
             </div>
 
             {/* ============================================================ */}
-            {/* INSURANCE SUPPLIER + INSURANCE PREMIUM                       */}
+            {/* INSURANCE PREMIUM                                            */}
             {/* ============================================================ */}
 
-            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-
-                <div>
-                    <label
-                        htmlFor="insurance-supplier"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
-                        Insurance supplier
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
-                    </label>
-
-                    <select
-                        id="insurance-supplier"
-                        value={form.insuranceSupplier}
-                        onChange={(event) =>
-                            updateForm(
-                                "insuranceSupplier",
-                                event.target.value,
-                            )
-                        }
-                        className={selectClassName}
-                    >
-                        <option value="">
-                            Select insurance supplier
-                        </option>
-
-                        {INSURANCE_SUPPLIERS.map(
-                            (supplier) => (
-                                <option
-                                    key={supplier.id}
-                                    value={supplier.id}
-                                >
-                                    {supplier.name}
-                                </option>
-                            ),
-                        )}
-                    </select>
-                </div>
+            <div className="mt-4">
 
                 <div>
                     <label
@@ -897,6 +767,11 @@ export default function CreateFleetVehicleForm({
                             placeholder="e.g. 3200"
                             className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-gray-900 outline-none"
                         />
+                        {displayedErrors.insurancePremium && (
+                            <p className="mt-1 text-xs text-red-600" role="alert">
+                                {displayedErrors.insurancePremium}
+                            </p>
+                        )}
 
                     </div>
                 </div>
@@ -932,6 +807,11 @@ export default function CreateFleetVehicleForm({
                         }
                         className={inputClassName}
                     />
+                    {displayedErrors.insuranceStartDate && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.insuranceStartDate}
+                        </p>
+                    )}
                 </div>
 
                 <div>
@@ -957,6 +837,11 @@ export default function CreateFleetVehicleForm({
                         }
                         className={inputClassName}
                     />
+                    {displayedErrors.insuranceEndDate && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.insuranceEndDate}
+                        </p>
+                    )}
                 </div>
 
             </div>
@@ -990,6 +875,11 @@ export default function CreateFleetVehicleForm({
                         }
                         className={inputClassName}
                     />
+                    {displayedErrors.warrantyStartDate && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.warrantyStartDate}
+                        </p>
+                    )}
                 </div>
 
                 <div>
@@ -1015,6 +905,11 @@ export default function CreateFleetVehicleForm({
                         }
                         className={inputClassName}
                     />
+                    {displayedErrors.warrantyEndDate && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.warrantyEndDate}
+                        </p>
+                    )}
                 </div>
 
             </div>

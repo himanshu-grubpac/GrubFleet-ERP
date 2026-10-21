@@ -11,6 +11,7 @@ import {
   notInArray,
   or,
   sql,
+  type AnyColumn,
 } from 'drizzle-orm';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
@@ -20,6 +21,7 @@ import {
   fleetClients,
   fleetDamageRecords,
   fleetReturnInspections,
+  financeInvoiceLines,
   fleetVehicleAllocations,
   fleetVehicles,
   organisationClients,
@@ -31,10 +33,77 @@ import {
   users,
 } from '../../../database/schema';
 import type { LeaseContractStatus } from '../constants/lease-contract-status';
+import {
+  FLEET_RETURN_LIST_DEFAULT_SORT,
+  type FleetReturnListSortField,
+  FLEET_VEHICLE_LIST_DEFAULT_SORT,
+  type FleetVehicleListSortField,
+  LEASE_CONTRACT_LIST_DEFAULT_SORT,
+  type LeaseContractListSortField,
+  REPLACEMENT_CANDIDATE_LIST_DEFAULT_SORT,
+  type ReplacementCandidateListSortField,
+  VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+  type VehicleAllocationListSortField,
+} from '../constants/fleet-leasing-list-sort.constants';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../../common/utils/list-sort.util';
+
+const LEASE_CONTRACT_LIST_SORT_COLUMNS: Record<
+  LeaseContractListSortField,
+  AnyColumn
+> = {
+  createdAt: leaseContracts.createdAt,
+  contractNumber: leaseContracts.contractNumber,
+  status: leaseContracts.status,
+  startDate: leaseContracts.startDate,
+  endDate: leaseContracts.endDate,
+};
+
+const FLEET_VEHICLE_LIST_SORT_COLUMNS: Record<
+  FleetVehicleListSortField,
+  AnyColumn
+> = {
+  registrationNo: fleetVehicles.registrationNo,
+  assetClass: fleetVehicles.assetClass,
+  createdAt: fleetVehicles.createdAt,
+};
+
+const VEHICLE_ALLOCATION_LIST_SORT_COLUMNS: Record<
+  VehicleAllocationListSortField,
+  AnyColumn
+> = {
+  createdAt: fleetVehicleAllocations.createdAt,
+  status: fleetVehicles.status,
+};
+
+const FLEET_RETURN_LIST_SORT_COLUMNS: Record<
+  FleetReturnListSortField,
+  AnyColumn
+> = {
+  createdAt: fleetReturnInspections.createdAt,
+  status: fleetReturnInspections.registeredReturn,
+};
+
+const REPLACEMENT_CANDIDATE_LIST_SORT_COLUMNS: Record<
+  ReplacementCandidateListSortField,
+  AnyColumn
+> = {
+  registrationNo: fleetVehicles.registrationNo,
+  assetClass: fleetVehicles.assetClass,
+};
 
 @Injectable()
 export class FleetLeasingRepository {
   constructor(@Inject(DRIZZLE) private readonly db: AppDatabase) {}
+
+  private rowsFromExecute<T>(result: unknown): T[] {
+    if (result && typeof result === 'object' && 'rows' in result) {
+      return (result as { rows: T[] }).rows;
+    }
+    return Array.isArray(result) ? (result as T[]) : [];
+  }
 
   async nextContractNumber(organizationId: string): Promise<string> {
     const [row] = await this.db
@@ -75,8 +144,10 @@ export class FleetLeasingRepository {
     pageSize: number;
     statusFilter: LeaseContractStatus[] | null;
     search?: string;
+    sort?: ResolvedListSort<LeaseContractListSortField>;
   }) {
-    const { organizationId, page, pageSize, statusFilter, search } = params;
+    const { organizationId, page, pageSize, statusFilter, search, sort } =
+      params;
     const offset = (page - 1) * pageSize;
     const conditions = [eq(leaseContracts.organizationId, organizationId)];
     if (statusFilter?.length) {
@@ -100,6 +171,7 @@ export class FleetLeasingRepository {
           clientCompanyName: sql<
             string | null
           >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+          fleetOrganisationClientId: fleetClients.organisationClientId,
         })
         .from(leaseContracts)
         .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
@@ -108,7 +180,13 @@ export class FleetLeasingRepository {
           eq(fleetClients.organisationClientId, organisationClients.id),
         )
         .where(where)
-        .orderBy(desc(leaseContracts.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            LEASE_CONTRACT_LIST_SORT_COLUMNS,
+            sort ?? LEASE_CONTRACT_LIST_DEFAULT_SORT,
+            leaseContracts.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -167,6 +245,57 @@ export class FleetLeasingRepository {
       )
       .limit(1);
     return row ?? null;
+  }
+
+  async findFleetClientsByOrganisationClientIds(
+    organizationId: string,
+    organisationClientIds: string[],
+  ) {
+    if (organisationClientIds.length === 0) {
+      return new Map<string, typeof fleetClients.$inferSelect>();
+    }
+    const rows = await this.db
+      .select()
+      .from(fleetClients)
+      .where(
+        and(
+          eq(fleetClients.organizationId, organizationId),
+          inArray(fleetClients.organisationClientId, organisationClientIds),
+        ),
+      );
+    const map = new Map<string, typeof fleetClients.$inferSelect>();
+    for (const row of rows) {
+      if (row.organisationClientId) {
+        map.set(row.organisationClientId, row);
+      }
+    }
+    return map;
+  }
+
+  async getPrimaryPocsForClients(clientIds: string[]) {
+    const result = new Map<
+      string,
+      typeof fleetClientPocs.$inferSelect | null
+    >();
+    for (const id of clientIds) {
+      result.set(id, null);
+    }
+    if (clientIds.length === 0) {
+      return result;
+    }
+    const rows = await this.db
+      .select()
+      .from(fleetClientPocs)
+      .where(
+        and(
+          inArray(fleetClientPocs.clientId, clientIds),
+          eq(fleetClientPocs.isPrimary, true),
+        ),
+      );
+    for (const row of rows) {
+      result.set(row.clientId, row);
+    }
+    return result;
   }
 
   async listAssetLines(contractId: string) {
@@ -378,18 +507,63 @@ export class FleetLeasingRepository {
   async insertContract(
     values: typeof leaseContracts.$inferInsert,
   ): Promise<typeof leaseContracts.$inferSelect> {
-    const { clientId, ...rest } = values;
-    const insertValues =
-      clientId === null ||
-      clientId === undefined ||
-      (typeof clientId === 'string' && clientId.trim() === '')
-        ? rest
-        : { ...rest, clientId };
+    const insertValues = this.normalizeContractInsertValues(values);
     const [row] = await this.db
       .insert(leaseContracts)
       .values(insertValues)
       .returning();
     return row;
+  }
+
+  /** Draft create — contract row + asset lines + vehicle links in one transaction. */
+  async insertDraftContractWithNested(input: {
+    contract: typeof leaseContracts.$inferInsert;
+    assetLines: Omit<
+      typeof leaseContractAssetLines.$inferInsert,
+      'id' | 'contractId' | 'createdAt' | 'updatedAt'
+    >[];
+    vehicleIds: string[];
+    awaitingFutureAssets: boolean;
+  }): Promise<typeof leaseContracts.$inferSelect> {
+    const insertValues = this.normalizeContractInsertValues(input.contract);
+    return this.db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(leaseContracts)
+        .values({
+          ...insertValues,
+          awaitingFutureAssets: input.awaitingFutureAssets,
+        })
+        .returning();
+      if (input.assetLines.length > 0) {
+        await tx.insert(leaseContractAssetLines).values(
+          input.assetLines.map((line, sortOrder) => ({
+            ...line,
+            contractId: row.id,
+            sortOrder,
+          })),
+        );
+      }
+      if (input.vehicleIds.length > 0) {
+        await tx.insert(leaseContractVehicles).values(
+          input.vehicleIds.map((vehicleId) => ({
+            contractId: row.id,
+            vehicleId,
+          })),
+        );
+      }
+      return row;
+    });
+  }
+
+  private normalizeContractInsertValues(
+    values: typeof leaseContracts.$inferInsert,
+  ) {
+    const { clientId, ...rest } = values;
+    return clientId === null ||
+      clientId === undefined ||
+      (typeof clientId === 'string' && clientId.trim() === '')
+      ? rest
+      : { ...rest, clientId };
   }
 
   async updateContract(
@@ -706,6 +880,7 @@ export class FleetLeasingRepository {
     pageSize: number,
     status?: string,
     assetClass?: string,
+    sort?: ResolvedListSort<FleetVehicleListSortField>,
   ) {
     const offset = (page - 1) * pageSize;
     const conditions = [eq(fleetVehicles.organizationId, organizationId)];
@@ -721,7 +896,13 @@ export class FleetLeasingRepository {
         .select()
         .from(fleetVehicles)
         .where(where)
-        .orderBy(fleetVehicles.registrationNo)
+        .orderBy(
+          ...buildListOrderBy(
+            FLEET_VEHICLE_LIST_SORT_COLUMNS,
+            sort ?? FLEET_VEHICLE_LIST_DEFAULT_SORT,
+            fleetVehicles.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -997,8 +1178,9 @@ export class FleetLeasingRepository {
     page: number;
     pageSize: number;
     contractId?: string;
+    sort?: ResolvedListSort<VehicleAllocationListSortField>;
   }) {
-    const { organizationId, page, pageSize, contractId } = params;
+    const { organizationId, page, pageSize, contractId, sort } = params;
     const offset = (page - 1) * pageSize;
     const conditions = [
       eq(fleetVehicleAllocations.organizationId, organizationId),
@@ -1026,7 +1208,13 @@ export class FleetLeasingRepository {
           eq(fleetVehicleAllocations.vehicleId, fleetVehicles.id),
         )
         .where(where)
-        .orderBy(desc(fleetVehicleAllocations.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            VEHICLE_ALLOCATION_LIST_SORT_COLUMNS,
+            sort ?? VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+            fleetVehicleAllocations.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -1084,13 +1272,19 @@ export class FleetLeasingRepository {
     return row?.count ?? 0;
   }
 
-  async listEditLogs(contractId: string, limit = 50) {
+  async listEditLogs(
+    contractId: string,
+    options?: { limit?: number; offset?: number },
+  ) {
+    const limit = options?.limit ?? 50;
+    const offset = options?.offset ?? 0;
     return this.db
       .select()
       .from(leaseContractEditLogs)
       .where(eq(leaseContractEditLogs.contractId, contractId))
       .orderBy(desc(leaseContractEditLogs.createdAt))
-      .limit(limit);
+      .limit(limit)
+      .offset(offset);
   }
 
   async listReturnInspections(params: {
@@ -1098,8 +1292,9 @@ export class FleetLeasingRepository {
     page: number;
     pageSize: number;
     contractId?: string;
+    sort?: ResolvedListSort<FleetReturnListSortField>;
   }) {
-    const { organizationId, page, pageSize, contractId } = params;
+    const { organizationId, page, pageSize, contractId, sort } = params;
     const offset = (page - 1) * pageSize;
     const conditions = [
       eq(fleetReturnInspections.organizationId, organizationId),
@@ -1125,7 +1320,13 @@ export class FleetLeasingRepository {
           eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
         )
         .where(where)
-        .orderBy(desc(fleetReturnInspections.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            FLEET_RETURN_LIST_SORT_COLUMNS,
+            sort ?? FLEET_RETURN_LIST_DEFAULT_SORT,
+            fleetReturnInspections.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db
@@ -1336,6 +1537,40 @@ export class FleetLeasingRepository {
     organizationId: string,
     contractId: string,
   ) {
+    return this.listAllocatedVehiclesOnContractSlice(
+      organizationId,
+      contractId,
+      0,
+      Number.MAX_SAFE_INTEGER,
+    );
+  }
+
+  async countAllocatedVehiclesOnContract(
+    organizationId: string,
+    contractId: string,
+  ): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leaseContractVehicles)
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractVehicles.contractId, leaseContracts.id),
+      )
+      .where(
+        and(
+          eq(leaseContractVehicles.contractId, contractId),
+          eq(leaseContracts.organizationId, organizationId),
+        ),
+      );
+    return row?.count ?? 0;
+  }
+
+  async listAllocatedVehiclesOnContractSlice(
+    organizationId: string,
+    contractId: string,
+    offset: number,
+    limit: number,
+  ) {
     return this.db
       .select({
         id: fleetVehicles.id,
@@ -1359,13 +1594,16 @@ export class FleetLeasingRepository {
           eq(leaseContracts.organizationId, organizationId),
         ),
       )
-      .orderBy(asc(fleetVehicles.registrationNo));
+      .orderBy(asc(fleetVehicles.registrationNo))
+      .limit(limit)
+      .offset(offset);
   }
 
   async listContractsForFleetClient(
     organizationId: string,
     fleetClientId: string,
     eligibleStatuses: LeaseContractStatus[],
+    pagination: { page: number; pageSize: number },
   ) {
     const conditions = [
       eq(leaseContracts.organizationId, organizationId),
@@ -1374,43 +1612,184 @@ export class FleetLeasingRepository {
     if (eligibleStatuses.length > 0) {
       conditions.push(inArray(leaseContracts.status, eligibleStatuses));
     }
-    return this.db
-      .select({
-        id: leaseContracts.id,
-        contractNumber: leaseContracts.contractNumber,
-        status: leaseContracts.status,
-        startDate: leaseContracts.startDate,
-        endDate: leaseContracts.endDate,
-      })
-      .from(leaseContracts)
-      .where(and(...conditions))
-      .orderBy(desc(leaseContracts.createdAt));
+    const where = and(...conditions);
+    const offset = (pagination.page - 1) * pagination.pageSize;
+    const [rows, countRows] = await Promise.all([
+      this.db
+        .select({
+          id: leaseContracts.id,
+          contractNumber: leaseContracts.contractNumber,
+          status: leaseContracts.status,
+          startDate: leaseContracts.startDate,
+          endDate: leaseContracts.endDate,
+        })
+        .from(leaseContracts)
+        .where(where)
+        .orderBy(desc(leaseContracts.createdAt))
+        .limit(pagination.pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leaseContracts)
+        .where(where),
+    ]);
+    return { rows, total: countRows[0]?.count ?? 0 };
+  }
+
+  async countDriverAssignableForDriverRegister(params: {
+    organizationId: string;
+    excludeVehicleCodes?: string[];
+  }): Promise<number> {
+    const { organizationId, excludeVehicleCodes } = params;
+    const excludeClause =
+      excludeVehicleCodes && excludeVehicleCodes.length > 0
+        ? sql`AND v.registration_no NOT IN (${sql.join(
+            excludeVehicleCodes.map((c) => sql`${c}`),
+            sql`, `,
+          )})`
+        : sql``;
+    const countResult = await this.db.execute<{ count: number }>(sql`
+      WITH combined AS (
+        SELECT v.id AS vehicle_id, 1 AS precedence
+        FROM fleet_vehicle_allocations a
+        INNER JOIN lease_contracts c ON a.contract_id = c.id
+        INNER JOIN fleet_vehicles v ON a.vehicle_id = v.id
+        WHERE a.organization_id = ${organizationId}
+          AND c.status = 'active'
+          ${excludeClause}
+        UNION ALL
+        SELECT v.id AS vehicle_id, 2 AS precedence
+        FROM lease_contract_vehicles lcv
+        INNER JOIN lease_contracts c ON lcv.contract_id = c.id
+        INNER JOIN fleet_vehicles v ON lcv.vehicle_id = v.id
+        WHERE c.organization_id = ${organizationId}
+          AND c.status = 'active'
+          AND v.organization_id = ${organizationId}
+          ${excludeClause}
+      ),
+      deduped AS (
+        SELECT DISTINCT ON (vehicle_id) vehicle_id
+        FROM combined
+        ORDER BY vehicle_id, precedence DESC
+      )
+      SELECT count(*)::int AS count FROM deduped
+    `);
+    const countRows = this.rowsFromExecute<{ count: number }>(countResult);
+    return Number(countRows[0]?.count ?? 0);
+  }
+
+  async listDriverAssignableForDriverRegisterSlice(params: {
+    organizationId: string;
+    excludeVehicleCodes?: string[];
+    offset: number;
+    limit: number;
+    sort?: import('../../../common/utils/list-sort.util').ResolvedListSort<
+      import('../../organisation/constants/organisation-list-sort.constants').AssignableVehicleListSortField
+    >;
+  }) {
+    const { organizationId, excludeVehicleCodes, offset, limit, sort } = params;
+    const orderColumn =
+      sort?.sortBy === 'assetClass' ? sql`asset_class` : sql`vehicle_code`;
+    const orderDir = sort?.sortOrder === 'desc' ? sql`DESC` : sql`ASC`;
+    const excludeClause =
+      excludeVehicleCodes && excludeVehicleCodes.length > 0
+        ? sql`AND v.registration_no NOT IN (${sql.join(
+            excludeVehicleCodes.map((c) => sql`${c}`),
+            sql`, `,
+          )})`
+        : sql``;
+    const sliceResult = await this.db.execute<{
+      vehicle_id: string;
+      vehicle_code: string;
+      asset_class: string;
+      active_lease_id: string;
+    }>(sql`
+      WITH combined AS (
+        SELECT
+          v.id AS vehicle_id,
+          v.registration_no AS vehicle_code,
+          v.asset_class AS asset_class,
+          c.id AS active_lease_id,
+          1 AS precedence
+        FROM fleet_vehicle_allocations a
+        INNER JOIN lease_contracts c ON a.contract_id = c.id
+        INNER JOIN fleet_vehicles v ON a.vehicle_id = v.id
+        WHERE a.organization_id = ${organizationId}
+          AND c.status = 'active'
+          ${excludeClause}
+        UNION ALL
+        SELECT
+          v.id AS vehicle_id,
+          v.registration_no AS vehicle_code,
+          v.asset_class AS asset_class,
+          c.id AS active_lease_id,
+          2 AS precedence
+        FROM lease_contract_vehicles lcv
+        INNER JOIN lease_contracts c ON lcv.contract_id = c.id
+        INNER JOIN fleet_vehicles v ON lcv.vehicle_id = v.id
+        WHERE c.organization_id = ${organizationId}
+          AND c.status = 'active'
+          AND v.organization_id = ${organizationId}
+          ${excludeClause}
+      ),
+      deduped AS (
+        SELECT DISTINCT ON (vehicle_id)
+          vehicle_id, vehicle_code, asset_class, active_lease_id
+        FROM combined
+        ORDER BY vehicle_id, precedence DESC
+      )
+      SELECT vehicle_id, vehicle_code, asset_class, active_lease_id
+      FROM deduped
+      ORDER BY ${orderColumn} ${orderDir}, vehicle_id DESC
+      LIMIT ${limit}
+      OFFSET ${offset}
+    `);
+    const list = this.rowsFromExecute<{
+      vehicle_id: string;
+      vehicle_code: string;
+      asset_class: string;
+      active_lease_id: string;
+    }>(sliceResult);
+    return list.map((row) => ({
+      vehicleId: row.vehicle_id,
+      vehicleCode: row.vehicle_code,
+      assetClass: row.asset_class,
+      activeLeaseId: row.active_lease_id,
+    }));
   }
 
   async listAvailableReplacementVehicles(params: {
     organizationId: string;
     page: number;
     pageSize: number;
+    sliceOffset?: number;
+    sliceLimit?: number;
     assetClass?: string;
     vehicleType?: string;
     brand?: string;
     modelName?: string;
     excludeVehicleIds?: string[];
+    sort?: ResolvedListSort<ReplacementCandidateListSortField>;
   }) {
     const {
       organizationId,
       page,
       pageSize,
+      sliceOffset,
+      sliceLimit,
       assetClass,
       vehicleType,
       brand,
       modelName,
       excludeVehicleIds,
+      sort,
     } = params;
     if (vehicleType?.trim() || brand?.trim() || modelName?.trim()) {
       return { rows: [], total: 0 };
     }
-    const offset = (page - 1) * pageSize;
+    const offset = sliceOffset ?? (page - 1) * pageSize;
+    const limit = sliceLimit ?? pageSize;
+    const includeTotal = sliceOffset === undefined;
     const now = new Date();
     const conditions = [
       eq(fleetVehicles.organizationId, organizationId),
@@ -1425,22 +1804,33 @@ export class FleetLeasingRepository {
       conditions.push(notInArray(fleetVehicles.id, excludeVehicleIds));
     }
     const where = and(...conditions);
+    const rowsQuery = this.db
+      .select({
+        id: fleetVehicles.id,
+        registrationNo: fleetVehicles.registrationNo,
+        vin: fleetVehicles.vin,
+        assetClass: fleetVehicles.assetClass,
+        status: fleetVehicles.status,
+        registrationExpiry: fleetVehicles.registrationExpiry,
+        insuranceExpiry: fleetVehicles.insuranceExpiry,
+      })
+      .from(fleetVehicles)
+      .where(where)
+      .orderBy(
+        ...buildListOrderBy(
+          REPLACEMENT_CANDIDATE_LIST_SORT_COLUMNS,
+          sort ?? REPLACEMENT_CANDIDATE_LIST_DEFAULT_SORT,
+          fleetVehicles.id,
+        ),
+      )
+      .limit(limit)
+      .offset(offset);
+    if (!includeTotal) {
+      const rows = await rowsQuery;
+      return { rows, total: 0 };
+    }
     const [rows, countRows] = await Promise.all([
-      this.db
-        .select({
-          id: fleetVehicles.id,
-          registrationNo: fleetVehicles.registrationNo,
-          vin: fleetVehicles.vin,
-          assetClass: fleetVehicles.assetClass,
-          status: fleetVehicles.status,
-          registrationExpiry: fleetVehicles.registrationExpiry,
-          insuranceExpiry: fleetVehicles.insuranceExpiry,
-        })
-        .from(fleetVehicles)
-        .where(where)
-        .orderBy(asc(fleetVehicles.registrationNo))
-        .limit(pageSize)
-        .offset(offset),
+      rowsQuery,
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(fleetVehicles)
@@ -1486,5 +1876,43 @@ export class FleetLeasingRepository {
           .where(eq(fleetVehicles.id, toVehicleId));
       }
     });
+  }
+
+  /**
+   * When asset register recomputes class `name`, update denormalized varchar copies.
+   * Lease lines match by stable assetClassId; fleet_vehicles still keyed by legacy name string.
+   */
+  async cascadeAssetClassDisplayName(
+    tx: Pick<AppDatabase, 'update'>,
+    organizationId: string,
+    assetClassId: string,
+    oldName: string,
+    newName: string,
+  ): Promise<void> {
+    const trimmedOld = oldName.trim();
+    const trimmedNew = newName.trim();
+    if (!trimmedNew || trimmedOld === trimmedNew) {
+      return;
+    }
+
+    await tx
+      .update(leaseContractAssetLines)
+      .set({ assetClass: trimmedNew, updatedAt: new Date() })
+      .where(eq(leaseContractAssetLines.assetClassId, assetClassId));
+
+    await tx
+      .update(fleetVehicles)
+      .set({ assetClass: trimmedNew, updatedAt: new Date() })
+      .where(
+        and(
+          eq(fleetVehicles.organizationId, organizationId),
+          eq(fleetVehicles.assetClass, trimmedOld),
+        ),
+      );
+
+    await tx
+      .update(financeInvoiceLines)
+      .set({ assetClassName: trimmedNew })
+      .where(eq(financeInvoiceLines.assetClassId, assetClassId));
   }
 }

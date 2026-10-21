@@ -28,6 +28,25 @@ export function formatAssetClassNameForDisplay(name: string): string {
   return `${trimmed.slice(0, ASSET_CLASS_NAME_DISPLAY_MAX)}…`;
 }
 
+/** Visible hex length for compact UUID list cells (leading segment only). */
+export const ENTITY_UUID_DISPLAY_HEX_MAX = 6;
+
+/**
+ * Short UUID for list cells — hyphen-free leading hex + ellipsis when longer.
+ * Full canonical UUID stays on tooltip / copy. Not a first+last splice.
+ */
+export function formatEntityUuidForDisplay(id: string): string {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    return "";
+  }
+  const compact = trimmed.replace(/-/g, "").toLowerCase();
+  if (compact.length <= ENTITY_UUID_DISPLAY_HEX_MAX) {
+    return compact;
+  }
+  return `${compact.slice(0, ENTITY_UUID_DISPLAY_HEX_MAX)}…`;
+}
+
 export function formatEmployeeRowCopyText(
   employee: OrganisationEmployeeListItem,
 ): string {

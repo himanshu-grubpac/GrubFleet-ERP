@@ -35,6 +35,11 @@ import type {
 import { ApiClientError } from "@/lib/api/client";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { LEASE_CONTRACT_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import {
   fleetLeaseContractDetailHref,
   fleetLeaseContractEditHref,
@@ -109,6 +114,12 @@ export default function LeaseContractsTable() {
     useDashboardListSearch();
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(LEASE_CONTRACT_COLUMN_SORT);
   const [activateTarget, setActivateTarget] =
     useState<LeaseContractListItem | null>(null);
   const [listActionTarget, setListActionTarget] =
@@ -116,7 +127,7 @@ export default function LeaseContractsTable() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, statusFilter]);
+  }, [debouncedSearch, statusFilter, tableSort]);
 
   const listEnabled = !!organizationId && !isAuthLoading;
 
@@ -127,6 +138,7 @@ export default function LeaseContractsTable() {
       debouncedSearch,
       statusFilter,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       api.getList({
@@ -136,6 +148,7 @@ export default function LeaseContractsTable() {
         statusFilter: statusFilter
           ? (statusFilter as LeaseContractStatusFilter)
           : undefined,
+        ...listSortParams,
       }),
     enabled: listEnabled,
     ...dashboardListQueryOptions,
@@ -260,10 +273,11 @@ export default function LeaseContractsTable() {
 
   const columns: DashboardColumn<LeaseContractListItem>[] = [
     { key: "contractNumber", label: "Contract No." },
-    { key: "clientName", label: "Company Name" },
+    { key: "clientName", label: "Company Name", sortable: false },
     {
       key: "assetClasses",
       label: "Asset Class",
+      sortable: false,
       render: (row) => (
         <DashboardAssetClassNameCell
           name={row.assetClasses}
@@ -465,6 +479,9 @@ export default function LeaseContractsTable() {
                 <DashboardTable
                   columns={columns}
                   data={contracts}
+                  sortState={tableSort}
+                  onSortChange={onSortChange}
+                  serverSorted={serverSorted}
                   getRowKey={(row) => row.id}
                   renderActions={renderRowActions}
                 />

@@ -25,6 +25,6 @@ import { StockRegisterService } from './stock-register.service';
     StockBalanceService,
     PartsRequestsService,
   ],
-  exports: [InventoryRepository],
+  exports: [InventoryRepository, StockRegisterService],
 })
 export class InventoryModule {}

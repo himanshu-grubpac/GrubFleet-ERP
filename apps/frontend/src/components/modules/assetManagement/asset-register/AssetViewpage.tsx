@@ -157,11 +157,11 @@ export default function AssetClassViewPage() {
                 {detail.name}
               </h1>
               {isActive ? (
-                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
+                <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[14px] font-medium text-[#FE5720]">
                   Active
                 </span>
               ) : (
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
+                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[14px] font-medium text-gray-500">
                   Inactive
                 </span>
               )}
@@ -184,18 +184,18 @@ export default function AssetClassViewPage() {
               isActive ? (
                 <Button
                   type="button"
-                  variant="neutral"
+                  variant="primary"
                   onClick={() => setDeactivateOpen(true)}
-                  className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
+                  className="h-9"
                 >
                   Deactivate
                 </Button>
               ) : (
                 <Button
                   type="button"
-                  variant="neutral"
+                  variant="primary"
                   onClick={() => setActivateOpen(true)}
-                  className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
+                  className="h-9"
                 >
                   Activate
                 </Button>
@@ -303,10 +303,11 @@ export default function AssetClassViewPage() {
 function InfoRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-h-[27px] items-center border-b border-gray-100 px-3 last:border-b-0">
-      <p className="w-1/2 text-[10px] font-medium text-gray-400">{label}</p>
-      <p className="w-1/2 text-right text-[10px] font-medium text-gray-800">
+      <p className="w-1/2 text-[12px] font-medium text-gray-400">{label}</p>
+      <p className="w-1/2 text-right text-[12px] font-medium text-gray-800">
         {value}
       </p>
     </div>
   );
 }
+

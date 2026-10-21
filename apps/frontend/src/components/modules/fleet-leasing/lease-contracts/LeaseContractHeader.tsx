@@ -91,7 +91,7 @@ export default function LeaseContractHeader({
                     {onEdit ? (
                         <Button
                             type="button"
-                            variant="secondary"
+                            variant="outline"
                             onClick={onEdit}
                             disabled={isActionPending}
                         >

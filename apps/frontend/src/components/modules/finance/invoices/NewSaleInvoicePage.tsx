@@ -27,7 +27,7 @@ import {
 import { ORG_EMAIL_PATTERN } from "@/lib/validation/org-input-constraints";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoiceCreatedToast,
   showFinanceInvoiceUpdatedToast,
 } from "@/lib/toast/show-toast";
@@ -153,8 +153,8 @@ export default function NewSaleInvoicePage() {
         router.push(financeInvoicesListHref);
       }
     },
-    onError: () => {
-      showErrorToast(FINANCE_INVOICE_SAVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_INVOICE_SAVE_ERROR);
     },
   });
 

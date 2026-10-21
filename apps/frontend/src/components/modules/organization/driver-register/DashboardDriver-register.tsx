@@ -14,6 +14,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ORGANISATION_DRIVER_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { ApiClientError } from "@/lib/api/client";
 import {
@@ -119,6 +124,13 @@ export default function DriverRegisterPage() {
   });
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(ORGANISATION_DRIVER_COLUMN_SORT);
+
   const [deactivateTarget, setDeactivateTarget] = useState<Driver | null>(
     null,
   );
@@ -127,7 +139,7 @@ export default function DriverRegisterPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, filters.status]);
+  }, [debouncedSearch, filters.status, tableSort]);
 
   const driversQuery = useQuery({
     queryKey: [
@@ -137,6 +149,7 @@ export default function DriverRegisterPage() {
       debouncedSearch,
       filters.status,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () => {
       if (!token || !organizationId) {
@@ -153,6 +166,7 @@ export default function DriverRegisterPage() {
             filters.status === "license-expired"
             ? filters.status
             : undefined,
+        ...listSortParams,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -254,14 +268,17 @@ export default function DriverRegisterPage() {
     {
       key: "licenseNumber",
       label: "License No.",
+      sortable: false,
     },
     {
       key: "supplier",
+      sortable: false,
       label: "Supplier",
     },
     {
       key: "contact",
       label: "Contact",
+      sortable: false,
       render: (driver: Driver) => (
         <DashboardContact phone={driver.phone} email={driver.email} />
       ),
@@ -269,6 +286,7 @@ export default function DriverRegisterPage() {
     {
       key: "assignedVehicle",
       label: "Assigned Vehicle",
+      sortable: false,
       render: (driver: Driver) => (
         <span className="text-sm text-gray-700">
           {driver.assignedVehicle || "—"}
@@ -278,6 +296,7 @@ export default function DriverRegisterPage() {
     {
       key: "status",
       label: "Status",
+      sortable: false,
       render: (driver: Driver) => {
         const statusClasses = {
           active: "bg-green-50 text-green-700",
@@ -451,6 +470,9 @@ export default function DriverRegisterPage() {
           <DashboardTable
             columns={driverColumns}
             data={drivers}
+            sortState={tableSort}
+            onSortChange={onSortChange}
+            serverSorted={serverSorted}
             getRowKey={(driver) => driver.id}
             renderActions={(driver) => (
               <DashboardTableActions

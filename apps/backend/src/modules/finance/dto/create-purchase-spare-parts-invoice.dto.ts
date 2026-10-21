@@ -41,7 +41,7 @@ export class CreatePurchaseSparePartsInvoiceDto {
   unitCostMinor!: number;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   invoiceDate!: string;
 
   @ApiPropertyOptional({ maxLength: 120 })

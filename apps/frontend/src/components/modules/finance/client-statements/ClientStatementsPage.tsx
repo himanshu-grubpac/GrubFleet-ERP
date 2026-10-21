@@ -24,6 +24,11 @@ import {
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import { financeClientStatementDetailHref } from "@/lib/navigation/finance-static-routes";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { FINANCE_CLIENT_STATEMENT_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 
 import {
   isDashboardCatalogEmptyState,
@@ -75,9 +80,16 @@ export default function ClientStatementsPage() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(FINANCE_CLIENT_STATEMENT_COLUMN_SORT);
+
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, periodStart, periodEnd]);
+  }, [debouncedSearch, periodStart, periodEnd, tableSort]);
 
   const listEnabled =
     Boolean(token) && Boolean(organizationId) && !authLoading;
@@ -90,6 +102,7 @@ export default function ClientStatementsPage() {
       periodStart,
       periodEnd,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       fetchClientStatementsApi(token!, {
@@ -99,6 +112,7 @@ export default function ClientStatementsPage() {
         page,
         pageSize: DASHBOARD_DEFAULT_PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
+        ...listSortParams,
       }),
     enabled: listEnabled,
     ...dashboardListQueryOptions,
@@ -206,6 +220,7 @@ export default function ClientStatementsPage() {
     {
       key: "invoiceCount",
       label: "INVOICES",
+      sortable: false,
       render: (row: (typeof items)[number]) => (
         <span
           className={
@@ -221,6 +236,7 @@ export default function ClientStatementsPage() {
     {
       key: "totalBilledMinor",
       label: "TOTAL BILLED",
+      sortable: false,
       render: (row: (typeof items)[number]) =>
         moneyCell(
           row.totalBilledMinor,
@@ -230,6 +246,7 @@ export default function ClientStatementsPage() {
     {
       key: "totalPaidMinor",
       label: "TOTAL PAID",
+      sortable: false,
       render: (row: (typeof items)[number]) =>
         moneyCell(
           row.totalPaidMinor,
@@ -239,6 +256,7 @@ export default function ClientStatementsPage() {
     {
       key: "balanceDueMinor",
       label: "BALANCE DUE",
+      sortable: false,
       render: (row: (typeof items)[number]) =>
         moneyCell(
           row.balanceDueMinor,
@@ -357,38 +375,34 @@ export default function ClientStatementsPage() {
                 onButtonClick={handleClearFilters}
               />
             ) : (
-              <div
-                className={showFilters ? "mt-4" : undefined}
-                aria-busy={
-                  listQuery.isFetching &&
-                  listQuery.isPlaceholderData
-                }
-              >
-                <DashboardTable
-                  columns={columns}
-                  data={items}
-                  getRowKey={(row) => row.clientId}
-                  renderActions={(row) => (
-                    <DashboardTableActions
-                      status="active"
-                      hideEdit
-                      alwaysShowOverflowMenu
-                      viewHref={financeClientStatementDetailHref(
-                        row.clientId,
-                        periodStart,
-                        periodEnd,
-                      )}
-                      copyText={[
-                        row.clientName,
-                        String(row.invoiceCount),
-                        formatInrFromMinor(row.totalBilledMinor),
-                        formatInrFromMinor(row.totalPaidMinor),
-                        formatInrFromMinor(row.balanceDueMinor),
-                      ].join("\t")}
-                    />
-                  )}
-                />
-              </div>
+              <DashboardTable
+                columns={columns}
+                data={items}
+                getRowKey={(row) => row.clientId}
+                sortState={tableSort}
+                onSortChange={onSortChange}
+                serverSorted={serverSorted}
+                allowOverflow
+                renderActions={(row) => (
+                  <DashboardTableActions
+                    status="active"
+                    hideEdit
+                    alwaysShowOverflowMenu
+                    viewHref={financeClientStatementDetailHref(
+                      row.clientId,
+                      periodStart,
+                      periodEnd
+                    )}
+                    copyText={[
+                      row.clientName,
+                      String(row.invoiceCount),
+                      formatInrFromMinor(row.totalBilledMinor),
+                      formatInrFromMinor(row.totalPaidMinor),
+                      formatInrFromMinor(row.balanceDueMinor),
+                    ].join("\t")}
+                  />
+                )}
+              />
             )}
           </>
         )}
