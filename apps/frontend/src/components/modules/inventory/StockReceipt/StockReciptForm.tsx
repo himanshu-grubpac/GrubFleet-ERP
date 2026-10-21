@@ -1,9 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
-import Button from "@/components/ui/GrubpacButton";
+import FormActions from "@/components/common/FormActions";
+
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 
 /* -------------------------------------------------------------------------- */
@@ -34,31 +35,32 @@ export type CreateStockFormProps = {
     onSaved?: (data: StockFormData) => void | Promise<void>;
 };
 
-function isStockReceiptFormValid(form: StockFormData): boolean {
-    if (!form.part.trim()) {
-        return false;
-    }
-    if (!form.purchaseInvoice.trim()) {
-        return false;
-    }
-    if (!form.destinationLocation.trim()) {
-        return false;
-    }
+function getStockReceiptValidationErrors(form: StockFormData): string[] {
+    const errors: string[] = [];
+
+    if (!form.part.trim()) errors.push("Part is required.");
+    if (!form.purchaseInvoice.trim()) errors.push("Purchase invoice is required.");
+    if (!form.destinationLocation.trim()) errors.push("Destination location is required.");
+
     if (!form.quantityReceived.trim()) {
-        return false;
+        errors.push("Quantity received is required.");
+    } else {
+        const quantityReceived = Number(form.quantityReceived);
+        if (!Number.isFinite(quantityReceived) || quantityReceived <= 0) {
+            errors.push("Quantity received must be a valid number greater than 0.");
+        }
     }
-    const quantityReceived = Number(form.quantityReceived);
-    if (Number.isNaN(quantityReceived) || quantityReceived <= 0) {
-        return false;
-    }
+
     if (!form.unitCost.trim()) {
-        return false;
+        errors.push("Unit cost is required.");
+    } else {
+        const unitCost = Number(form.unitCost);
+        if (!Number.isFinite(unitCost) || unitCost < 0) {
+            errors.push("Unit cost must be a valid number greater than or equal to zero.");
+        }
     }
-    const unitCost = Number(form.unitCost);
-    if (Number.isNaN(unitCost) || unitCost < 0) {
-        return false;
-    }
-    return true;
+
+    return errors;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -103,14 +105,16 @@ export default function CreateStockForm({
 
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+    const isSubmittingRef = useRef(false);
 
-    const isFormValid = useMemo(
-        () => isStockReceiptFormValid(form),
+    const validationSummary = useMemo(
+        () => getStockReceiptValidationErrors(form),
         [form],
     );
 
-    const canSubmit =
-        canSave && isFormValid && !isSaving && !isCatalogLoading;
+    // Keep Save enabled until the first attempt so users can see validation errors.
+    const canSubmit = canSave && !isSaving && !isCatalogLoading;
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -146,60 +150,21 @@ export default function CreateStockForm({
     /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
+        setHasAttemptedSubmit(true);
         setError("");
 
-        /* ------------------------------------------------------------------ */
-        /* Validation                                                         */
-        /* ------------------------------------------------------------------ */
-
-        if (!form.part.trim()) {
-            setError("Part is required.");
-            return;
-        }
-
-        if (!form.purchaseInvoice.trim()) {
-            setError("Purchase invoice is required.");
-            return;
-        }
-
-        if (!form.destinationLocation.trim()) {
-            setError("Destination location is required.");
-            return;
-        }
-
-        if (!form.quantityReceived.trim()) {
-            setError("Quantity received is required.");
-            return;
-        }
-
-        const quantityReceived = Number(form.quantityReceived);
+        if (validationSummary.length > 0) return;
 
         if (
-            Number.isNaN(quantityReceived) ||
-            quantityReceived <= 0
+            !canSave ||
+            isSaving ||
+            isCatalogLoading ||
+            isSubmittingRef.current
         ) {
-            setError(
-                "Quantity received must be a valid number greater than 0.",
-            );
             return;
         }
 
-        if (!form.unitCost.trim()) {
-            setError("Unit cost is required.");
-            return;
-        }
-
-        const unitCost = Number(form.unitCost);
-
-        if (
-            Number.isNaN(unitCost) ||
-            unitCost < 0
-        ) {
-            setError(
-                "Unit cost must be a valid positive number.",
-            );
-            return;
-        }
+        isSubmittingRef.current = true;
 
         /* ------------------------------------------------------------------ */
         /* Save                                                                */
@@ -236,6 +201,7 @@ export default function CreateStockForm({
             );
         } finally {
             setIsSaving(false);
+            isSubmittingRef.current = false;
         }
     };
 
@@ -258,29 +224,16 @@ export default function CreateStockForm({
             title={isEditMode ? "Edit Stock" : "Add Stock"}
             description="Adds a batch directly to Stock Levels, referencing an existing Purchase invoice."
             actions={
-                <>
-                    <button
-                        type="button"
-                        onClick={handleCancel}
-                        disabled={isSaving}
-                        className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                        Cancel
-                    </button>
-
-                    <Button
-                        type="button"
-                        onClick={handleSave}
-                        disabled={!canSubmit}
-                        className="h-10 px-5"
-                    >
-                        {isSaving
-                            ? "Saving..."
-                            : isEditMode
-                                ? "Save changes"
-                                : "Add"}
-                    </Button>
-                </>
+                <FormActions
+                    hasAttemptedSubmit={hasAttemptedSubmit}
+                    validationSummary={validationSummary}
+                    isSaving={isSaving}
+                    canSubmit={canSubmit}
+                    onCancel={handleCancel}
+                    onSave={handleSave}
+                    saveLabel={isEditMode ? "Save changes" : "Add"}
+                    savingLabel="Saving..."
+                />
             }
         >
             {/* ================================================================ */}
@@ -310,7 +263,8 @@ export default function CreateStockForm({
                                 event.target.value,
                             )
                         }
-                        className={selectClassName}
+                        className={`${selectClassName} ${hasAttemptedSubmit && !form.part.trim() ? "border-red-500" : ""}`}
+                        aria-invalid={hasAttemptedSubmit && !form.part.trim()}
                     >
                         <option value="">
                             Select part
@@ -325,6 +279,7 @@ export default function CreateStockForm({
                             </option>
                         ))}
                     </select>
+                    {hasAttemptedSubmit && !form.part.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Part is required.</p>}
                 </div>
 
                 {/* Purchase Invoice */}
@@ -349,7 +304,8 @@ export default function CreateStockForm({
                                 event.target.value,
                             )
                         }
-                        className={selectClassName}
+                        className={`${selectClassName} ${hasAttemptedSubmit && !form.purchaseInvoice.trim() ? "border-red-500" : ""}`}
+                        aria-invalid={hasAttemptedSubmit && !form.purchaseInvoice.trim()}
                     >
                         <option value="">
                             Select purchase invoice
@@ -366,6 +322,7 @@ export default function CreateStockForm({
                             ),
                         )}
                     </select>
+                    {hasAttemptedSubmit && !form.purchaseInvoice.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Purchase invoice is required.</p>}
                 </div>
             </div>
 
@@ -396,7 +353,8 @@ export default function CreateStockForm({
                                 event.target.value,
                             )
                         }
-                        className={selectClassName}
+                        className={`${selectClassName} ${hasAttemptedSubmit && !form.destinationLocation.trim() ? "border-red-500" : ""}`}
+                        aria-invalid={hasAttemptedSubmit && !form.destinationLocation.trim()}
                     >
                         <option value="">
                             Select location
@@ -413,6 +371,7 @@ export default function CreateStockForm({
                             ),
                         )}
                     </select>
+                    {hasAttemptedSubmit && !form.destinationLocation.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Destination location is required.</p>}
                 </div>
 
                 {/* Quantity Received */}
@@ -441,8 +400,11 @@ export default function CreateStockForm({
                             )
                         }
                         placeholder="e.g. 20"
-                        className={inputClassName}
+                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.quantityReceived.trim() || !Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0) ? "border-red-500" : ""}`}
+                        aria-invalid={hasAttemptedSubmit && (!form.quantityReceived.trim() || !Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0)}
                     />
+                    {hasAttemptedSubmit && !form.quantityReceived.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Quantity received is required.</p>}
+                    {hasAttemptedSubmit && form.quantityReceived.trim() && (!Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0) && <p className="mt-1 text-xs text-red-600" role="alert">Quantity received must be a valid number greater than 0.</p>}
                 </div>
             </div>
 
@@ -477,8 +439,11 @@ export default function CreateStockForm({
                             )
                         }
                         placeholder="e.g. Rs. 340"
-                        className={inputClassName}
+                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.unitCost.trim() || !Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0) ? "border-red-500" : ""}`}
+                        aria-invalid={hasAttemptedSubmit && (!form.unitCost.trim() || !Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0)}
                     />
+                    {hasAttemptedSubmit && !form.unitCost.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Unit cost is required.</p>}
+                    {hasAttemptedSubmit && form.unitCost.trim() && (!Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0) && <p className="mt-1 text-xs text-red-600" role="alert">Unit cost must be a valid number greater than or equal to zero.</p>}
                 </div>
 
                 {/* Batch / Lot Reference */}

@@ -308,7 +308,7 @@ export class AssetRegisterVehiclesService {
     ];
     const summaries = await this.leaseContracts.getContractSummariesForHistory(
       organizationId,
-      contractIds,
+      contractIds
     );
     return assignments.map((assignment) => {
       const contract = summaries.get(assignment.leaseContractId);

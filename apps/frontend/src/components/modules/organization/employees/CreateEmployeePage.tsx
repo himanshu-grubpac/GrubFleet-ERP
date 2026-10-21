@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -9,6 +9,12 @@ import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import LocationTypeSelector, {
   type LocationType,
 } from "@/components/modules/organization/locations/LocationTypeSelector";
+import {
+  validateEmail,
+  validatePhone,
+  validateRequired,
+  type ValidationErrors,
+} from "@/components/common/Commonvalidation"
 import { useAuth } from "@/providers/auth-provider";
 import {
   ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE,
@@ -64,18 +70,6 @@ type CreateEmployeePageProps = {
   onSaved?: (employee: EmployeeFormData) => void | Promise<void>;
   initialData?: Partial<EmployeeFormInitialData>;
   excludeEmployeeId?: string;
-};
-
-type ValidationErrors = {
-  fullName?: string;
-  designation?: string;
-  department?: string;
-  location?: string;
-  reportsTo?: string;
-  employmentType?: string;
-  dateOfJoining?: string;
-  phone?: string;
-  email?: string;
 };
 
 type FormState = {
@@ -195,8 +189,10 @@ export default function CreateEmployeePage({
 
   const [validationErrors, setValidationErrors] =
     useState<ValidationErrors>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [error, setError] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const [departments, setDepartments] = useState<LocationType[]>(() =>
     buildDepartmentTypes([], initialData?.department),
@@ -409,83 +405,88 @@ export default function CreateEmployeePage({
     router.push("/organization/employees");
   };
 
-  const validateForm = () => {
+  const validateForm = (): ValidationErrors => {
     const errors: ValidationErrors = {};
 
-    if (!form.fullName.trim()) {
-      errors.fullName = "Full name is required.";
-    }
+    const fullNameError = validateRequired(form.fullName, "Full name");
+    if (fullNameError) errors.fullName = fullNameError;
 
-    if (!form.designation.trim()) {
-      errors.designation = "Designation is required.";
-    }
+    const designationError = validateRequired(form.designation, "Designation");
+    if (designationError) errors.designation = designationError;
 
-    if (!form.department.trim()) {
-      errors.department = "Please select a department.";
-    }
+    const departmentError = validateRequired(form.department, "Department");
+    if (departmentError) errors.department = "Please select a department.";
 
-    if (!form.locationId.trim()) {
-      errors.location = "Please select a location.";
-    }
+    const locationError = validateRequired(form.locationId, "Location");
+    if (locationError) errors.location = "Please select a location.";
 
-    if (!form.employmentTypeUi.trim()) {
+    const employmentTypeError = validateRequired(
+      form.employmentTypeUi,
+      "Employment type",
+    );
+    if (employmentTypeError) {
       errors.employmentType = "Please select an employment type.";
     } else if (!employmentTypeUiToApi(form.employmentTypeUi)) {
       errors.employmentType =
         "Employment type must be Full-time, Part-time, or Contract.";
     }
 
-    if (!form.dateOfJoining.trim()) {
-      errors.dateOfJoining = "Date of joining is required.";
+    const dateError = validateRequired(
+      form.dateOfJoining,
+      "Date of joining",
+    );
+    if (dateError) {
+      errors.dateOfJoining = dateError;
     } else if (!parseEmployeeDateForApi(form.dateOfJoining)) {
+      // Keep the employee form's existing DD-MMM-YYYY date format.
       errors.dateOfJoining = "Use DD-MMM-YYYY (e.g. 14-Jun-2022).";
     }
 
-    if (!form.phone.trim()) {
-      errors.phone = "Phone number is required.";
-    }
+    const phoneError = validatePhone(form.phone, "Phone number");
+    if (phoneError) errors.phone = phoneError;
 
-    if (!form.email.trim()) {
-      errors.email = "Email is required.";
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
-      errors.email = "Please enter a valid email address.";
-    }
+    const emailError = validateEmail(form.email, "Email");
+    if (emailError) errors.email = emailError;
 
     return errors;
   };
 
   const handleSave = async () => {
+    if (isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
+
+    setIsSaving(true);
+    setHasAttemptedSubmit(true);
     setError("");
-    setValidationErrors({});
-
-    const errors = validateForm();
-    setValidationErrors(errors);
-
-    if (Object.keys(errors).length > 0) {
-      return;
-    }
-
-    const employmentType = employmentTypeUiToApi(form.employmentTypeUi);
-    const dateOfJoining = parseEmployeeDateForApi(form.dateOfJoining);
-
-    if (!employmentType || !dateOfJoining) {
-      return;
-    }
-
-    const employee: EmployeeFormData = {
-      fullName: form.fullName.trim(),
-      designation: form.designation.trim(),
-      department: form.department.trim(),
-      locationId: form.locationId,
-      reportsToEmployeeId: form.reportsToEmployeeId.trim() || undefined,
-      employmentType,
-      dateOfJoining,
-      phone: form.phone.trim(),
-      email: form.email.trim(),
-    };
 
     try {
-      setIsSaving(true);
+      const errors = validateForm();
+      setValidationErrors(errors);
+
+      if (Object.keys(errors).length > 0) {
+        return;
+      }
+
+      const employmentType = employmentTypeUiToApi(form.employmentTypeUi);
+      const dateOfJoining = parseEmployeeDateForApi(form.dateOfJoining);
+
+      if (!employmentType || !dateOfJoining) {
+        return;
+      }
+
+      const employee: EmployeeFormData = {
+        fullName: form.fullName.trim(),
+        designation: form.designation.trim(),
+        department: form.department.trim(),
+        locationId: form.locationId,
+        reportsToEmployeeId: form.reportsToEmployeeId.trim() || undefined,
+        employmentType,
+        dateOfJoining,
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+      };
+
       await onSaved?.(employee);
 
       if (!onSaved) {
@@ -501,12 +502,63 @@ export default function CreateEmployeePage({
     } finally {
       setIsSaving(false);
     }
+
+
+    try {
+      const errors = validateForm();
+      setValidationErrors(errors);
+
+      if (Object.keys(errors).length > 0) {
+        return;
+      }
+
+      const employmentType = employmentTypeUiToApi(form.employmentTypeUi);
+      const dateOfJoining = parseEmployeeDateForApi(form.dateOfJoining);
+
+      if (!employmentType || !dateOfJoining) {
+        return;
+      }
+
+      const employee: EmployeeFormData = {
+        fullName: form.fullName.trim(),
+        designation: form.designation.trim(),
+        department: form.department.trim(),
+        locationId: form.locationId,
+        reportsToEmployeeId: form.reportsToEmployeeId.trim() || undefined,
+        employmentType,
+        dateOfJoining,
+        phone: form.phone.trim(),
+        email: form.email.trim(),
+      };
+
+      await onSaved?.(employee);
+
+      if (!onSaved) {
+        router.push("/organization/employees");
+      }
+    } catch (saveError) {
+      console.error("Failed to save employee:", saveError);
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Failed to save employee. Please try again.",
+      );
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSaving(false);
+    }
   };
+
+  const liveErrors = useMemo(() => validateForm(), [form]);
+  const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
+  const validationSummary = Object.values(displayedErrors).filter(
+    (message): message is string => Boolean(message),
+  );
 
   const inputClass = (field: keyof ValidationErrors) =>
     [
       "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
-      validationErrors[field]
+      displayedErrors[field]
         ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
         : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
     ].join(" ");
@@ -514,7 +566,7 @@ export default function CreateEmployeePage({
   const selectClass = (field: keyof ValidationErrors) =>
     [
       "h-10 w-full appearance-none rounded-md border bg-white px-3 pr-10 text-sm text-gray-700 outline-none transition",
-      validationErrors[field]
+      displayedErrors[field]
         ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
         : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
     ].join(" ");
@@ -523,11 +575,6 @@ export default function CreateEmployeePage({
     isAuthLoading ||
     locationsQuery.isLoading ||
     employeesPickerQuery.isLoading;
-
-  const canSubmit =
-    !isSaving &&
-    !pickersLoading &&
-    Object.keys(validateForm()).length === 0;
 
   return (
     <OrganizationFormLayout
@@ -538,30 +585,46 @@ export default function CreateEmployeePage({
           : "Register a new employee's HR record — payroll, leave, and appraisals are handled outside GrubERP for now."
       }
       infoText="Reports to is a direct, manual selection — there's no organisation-wide hierarchy chart in this build to auto-fill it from. Creating a User Account for platform access is a separate, deliberate step (Administration)."
+
       actions={
-        <>
-          <button
-            type="button"
-            onClick={handleCancel}
-            disabled={isSaving}
-            className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            Cancel
-          </button>
-          <Button
-            type="button"
-            onClick={() => void handleSave()}
-            disabled={!canSubmit}
-            className="h-10 px-5"
-          >
-            {isSaving
-              ? "Saving..."
-              : isEdit
-                ? "Save changes"
-                : "Save employee"}
-          </Button>
-        </>
+        <div className="flex w-full flex-col gap-4">
+          {hasAttemptedSubmit && validationSummary.length > 0 && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="w-full text-xs leading-5 text-red-600"
+            >
+              <span className="font-semibold">Please fix:</span>{" "}
+              {validationSummary.join(" | ")}
+            </div>
+          )}
+
+          <div className="flex items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={handleCancel}
+              disabled={isSaving}
+              className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Cancel
+            </button>
+
+            <Button
+              type="button"
+              onClick={() => void handleSave()}
+              disabled={isSaving || pickersLoading}
+              className="h-10 px-5"
+            >
+              {isSaving
+                ? "Saving..."
+                : isEdit
+                  ? "Save changes"
+                  : "Save employee"}
+            </Button>
+          </div>
+        </div>
       }
+
     >
       <div>
         <label
@@ -582,9 +645,9 @@ export default function CreateEmployeePage({
           placeholder="Enter employee name"
           className={inputClass("fullName")}
         />
-        {validationErrors.fullName && (
+        {displayedErrors.fullName && (
           <p className="mt-1 text-xs text-red-500">
-            {validationErrors.fullName}
+            {displayedErrors.fullName}
           </p>
         )}
       </div>
@@ -610,9 +673,9 @@ export default function CreateEmployeePage({
             placeholder="e.g. Workshop Technician"
             className={inputClass("designation")}
           />
-          {validationErrors.designation && (
+          {displayedErrors.designation && (
             <p className="mt-1 text-xs text-red-500">
-              {validationErrors.designation}
+              {displayedErrors.designation}
             </p>
           )}
         </div>
@@ -625,7 +688,7 @@ export default function CreateEmployeePage({
           selectedType={form.department}
           showAddType={showAddDepartment}
           newType={newDepartment}
-          error={validationErrors.department}
+          error={displayedErrors.department}
           onSelect={(type: string) => {
             updateForm("department", type);
             clearError("department");
@@ -676,9 +739,9 @@ export default function CreateEmployeePage({
               strokeWidth={1.7}
             />
           </div>
-          {validationErrors.location && (
+          {displayedErrors.location && (
             <p className="mt-1 text-xs text-red-500">
-              {validationErrors.location}
+              {displayedErrors.location}
             </p>
           )}
         </div>
@@ -723,7 +786,7 @@ export default function CreateEmployeePage({
           selectedType={form.employmentTypeUi}
           showAddType={showAddEmploymentType}
           newType={newEmploymentType}
-          error={validationErrors.employmentType}
+          error={displayedErrors.employmentType}
           onSelect={(type: string) => {
             updateForm("employmentTypeUi", type);
             clearError("employmentType");
@@ -762,9 +825,9 @@ export default function CreateEmployeePage({
             placeholder="DD-MMM-YYYY"
             className={inputClass("dateOfJoining")}
           />
-          {validationErrors.dateOfJoining && (
+          {displayedErrors.dateOfJoining && (
             <p className="mt-1 text-xs text-red-500">
-              {validationErrors.dateOfJoining}
+              {displayedErrors.dateOfJoining}
             </p>
           )}
         </div>
@@ -791,9 +854,9 @@ export default function CreateEmployeePage({
             placeholder="+91 98XXXXXXXX"
             className={inputClass("phone")}
           />
-          {validationErrors.phone && (
+          {displayedErrors.phone && (
             <p className="mt-1 text-xs text-red-500">
-              {validationErrors.phone}
+              {displayedErrors.phone}
             </p>
           )}
         </div>
@@ -817,9 +880,9 @@ export default function CreateEmployeePage({
             placeholder="name@company.com"
             className={inputClass("email")}
           />
-          {validationErrors.email && (
+          {displayedErrors.email && (
             <p className="mt-1 text-xs text-red-500">
-              {validationErrors.email}
+              {displayedErrors.email}
             </p>
           )}
         </div>

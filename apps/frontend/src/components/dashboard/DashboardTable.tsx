@@ -14,6 +14,12 @@ type DashboardTableProps<T> = {
     data: T[];
     getRowKey: (row: T) => string;
     renderActions?: (row: T) => React.ReactNode;
+    /**
+     * @deprecated No longer has any effect. Row action menus render in a
+     * portal (see DashboardRowActionsMenu), so the scroll container no
+     * longer needs to allow overflow. Kept so existing callers still compile.
+     */
+    allowOverflow?: boolean;
 };
 
 export default function DashboardTable<T>({
@@ -23,17 +29,8 @@ export default function DashboardTable<T>({
     renderActions,
 }: DashboardTableProps<T>) {
     return (
-        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-            <div
-                className="
-                    w-full
-                    overflow-x-auto
-                    overflow-y-clip
-                    [scrollbar-width:none]
-                    [-ms-overflow-style:none]
-                    [&::-webkit-scrollbar]:hidden
-                "
-            >
+        <div className="rounded-lg border border-gray-200 bg-white">
+            <div className="w-full overflow-x-auto">
                 <table className="w-full min-w-[900px] border-collapse">
                     <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">
@@ -50,7 +47,7 @@ export default function DashboardTable<T>({
                             ))}
 
                             {renderActions && (
-                                <th className="w-[150px] px-4 py-3 text-right text-xs font-semibold text-gray-600">
+                                <th className="sticky right-0 z-10 whitespace-nowrap bg-gray-50 px-4 py-3 text-right text-xs font-semibold text-gray-600">
                                     ACTIONS
                                 </th>
                             )}
@@ -61,7 +58,7 @@ export default function DashboardTable<T>({
                         {data.map((row) => (
                             <tr
                                 key={getRowKey(row)}
-                                className="border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
+                                className="group border-b border-gray-100 last:border-b-0 hover:bg-gray-50"
                             >
                                 {columns.map((column) => (
                                     <td
@@ -71,15 +68,18 @@ export default function DashboardTable<T>({
                                         {column.render
                                             ? column.render(row)
                                             : String(
-                                                (row as Record<string, unknown>)[
-                                                String(column.key)
-                                                ] ?? "-"
+                                                (
+                                                    row as Record<
+                                                        string,
+                                                        unknown
+                                                    >
+                                                )[String(column.key)] ?? "-"
                                             )}
                                     </td>
                                 ))}
 
                                 {renderActions && (
-                                    <td className="px-4 py-3">
+                                    <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-3 group-hover:bg-gray-50">
                                         {renderActions(row)}
                                     </td>
                                 )}
