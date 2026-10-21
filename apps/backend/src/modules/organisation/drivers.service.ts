@@ -9,6 +9,13 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ASSIGNABLE_VEHICLE_LIST_DEFAULT_SORT,
+  ASSIGNABLE_VEHICLE_LIST_SORT_FIELDS,
+  DRIVER_LIST_DEFAULT_SORT,
+  DRIVER_LIST_SORT_FIELDS,
+} from './constants/organisation-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { AssignDriverVehicleDto } from './dto/assign-driver-vehicle.dto';
 import type { CreateDriverDto } from './dto/create-driver.dto';
@@ -48,6 +55,11 @@ export class DriversService {
           ? false
           : undefined;
     const licenseExpired = query.status === 'license-expired';
+    const sort = resolveListSort(
+      DRIVER_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      DRIVER_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listDrivers(
       query.organizationId,
       page,
@@ -56,6 +68,7 @@ export class DriversService {
         search: query.search,
         isActive,
         licenseExpired,
+        sort,
       },
     );
     const items = rows.map((row) => this.toListItem(row));
@@ -68,11 +81,17 @@ export class DriversService {
     const assignedCodes = await this.repo.listAssignedVehicleCodes(
       query.organizationId,
     );
+    const sort = resolveListSort(
+      ASSIGNABLE_VEHICLE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ASSIGNABLE_VEHICLE_LIST_DEFAULT_SORT,
+    );
     return this.vehicleAllocations.listAssignableForDriverRegister(
       query.organizationId,
       page,
       pageSize,
       assignedCodes,
+      sort,
     );
   }
 

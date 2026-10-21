@@ -10,6 +10,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  REPLACEMENT_CANDIDATE_LIST_DEFAULT_SORT,
+  REPLACEMENT_CANDIDATE_LIST_SORT_FIELDS,
+} from './constants/fleet-leasing-list-sort.constants';
 import { paginateTwoMergedSortedLists } from '../../common/utils/merge-sorted-pagination.util';
 import { AuditService } from '../audit/audit.service';
 import { DriversService } from '../organisation/drivers.service';
@@ -127,6 +132,11 @@ export class SupportVehicleReplacementService {
         ?.split(',')
         .map((id) => id.trim())
         .filter(Boolean) ?? [];
+    const sort = resolveListSort(
+      REPLACEMENT_CANDIDATE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      REPLACEMENT_CANDIDATE_LIST_DEFAULT_SORT,
+    );
     const listParams = {
       organizationId: query.organizationId,
       page,
@@ -136,6 +146,7 @@ export class SupportVehicleReplacementService {
       brand: query.brand,
       modelName: query.modelName,
       excludeVehicleIds,
+      sort,
     };
     const sourceKind = query.sourceKind;
     const includeLegacy = !sourceKind || sourceKind === 'legacy';

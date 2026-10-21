@@ -13,6 +13,7 @@ import {
   ne,
   or,
   sql,
+  type AnyColumn,
 } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import type { AppDatabase } from '../../../database/database.module';
@@ -27,7 +28,58 @@ import {
   organisationSuppliers,
 } from '../../../database/schema';
 import type { OrganisationSupplierType } from '../constants/supplier-type.constants';
+import {
+  CLIENT_LIST_DEFAULT_SORT,
+  type ClientListSortField,
+  DRIVER_LIST_DEFAULT_SORT,
+  type DriverListSortField,
+  EMPLOYEE_LIST_DEFAULT_SORT,
+  type EmployeeListSortField,
+  LOCATION_LIST_DEFAULT_SORT,
+  type LocationListSortField,
+  SUPPLIER_LIST_DEFAULT_SORT,
+  type SupplierListSortField,
+} from '../constants/organisation-list-sort.constants';
 import { SYSTEM_LOCATION_TYPE_PRESETS } from '../constants/system-location-type-presets';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../../common/utils/list-sort.util';
+
+const LOCATION_LIST_SORT_COLUMNS: Record<LocationListSortField, AnyColumn> = {
+  createdAt: organisationLocations.createdAt,
+  name: organisationLocations.name,
+  updatedAt: organisationLocations.updatedAt,
+};
+
+const EMPLOYEE_LIST_SORT_COLUMNS: Record<EmployeeListSortField, AnyColumn> = {
+  createdAt: organisationEmployees.createdAt,
+  fullName: organisationEmployees.fullName,
+  employeeCode: organisationEmployees.employeeCode,
+  department: organisationEmployees.department,
+  dateOfJoining: organisationEmployees.dateOfJoining,
+  updatedAt: organisationEmployees.updatedAt,
+};
+
+const SUPPLIER_LIST_SORT_COLUMNS: Record<SupplierListSortField, AnyColumn> = {
+  createdAt: organisationSuppliers.createdAt,
+  name: organisationSuppliers.name,
+  supplierType: organisationSuppliers.supplierType,
+  updatedAt: organisationSuppliers.updatedAt,
+};
+
+const CLIENT_LIST_SORT_COLUMNS: Record<ClientListSortField, AnyColumn> = {
+  createdAt: organisationClients.createdAt,
+  name: organisationClients.name,
+  updatedAt: organisationClients.updatedAt,
+};
+
+const DRIVER_LIST_SORT_COLUMNS: Record<DriverListSortField, AnyColumn> = {
+  createdAt: organisationDrivers.createdAt,
+  name: organisationDrivers.name,
+  licenseExpiry: organisationDrivers.licenseExpiry,
+  updatedAt: organisationDrivers.updatedAt,
+};
 
 export type LocationInsert = typeof organisationLocations.$inferInsert;
 export type LocationRow = typeof organisationLocations.$inferSelect;
@@ -186,6 +238,7 @@ export class OrganisationRepository {
       search?: string;
       locationTypeId?: string;
       isActive?: boolean;
+      sort?: ResolvedListSort<LocationListSortField>;
     },
   ): Promise<{
     rows: Array<LocationRow & { typeName: string }>;
@@ -255,8 +308,11 @@ export class OrganisationRepository {
         )
         .where(where)
         .orderBy(
-          desc(organisationLocations.createdAt),
-          desc(organisationLocations.id),
+          ...buildListOrderBy(
+            LOCATION_LIST_SORT_COLUMNS,
+            options.sort ?? LOCATION_LIST_DEFAULT_SORT,
+            organisationLocations.id,
+          ),
         )
         .limit(pageSize)
         .offset(offset),
@@ -347,6 +403,7 @@ export class OrganisationRepository {
       search?: string;
       department?: string;
       isActive?: boolean;
+      sort?: ResolvedListSort<EmployeeListSortField>;
     },
   ): Promise<{
     rows: Array<EmployeeRow & { linkedLocationName: string | null }>;
@@ -417,8 +474,11 @@ export class OrganisationRepository {
         )
         .where(where)
         .orderBy(
-          desc(organisationEmployees.createdAt),
-          desc(organisationEmployees.id),
+          ...buildListOrderBy(
+            EMPLOYEE_LIST_SORT_COLUMNS,
+            options.sort ?? EMPLOYEE_LIST_DEFAULT_SORT,
+            organisationEmployees.id,
+          ),
         )
         .limit(pageSize)
         .offset(offset),
@@ -579,6 +639,7 @@ export class OrganisationRepository {
       search?: string;
       supplierType?: OrganisationSupplierType;
       isActive?: boolean;
+      sort?: ResolvedListSort<SupplierListSortField>;
     },
   ): Promise<{ rows: SupplierRow[]; total: number }> {
     const conditions = [
@@ -613,8 +674,11 @@ export class OrganisationRepository {
         .from(organisationSuppliers)
         .where(where)
         .orderBy(
-          desc(organisationSuppliers.createdAt),
-          desc(organisationSuppliers.id),
+          ...buildListOrderBy(
+            SUPPLIER_LIST_SORT_COLUMNS,
+            options.sort ?? SUPPLIER_LIST_DEFAULT_SORT,
+            organisationSuppliers.id,
+          ),
         )
         .limit(pageSize)
         .offset(offset),
@@ -677,6 +741,7 @@ export class OrganisationRepository {
       search?: string;
       isActive?: boolean;
       licenseExpired?: boolean;
+      sort?: ResolvedListSort<DriverListSortField>;
     },
   ): Promise<{ rows: DriverListRow[]; total: number }> {
     const conditions = [eq(organisationDrivers.organizationId, organizationId)];
@@ -716,8 +781,11 @@ export class OrganisationRepository {
         )
         .where(where)
         .orderBy(
-          desc(organisationDrivers.createdAt),
-          desc(organisationDrivers.id),
+          ...buildListOrderBy(
+            DRIVER_LIST_SORT_COLUMNS,
+            options.sort ?? DRIVER_LIST_DEFAULT_SORT,
+            organisationDrivers.id,
+          ),
         )
         .limit(pageSize)
         .offset(offset),
@@ -925,7 +993,7 @@ export class OrganisationRepository {
     options: {
       search?: string;
       isActive?: boolean;
-      orderBy?: 'created' | 'name';
+      sort?: ResolvedListSort<ClientListSortField>;
     } = {},
   ): Promise<{ rows: OrganisationClientRow[]; total: number }> {
     const offset = (page - 1) * pageSize;
@@ -956,19 +1024,17 @@ export class OrganisationRepository {
       );
     }
     const where = and(...conditions);
-    const orderByName = options.orderBy === 'name';
     const [rows, countRows] = await Promise.all([
       this.db
         .select()
         .from(organisationClients)
         .where(where)
         .orderBy(
-          ...(orderByName
-            ? [asc(organisationClients.name), asc(organisationClients.id)]
-            : [
-                desc(organisationClients.createdAt),
-                desc(organisationClients.id),
-              ]),
+          ...buildListOrderBy(
+            CLIENT_LIST_SORT_COLUMNS,
+            options.sort ?? CLIENT_LIST_DEFAULT_SORT,
+            organisationClients.id,
+          ),
         )
         .limit(pageSize)
         .offset(offset),

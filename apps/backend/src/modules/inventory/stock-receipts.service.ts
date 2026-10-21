@@ -8,6 +8,12 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  STOCK_RECEIPT_LIST_DEFAULT_SORT,
+  STOCK_RECEIPT_LIST_SORT_FIELDS,
+  type StockReceiptListSortField,
+} from './constants/inventory-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateStockReceiptDto } from './dto/create-stock-receipt.dto';
 import type { ListInventoryQueryDto } from './dto/list-inventory-query.dto';
@@ -64,11 +70,19 @@ export class StockReceiptsService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      STOCK_RECEIPT_LIST_SORT_FIELDS,
+      {
+        sortBy: query.sortBy as StockReceiptListSortField | undefined,
+        sortOrder: query.sortOrder,
+      },
+      STOCK_RECEIPT_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listStockReceipts(
       query.organizationId,
       page,
       pageSize,
-      { search: query.search, isActive },
+      { search: query.search, isActive, sort },
     );
     const partIds = [...new Set(rows.map((r) => r.partId))];
     const parts = await this.repo.getPartsByIds(query.organizationId, partIds);

@@ -1,11 +1,12 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
+import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
+import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
 import {
-  DEFAULT_PAGE,
-  DEFAULT_PAGE_SIZE,
-  MAX_PAGE_SIZE,
-} from '../../../common/dto/pagination-query.dto';
+  ASSET_COMPLIANCE_LIST_SORT_FIELDS,
+  type AssetComplianceListSortField,
+} from '../constants/asset-register-list-sort.constants';
 
 export enum AssetRegisterComplianceFilterStatus {
   ALL = 'all',
@@ -14,29 +15,10 @@ export enum AssetRegisterComplianceFilterStatus {
   VALID = 'valid',
 }
 
-export class ListAssetRegisterComplianceQueryDto {
+export class ListAssetRegisterComplianceQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional()
   @IsUUID()
   organizationId!: string;
-
-  @ApiPropertyOptional({ minimum: 1, default: DEFAULT_PAGE })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  page?: number = DEFAULT_PAGE;
-
-  @ApiPropertyOptional({
-    minimum: 1,
-    maximum: MAX_PAGE_SIZE,
-    default: DEFAULT_PAGE_SIZE,
-  })
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(MAX_PAGE_SIZE)
-  pageSize?: number = DEFAULT_PAGE_SIZE;
 
   @ApiPropertyOptional({ enum: AssetRegisterComplianceFilterStatus })
   @IsOptional()
@@ -47,4 +29,7 @@ export class ListAssetRegisterComplianceQueryDto {
   @IsOptional()
   @IsUUID()
   assetClassId?: string;
+
+  @SortByQuery(ASSET_COMPLIANCE_LIST_SORT_FIELDS)
+  sortBy?: AssetComplianceListSortField;
 }

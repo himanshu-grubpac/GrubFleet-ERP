@@ -1,5 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type VendorPaymentListItem = {
   id: string;
@@ -41,7 +43,7 @@ export type VendorPaymentPurchaseInvoiceOption = {
   balanceDueMinor: number;
 };
 
-export type ListVendorPaymentsParams = {
+export type ListVendorPaymentsParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -96,6 +98,7 @@ export async function fetchVendorPaymentsApi(
   if (params.search?.trim()) {
     query.set("search", params.search.trim());
   }
+  appendListSortSearchParams(query, params);
   const res = await apiFetch<PaginatedResponse<VendorPaymentListItem>>(
     `/finance/vendor-payments?${query.toString()}`,
     {

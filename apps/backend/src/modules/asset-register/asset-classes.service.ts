@@ -9,6 +9,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ASSET_CLASS_LIST_DEFAULT_SORT,
+  ASSET_CLASS_LIST_SORT_FIELDS,
+} from './constants/asset-register-list-sort.constants';
 import type { AppDatabase } from '../../database/database.module';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import { AuditService } from '../audit/audit.service';
@@ -54,11 +59,16 @@ export class AssetClassesService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      ASSET_CLASS_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ASSET_CLASS_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listAssetClasses(
       query.organizationId,
       page,
       pageSize,
-      { search: query.search, isActive },
+      { search: query.search, isActive, sort },
     );
     const classIds = rows.map((row) => row.id);
     const fleetCounts = await this.repo.countActiveVehiclesByClassIds(
@@ -101,9 +111,13 @@ export class AssetClassesService {
       spec,
     );
     const intakeStored = this.serializeIntakeChecklist(dto);
+    const classId = await this.repo.allocateAssetClassIdInTransaction(
+      dto.organizationId,
+    );
 
     const inserted = await this.repo.insertAssetClass({
       organizationId: dto.organizationId,
+      classId,
       name: className,
       description: dto.description?.trim() ?? null,
       brand: spec.brand,
@@ -486,6 +500,7 @@ export class AssetClassesService {
     });
     return {
       id: row.id,
+      classId: row.classId,
       name: row.name,
       specLabel,
       vehicleType: row.vehicleType,

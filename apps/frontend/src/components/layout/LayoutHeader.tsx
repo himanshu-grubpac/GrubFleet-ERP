@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import GlobalSearchInput from "@/components/layout/GlobalSearchInput";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,6 @@ export default function LayoutHeader({
 }: LayoutHeaderProps) {
   const { isAuthenticated, isLoggingOut, logout, user } = useAuth();
 
-  const [searchQuery, setSearchQuery] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
 
   const userName = useMemo(
@@ -82,23 +82,7 @@ export default function LayoutHeader({
       {/* Right: Search and Profile Actions */}
       <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2 sm:gap-3">
         {/* Global Search */}
-        <div className="relative hidden w-full max-w-xl min-w-0 sm:block">
-          <Search
-            className="pointer-events-none absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
-            aria-hidden="true"
-          />
-
-          <input
-            type="search"
-            value={searchQuery}
-            onChange={(event) =>
-              setSearchQuery(event.target.value)
-            }
-            placeholder="Search across Fleet Pulse..."
-            aria-label="Global search"
-            className="h-10 w-full rounded-lg border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-[#FE5720] focus:bg-white focus:ring-2 focus:ring-[#FE5720]/10"
-          />
-        </div>
+        <GlobalSearchInput className="hidden w-full max-w-xl sm:block" />
 
         {/* Mobile Search */}
         <button

@@ -17,6 +17,17 @@ import type { CreateVehicleAllocationDto } from './dto/create-vehicle-allocation
 import type { ListVehicleAllocationsQueryDto } from './dto/list-vehicle-allocations-query.dto';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 import { evaluateVehicleAllocation } from './utils/vehicle-allocation.util';
+import {
+  resolveListSort,
+  type ResolvedListSort,
+} from '../../common/utils/list-sort.util';
+import type { AssignableVehicleListSortField } from '../organisation/constants/organisation-list-sort.constants';
+import type { ListSortOrder } from '../../common/constants/list-sort.constants';
+import {
+  VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+  VEHICLE_ALLOCATION_LIST_SORT_FIELDS,
+  type VehicleAllocationListSortField,
+} from './constants/fleet-leasing-list-sort.constants';
 
 @Injectable()
 export class VehicleAllocationsService {
@@ -32,6 +43,7 @@ export class VehicleAllocationsService {
     page: number,
     pageSize: number,
     excludeVehicleCodes: string[],
+    sort?: ResolvedListSort<AssignableVehicleListSortField>,
   ) {
     const total = await this.repo.countDriverAssignableForDriverRegister({
       organizationId,
@@ -44,6 +56,7 @@ export class VehicleAllocationsService {
         excludeVehicleCodes,
         offset,
         limit: pageSize,
+        sort,
       },
     );
     const items = pageRows.map((row) => ({
@@ -79,11 +92,17 @@ export class VehicleAllocationsService {
   async listHub(query: ListVehicleAllocationsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      VEHICLE_ALLOCATION_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVehicleAllocations({
       organizationId: query.organizationId,
       page,
       pageSize,
       contractId: query.contractId,
+      sort,
     });
     const items = rows.map((r) => this.toListItem(r));
     return toPaginatedResult(items, page, pageSize, total);
@@ -94,13 +113,21 @@ export class VehicleAllocationsService {
     contractId: string,
     page = DEFAULT_PAGE,
     pageSize = DEFAULT_PAGE_SIZE,
+    sortBy?: VehicleAllocationListSortField,
+    sortOrder?: ListSortOrder,
   ) {
     await this.requireContract(organizationId, contractId);
+    const sort = resolveListSort(
+      VEHICLE_ALLOCATION_LIST_SORT_FIELDS,
+      { sortBy, sortOrder },
+      VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVehicleAllocations({
       organizationId,
       page,
       pageSize,
       contractId,
+      sort,
     });
     const items = rows.map((r) => this.toListItem(r));
     return toPaginatedResult(items, page, pageSize, total);

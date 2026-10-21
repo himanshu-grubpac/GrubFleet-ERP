@@ -910,4 +910,13 @@ describe('Finance invoices (integration)', () => {
       expect((dup.body as { code: string }).code).not.toBe('INTERNAL_ERROR');
     });
   });
+
+  it('returns 400 for invalid sortBy on invoice list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/invoices')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
 });

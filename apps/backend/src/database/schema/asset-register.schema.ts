@@ -22,6 +22,8 @@ export const assetRegisterAssetClasses = pgTable(
   {
     id: uuid('id').defaultRandom().primaryKey(),
     organizationId: uuid('organization_id').notNull(),
+    /** Org-unique 6-digit display id (000001); internal FKs use `id` UUID. */
+    classId: varchar('class_id', { length: 6 }).notNull(),
     name: varchar('name', { length: 255 }).notNull(),
     description: varchar('description', { length: 2000 }),
     brand: varchar('brand', { length: 255 }).notNull(),
@@ -64,6 +66,10 @@ export const assetRegisterAssetClasses = pgTable(
     uniqueIndex('asset_register_asset_classes_org_name_uidx').on(
       t.organizationId,
       t.name,
+    ),
+    uniqueIndex('asset_register_asset_classes_org_class_id_uidx').on(
+      t.organizationId,
+      t.classId,
     ),
     index('asset_register_asset_classes_organization_id_idx').on(
       t.organizationId,
@@ -128,6 +134,14 @@ export const assetRegisterFleetCodeCounters = pgTable(
   {
     organizationId: uuid('organization_id').primaryKey(),
     nextSequence: integer('next_sequence').notNull().default(1001),
+  },
+);
+
+export const assetRegisterAssetClassIdCounters = pgTable(
+  'asset_register_asset_class_id_counters',
+  {
+    organizationId: uuid('organization_id').primaryKey(),
+    nextSequence: integer('next_sequence').notNull().default(1),
   },
 );
 

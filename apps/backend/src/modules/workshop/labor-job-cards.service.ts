@@ -9,6 +9,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  LABOR_JOB_CARD_LIST_DEFAULT_SORT,
+  LABOR_JOB_CARD_LIST_SORT_FIELDS,
+} from './constants/workshop-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import { InventoryRepository } from '../inventory/repositories/inventory.repository';
 import type { CreateLaborJobCardDto } from './dto/create-labor-job-card.dto';
@@ -34,11 +39,16 @@ export class LaborJobCardsService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      LABOR_JOB_CARD_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      LABOR_JOB_CARD_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.workshopRepo.listLaborJobCards(
       query.organizationId,
       page,
       pageSize,
-      { search: query.search, isActive },
+      { search: query.search, isActive, sort },
     );
     const items = rows.map((row) => ({
       id: row.id,

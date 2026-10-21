@@ -229,4 +229,13 @@ describe('Asset Register — compliance and renewals (integration)', () => {
     expect(body.fleetCode).toMatch(/^VH-/);
     expect(body.overallComplianceStatus).toBe('valid');
   });
+
+  it('returns 400 for invalid sortBy on compliance list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/asset-register/compliance')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
 });

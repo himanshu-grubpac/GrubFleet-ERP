@@ -20,6 +20,11 @@ import DashboardTableActions from "@/components/dashboard/DashboardTableActions"
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ASSET_CLASS_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   ASSET_CLASS_STATUS_UPDATE_ERROR,
@@ -37,7 +42,7 @@ import {
   assetRegisterAssetClassDetailHref,
   assetRegisterAssetClassEditHref,
 } from "@/lib/navigation/asset-register-static-routes";
-import DashboardEntityUuidCell from "@/components/dashboard/DashboardEntityUuidCell";
+import DashboardAssetClassIdCell from "@/components/dashboard/DashboardAssetClassIdCell";
 import AssetClassNameCell from "@/components/modules/assetManagement/asset-register/AssetClassNameCell";
 
 type AssetStatus = "active" | "inactive";
@@ -46,6 +51,7 @@ type VehicleType = "2-Wheeler" | "3-Wheeler" | "4-Wheeler";
 
 type AssetClass = {
   id: string;
+  classId: string;
   name: string;
   vehicleType: VehicleType;
   fuelType: string;
@@ -79,6 +85,7 @@ const PAGE_SIZE = 50;
 function mapListItem(row: AssetRegisterAssetClassListItem): AssetClass {
   return {
     id: row.id,
+    classId: row.classId,
     name: row.name,
     vehicleType: mapAssetRegisterVehicleTypeToUiLabel(row.vehicleType),
     fuelType: row.fuelType,
@@ -122,6 +129,13 @@ export default function AssetClassesPage() {
 
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(ASSET_CLASS_COLUMN_SORT);
+
   const [deactivateTarget, setDeactivateTarget] =
     useState<AssetClass | null>(null);
 
@@ -137,7 +151,7 @@ export default function AssetClassesPage() {
   // Reset pagination when search or filters change.
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, activeFilter]);
+  }, [debouncedSearch, activeFilter, tableSort]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -147,6 +161,7 @@ export default function AssetClassesPage() {
       debouncedSearch,
       activeFilter,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () => {
       if (!token || !organizationId) {
@@ -160,6 +175,7 @@ export default function AssetClassesPage() {
         pageSize: PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
         status: filterToApiStatus(activeFilter),
+        ...listSortParams,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -258,14 +274,11 @@ export default function AssetClassesPage() {
   };
   const assetClassColumns: DashboardColumn<AssetClass>[] = [
     {
-      key: "id",
+      key: "classId",
       label: "Class ID",
       sortType: "alphabetical",
       render: (assetClass) => (
-        <DashboardEntityUuidCell
-          id={assetClass.id}
-          copyAriaLabel="Copy class ID"
-        />
+        <DashboardAssetClassIdCell classId={assetClass.classId} />
       ),
     },
     {
@@ -279,26 +292,31 @@ export default function AssetClassesPage() {
     {
       key: "vehicleType",
       label: "VEHICLE TYPE",
+      sortable: false,
       sortType: "vehicleType",
     },
     {
       key: "fuelType",
       label: "FUEL TYPE",
+      sortable: false,
       sortType: "alphabetical",
     },
     {
       key: "inFleet",
       label: "IN FLEET",
+      sortable: false,
       sortType: "number",
     },
     {
       key: "available",
       label: "AVAILABLE",
+      sortable: false,
       sortType: "number",
     },
     {
       key: "status",
       label: "STATUS",
+      sortable: false,
       sortType: "status",
       render: (assetClass) => (
         <span
@@ -424,6 +442,9 @@ export default function AssetClassesPage() {
         <DashboardTable
           columns={assetClassColumns}
           data={assetClasses}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
           getRowKey={(assetClass) => assetClass.id}
           renderActions={(assetClass) => (
             <DashboardTableActions

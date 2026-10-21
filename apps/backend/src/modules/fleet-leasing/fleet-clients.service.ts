@@ -11,6 +11,12 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import type { ClientListSortField } from '../organisation/constants/organisation-list-sort.constants';
+import {
+  FLEET_CLIENT_LIST_DEFAULT_SORT,
+  FLEET_CLIENT_LIST_SORT_FIELDS,
+} from './constants/fleet-leasing-list-sort.constants';
 import { ClientsService } from '../organisation/clients.service';
 import { OrganisationRepository } from '../organisation/repositories/organisation.repository';
 import { formatLocationAddress } from '../organisation/utils/format-location-address.util';
@@ -112,6 +118,13 @@ export class FleetClientsService {
   async list(query: ListFleetClientsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      FLEET_CLIENT_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      FLEET_CLIENT_LIST_DEFAULT_SORT,
+    );
+    const clientSortBy: ClientListSortField =
+      sort.sortBy === 'companyName' ? 'name' : sort.sortBy;
     const { rows: orgRows, total } = await this.orgRepo.listOrganisationClients(
       query.organizationId,
       page,
@@ -119,6 +132,7 @@ export class FleetClientsService {
       {
         search: query.search,
         isActive: true,
+        sort: { sortBy: clientSortBy, sortOrder: sort.sortOrder },
       },
     );
 

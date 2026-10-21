@@ -30,6 +30,11 @@ import {
   workshopWorkOrderEditHref,
 } from "@/lib/navigation/workshop-static-routes";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { WORKSHOP_WORK_ORDER_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useAuth } from "@/providers/auth-provider";
 
 type WorkOrderFilter =
@@ -118,9 +123,16 @@ export default function WorkshopDashboardPage() {
     useState<WorkOrderFilter>("all");
   const [page, setPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(WORKSHOP_WORK_ORDER_COLUMN_SORT);
+
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, activeFilter]);
+  }, [debouncedSearch, activeFilter, tableSort]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -130,6 +142,7 @@ export default function WorkshopDashboardPage() {
       debouncedSearch,
       activeFilter,
       page,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () => {
       if (!token || !organizationId) {
@@ -141,6 +154,7 @@ export default function WorkshopDashboardPage() {
         pageSize: PAGE_SIZE,
         search: debouncedSearch.trim() || undefined,
         status: filterToApiStatus(activeFilter),
+        ...listSortParams,
       });
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
@@ -202,6 +216,7 @@ export default function WorkshopDashboardPage() {
       {
         key: "vehicle",
         label: "VEHICLE",
+        sortable: false,
         render: (workOrder: WorkshopWorkOrderListItem) => (
           <div>
             <p className="text-gray-700">
@@ -216,16 +231,19 @@ export default function WorkshopDashboardPage() {
       {
         key: "type",
         label: "TYPE",
+        sortable: false,
         render: () => "General",
       },
       {
         key: "source",
         label: "SOURCE",
+        sortable: false,
         render: () => "Manual",
       },
       {
         key: "technician",
         label: "TECHNICIAN",
+        sortable: false,
         render: (workOrder: WorkshopWorkOrderListItem) =>
           workOrder.technicianName ?? "—",
       },
@@ -353,6 +371,9 @@ export default function WorkshopDashboardPage() {
           columns={workOrderColumns}
           data={items}
           getRowKey={(workOrder) => workOrder.id}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
           renderActions={(workOrder) => {
             const isTerminal =
               workOrder.status === "closed" ||

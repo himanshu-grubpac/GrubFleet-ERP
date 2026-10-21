@@ -1,5 +1,27 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, count, desc, eq, ilike, inArray, or, sum } from 'drizzle-orm';
+import {
+  and,
+  count,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  or,
+  sum,
+  type AnyColumn,
+} from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../../common/utils/list-sort.util';
+import {
+  INVENTORY_PART_LIST_DEFAULT_SORT,
+  type InventoryPartListSortField,
+  PARTS_REQUEST_LIST_DEFAULT_SORT,
+  type PartsRequestListSortField,
+  STOCK_RECEIPT_LIST_DEFAULT_SORT,
+  type StockReceiptListSortField,
+} from '../constants/inventory-list-sort.constants';
 import type { AppDatabase } from '../../../database/database.module';
 import { DRIZZLE } from '../../../database/drizzle.tokens';
 import {
@@ -10,6 +32,33 @@ import {
   inventoryStockReceipts,
   organisationLocations,
 } from '../../../database/schema';
+
+const INVENTORY_PART_LIST_SORT_COLUMNS: Record<
+  InventoryPartListSortField,
+  AnyColumn
+> = {
+  createdAt: inventoryCatalogParts.createdAt,
+  name: inventoryCatalogParts.name,
+  sku: inventoryCatalogParts.partCode,
+  updatedAt: inventoryCatalogParts.updatedAt,
+};
+
+const STOCK_RECEIPT_LIST_SORT_COLUMNS: Record<
+  StockReceiptListSortField,
+  AnyColumn
+> = {
+  createdAt: inventoryStockReceipts.createdAt,
+  receiptNumber: inventoryStockReceipts.receiptNumber,
+};
+
+const PARTS_REQUEST_LIST_SORT_COLUMNS: Record<
+  PartsRequestListSortField,
+  AnyColumn
+> = {
+  requestedAt: inventoryPartsRequests.requestedAt,
+  status: inventoryPartsRequests.status,
+  requestNumber: inventoryPartsRequests.requestNumber,
+};
 
 export type SparePartRow = typeof inventoryCatalogParts.$inferSelect;
 export type StockReceiptRow = typeof inventoryStockReceipts.$inferSelect;
@@ -83,7 +132,11 @@ export class InventoryRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; isActive?: boolean },
+    opts: {
+      search?: string;
+      isActive?: boolean;
+      sort?: ResolvedListSort<InventoryPartListSortField>;
+    },
   ) {
     const conditions = [
       eq(inventoryCatalogParts.organizationId, organizationId),
@@ -106,7 +159,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryCatalogParts)
         .where(where)
-        .orderBy(desc(inventoryCatalogParts.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            INVENTORY_PART_LIST_SORT_COLUMNS,
+            opts.sort ?? INVENTORY_PART_LIST_DEFAULT_SORT,
+            inventoryCatalogParts.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -163,7 +222,11 @@ export class InventoryRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; isActive?: boolean },
+    opts: {
+      search?: string;
+      isActive?: boolean;
+      sort?: ResolvedListSort<StockReceiptListSortField>;
+    },
   ) {
     const conditions = [
       eq(inventoryStockReceipts.organizationId, organizationId),
@@ -187,7 +250,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryStockReceipts)
         .where(where)
-        .orderBy(desc(inventoryStockReceipts.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            STOCK_RECEIPT_LIST_SORT_COLUMNS,
+            opts.sort ?? STOCK_RECEIPT_LIST_DEFAULT_SORT,
+            inventoryStockReceipts.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -317,6 +386,7 @@ export class InventoryRepository {
     page: number,
     pageSize: number,
     search?: string,
+    sort?: ResolvedListSort<InventoryPartListSortField>,
   ) {
     const partConditions = [
       eq(inventoryCatalogParts.organizationId, organizationId),
@@ -337,7 +407,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryCatalogParts)
         .where(where)
-        .orderBy(inventoryCatalogParts.name)
+        .orderBy(
+          ...buildListOrderBy(
+            INVENTORY_PART_LIST_SORT_COLUMNS,
+            sort ?? { sortBy: 'name', sortOrder: 'asc' },
+            inventoryCatalogParts.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db
@@ -368,7 +444,11 @@ export class InventoryRepository {
     organizationId: string,
     page: number,
     pageSize: number,
-    opts: { search?: string; status?: string },
+    opts: {
+      search?: string;
+      status?: string;
+      sort?: ResolvedListSort<PartsRequestListSortField>;
+    },
   ) {
     const conditions = [
       eq(inventoryPartsRequests.organizationId, organizationId),
@@ -397,7 +477,13 @@ export class InventoryRepository {
         .select()
         .from(inventoryPartsRequests)
         .where(where)
-        .orderBy(desc(inventoryPartsRequests.requestedAt))
+        .orderBy(
+          ...buildListOrderBy(
+            PARTS_REQUEST_LIST_SORT_COLUMNS,
+            opts.sort ?? PARTS_REQUEST_LIST_DEFAULT_SORT,
+            inventoryPartsRequests.id,
+          ),
+        )
         .limit(pageSize)
         .offset((page - 1) * pageSize),
       this.db

@@ -30,12 +30,16 @@ export class AssetRegisterCatalogService {
     organizationId: string,
     page: number,
     pageSize: number,
+    sort?: { sortBy: 'name' | 'createdAt'; sortOrder: 'asc' | 'desc' },
   ): Promise<{ catalog: ActiveAssetClassCatalogItem[]; total: number }> {
     const { rows, total } = await this.repo.listAssetClasses(
       organizationId,
       page,
       pageSize,
-      { isActive: true, orderByName: true },
+      {
+        isActive: true,
+        sort: sort ?? { sortBy: 'name', sortOrder: 'asc' },
+      },
     );
     const catalog = rows.map((row) => ({
       id: row.id,

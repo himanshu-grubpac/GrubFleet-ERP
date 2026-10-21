@@ -13,6 +13,14 @@ import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
 } from '../../../common/dto/pagination-query.dto';
+import {
+  LIST_SORT_ORDERS,
+  type ListSortOrder,
+} from '../../../common/constants/list-sort.constants';
+import {
+  WORK_ORDER_LIST_SORT_FIELDS,
+  type WorkOrderListSortField,
+} from '../constants/workshop-list-sort.constants';
 import { WORKSHOP_LIST_MAX_PAGE_SIZE } from './list-labor-job-cards-query.dto';
 
 const WORK_ORDER_LIST_STATUSES = [
@@ -58,4 +66,14 @@ export class ListWorkOrdersQueryDto {
   @IsOptional()
   @IsIn(WORK_ORDER_LIST_STATUSES)
   status?: WorkshopWorkOrderListStatus;
+
+  @ApiPropertyOptional({ enum: WORK_ORDER_LIST_SORT_FIELDS })
+  @IsOptional()
+  @IsIn(WORK_ORDER_LIST_SORT_FIELDS)
+  sortBy?: WorkOrderListSortField;
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
 }

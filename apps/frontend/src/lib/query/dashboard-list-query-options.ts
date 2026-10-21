@@ -15,3 +15,6 @@ export const dashboardCatalogQueryOptions = {
   staleTime: DASHBOARD_CATALOG_STALE_TIME_MS,
   gcTime: DASHBOARD_LIST_GC_TIME_MS,
 } as const;
+
+export type { ListSortParams } from "./list-sort-params";
+export { appendListSortSearchParams } from "./list-sort-params";

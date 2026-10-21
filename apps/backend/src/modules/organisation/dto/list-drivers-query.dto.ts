@@ -12,7 +12,13 @@ import {
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
+  type ListSortOrder,
 } from '../../../common/dto/pagination-query.dto';
+import { LIST_SORT_ORDERS } from '../../../common/constants/list-sort.constants';
+import {
+  DRIVER_LIST_SORT_FIELDS,
+  type DriverListSortField,
+} from '../constants/organisation-list-sort.constants';
 
 export const DRIVER_LIST_MAX_PAGE_SIZE = 50;
 
@@ -51,4 +57,14 @@ export class ListDriversQueryDto {
   @IsOptional()
   @IsIn(['active', 'inactive', 'license-expired'])
   status?: 'active' | 'inactive' | 'license-expired';
+
+  @ApiPropertyOptional({ enum: DRIVER_LIST_SORT_FIELDS })
+  @IsOptional()
+  @IsIn(DRIVER_LIST_SORT_FIELDS)
+  sortBy?: DriverListSortField;
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
 }

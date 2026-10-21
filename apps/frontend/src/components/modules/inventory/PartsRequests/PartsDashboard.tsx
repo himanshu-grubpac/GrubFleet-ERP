@@ -11,6 +11,11 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { INVENTORY_PARTS_REQUEST_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   fetchPartsRequestsListApi,
@@ -26,9 +31,16 @@ export default function PartsDashboard() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(INVENTORY_PARTS_REQUEST_COLUMN_SORT);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, tableSort]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -37,6 +49,7 @@ export default function PartsDashboard() {
       organizationId,
       currentPage,
       debouncedSearch,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       fetchPartsRequestsListApi(
@@ -45,6 +58,7 @@ export default function PartsDashboard() {
           page: currentPage,
           pageSize: PAGE_SIZE,
           search: debouncedSearch,
+          ...listSortParams,
         },
         token!,
       ),
@@ -67,6 +81,7 @@ export default function PartsDashboard() {
     {
       key: "workOrder",
       label: "WORK ORDER",
+      sortable: false,
       render: (row: PartsRequestListItem) => (
         <span className="text-sm font-medium text-gray-900">{row.workOrder}</span>
       ),
@@ -74,6 +89,7 @@ export default function PartsDashboard() {
     {
       key: "part",
       label: "PART",
+      sortable: false,
       render: (row: PartsRequestListItem) => (
         <span className="text-sm text-gray-600">{row.part}</span>
       ),
@@ -129,6 +145,9 @@ export default function PartsDashboard() {
           columns={columns}
           data={items}
           getRowKey={(row) => row.id}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
           renderActions={(row) => (
             <DashboardTableActions
               status="active"

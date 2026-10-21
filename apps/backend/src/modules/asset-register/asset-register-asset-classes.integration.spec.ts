@@ -30,6 +30,7 @@ const ASSET_VIEW_ONLY_USER = {
 
 type AssetClassDetail = {
   id: string;
+  classId: string;
   name: string;
   isActive: boolean;
   status: string;
@@ -252,6 +253,31 @@ describe('Asset Register — asset classes (integration)', () => {
         )
         .expect(201);
       expect((res.body as { vehicleType: string }).vehicleType).toBe('4W');
+    });
+
+    it('assigns org-unique 6-digit classId on create (not UUID)', async () => {
+      const first = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildAssetClassCreatePayload())
+        .expect(201);
+      const second = await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildAssetClassCreatePayload({
+            modelName: `Second ${Date.now()}`,
+          }),
+        )
+        .expect(201);
+      const a = first.body as AssetClassDetail;
+      const b = second.body as AssetClassDetail;
+      expect(a.classId).toMatch(/^\d{6}$/);
+      expect(b.classId).toMatch(/^\d{6}$/);
+      expect(a.classId).not.toBe(a.id);
+      expect(Number(b.classId)).toBeGreaterThan(Number(a.classId));
     });
 
     it('returns 400 for unknown JSON key on PATCH', async () => {
@@ -538,5 +564,14 @@ describe('Asset Register — asset classes (integration)', () => {
         'Insurance policy copy',
       ]);
     });
+  });
+
+  it('returns 400 for invalid sortBy on asset class list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/asset-register/asset-classes')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

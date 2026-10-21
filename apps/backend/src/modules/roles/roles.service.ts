@@ -11,6 +11,12 @@ import {
   toPaginatedResult,
   type PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ROLE_LIST_DEFAULT_SORT,
+  ROLE_LIST_SORT_FIELDS,
+} from './constants/roles-list-sort.constants';
+import type { ListRolesQueryDto } from './dto/list-roles-query.dto';
 import {
   ERP_MODULES,
   isKnownErpModuleId,
@@ -101,19 +107,25 @@ export class RolesService {
 
   async listRoles(
     actorUserId: string,
-    organizationId: string,
-    page = DEFAULT_PAGE,
-    pageSize = DEFAULT_PAGE_SIZE,
+    query: ListRolesQueryDto,
   ): Promise<PaginatedResult<RoleDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      ROLE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ROLE_LIST_DEFAULT_SORT,
+    );
     const visibleRoleIds = await this.resolveVisibleRoleIds(
       actorUserId,
-      organizationId,
+      query.organizationId,
     );
     const { rows, total } = await this.rolesRepository.listOrgRoles(
-      organizationId,
+      query.organizationId,
       page,
       pageSize,
       visibleRoleIds,
+      sort,
     );
     const permissionKeysByRoleId =
       await this.rolesRepository.getPermissionKeysForRoles(

@@ -1,5 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type LocationStatus = "active" | "inactive";
 
@@ -41,7 +43,7 @@ export type OrganisationLocationDetail = OrganisationLocationListItem & {
 /** Matches backend `LOCATION_LIST_MAX_PAGE_SIZE` for form dropdowns. */
 export const ORGANISATION_LOCATION_FORM_PICKER_PAGE_SIZE = 200;
 
-export type ListOrganisationLocationsParams = {
+export type ListOrganisationLocationsParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -98,6 +100,7 @@ export async function fetchOrganisationLocationsApi(
   if (params.status) {
     query.set("status", params.status);
   }
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<OrganisationLocationListItem>>(
     `/organisation/locations?${query.toString()}`,
     {

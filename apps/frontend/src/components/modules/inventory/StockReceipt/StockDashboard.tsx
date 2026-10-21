@@ -13,6 +13,11 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { INVENTORY_STOCK_RECEIPT_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
   fetchStockReceiptsListApi,
@@ -39,9 +44,16 @@ export default function StockDashboard() {
   const debouncedSearch = useDebouncedValue(search, 300);
   const [currentPage, setCurrentPage] = useState(1);
 
+  const {
+    sort: tableSort,
+    onSortChange,
+    listSortParams,
+    serverSorted,
+  } = useDashboardTableListSort(INVENTORY_STOCK_RECEIPT_COLUMN_SORT);
+
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch]);
+  }, [debouncedSearch, tableSort]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -50,6 +62,7 @@ export default function StockDashboard() {
       organizationId,
       currentPage,
       debouncedSearch,
+      ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
       fetchStockReceiptsListApi(
@@ -58,6 +71,7 @@ export default function StockDashboard() {
           page: currentPage,
           pageSize: PAGE_SIZE,
           search: debouncedSearch,
+          ...listSortParams,
         },
         token!,
       ),
@@ -80,6 +94,7 @@ export default function StockDashboard() {
     {
       key: "part",
       label: "PART",
+      sortable: false,
       render: (row: StockReceiptListItem) => (
         <div>
           <p className="font-medium text-gray-900">{row.partName}</p>
@@ -90,6 +105,7 @@ export default function StockDashboard() {
     {
       key: "quantity",
       label: "QTY",
+      sortable: false,
       render: (row: StockReceiptListItem) => (
         <span className="text-sm text-gray-600">{row.quantity}</span>
       ),
@@ -97,6 +113,7 @@ export default function StockDashboard() {
     {
       key: "batch",
       label: "BATCH",
+      sortable: false,
       render: (row: StockReceiptListItem) => (
         <span className="text-sm text-gray-600">{row.batchReference}</span>
       ),
@@ -169,6 +186,9 @@ export default function StockDashboard() {
           columns={columns}
           data={items}
           getRowKey={(row) => row.id}
+          sortState={tableSort}
+          onSortChange={onSortChange}
+          serverSorted={serverSorted}
           renderActions={(row) => (
             <DashboardTableActions
               status={row.status}

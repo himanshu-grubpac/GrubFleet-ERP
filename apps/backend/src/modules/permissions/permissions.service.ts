@@ -5,6 +5,12 @@ import {
   toPaginatedResult,
   type PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  PERMISSION_CATALOG_LIST_DEFAULT_SORT,
+  PERMISSION_CATALOG_LIST_SORT_FIELDS,
+} from './constants/permissions-list-sort.constants';
+import type { ListPermissionsQueryDto } from './dto/list-permissions-query.dto';
 import { PermissionsRepository } from './permissions.repository';
 
 export type PermissionCatalogItemDto = {
@@ -20,12 +26,19 @@ export class PermissionsService {
   constructor(private readonly permissionsRepository: PermissionsRepository) {}
 
   async listPermissions(
-    page = DEFAULT_PAGE,
-    pageSize = DEFAULT_PAGE_SIZE,
+    query: ListPermissionsQueryDto,
   ): Promise<PaginatedResult<PermissionCatalogItemDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      PERMISSION_CATALOG_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      PERMISSION_CATALOG_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.permissionsRepository.listCatalog(
       page,
       pageSize,
+      sort,
     );
     return toPaginatedResult(
       rows.map((p) => ({

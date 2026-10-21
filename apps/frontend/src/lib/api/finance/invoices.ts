@@ -1,6 +1,8 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
 import type { AssetRegisterAssetClassListItem } from "@/lib/api/asset-register/asset-classes";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type FinanceInvoiceType = "purchase" | "sale" | "billing";
 export type FinanceInvoiceStatus =
@@ -97,7 +99,7 @@ export type FinanceInvoiceDetail = FinanceInvoiceListItem & {
   updatedAt: string;
 };
 
-export type ListFinanceInvoicesParams = {
+export type ListFinanceInvoicesParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -149,6 +151,7 @@ export async function fetchFinanceInvoicesApi(
   if (params.search?.trim()) q.set("search", params.search.trim());
   if (params.status) q.set("status", params.status);
   if (params.invoiceType) q.set("invoiceType", params.invoiceType);
+  appendListSortSearchParams(q, params);
 
   return apiFetch(`/finance/invoices?${q.toString()}`, {
     method: "GET",

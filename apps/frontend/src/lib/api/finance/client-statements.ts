@@ -1,5 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import type { FinanceInvoiceStatus } from "./invoices";
 
 function orgHeaders(organizationId: string, token: string) {
@@ -64,7 +66,7 @@ export type ClientStatementSendResult = {
 
 export async function fetchClientStatementsApi(
   token: string,
-  params: {
+  params: ListSortParams & {
     organizationId: string;
     periodStart: string;
     periodEnd: string;
@@ -83,6 +85,7 @@ export async function fetchClientStatementsApi(
   if (params.search?.trim()) {
     query.set("search", params.search.trim());
   }
+  appendListSortSearchParams(query, params);
   return apiFetch(`/finance/client-statements?${query.toString()}`, {
     method: "GET",
     ...orgHeaders(params.organizationId, token),

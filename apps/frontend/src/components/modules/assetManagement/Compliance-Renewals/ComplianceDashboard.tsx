@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Check, Copy, PackageSearch } from "lucide-react";
@@ -13,6 +13,11 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ASSET_REGISTER_COMPLIANCE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+    listSortQueryKeyPart,
+    useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { fetchAssetRegisterComplianceListApi } from "@/lib/api/asset-register/compliance";
 import { assetRegisterComplianceRenewalDetailHref } from "@/lib/navigation/asset-register-static-routes";
 
@@ -80,6 +85,16 @@ export default function ComplianceDashboardPage() {
     const [copiedAssetClass, setCopiedAssetClass] = useState<string | null>(
         null,
     );
+    const {
+        sort: tableSort,
+        onSortChange,
+        listSortParams,
+        serverSorted,
+    } = useDashboardTableListSort(ASSET_REGISTER_COMPLIANCE_COLUMN_SORT);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [listSortParams?.sortBy, listSortParams?.sortOrder]);
 
     const listQuery = useQuery({
         queryKey: [
@@ -88,6 +103,7 @@ export default function ComplianceDashboardPage() {
             organizationId,
             activeFilter,
             currentPage,
+            ...listSortQueryKeyPart(listSortParams),
         ],
         queryFn: () => {
             if (!token || !organizationId) {
@@ -102,6 +118,7 @@ export default function ComplianceDashboardPage() {
                 page: currentPage,
                 pageSize: PAGE_SIZE,
                 complianceStatus,
+                ...listSortParams,
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -193,6 +210,7 @@ export default function ComplianceDashboardPage() {
         {
             key: "assetClass",
             label: "ASSET CLASS",
+            sortable: false,
             className: "w-[180px] max-w-[180px]",
             render: (item: ComplianceItem) => (
                 <div className="group/asset relative w-[180px] max-w-full">
@@ -242,15 +260,16 @@ export default function ComplianceDashboardPage() {
                 </div>
             ),
         },
-        { key: "insuranceStart", label: "INSURANCE START" },
-        { key: "insuranceExpiry", label: "INSURANCE EXP." },
-        { key: "registrationStart", label: "REGISTRATION START" },
-        { key: "registrationExpiry", label: "REGISTRATION EXP." },
-        { key: "warrantyStart", label: "WARRANTY START" },
-        { key: "warrantyExpiry", label: "WARRANTY EXP." },
+        { key: "insuranceStart", label: "INSURANCE START", sortable: false },
+        { key: "insuranceExpiry", label: "INSURANCE EXP.", sortable: false },
+        { key: "registrationStart", label: "REGISTRATION START", sortable: false },
+        { key: "registrationExpiry", label: "REGISTRATION EXP.", sortable: false },
+        { key: "warrantyStart", label: "WARRANTY START", sortable: false },
+        { key: "warrantyExpiry", label: "WARRANTY EXP.", sortable: false },
         {
             key: "status",
             label: "STATUS",
+            sortable: false,
             render: (item: ComplianceItem) => (
                 <span
                     className={[
@@ -358,6 +377,9 @@ export default function ComplianceDashboardPage() {
                     columns={complianceColumns}
                     data={paginatedComplianceItems}
                     getRowKey={(item) => item.id}
+                    sortState={tableSort}
+                    onSortChange={onSortChange}
+                    serverSorted={serverSorted}
                     renderActions={(item) => (
                         <Button
                             type="button"

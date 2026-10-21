@@ -24,6 +24,8 @@ import { CreateAmcSubscriberDto } from './dto/create-amc-subscriber.dto';
 import { CreateAmcTierDto } from './dto/create-amc-tier.dto';
 import { CreateMaintenanceScheduleDto } from './dto/create-maintenance-schedule.dto';
 import { ListAmcSubscribersQueryDto } from './dto/list-amc-subscribers-query.dto';
+import { ListAmcTiersQueryDto } from './dto/list-amc-tiers-query.dto';
+import { ListMaintenanceSchedulesQueryDto } from './dto/list-maintenance-schedules-query.dto';
 import { UpdateAmcTierDto } from './dto/update-amc-tier.dto';
 import { UpdateMaintenanceScheduleDto } from './dto/update-maintenance-schedule.dto';
 import { UpdateWorkshopAmcStatusDto } from './dto/update-workshop-amc-status.dto';
@@ -40,12 +42,8 @@ export class WorkshopAmcController {
   @RequireOrganizationContext()
   @RequirePermissions(WorkshopPermissionKeys.VIEW)
   @ApiOperation({ summary: 'List AMC tiers' })
-  listTiers(
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
-  ) {
-    return this.amc.listTiers(organizationId, page, pageSize);
+  listTiers(@Query() query: ListAmcTiersQueryDto) {
+    return this.amc.listTiers(query);
   }
 
   @Get('tiers/:id')
@@ -99,12 +97,8 @@ export class WorkshopAmcController {
   @RequireOrganizationContext()
   @RequirePermissions(WorkshopPermissionKeys.VIEW)
   @ApiOperation({ summary: 'List maintenance schedules' })
-  listSchedules(
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
-    @Query('page') page?: number,
-    @Query('pageSize') pageSize?: number,
-  ) {
-    return this.amc.listSchedules(organizationId, page, pageSize);
+  listSchedules(@Query() query: ListMaintenanceSchedulesQueryDto) {
+    return this.amc.listSchedules(query);
   }
 
   @Get('schedules/:id')
@@ -134,6 +128,8 @@ export class WorkshopAmcController {
       id,
       query.page,
       query.pageSize,
+      query.sortBy,
+      query.sortOrder,
     );
   }
 

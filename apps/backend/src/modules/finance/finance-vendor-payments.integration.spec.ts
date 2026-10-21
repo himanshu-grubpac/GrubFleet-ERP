@@ -377,4 +377,13 @@ describe('Finance vendor payments (integration)', () => {
       expect(list.total).toBeGreaterThan(0);
     });
   });
+
+  it('returns 400 for invalid sortBy on vendor payment list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/vendor-payments')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
 });

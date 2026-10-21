@@ -13,6 +13,13 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  WORK_ORDER_LIST_DEFAULT_SORT,
+  WORK_ORDER_LIST_SORT_FIELDS,
+  WORKSHOP_TECHNICIAN_LIST_DEFAULT_SORT,
+  WORKSHOP_TECHNICIAN_LIST_SORT_FIELDS,
+} from './constants/workshop-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateWorkOrderDto } from './dto/create-work-order.dto';
 import type { ListWorkOrdersQueryDto } from './dto/list-work-orders-query.dto';
@@ -37,11 +44,16 @@ export class WorkOrdersService {
   async list(query: ListWorkOrdersQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      WORK_ORDER_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      WORK_ORDER_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.workshopRepo.listWorkOrders(
       query.organizationId,
       page,
       pageSize,
-      { search: query.search, status: query.status },
+      { search: query.search, status: query.status, sort },
     );
     for (const { order } of rows) {
       await this.maybeLogWorkOrderOverdue(order);
@@ -65,12 +77,17 @@ export class WorkOrdersService {
   async listTechnicians(query: ListWorkshopTechniciansQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      WORKSHOP_TECHNICIAN_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      WORKSHOP_TECHNICIAN_LIST_DEFAULT_SORT,
+    );
     const { rows, total } =
       await this.workshopRepo.listTechniciansWithOpenWorkOrderCounts(
         query.organizationId,
         page,
         pageSize,
-        { search: query.search },
+        { search: query.search, sort },
       );
     const items = rows.map((row) => ({
       employeeId: row.id,

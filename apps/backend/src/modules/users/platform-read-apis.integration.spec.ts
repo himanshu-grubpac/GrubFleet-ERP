@@ -119,4 +119,13 @@ describe('Platform read APIs (integration)', () => {
       .set('x-organization-id', organizationId)
       .expect(200);
   });
+
+  it('GET /users returns 400 for invalid sortBy', () => {
+    return request(app.getHttpServer())
+      .get('/api/v1/users')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
 });

@@ -2101,4 +2101,13 @@ describe('Fleet leasing lease contracts (integration)', () => {
     ).assetLines;
     expect(lines[0]?.assetClassId).toBe(classId.id);
   });
+
+  it('returns 400 for invalid sortBy on lease contract list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/lease-contracts')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
 });

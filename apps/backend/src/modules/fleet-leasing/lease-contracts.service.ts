@@ -12,6 +12,13 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  LEASE_CONTRACT_LIST_DEFAULT_SORT,
+  LEASE_CONTRACT_LIST_SORT_FIELDS,
+  RENEWALS_EXTENSION_LIST_DEFAULT_SORT,
+  RENEWALS_EXTENSION_LIST_SORT_FIELDS,
+} from './constants/fleet-leasing-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import { AMC_TIER_STUB_VALUES } from './constants/amc-tier-stub';
 import { normalizeEditClassification } from './constants/contract-edit-classification';
@@ -102,12 +109,18 @@ export class LeaseContractsService {
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const filterKey = query.statusFilter ?? 'all';
     const statusFilter = LIST_STATUS_FILTER[filterKey];
+    const sort = resolveListSort(
+      LEASE_CONTRACT_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      LEASE_CONTRACT_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listContracts({
       organizationId: query.organizationId,
       page,
       pageSize,
       statusFilter,
       search: query.search,
+      sort,
     });
     const contractIds = rows.map((r) => r.contract.id);
     const allLines =
@@ -143,12 +156,21 @@ export class LeaseContractsService {
   async listRenewalEligible(query: ListRenewalsExtensionsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      RENEWALS_EXTENSION_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      RENEWALS_EXTENSION_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listContracts({
       organizationId: query.organizationId,
       page,
       pageSize,
       statusFilter: [...RENEWABLE_CONTRACT_STATUSES],
       search: query.search,
+      sort: {
+        sortBy: sort.sortBy,
+        sortOrder: sort.sortOrder,
+      },
     });
     const contractIds = rows.map((r) => r.contract.id);
     const allLines =

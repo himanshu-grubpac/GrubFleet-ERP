@@ -5,6 +5,8 @@ import type {
   Organization,
   AuditLogEntry,
 } from '@grubpac/shared-types';
+import type { ListSortParams } from '@/lib/query/list-sort-params';
+import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
 import { apiFetch } from './client';
 
 export interface CreateUserPayload {
@@ -36,12 +38,14 @@ export async function fetchUsersApi(
   organizationId: string,
   page = 1,
   pageSize = 50,
+  sort?: ListSortParams,
 ): Promise<PaginatedResponse<UserMember>> {
   const query = new URLSearchParams({
     organizationId,
     page: String(page),
     pageSize: String(pageSize),
   });
+  appendListSortSearchParams(query, sort);
 
   return apiFetch<PaginatedResponse<UserMember>>(`/users?${query.toString()}`, {
     method: 'GET',
@@ -87,12 +91,14 @@ export async function fetchAuditLogsApi(
   organizationId: string,
   page = 1,
   pageSize = 50,
+  sort?: ListSortParams,
 ): Promise<PaginatedResponse<AuditLogEntry>> {
   const query = new URLSearchParams({
     organizationId,
     page: String(page),
     pageSize: String(pageSize),
   });
+  appendListSortSearchParams(query, sort);
 
   return apiFetch<PaginatedResponse<AuditLogEntry>>(`/audit?${query.toString()}`, {
     method: 'GET',

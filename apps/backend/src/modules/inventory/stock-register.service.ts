@@ -9,6 +9,12 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  INVENTORY_PART_LIST_DEFAULT_SORT,
+  INVENTORY_PART_LIST_SORT_FIELDS,
+  type InventoryPartListSortField,
+} from './constants/inventory-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateSparePartDto } from './dto/create-spare-part.dto';
 import type { ListInventoryQueryDto } from './dto/list-inventory-query.dto';
@@ -57,11 +63,19 @@ export class StockRegisterService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      INVENTORY_PART_LIST_SORT_FIELDS,
+      {
+        sortBy: query.sortBy as InventoryPartListSortField | undefined,
+        sortOrder: query.sortOrder,
+      },
+      INVENTORY_PART_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listSpareParts(
       query.organizationId,
       page,
       pageSize,
-      { search: query.search, isActive },
+      { search: query.search, isActive, sort },
     );
     return toPaginatedResult(
       rows.map((row) => this.toListItem(row)),

@@ -10,6 +10,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  INVOICE_LIST_DEFAULT_SORT,
+  INVOICE_LIST_SORT_FIELDS,
+} from './constants/finance-list-sort.constants';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import type { AppDatabase } from '../../database/database.module';
 import { financeInvoiceLines } from '../../database/schema/finance.schema';
@@ -59,6 +64,11 @@ export class InvoicesService {
   async list(query: ListInvoicesQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      INVOICE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      INVOICE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listInvoices(
       query.organizationId,
       page,
@@ -67,6 +77,7 @@ export class InvoicesService {
         search: query.search,
         status: query.status,
         invoiceType: query.invoiceType,
+        sort,
       },
     );
     const items = rows.map((row) => this.toListItem(row));

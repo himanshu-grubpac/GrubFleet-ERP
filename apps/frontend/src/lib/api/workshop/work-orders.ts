@@ -1,5 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type WorkshopWorkOrderStatus =
   | "open"
@@ -107,7 +109,7 @@ export type WorkshopWorkOrderDetail = {
   isOverdue?: boolean;
 };
 
-export type ListWorkshopWorkOrdersParams = {
+export type ListWorkshopWorkOrdersParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -173,6 +175,7 @@ export async function fetchWorkshopWorkOrdersApi(
   if (params.status) {
     query.set("status", params.status);
   }
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<WorkshopWorkOrderListItem>>(
     `/workshop/work-orders?${query.toString()}`,
     {

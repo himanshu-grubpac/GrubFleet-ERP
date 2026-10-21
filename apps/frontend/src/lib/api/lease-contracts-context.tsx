@@ -21,7 +21,6 @@ import {
     createLeaseContract,
     updateLeaseContract,
     fetchFleetClients,
-    type LeaseContractStatusFilter,
     type CreateLeaseContractInput,
     type UpdateLeaseContractInput,
 } from "./lease-contracts";
@@ -34,17 +33,16 @@ interface LeaseContractsContextValue {
 
     /** Pre-bound API functions — token + orgId already injected */
     api: {
-        getList: (options?: {
-            page?: number;
-            pageSize?: number;
-            statusFilter?: LeaseContractStatusFilter;
-            search?: string;
-        }) => ReturnType<typeof fetchLeaseContractsList>;
-        getRenewalEligibleList: (options?: {
-            page?: number;
-            pageSize?: number;
-            search?: string;
-        }) => ReturnType<typeof fetchRenewalsExtensionsList>;
+        getList: (
+            options?: import("./lease-contracts").LeaseContractsListOptions,
+        ) => ReturnType<typeof fetchLeaseContractsList>;
+        getRenewalEligibleList: (
+            options?: import("@/lib/query/list-sort-params").ListSortParams & {
+                page?: number;
+                pageSize?: number;
+                search?: string;
+            },
+        ) => ReturnType<typeof fetchRenewalsExtensionsList>;
         getById: (contractId: string) => ReturnType<typeof fetchLeaseContractById>;
         getReview: (contractId: string) => ReturnType<typeof fetchLeaseContractReview>;
         getConfirmation: (contractId: string) => ReturnType<typeof fetchLeaseContractConfirmation>;

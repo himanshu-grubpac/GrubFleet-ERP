@@ -12,6 +12,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
+  ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
+} from './constants/asset-register-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateAssetRegisterVehicleDto } from './dto/create-asset-register-vehicle.dto';
 import type { ListAssetRegisterVehiclesQueryDto } from './dto/list-asset-register-vehicles-query.dto';
@@ -44,6 +49,11 @@ export class AssetRegisterVehiclesService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVehicles(
       query.organizationId,
       page,
@@ -53,6 +63,7 @@ export class AssetRegisterVehiclesService {
         isActive,
         assetClassId: query.assetClassId,
         operationalStatus: query.operationalStatus,
+        sort,
       },
     );
     const items = rows.map((row) => this.toListItem(row));

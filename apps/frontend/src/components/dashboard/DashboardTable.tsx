@@ -25,7 +25,7 @@ export type DashboardColumn<T> = {
 
 type SortDirection = "asc" | "desc";
 
-type SortState = {
+export type DashboardTableSortState = {
     key: string;
     direction: SortDirection;
 };
@@ -34,6 +34,11 @@ type DashboardTableProps<T> = {
     columns: DashboardColumn<T>[];
     data: T[];
     getRowKey: (row: T) => string;
+    /** Controlled sort (header click). Pair with `onSortChange` + `serverSorted` for API lists. */
+    sortState?: DashboardTableSortState | null;
+    onSortChange?: (sort: DashboardTableSortState) => void;
+    /** When true, rows stay in API order — no client `compareValues` sort. */
+    serverSorted?: boolean;
     renderActions?: (row: T) => React.ReactNode;
     /**
      * @deprecated No longer has any effect. Row action menus render in a
@@ -122,11 +127,19 @@ export default function DashboardTable<T>({
     columns,
     data,
     getRowKey,
+    sortState: controlledSort,
+    onSortChange,
+    serverSorted = false,
     renderActions,
 }: DashboardTableProps<T>) {
-    const [sort, setSort] = useState<SortState | null>(null);
+    const [internalSort, setInternalSort] =
+        useState<DashboardTableSortState | null>(null);
+
+    const isControlled = onSortChange != null;
+    const sort = isControlled ? (controlledSort ?? null) : internalSort;
 
     const sortedData = useMemo(() => {
+        if (serverSorted) return data;
         if (!sort) return data;
 
         const column = columns.find(
@@ -157,20 +170,26 @@ export default function DashboardTable<T>({
 
             return compareValues(valueA, valueB, column) * direction;
         });
-    }, [data, columns, sort]);
+    }, [data, columns, sort, serverSorted]);
 
     function handleSort(column: DashboardColumn<T>) {
         if (column.sortable === false) return;
 
         const key = String(column.key);
 
-        setSort((current) => ({
+        const next: DashboardTableSortState = {
             key,
             direction:
-                current?.key === key && current.direction === "asc"
+                sort?.key === key && sort.direction === "asc"
                     ? "desc"
                     : "asc",
-        }));
+        };
+
+        if (isControlled) {
+            onSortChange?.(next);
+        } else {
+            setInternalSort(next);
+        }
     }
 
     return (

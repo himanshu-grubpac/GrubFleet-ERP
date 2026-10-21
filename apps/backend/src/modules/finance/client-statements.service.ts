@@ -8,6 +8,12 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import type { ClientListSortField } from '../organisation/constants/organisation-list-sort.constants';
+import {
+  CLIENT_STATEMENT_LIST_DEFAULT_SORT,
+  CLIENT_STATEMENT_LIST_SORT_FIELDS,
+} from './constants/finance-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import { OrganisationRepository } from '../organisation/repositories/organisation.repository';
 import type {
@@ -49,6 +55,13 @@ export class ClientStatementsService {
     const hasAnyBillingInvoicesEver =
       await this.financeRepo.hasAnyBillingInvoiceEver(organizationId);
 
+    const sort = resolveListSort(
+      CLIENT_STATEMENT_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      CLIENT_STATEMENT_LIST_DEFAULT_SORT,
+    );
+    const clientSortBy: ClientListSortField =
+      sort.sortBy === 'clientName' ? 'name' : 'createdAt';
     const { rows: clients, total } =
       await this.organisationRepo.listOrganisationClients(
         organizationId,
@@ -56,7 +69,7 @@ export class ClientStatementsService {
         pageSize,
         {
           search: query.search,
-          orderBy: 'name',
+          sort: { sortBy: clientSortBy, sortOrder: sort.sortOrder },
         },
       );
 

@@ -60,6 +60,8 @@ export class VehicleAllocationsController {
       contractId,
       query.page,
       query.pageSize,
+      query.sortBy,
+      query.sortOrder,
     );
   }
 

@@ -612,4 +612,13 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .expect(403);
     });
   });
+
+  it('returns 400 for invalid sortBy on vehicle list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/asset-register/vehicles')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
 });

@@ -14,6 +14,12 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  FLEET_ASSET_CLASS_LIST_DEFAULT_SORT,
+  FLEET_ASSET_CLASS_LIST_SORT_FIELDS,
+} from './constants/fleet-leasing-list-sort.constants';
+import type { AssetClassListSortField } from '../asset-register/constants/asset-register-list-sort.constants';
 import { RequireOrganizationContext } from '../auth/authorization/decorators/require-organization-context.decorator';
 import { RequirePermissions } from '../auth/authorization/decorators/require-permissions.decorator';
 import { FleetLeasingPermissionKeys } from './constants/fleet-leasing-permission-keys';
@@ -40,11 +46,19 @@ export class AssetClassesController {
   async list(@Query() query: ListFleetAssetClassesQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      FLEET_ASSET_CLASS_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      FLEET_ASSET_CLASS_LIST_DEFAULT_SORT,
+    );
+    const classSortBy: AssetClassListSortField =
+      sort.sortBy === 'registrationNo' ? 'createdAt' : 'name';
     const { catalog, total } =
       await this.assetRegisterCatalog.listActiveAssetClassCatalog(
         query.organizationId,
         page,
         pageSize,
+        { sortBy: classSortBy, sortOrder: sort.sortOrder },
       );
     const names = catalog.map((row) => row.name);
     return {

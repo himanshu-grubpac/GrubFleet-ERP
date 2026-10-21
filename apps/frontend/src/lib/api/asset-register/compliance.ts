@@ -1,5 +1,7 @@
 
 import type { PaginatedResponse } from "@grubpac/shared-types";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
 
 export type AssetRegisterComplianceFilterStatus =
@@ -39,14 +41,16 @@ function orgHeaders(organizationId: string): HeadersInit {
   return { "x-organization-id": organizationId };
 }
 
-export async function fetchAssetRegisterComplianceListApi(params: {
-  organizationId: string;
-  token: string;
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  complianceStatus?: AssetRegisterComplianceFilterStatus;
-}): Promise<PaginatedResponse<AssetRegisterComplianceListItem>> {
+export async function fetchAssetRegisterComplianceListApi(
+  params: ListSortParams & {
+    organizationId: string;
+    token: string;
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    complianceStatus?: AssetRegisterComplianceFilterStatus;
+  },
+): Promise<PaginatedResponse<AssetRegisterComplianceListItem>> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
     page: String(params.page ?? 1),
@@ -60,6 +64,7 @@ export async function fetchAssetRegisterComplianceListApi(params: {
   if (params.complianceStatus) {
     q.set("complianceStatus", params.complianceStatus);
   }
+  appendListSortSearchParams(q, params);
 
   return apiFetch<PaginatedResponse<AssetRegisterComplianceListItem>>(
     `/asset-register/compliance?${q.toString()}`,

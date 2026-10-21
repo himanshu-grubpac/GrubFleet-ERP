@@ -11,6 +11,10 @@
 import { and, eq } from 'drizzle-orm';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import { buildAssetClassNameFromSpec } from '../../modules/asset-register/utils/asset-class-name.util';
+import {
+  ASSET_CLASS_ID_SEQUENCE_START,
+  formatAssetClassId,
+} from '../../modules/asset-register/utils/asset-class-id.util';
 import * as schema from '../schema';
 import { organizations } from '../schema';
 import {
@@ -255,6 +259,7 @@ export async function seedLocalAssetRegisterDemo(
   ] as const;
 
   const assetClassIds = new Map<string, { id: string; name: string }>();
+  let nextAssetClassIdSequence = ASSET_CLASS_ID_SEQUENCE_START;
   for (const seed of assetClassSeeds) {
     const className = buildAssetClassNameFromSpec({
       manufacturingYear: seed.manufacturingYear,
@@ -300,6 +305,7 @@ export async function seedLocalAssetRegisterDemo(
       .insert(assetRegisterAssetClasses)
       .values({
         organizationId,
+        classId: formatAssetClassId(nextAssetClassIdSequence++),
         name: className,
         description: LOCAL_ASSET_REGISTER_DEMO_SEED_SOURCE,
         brand: seed.brand,
