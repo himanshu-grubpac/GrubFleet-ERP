@@ -6,7 +6,6 @@ import {
 } from '../../common/dto/pagination-query.dto';
 import { resolveListSort } from '../../common/utils/list-sort.util';
 import {
-  INVENTORY_PART_LIST_DEFAULT_SORT,
   INVENTORY_PART_LIST_SORT_FIELDS,
   type InventoryPartListSortField,
 } from './constants/inventory-list-sort.constants';

@@ -160,6 +160,30 @@ export function assertLocalAssetRegisterDemoSeedAllowed(): void {
   assertLocalDevelopmentDatabaseUrl(resolveStagingDatabaseUrl());
 }
 
+/**
+ * Purge staging interconnected demo rows only (keeps users, roles, org shell).
+ * Requires PURGE_STAGING_DEMO=1 and APP_ENV=staging on nonprod RDS.
+ */
+export function assertStagingDemoPurgeAllowed(): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (appEnv === 'production' || appEnv === 'pre-production') {
+    throw new Error(
+      `Refusing staging demo purge when APP_ENV=${appEnv ?? '(unset)'}.`,
+    );
+  }
+  if (process.env.PURGE_STAGING_DEMO !== '1') {
+    throw new Error(
+      'Refusing staging demo purge: set PURGE_STAGING_DEMO=1 explicitly.',
+    );
+  }
+  if (appEnv !== 'staging') {
+    throw new Error(
+      `Refusing staging demo purge: APP_ENV must be staging (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertStagingNonprodDatabaseUrl(resolveStagingDatabaseUrl());
+}
+
 export function assertStagingAssetRegisterCleanAllowed(): void {
   const appEnv = process.env.APP_ENV?.trim();
   if (appEnv === 'production' || appEnv === 'pre-production') {

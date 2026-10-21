@@ -1,7 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsIn, IsInt, IsOptional, Max, Min } from 'class-validator';
-import { LIST_SORT_ORDERS, type ListSortOrder } from '../constants/list-sort.constants';
+import {
+  LIST_SORT_ORDERS,
+  type ListSortOrder,
+} from '../constants/list-sort.constants';
 
 export type { ListSortOrder };
 
@@ -29,7 +32,10 @@ export class PaginationQueryDto {
   @Max(MAX_PAGE_SIZE)
   pageSize?: number = DEFAULT_PAGE_SIZE;
 
-  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS, description: 'Sort direction when sortBy is set' })
+  @ApiPropertyOptional({
+    enum: LIST_SORT_ORDERS,
+    description: 'Sort direction when sortBy is set',
+  })
   @IsOptional()
   @IsIn(LIST_SORT_ORDERS)
   sortOrder?: ListSortOrder;

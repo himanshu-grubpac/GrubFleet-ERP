@@ -1,7 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
-import { INVOICE_LIST_SORT_FIELDS, type InvoiceListSortField } from '../constants/finance-list-sort.constants';
+import {
+  INVOICE_LIST_SORT_FIELDS,
+  type InvoiceListSortField,
+} from '../constants/finance-list-sort.constants';
 import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
 import {
   FINANCE_INVOICE_STATUSES,

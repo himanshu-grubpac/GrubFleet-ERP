@@ -431,8 +431,7 @@ export class WorkshopRepository {
         .groupBy(organisationEmployees.id, organisationEmployees.fullName)
         .orderBy(
           ...(() => {
-            const sort =
-              opts.sort ?? WORKSHOP_TECHNICIAN_LIST_DEFAULT_SORT;
+            const sort = opts.sort ?? WORKSHOP_TECHNICIAN_LIST_DEFAULT_SORT;
             if (sort.sortBy === 'openWorkOrderCount') {
               return [
                 sort.sortOrder === 'asc'

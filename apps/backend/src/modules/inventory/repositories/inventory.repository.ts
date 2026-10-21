@@ -2,7 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import {
   and,
   count,
-  desc,
   eq,
   ilike,
   inArray,

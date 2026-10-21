@@ -439,7 +439,13 @@ export class PortalSearchService {
       routePath: '/finance/invoices/detail/',
       routeQuery: { invoiceId: row.id },
       links: row.description
-        ? [{ rel: 'description', label: 'Description', display: row.description }]
+        ? [
+            {
+              rel: 'description',
+              label: 'Description',
+              display: row.description,
+            },
+          ]
         : [],
     }));
   }

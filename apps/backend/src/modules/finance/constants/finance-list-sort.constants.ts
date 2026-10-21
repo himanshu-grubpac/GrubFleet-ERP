@@ -7,10 +7,11 @@ export const INVOICE_LIST_SORT_FIELDS = [
   'createdAt',
 ] as const;
 export type InvoiceListSortField = (typeof INVOICE_LIST_SORT_FIELDS)[number];
-export const INVOICE_LIST_DEFAULT_SORT: ResolvedListSort<InvoiceListSortField> = {
-  sortBy: 'invoiceDate',
-  sortOrder: 'desc',
-};
+export const INVOICE_LIST_DEFAULT_SORT: ResolvedListSort<InvoiceListSortField> =
+  {
+    sortBy: 'invoiceDate',
+    sortOrder: 'desc',
+  };
 
 export const VENDOR_PAYMENT_LIST_SORT_FIELDS = [
   'paymentDate',

@@ -23,12 +23,12 @@ export function resolveListSort<T extends string>(
   query: ListSortQuery<T>,
   defaults: ResolvedListSort<T>,
 ): ResolvedListSort<T> {
-  if (query.sortBy !== undefined && !allowed.includes(query.sortBy as T)) {
+  if (query.sortBy !== undefined && !allowed.includes(query.sortBy)) {
     throw new BadRequestException(
       `Invalid sortBy. Allowed values: ${allowed.join(', ')}`,
     );
   }
-  const sortBy = (query.sortBy ?? defaults.sortBy) as T;
+  const sortBy = query.sortBy ?? defaults.sortBy;
   const sortOrder =
     query.sortOrder ??
     (query.sortBy !== undefined ? 'asc' : defaults.sortOrder);
@@ -43,10 +43,11 @@ export function buildListOrderBy<T extends string>(
 ): SQL[] {
   const column = columnMap[sort.sortBy];
   if (!column) {
-    throw new BadRequestException(`Invalid sortBy column mapping: ${sort.sortBy}`);
+    throw new BadRequestException(
+      `Invalid sortBy column mapping: ${sort.sortBy}`,
+    );
   }
   const primary = sort.sortOrder === 'asc' ? asc(column) : desc(column);
-  const tie =
-    tieBreakerOrder === 'asc' ? asc(tieBreaker) : desc(tieBreaker);
+  const tie = tieBreakerOrder === 'asc' ? asc(tieBreaker) : desc(tieBreaker);
   return [primary, tie];
 }

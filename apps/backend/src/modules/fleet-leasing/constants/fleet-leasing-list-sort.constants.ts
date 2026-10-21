@@ -32,7 +32,10 @@ export type FleetVehicleListSortField =
 export const FLEET_VEHICLE_LIST_DEFAULT_SORT: ResolvedListSort<FleetVehicleListSortField> =
   { sortBy: 'registrationNo', sortOrder: 'asc' };
 
-export const VEHICLE_ALLOCATION_LIST_SORT_FIELDS = ['createdAt', 'status'] as const;
+export const VEHICLE_ALLOCATION_LIST_SORT_FIELDS = [
+  'createdAt',
+  'status',
+] as const;
 export type VehicleAllocationListSortField =
   (typeof VEHICLE_ALLOCATION_LIST_SORT_FIELDS)[number];
 export const VEHICLE_ALLOCATION_LIST_DEFAULT_SORT: ResolvedListSort<VehicleAllocationListSortField> =

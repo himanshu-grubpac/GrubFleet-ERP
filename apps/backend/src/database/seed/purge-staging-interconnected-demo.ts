@@ -23,6 +23,13 @@ import {
   inventoryStockReceipts,
 } from '../schema/inventory.schema';
 import {
+  workshopLaborJobCardParts,
+  workshopWorkOrderLaborLines,
+  workshopWorkOrderOverdueLogs,
+  workshopWorkOrderPartLines,
+  workshopWorkOrders,
+} from '../schema/workshop.schema';
+import {
   organisationClientPocs,
   organisationClients,
   organisationDrivers,
@@ -519,6 +526,17 @@ export async function purgeStagingInterconnectedDemo(
           inArray(organisationEmployees.locationId, demoLocationIds),
         ),
       );
+
+    const receiptByLocationDel = await db
+      .delete(inventoryStockReceipts)
+      .where(
+        and(
+          eq(inventoryStockReceipts.organizationId, organizationId),
+          inArray(inventoryStockReceipts.locationId, demoLocationIds),
+        ),
+      )
+      .returning({ id: inventoryStockReceipts.id });
+    bump('inventoryStockReceiptsByLocation', receiptByLocationDel.length);
   }
 
   const locationDel = await db
@@ -528,6 +546,44 @@ export async function purgeStagingInterconnectedDemo(
   bump('organisationLocations', locationDel.length);
 
   if (demoVehicleIds.length > 0) {
+    const woOnDemoVehicleRows = await db
+      .select({ id: workshopWorkOrders.id })
+      .from(workshopWorkOrders)
+      .where(
+        and(
+          eq(workshopWorkOrders.organizationId, organizationId),
+          inArray(workshopWorkOrders.vehicleId, demoVehicleIds),
+        ),
+      );
+    const woOnDemoVehicleIds = woOnDemoVehicleRows.map((r) => r.id);
+    if (woOnDemoVehicleIds.length > 0) {
+      await db
+        .delete(workshopWorkOrderOverdueLogs)
+        .where(
+          inArray(workshopWorkOrderOverdueLogs.workOrderId, woOnDemoVehicleIds),
+        );
+      await db
+        .delete(workshopWorkOrderPartLines)
+        .where(
+          inArray(workshopWorkOrderPartLines.workOrderId, woOnDemoVehicleIds),
+        );
+      await db
+        .delete(workshopWorkOrderLaborLines)
+        .where(
+          inArray(workshopWorkOrderLaborLines.workOrderId, woOnDemoVehicleIds),
+        );
+      const woDel = await db
+        .delete(workshopWorkOrders)
+        .where(inArray(workshopWorkOrders.id, woOnDemoVehicleIds))
+        .returning({ id: workshopWorkOrders.id });
+      bump('workshopWorkOrdersByDemoVehicle', woDel.length);
+    }
+
+    await db
+      .update(financeInvoiceLines)
+      .set({ vehicleId: null })
+      .where(inArray(financeInvoiceLines.vehicleId, demoVehicleIds));
+
     const vehicleDel = await db
       .delete(assetRegisterVehicles)
       .where(inArray(assetRegisterVehicles.id, demoVehicleIds))
@@ -571,19 +627,62 @@ export async function purgeStagingInterconnectedDemo(
     bump('assetRegisterAssetClasses', classDel.length);
   }
 
+  const demoCatalogPartFilter = and(
+    eq(inventoryCatalogParts.organizationId, organizationId),
+    or(
+      sql`${inventoryCatalogParts.partCode} LIKE 'STDEMO-%'`,
+      sql`${inventoryCatalogParts.partCode} LIKE 'SP-202%-%'`,
+      sql`${inventoryCatalogParts.partCode} LIKE 'SP-2026-%'`,
+      sql`${inventoryCatalogParts.name} LIKE 'Staging Demo%'`,
+    ),
+  );
+  const demoCatalogPartRows = await db
+    .select({ id: inventoryCatalogParts.id })
+    .from(inventoryCatalogParts)
+    .where(demoCatalogPartFilter);
+  const demoCatalogPartIds = demoCatalogPartRows.map((r) => r.id);
+
+  if (demoCatalogPartIds.length > 0) {
+    const partRequestByPartDel = await db
+      .delete(inventoryPartsRequests)
+      .where(
+        and(
+          eq(inventoryPartsRequests.organizationId, organizationId),
+          inArray(inventoryPartsRequests.partId, demoCatalogPartIds),
+        ),
+      )
+      .returning({ id: inventoryPartsRequests.id });
+    bump('inventoryPartsRequestsByCatalogPart', partRequestByPartDel.length);
+
+    await db
+      .delete(workshopWorkOrderPartLines)
+      .where(
+        inArray(workshopWorkOrderPartLines.inventoryPartId, demoCatalogPartIds),
+      );
+
+    const laborJobCardPartDel = await db
+      .delete(workshopLaborJobCardParts)
+      .where(
+        inArray(workshopLaborJobCardParts.inventoryPartId, demoCatalogPartIds),
+      )
+      .returning({ id: workshopLaborJobCardParts.id });
+    bump('workshopLaborJobCardPartsByCatalogPart', laborJobCardPartDel.length);
+
+    const stockReceiptByPartDel = await db
+      .delete(inventoryStockReceipts)
+      .where(
+        and(
+          eq(inventoryStockReceipts.organizationId, organizationId),
+          inArray(inventoryStockReceipts.partId, demoCatalogPartIds),
+        ),
+      )
+      .returning({ id: inventoryStockReceipts.id });
+    bump('inventoryStockReceiptsByCatalogPart', stockReceiptByPartDel.length);
+  }
+
   const partDel = await db
     .delete(inventoryCatalogParts)
-    .where(
-      and(
-        eq(inventoryCatalogParts.organizationId, organizationId),
-        or(
-          sql`${inventoryCatalogParts.partCode} LIKE 'STDEMO-%'`,
-          sql`${inventoryCatalogParts.partCode} LIKE 'SP-202%-%'`,
-          sql`${inventoryCatalogParts.partCode} LIKE 'SP-2026-%'`,
-          sql`${inventoryCatalogParts.name} LIKE 'Staging Demo%'`,
-        ),
-      ),
-    )
+    .where(demoCatalogPartFilter)
     .returning({ id: inventoryCatalogParts.id });
   bump('inventoryCatalogParts', partDel.length);
 

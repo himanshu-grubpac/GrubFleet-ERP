@@ -18,7 +18,9 @@ import {
 } from '../constants/portal-search.constants';
 
 export class PortalSearchQueryDto {
-  @ApiProperty({ description: 'Organization scope (must match caller membership)' })
+  @ApiProperty({
+    description: 'Organization scope (must match caller membership)',
+  })
   @IsUUID()
   organizationId!: string;
 

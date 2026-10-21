@@ -1,7 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
-import { FLEET_CLIENT_LIST_SORT_FIELDS, type FleetClientListSortField } from '../constants/fleet-leasing-list-sort.constants';
+import {
+  FLEET_CLIENT_LIST_SORT_FIELDS,
+  type FleetClientListSortField,
+} from '../constants/fleet-leasing-list-sort.constants';
 import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
 
 export class ListFleetClientsQueryDto extends PaginationQueryDto {

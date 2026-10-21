@@ -55,8 +55,10 @@ import {
   type ResolvedListSort,
 } from '../../../common/utils/list-sort.util';
 
-const ASSET_CLASS_LIST_SORT_COLUMNS: Record<AssetClassListSortField, AnyColumn> =
-  {
+const ASSET_CLASS_LIST_SORT_COLUMNS: Record<
+  AssetClassListSortField,
+  AnyColumn
+> = {
   classId: assetRegisterAssetClasses.classId,
   createdAt: assetRegisterAssetClasses.createdAt,
   name: assetRegisterAssetClasses.name,
@@ -501,7 +503,10 @@ export class AssetRegisterRepository {
           .update(assetRegisterAssetClassIdCounters)
           .set({ nextSequence: sequence + 1 })
           .where(
-            eq(assetRegisterAssetClassIdCounters.organizationId, organizationId),
+            eq(
+              assetRegisterAssetClassIdCounters.organizationId,
+              organizationId,
+            ),
           );
       }
       return formatAssetClassId(sequence);

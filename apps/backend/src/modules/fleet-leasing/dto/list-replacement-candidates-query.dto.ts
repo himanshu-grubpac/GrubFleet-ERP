@@ -1,7 +1,10 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
-import { REPLACEMENT_CANDIDATE_LIST_SORT_FIELDS, type ReplacementCandidateListSortField } from '../constants/fleet-leasing-list-sort.constants';
+import {
+  REPLACEMENT_CANDIDATE_LIST_SORT_FIELDS,
+  type ReplacementCandidateListSortField,
+} from '../constants/fleet-leasing-list-sort.constants';
 import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
 import { ASSET_REGISTER_VEHICLE_TYPES } from '../../asset-register/constants/asset-class.constants';
 import {

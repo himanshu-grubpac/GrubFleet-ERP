@@ -1,9 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
-import {
-  buildListOrderBy,
-  resolveListSort,
-} from './list-sort.util';
+import { buildListOrderBy, resolveListSort } from './list-sort.util';
 
 const allowed = ['createdAt', 'name'] as const;
 const defaults = { sortBy: 'createdAt' as const, sortOrder: 'desc' as const };
@@ -22,11 +19,7 @@ describe('resolveListSort', () => {
 
   it('honors explicit sortOrder', () => {
     expect(
-      resolveListSort(
-        allowed,
-        { sortBy: 'name', sortOrder: 'desc' },
-        defaults,
-      ),
+      resolveListSort(allowed, { sortBy: 'name', sortOrder: 'desc' }, defaults),
     ).toEqual({ sortBy: 'name', sortOrder: 'desc' });
   });
 

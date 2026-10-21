@@ -7,7 +7,10 @@ import {
   MaxLength,
 } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
-import { CLIENT_STATEMENT_LIST_SORT_FIELDS, type ClientStatementListSortField } from '../constants/finance-list-sort.constants';
+import {
+  CLIENT_STATEMENT_LIST_SORT_FIELDS,
+  type ClientStatementListSortField,
+} from '../constants/finance-list-sort.constants';
 import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
 
 export class ListClientStatementsQueryDto extends PaginationQueryDto {
