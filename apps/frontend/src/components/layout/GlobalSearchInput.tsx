@@ -178,9 +178,9 @@ export default function GlobalSearchInput({
                 {hit.subtitle ? (
                   <span className="text-xs text-slate-600">{hit.subtitle}</span>
                 ) : null}
-                {hit.links.length > 0 ? (
+                {(hit.links ?? []).length > 0 ? (
                   <span className="mt-0.5 text-xs text-slate-500">
-                    {hit.links.map(formatLinkLine).join(" · ")}
+                    {(hit.links ?? []).map(formatLinkLine).join(" · ")}
                   </span>
                 ) : null}
               </button>

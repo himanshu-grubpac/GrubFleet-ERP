@@ -207,7 +207,7 @@ export default function DashboardTable<T>({
                                     <th
                                         key={key}
                                         aria-sort={
-                                            isSorted
+                                            isSorted && sort
                                                 ? sort.direction === "asc"
                                                     ? "ascending"
                                                     : "descending"

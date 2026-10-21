@@ -64,6 +64,15 @@ try {
   $env:AWS_RESPONSE_CHECKSUM_VALIDATION = 'when_required'
 
   Write-Host "Syncing to s3://$bucket (HTML short cache; _next/static immutable) ..."
+  $nextStatic = Join-Path $outDir '_next\static'
+  if (Test-Path $nextStatic) {
+    aws s3 sync $nextStatic "s3://$bucket/_next/static" `
+      --cache-control "public,max-age=31536000,immutable" `
+      --profile $Profile `
+      --region $Region
+    if ($LASTEXITCODE -ne 0) { throw 'S3 sync (_next/static) failed' }
+  }
+
   aws s3 sync $outDir "s3://$bucket" `
     --delete `
     --cache-control "public,max-age=0,must-revalidate" `
@@ -71,16 +80,6 @@ try {
     --profile $Profile `
     --region $Region
   if ($LASTEXITCODE -ne 0) { throw 'S3 sync failed' }
-
-  $nextStatic = Join-Path $outDir '_next\static'
-  if (Test-Path $nextStatic) {
-    aws s3 sync $nextStatic "s3://$bucket/_next/static" `
-      --delete `
-      --cache-control "public,max-age=31536000,immutable" `
-      --profile $Profile `
-      --region $Region
-    if ($LASTEXITCODE -ne 0) { throw 'S3 sync (_next/static) failed' }
-  }
 
   Write-Host "Invalidating CloudFront distribution $distributionId ..."
   aws cloudfront create-invalidation `

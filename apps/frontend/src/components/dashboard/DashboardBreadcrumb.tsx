@@ -1,10 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { Fragment } from "react";
 import { usePathname } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 
+import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 import { normalizeNavPath } from "@/lib/navigation/nav-path-match";
 
 import type { DashboardBreadcrumbItem } from "@/lib/navigation/dashboard-breadcrumbs";
@@ -38,8 +38,9 @@ export function DashboardBreadcrumb({
     >
       {items.map((item, index) => {
         const isLast = index === items.length - 1;
-        const href = item.href ? normalizeNavPath(item.href) : undefined;
-        const showLink = Boolean(href) && href !== pathname;
+        const href = item.href;
+        const showLink =
+          href !== undefined && normalizeNavPath(href) !== pathname;
 
         return (
           <Fragment key={`${item.label}-${index}`}>
@@ -50,9 +51,12 @@ export function DashboardBreadcrumb({
               />
             ) : null}
             {showLink && href ? (
-              <Link href={href} className="transition hover:text-gray-700">
+              <DashboardNavLink
+                href={href}
+                className="transition hover:text-gray-700"
+              >
                 {item.label}
-              </Link>
+              </DashboardNavLink>
             ) : (
               <span
                 className={cn(
