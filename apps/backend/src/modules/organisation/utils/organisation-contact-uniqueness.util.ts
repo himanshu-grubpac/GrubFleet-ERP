@@ -18,10 +18,7 @@ import {
   normalizeOrgContactPhone,
 } from './org-contact-normalize.util';
 
-function throwIfDuplicate(
-  existingId: string | null,
-  message: string,
-): void {
+function throwIfDuplicate(existingId: string | null, message: string): void {
   if (existingId) {
     throw new ConflictException(message);
   }
@@ -145,7 +142,9 @@ export async function assertLocationSiteContactUniqueInOrg(
   }
 }
 
-function assertNoDuplicatePocsInPayload(pocs: OrganisationClientPocDto[]): void {
+function assertNoDuplicatePocsInPayload(
+  pocs: OrganisationClientPocDto[],
+): void {
   const emails = new Set<string>();
   const phones = new Set<string>();
   for (const poc of pocs) {

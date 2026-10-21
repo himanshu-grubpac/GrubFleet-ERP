@@ -20,13 +20,15 @@ export class IsIsoCalendarDateConstraint implements ValidatorConstraintInterface
     if (typeof value !== 'string') {
       return false;
     }
-    const options = (args.constraints[0] ?? {}) as IsoCalendarDateValidationOptions;
+    const options = (args.constraints[0] ??
+      {}) as IsoCalendarDateValidationOptions;
     return validateIsoCalendarDate(value, options).ok;
   }
 
   defaultMessage(args: ValidationArguments): string {
     const value: unknown = args.value;
-    const options = (args.constraints[0] ?? {}) as IsoCalendarDateValidationOptions;
+    const options = (args.constraints[0] ??
+      {}) as IsoCalendarDateValidationOptions;
     if (typeof value === 'string') {
       const result = validateIsoCalendarDate(value, options);
       if (!result.ok) {

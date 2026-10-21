@@ -20,7 +20,10 @@ import type { UpdateEmployeeDto } from './dto/update-employee.dto';
 import type { UpdateEmployeeStatusDto } from './dto/update-employee-status.dto';
 import type { EmployeeRow } from './repositories/organisation.repository';
 import { OrganisationRepository } from './repositories/organisation.repository';
-import { normalizeOrgContactEmail, normalizeOrgContactPhone } from './utils/org-contact-normalize.util';
+import {
+  normalizeOrgContactEmail,
+  normalizeOrgContactPhone,
+} from './utils/org-contact-normalize.util';
 import { assertEmployeeContactUniqueInOrg } from './utils/organisation-contact-uniqueness.util';
 
 @Injectable()
@@ -156,13 +159,9 @@ export class EmployeesService {
       }
     }
     const nextEmail =
-      dto.email !== undefined
-        ? normalizeOrgContactEmail(dto.email)
-        : undefined;
+      dto.email !== undefined ? normalizeOrgContactEmail(dto.email) : undefined;
     const nextPhone =
-      dto.phone !== undefined
-        ? normalizeOrgContactPhone(dto.phone)
-        : undefined;
+      dto.phone !== undefined ? normalizeOrgContactPhone(dto.phone) : undefined;
     await assertEmployeeContactUniqueInOrg(this.repo, organizationId, {
       email: nextEmail,
       phone: nextPhone,
