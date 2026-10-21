@@ -110,6 +110,63 @@ export function expandModuleAccess(entries: ModuleAccessEntry[]): string[] {
   return [...keySet].sort();
 }
 
+/**
+ * Expands raw permission key lists (role editor `permissionKeys` contract).
+ * Write keys imply view; manage implies view + CRUD + manage for that module.
+ * Input keys are preserved (including invalid) so validation can 400; implied
+ * keys are catalog-valid only.
+ */
+export function expandImpliedPermissionKeys(keys: string[]): string[] {
+  const catalog = new Set(allCatalogPermissionKeys());
+  const uniqueInput = [...new Set(keys)];
+  const result = new Set(uniqueInput);
+  const kindsByModule = new Map<string, Set<ModulePermissionKind>>();
+
+  for (const key of uniqueInput) {
+    const parsed = parseModulePermissionKey(key);
+    if (!parsed || !isKnownErpModuleId(parsed.moduleId)) {
+      continue;
+    }
+    if (parsed.kind === 'sub') {
+      continue;
+    }
+    const kinds = kindsByModule.get(parsed.moduleId) ?? new Set();
+    kinds.add(parsed.kind);
+    kindsByModule.set(parsed.moduleId, kinds);
+  }
+
+  for (const [moduleId, kinds] of kindsByModule) {
+    const mod = getErpModuleById(moduleId);
+    const hasWrite =
+      kinds.has('create') ||
+      kinds.has('update') ||
+      kinds.has('delete') ||
+      kinds.has('manage');
+
+    if (hasWrite) {
+      const viewKey = buildModulePermissionKey(moduleId, 'view');
+      if (catalog.has(viewKey)) {
+        result.add(viewKey);
+      }
+    }
+
+    if (kinds.has('manage') && mod?.supportsManage) {
+      for (const kind of [
+        'view',
+        ...CRUD_KINDS,
+        'manage',
+      ] as ModulePermissionKind[]) {
+        const implied = buildModulePermissionKey(moduleId, kind);
+        if (catalog.has(implied)) {
+          result.add(implied);
+        }
+      }
+    }
+  }
+
+  return [...result].sort();
+}
+
 function moduleLevelFromKeys(
   moduleId: string,
   keysForModule: string[],

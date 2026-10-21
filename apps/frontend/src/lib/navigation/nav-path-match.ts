@@ -1,3 +1,20 @@
+/** Matches `next.config` trailingSlash when `NEXT_STATIC_EXPORT=true` (CloudFront portal). */
+const USE_TRAILING_SLASH = process.env.NEXT_STATIC_EXPORT === 'true';
+
+function normalizePathnameForRouter(pathname: string): string {
+  if (pathname === '/') {
+    return pathname;
+  }
+
+  if (USE_TRAILING_SLASH) {
+    return pathname.endsWith('/') ? pathname : `${pathname}/`;
+  }
+
+  return pathname.length > 1 && pathname.endsWith('/')
+    ? pathname.slice(0, -1)
+    : pathname;
+}
+
 /**
  * Canonical href for Next Link / router (static export: trailingSlash true on CloudFront).
  * Preserves query string and hash; no-op for absolute http(s) URLs.
@@ -23,11 +40,8 @@ export function internalHref(href: string): string {
   const pathname =
     queryIndex >= 0 ? beforeHash.slice(0, queryIndex) : beforeHash;
 
-  if (pathname === "/" || pathname.endsWith("/")) {
-    return `${pathname}${query}${hash}`;
-  }
-
-  return `${pathname}/${query}${hash}`;
+  const normalized = normalizePathnameForRouter(pathname);
+  return `${normalized}${query}${hash}`;
 }
 
 /** Strip query/hash and trailing slash (except root) for consistent nav matching. */

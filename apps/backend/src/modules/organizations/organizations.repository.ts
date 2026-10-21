@@ -1,8 +1,24 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql, type AnyColumn } from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../common/utils/list-sort.util';
+import {
+  ORGANIZATION_LIST_DEFAULT_SORT,
+  type OrganizationListSortField,
+} from './constants/organizations-list-sort.constants';
 import type { AppDatabase } from '../../database/database.module';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import { memberships, organizations } from '../../database/schema';
+
+const ORGANIZATION_LIST_SORT_COLUMNS: Record<
+  OrganizationListSortField,
+  AnyColumn
+> = {
+  name: organizations.name,
+  createdAt: organizations.createdAt,
+};
 
 @Injectable()
 export class OrganizationsRepository {
@@ -13,6 +29,7 @@ export class OrganizationsRepository {
     page: number,
     pageSize: number,
     systemAccess: boolean,
+    sort?: ResolvedListSort<OrganizationListSortField>,
   ): Promise<{ rows: (typeof organizations.$inferSelect)[]; total: number }> {
     const offset = (page - 1) * pageSize;
 
@@ -21,7 +38,13 @@ export class OrganizationsRepository {
         this.db
           .select()
           .from(organizations)
-          .orderBy(organizations.name)
+          .orderBy(
+            ...buildListOrderBy(
+              ORGANIZATION_LIST_SORT_COLUMNS,
+              sort ?? ORGANIZATION_LIST_DEFAULT_SORT,
+              organizations.id,
+            ),
+          )
           .limit(pageSize)
           .offset(offset),
         this.db
@@ -48,7 +71,13 @@ export class OrganizationsRepository {
         .select()
         .from(organizations)
         .where(inArray(organizations.id, orgIds))
-        .orderBy(organizations.name)
+        .orderBy(
+          ...buildListOrderBy(
+            ORGANIZATION_LIST_SORT_COLUMNS,
+            sort ?? ORGANIZATION_LIST_DEFAULT_SORT,
+            organizations.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db

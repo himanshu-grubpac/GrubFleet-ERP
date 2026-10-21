@@ -5,6 +5,7 @@ import {
   IsEmail,
   IsInt,
   IsOptional,
+  IsString,
   IsUUID,
   Max,
   MaxLength,
@@ -18,6 +19,7 @@ export class UpdateInvoiceDto {
 
   @ApiPropertyOptional({ maxLength: 255 })
   @IsOptional()
+  @IsString()
   @MaxLength(255)
   partyName?: string;
 
@@ -40,16 +42,18 @@ export class UpdateInvoiceDto {
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   invoiceDate?: string;
 
   @ApiPropertyOptional({ maxLength: 2000 })
   @IsOptional()
+  @IsString()
   @MaxLength(2000)
   notes?: string;
 
   @ApiPropertyOptional({ maxLength: 120 })
   @IsOptional()
+  @IsString()
   @MaxLength(120)
   billingPeriod?: string;
 }

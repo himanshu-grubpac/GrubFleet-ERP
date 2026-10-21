@@ -4,6 +4,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  FLEET_RETURN_LIST_DEFAULT_SORT,
+  FLEET_RETURN_LIST_SORT_FIELDS,
+} from './constants/fleet-leasing-list-sort.constants';
 import type { ListFleetReturnsQueryDto } from './dto/list-fleet-returns-query.dto';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 
@@ -14,11 +19,17 @@ export class FleetReturnsService {
   async list(query: ListFleetReturnsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      FLEET_RETURN_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      FLEET_RETURN_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listReturnInspections({
       organizationId: query.organizationId,
       page,
       pageSize,
       contractId: query.contractId,
+      sort,
     });
     const items = rows.map((r) => ({
       id: r.inspection.id,

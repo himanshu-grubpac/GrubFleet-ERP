@@ -1,5 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type EmployeeStatus = "active" | "inactive";
 
@@ -23,6 +25,7 @@ export type OrganisationEmployeeListItem = {
   dateOfJoining: string;
   phone: string;
   email: string;
+  isWorkshopTechnician: boolean;
   status: EmployeeStatus;
 };
 
@@ -41,7 +44,7 @@ export type OrganisationEmployeeDepartmentsResponse = {
 /** Matches backend `EMPLOYEE_LIST_MAX_PAGE_SIZE` for form dropdowns. */
 export const ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE = 200;
 
-export type ListOrganisationEmployeesParams = {
+export type ListOrganisationEmployeesParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -62,6 +65,7 @@ export type CreateOrganisationEmployeePayload = {
   email: string;
   branchLocationLabel?: string;
   reportsToEmployeeId?: string;
+  isWorkshopTechnician?: boolean;
 };
 
 export type UpdateOrganisationEmployeePayload = Partial<
@@ -112,6 +116,7 @@ export async function fetchOrganisationEmployeesApi(
   if (params.status) {
     query.set("status", params.status);
   }
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<OrganisationEmployeeListItem>>(
     `/organisation/employees?${query.toString()}`,
     {

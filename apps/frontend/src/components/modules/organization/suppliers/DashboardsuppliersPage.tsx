@@ -14,6 +14,11 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ORGANISATION_SUPPLIER_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+  listSortQueryKeyPart,
+  useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
     SUPPLIER_STATUS_UPDATE_ERROR,
@@ -57,12 +62,12 @@ const SUPPLIER_FILTERS: {
     label: string;
     value: SupplierFilter;
 }[] = [
-    { label: "All", value: "all" },
-    { label: "Vehicles", value: "vehicles" },
-    { label: "Parts", value: "parts" },
-    { label: "Drivers", value: "drivers" },
-    { label: "Compliance", value: "compliance" },
-];
+        { label: "All", value: "all" },
+        { label: "Vehicles", value: "vehicles" },
+        { label: "Parts", value: "parts" },
+        { label: "Drivers", value: "drivers" },
+        { label: "Compliance", value: "compliance" },
+    ];
 
 function uiFilterToApiType(
     filter: SupplierFilter,
@@ -109,6 +114,13 @@ export default function SuppliersPage() {
         useState<SupplierFilter>("all");
     const [page, setPage] = useState(1);
 
+    const {
+        sort: tableSort,
+        onSortChange,
+        listSortParams,
+        serverSorted,
+    } = useDashboardTableListSort(ORGANISATION_SUPPLIER_COLUMN_SORT);
+
     const [deactivateTarget, setDeactivateTarget] =
         useState<Supplier | null>(null);
     const [activateTarget, setActivateTarget] = useState<Supplier | null>(
@@ -118,7 +130,7 @@ export default function SuppliersPage() {
 
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch, activeFilter]);
+    }, [debouncedSearch, activeFilter, tableSort]);
 
     const suppliersQuery = useQuery({
         queryKey: [
@@ -128,6 +140,7 @@ export default function SuppliersPage() {
             debouncedSearch,
             activeFilter,
             page,
+            ...listSortQueryKeyPart(listSortParams),
         ],
         queryFn: () => {
             if (!token || !organizationId) {
@@ -139,6 +152,7 @@ export default function SuppliersPage() {
                 pageSize: SUPPLIERS_PAGE_SIZE,
                 search: debouncedSearch.trim() || undefined,
                 supplierType: uiFilterToApiType(activeFilter),
+                ...listSortParams,
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -226,10 +240,11 @@ export default function SuppliersPage() {
     const supplierColumns = [
         { key: "name", label: "COMPANY" },
         { key: "type", label: "SUPPLIES" },
-        { key: "contactPerson", label: "CONTACT PERSON" },
+        { key: "contactPerson", label: "CONTACT PERSON", sortable: false },
         {
             key: "contact",
             label: "CONTACT",
+            sortable: false,
             render: (supplier: Supplier) => (
                 <DashboardContact
                     phone={supplier.phone}
@@ -240,6 +255,7 @@ export default function SuppliersPage() {
         {
             key: "status",
             label: "STATUS",
+            sortable: false,
             render: (supplier: Supplier) => (
                 <span
                     className={[
@@ -261,8 +277,8 @@ export default function SuppliersPage() {
         return (
             <DashboardLayout
                 title="Suppliers"
-                description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts,
-             used across Asset Management and Inventory."
+                description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts, used across Asset Management and Inventory."
+                descriptionBreakAfter="contacts,"
                 activeTab="/organization/suppliers"
                 action={addSupplierAction}
             >
@@ -310,12 +326,12 @@ export default function SuppliersPage() {
             pagination={
                 suppliersTotal > SUPPLIERS_PAGE_SIZE
                     ? {
-                          currentPage: page,
-                          totalPages,
-                          totalItems: suppliersTotal,
-                          pageSize: SUPPLIERS_PAGE_SIZE,
-                          onPageChange: setPage,
-                      }
+                        currentPage: page,
+                        totalPages,
+                        totalItems: suppliersTotal,
+                        pageSize: SUPPLIERS_PAGE_SIZE,
+                        onPageChange: setPage,
+                    }
                     : undefined
             }
         >
@@ -395,6 +411,9 @@ export default function SuppliersPage() {
                 <DashboardTable
                     columns={supplierColumns}
                     data={suppliers}
+                    sortState={tableSort}
+                    onSortChange={onSortChange}
+                    serverSorted={serverSorted}
                     getRowKey={(supplier) => supplier.id}
                     renderActions={(supplier) => (
                         <DashboardTableActions
@@ -409,9 +428,9 @@ export default function SuppliersPage() {
                             onToggleStatus={
                                 canUpdate
                                     ? () =>
-                                          supplier.status === "active"
-                                              ? handleDeactivate(supplier)
-                                              : handleActivate(supplier)
+                                        supplier.status === "active"
+                                            ? handleDeactivate(supplier)
+                                            : handleActivate(supplier)
                                     : undefined
                             }
                         />

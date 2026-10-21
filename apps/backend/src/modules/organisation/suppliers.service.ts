@@ -8,6 +8,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  SUPPLIER_LIST_DEFAULT_SORT,
+  SUPPLIER_LIST_SORT_FIELDS,
+} from './constants/organisation-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import {
   ORGANISATION_SUPPLIER_TYPES,
@@ -57,6 +62,11 @@ export class SuppliersService {
       query.supplierType === 'spareparts'
         ? ('spare_parts' as const)
         : query.supplierType;
+    const sort = resolveListSort(
+      SUPPLIER_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      SUPPLIER_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listSuppliers(
       query.organizationId,
       page,
@@ -65,6 +75,7 @@ export class SuppliersService {
         search: query.search,
         supplierType,
         isActive,
+        sort,
       },
     );
     const items = rows.map((row) => this.toListItem(row));

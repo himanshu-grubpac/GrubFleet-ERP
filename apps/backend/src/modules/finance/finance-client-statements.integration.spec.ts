@@ -45,6 +45,7 @@ describe('Finance client statements (integration)', () => {
   let financeViewToken: string;
   let deniedToken: string;
   let clientId: string;
+  let clientName: string;
   let clientWithoutBillingId: string;
 
   const periodStart = '2026-07-01';
@@ -93,6 +94,7 @@ describe('Finance client statements (integration)', () => {
       })
       .expect(201);
     clientId = (clientRes.body as { id: string }).id;
+    clientName = `CS Client ${unique}`;
 
     const client2Res = await request(app.getHttpServer())
       .post('/api/v1/organisation/clients')
@@ -227,7 +229,7 @@ describe('Finance client statements (integration)', () => {
           periodEnd,
           page: 1,
           pageSize: 50,
-          search: 'CS Client',
+          search: clientName,
         })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
@@ -327,5 +329,14 @@ describe('Finance client statements (integration)', () => {
         .set('x-organization-id', organizationId)
         .expect(404);
     });
+  });
+
+  it('returns 400 for invalid sortBy on client statement list', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/finance/client-statements')
+      .query({ organizationId, sortBy: 'notAColumn' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 });

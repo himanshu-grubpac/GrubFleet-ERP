@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   ArrayMaxSize,
   IsArray,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -10,6 +11,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { INVENTORY_UNIT_OF_MEASURE_VALUES } from '../constants/unit-of-measure.constants';
 
 export class UpdateSparePartDto {
   @ApiPropertyOptional()
@@ -35,8 +37,7 @@ export class UpdateSparePartDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @IsString()
-  @MaxLength(32)
+  @IsIn([...INVENTORY_UNIT_OF_MEASURE_VALUES])
   unitOfMeasure?: string;
 
   @ApiPropertyOptional()

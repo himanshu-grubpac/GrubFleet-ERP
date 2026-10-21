@@ -1,6 +1,6 @@
 "use client";
-
-import { useMemo, useState } from "react";
+import FormActions from "@/components/common/FormActions";
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Trash2 } from "lucide-react";
@@ -25,10 +25,7 @@ import {
   computePurchaseVehicleLineTax,
   type FinancePurchaseTaxMode,
 } from "@/lib/finance/purchase-vehicle-line-tax";
-import {
-  financeInvoiceNewTypeHref,
-  financeInvoicesListHref,
-} from "@/lib/navigation/finance-static-routes";
+import { financeInvoicesListHref } from "@/lib/navigation/finance-static-routes";
 import {
   FINANCE_INVOICE_BATCH_LOT_PLACEHOLDER,
   FINANCE_INVOICE_QUANTITY_PLACEHOLDER,
@@ -38,7 +35,7 @@ import {
 import { PURCHASE_INVOICE_NUMBER_FORMAT_HINT } from "@/lib/finance/invoice-filter-options";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoiceCreatedToast,
 } from "@/lib/toast/show-toast";
 
@@ -52,6 +49,8 @@ type VehicleLineForm = {
   taxMode: "" | FinancePurchaseTaxMode;
   vatPercent: string;
 };
+
+
 
 function createEmptyVehicleLine(): VehicleLineForm {
   return {
@@ -94,6 +93,8 @@ export default function NewPurchaseInvoicePage() {
   );
   const [batchLot, setBatchLot] = useState("");
   const [spareNotes, setSpareNotes] = useState("");
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const catalogEnabled = !!token && !!organizationId && !authLoading;
 
@@ -265,19 +266,113 @@ export default function NewPurchaseInvoicePage() {
     };
   }, [vehicleLines, vehicleLineBreakdowns, assetClassesQuery.data]);
 
-  const isVehicleValid =
-    !!supplierId &&
-    !!invoiceDate &&
-    vehicleLines.length > 0 &&
-    vehicleGrandTotalMinor != null &&
-    vehicleLineBreakdowns.every((b) => b != null);
+  const vehicleValidationErrors = useMemo(() => {
+    const errors: string[] = [];
 
-  const isSpareValid =
-    !!supplierId &&
-    !!partId &&
-    Number(quantity) >= 1 &&
-    parseRupeeInputToMinor(unitCost) != null &&
-    !!invoiceDate;
+    if (!supplierId) errors.push("Vehicle: select a vendor.");
+    if (!invoiceDate) errors.push("Vehicle: select an invoice date.");
+    if (vehicleLines.length === 0) errors.push("Add at least one asset line.");
+
+    vehicleLines.forEach((line, index) => {
+      const lineNumber = index + 1;
+      const qty = Number(line.quantity);
+      const rateMinor = parseRupeeInputToMinor(line.rate);
+      const vatPercent = parseVatPercent(line.vatPercent);
+
+      if (!line.assetClassId) errors.push(`Asset line ${lineNumber}: select an asset class.`);
+      if (!line.quantity.trim()) {
+        errors.push(`Asset line ${lineNumber}: enter a quantity.`);
+      } else if (!Number.isInteger(qty) || qty < 1) {
+        errors.push(`Asset line ${lineNumber}: quantity must be a whole number of at least 1.`);
+      }
+      if (!line.rate.trim()) {
+        errors.push(`Asset line ${lineNumber}: enter a rate.`);
+      } else if (rateMinor == null || rateMinor <= 0) {
+        errors.push(`Asset line ${lineNumber}: enter a valid rate greater than zero.`);
+      }
+      if (!line.taxMode) errors.push(`Asset line ${lineNumber}: select a tax treatment.`);
+      if (line.taxMode) {
+        if (!line.vatPercent.trim()) {
+          errors.push(`Asset line ${lineNumber}: enter the VAT percentage.`);
+        } else if (vatPercent == null) {
+          errors.push(`Asset line ${lineNumber}: VAT must be a whole number between 0 and 100.`);
+        }
+      }
+    });
+
+    if (vehicleGrandTotalMinor == null && vehicleLines.every((line) => {
+      const qty = Number(line.quantity);
+      const rateMinor = parseRupeeInputToMinor(line.rate);
+      const vatPercent = parseVatPercent(line.vatPercent);
+      return !!line.assetClassId && Number.isInteger(qty) && qty >= 1 && rateMinor != null && rateMinor > 0 && !!line.taxMode && vatPercent != null;
+    })) {
+      errors.push("The invoice total is invalid or exceeds the supported amount.");
+    }
+
+    return errors;
+  }, [supplierId, invoiceDate, vehicleLines, vehicleGrandTotalMinor]);
+
+  const spareValidationErrors = useMemo(() => {
+    const errors: string[] = [];
+    const qty = Number(quantity);
+    const unitCostMinor = parseRupeeInputToMinor(unitCost);
+
+    if (!supplierId) errors.push("Select a vendor.");
+    if (!partId) errors.push("Select a part.");
+    if (!quantity.trim()) {
+      errors.push("Enter a quantity.");
+    } else if (!Number.isInteger(qty) || qty < 1) {
+      errors.push("Quantity must be a whole number of at least 1.");
+    }
+    if (!unitCost.trim()) {
+      errors.push("Enter a unit cost.");
+    } else if (unitCostMinor == null || unitCostMinor <= 0) {
+      errors.push("Enter a valid unit cost greater than zero.");
+    }
+    if (!invoiceDate) errors.push("Select an invoice date.");
+
+    return errors;
+  }, [supplierId, partId, quantity, unitCost, invoiceDate]);
+
+  const isVehicleValid = vehicleValidationErrors.length === 0;
+  const isSpareValid = spareValidationErrors.length === 0;
+  const activeValidationErrors =
+    tab === "vehicle" ? vehicleValidationErrors : spareValidationErrors;
+  const displayedValidationErrors = hasAttemptedSubmit ? activeValidationErrors : [];
+
+  const getVehicleLineErrors = (line: VehicleLineForm) => {
+    const qty = Number(line.quantity);
+    const rateMinor = parseRupeeInputToMinor(line.rate);
+    const vatPercent = parseVatPercent(line.vatPercent);
+
+    return {
+      assetClassId: !line.assetClassId ? "Select an asset class." : "",
+      quantity: !line.quantity.trim()
+        ? "Enter a quantity."
+        : !Number.isInteger(qty) || qty < 1
+          ? "Quantity must be a whole number of at least 1."
+          : "",
+      rate: !line.rate.trim()
+        ? "Enter a rate."
+        : rateMinor == null || rateMinor <= 0
+          ? "Enter a valid rate greater than zero."
+          : "",
+      taxMode: !line.taxMode ? "Select a tax treatment." : "",
+      vatPercent: !line.taxMode
+        ? ""
+        : !line.vatPercent.trim()
+          ? "Enter the VAT percentage."
+          : vatPercent == null
+            ? "VAT must be a whole number between 0 and 100."
+            : "",
+    };
+  };
+
+  const fieldClassName = (hasError: boolean) =>
+    `w-full rounded-md border px-3 py-2 text-sm ${hasError ? "border-red-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border-slate-200"}`;
+
+  const renderFieldError = (message?: string) =>
+    message ? <p className="mt-1 text-xs text-red-600" role="alert">{message}</p> : null;
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -337,15 +432,26 @@ export default function NewPurchaseInvoicePage() {
       showFinanceInvoiceCreatedToast(detail.invoiceNumber);
       router.push(financeInvoicesListHref);
     },
-    onError: () => {
-      showErrorToast(FINANCE_INVOICE_SAVE_ERROR);
+    onError: (error) => {
+      showApiErrorToast(error, FINANCE_INVOICE_SAVE_ERROR);
+    },
+    onSettled: () => {
+      isSubmittingRef.current = false;
     },
   });
 
-  const canSubmit =
-    canCreate &&
-    !createMutation.isPending &&
-    (tab === "vehicle" ? isVehicleValid : isSpareValid);
+  // Keep Save clickable while the form is invalid so the first click can
+  // reveal validation messages. Submission itself is blocked by handleSave.
+  const canSubmit = canCreate && !createMutation.isPending;
+
+  const handleSave = () => {
+    setHasAttemptedSubmit(true);
+    if (activeValidationErrors.length > 0) return;
+    if (isSubmittingRef.current || createMutation.isPending) return;
+
+    isSubmittingRef.current = true;
+    createMutation.mutate();
+  };
 
   const infoBanner =
     tab === "vehicle"
@@ -373,7 +479,10 @@ export default function NewPurchaseInvoicePage() {
           <button
             key={value}
             type="button"
-            onClick={() => setTab(value)}
+            onClick={() => {
+              setTab(value);
+              setHasAttemptedSubmit(false);
+            }}
             className={`rounded-md px-3 py-1.5 text-sm font-medium ${tab === value
               ? "bg-[#FE5720] text-white"
               : "text-slate-600 hover:bg-slate-100"
@@ -422,25 +531,20 @@ export default function NewPurchaseInvoicePage() {
       description="Record a vendor bill for vehicles or spare parts."
       infoText={infoBanner}
       contentVariant="form-card"
+
       actions={
-        <>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => router.push(financeInvoicesListHref)}
-            disabled={createMutation.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!canSubmit}
-            onClick={() => createMutation.mutate()}
-          >
-            {createMutation.isPending ? "Saving…" : "Save invoice"}
-          </Button>
-        </>
+        <FormActions
+          hasAttemptedSubmit={hasAttemptedSubmit}
+          validationSummary={displayedValidationErrors}
+          isSaving={createMutation.isPending}
+          canSubmit={canSubmit}
+          onCancel={() => router.push(financeInvoicesListHref)}
+          onSave={handleSave}
+          saveLabel="Save invoice"
+          savingLabel="Saving..."
+        />
       }
+
     >
       {tabButtons}
 
@@ -454,10 +558,12 @@ export default function NewPurchaseInvoicePage() {
             </label>
             <input
               type="date"
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={fieldClassName(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
               onChange={(e) => setInvoiceDate(e.target.value)}
+              aria-invalid={hasAttemptedSubmit && !invoiceDate}
             />
+            {hasAttemptedSubmit && renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
           </div>
 
           <div>
@@ -465,10 +571,11 @@ export default function NewPurchaseInvoicePage() {
               Vendor *
             </label>
             <select
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={fieldClassName(hasAttemptedSubmit && !supplierId)}
               value={supplierId}
               onChange={(e) => setSupplierId(e.target.value)}
               disabled={suppliers.length === 0}
+              aria-invalid={hasAttemptedSubmit && !supplierId}
             >
               <option value="">Select supplier</option>
               {suppliers.map((s) => (
@@ -477,6 +584,7 @@ export default function NewPurchaseInvoicePage() {
                 </option>
               ))}
             </select>
+            {hasAttemptedSubmit && renderFieldError(!supplierId ? "Select a vendor." : "")}
             {suppliers.length === 0 ? (
               <p className="mt-1 text-xs text-slate-500">
                 No active suppliers in this organization. Add a supplier under
@@ -500,7 +608,7 @@ export default function NewPurchaseInvoicePage() {
                     Asset class *
                   </label>
                   <select
-                    className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+                    className={fieldClassName(hasAttemptedSubmit && !line.assetClassId)}
                     value={line.assetClassId}
                     onChange={(e) =>
                       updateVehicleLine(line.key, {
@@ -508,6 +616,7 @@ export default function NewPurchaseInvoicePage() {
                       })
                     }
                     disabled={assetClasses.length === 0}
+                    aria-invalid={hasAttemptedSubmit && !line.assetClassId}
                   >
                     <option value="">Select asset class</option>
                     {assetClasses.map((c) => (
@@ -516,6 +625,7 @@ export default function NewPurchaseInvoicePage() {
                       </option>
                     ))}
                   </select>
+                  {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).assetClassId)}
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
@@ -530,6 +640,7 @@ export default function NewPurchaseInvoicePage() {
                       }
                       placeholder={FINANCE_INVOICE_QUANTITY_PLACEHOLDER}
                     />
+                    {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).quantity)}
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -543,6 +654,7 @@ export default function NewPurchaseInvoicePage() {
                       }
                       placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
                     />
+                    {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).rate)}
                   </div>
                 </div>
                 <fieldset>
@@ -572,6 +684,7 @@ export default function NewPurchaseInvoicePage() {
                       </label>
                     ))}
                   </div>
+                  {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).taxMode)}
                 </fieldset>
                 {line.taxMode ? (
                   <div className="w-full md:w-1/2">
@@ -587,6 +700,7 @@ export default function NewPurchaseInvoicePage() {
                       maxLength={3}
                       placeholder={FINANCE_INVOICE_VAT_PERCENT_PLACEHOLDER}
                     />
+                    {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).vatPercent)}
                   </div>
                 ) : null}
                 {breakdown ? (
@@ -753,10 +867,11 @@ export default function NewPurchaseInvoicePage() {
               Vendor *
             </label>
             <select
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={fieldClassName(hasAttemptedSubmit && !supplierId)}
               value={supplierId}
               onChange={(e) => setSupplierId(e.target.value)}
               disabled={suppliers.length === 0}
+              aria-invalid={hasAttemptedSubmit && !supplierId}
             >
               <option value="">Select supplier</option>
               {suppliers.map((s) => (
@@ -765,13 +880,14 @@ export default function NewPurchaseInvoicePage() {
                 </option>
               ))}
             </select>
+            {hasAttemptedSubmit && renderFieldError(!supplierId ? "Select a vendor." : "")}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
               Part *
             </label>
             <select
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={fieldClassName(hasAttemptedSubmit && !partId)}
               value={partId}
               onChange={(e) => setPartId(e.target.value)}
               disabled={
@@ -779,6 +895,7 @@ export default function NewPurchaseInvoicePage() {
                 partsQuery.isError ||
                 parts.length === 0
               }
+              aria-invalid={hasAttemptedSubmit && !partId}
             >
               <option value="">Select part</option>
               {parts.map((p) => (
@@ -788,6 +905,7 @@ export default function NewPurchaseInvoicePage() {
                 </option>
               ))}
             </select>
+            {hasAttemptedSubmit && renderFieldError(!partId ? "Select a part." : "")}
             {partsQuery.isError ? (
               <p className="mt-1 text-xs text-red-600" role="alert">
                 Could not load parts catalog. Check your connection and try
@@ -815,6 +933,7 @@ export default function NewPurchaseInvoicePage() {
                 onChange={setQuantity}
                 placeholder={FINANCE_INVOICE_QUANTITY_PLACEHOLDER}
               />
+              {hasAttemptedSubmit && renderFieldError(!quantity.trim() ? "Enter a quantity." : !Number.isInteger(Number(quantity)) || Number(quantity) < 1 ? "Quantity must be a whole number of at least 1." : "")}
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -826,6 +945,7 @@ export default function NewPurchaseInvoicePage() {
                 onChange={setUnitCost}
                 placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
               />
+              {hasAttemptedSubmit && renderFieldError(!unitCost.trim() ? "Enter a unit cost." : parseRupeeInputToMinor(unitCost) == null || parseRupeeInputToMinor(unitCost)! <= 0 ? "Enter a valid unit cost greater than zero." : "")}
             </div>
           </div>
           <div>
@@ -846,10 +966,12 @@ export default function NewPurchaseInvoicePage() {
             </label>
             <input
               type="date"
-              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
+              className={fieldClassName(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
               onChange={(e) => setInvoiceDate(e.target.value)}
+              aria-invalid={hasAttemptedSubmit && !invoiceDate}
             />
+            {hasAttemptedSubmit && renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">

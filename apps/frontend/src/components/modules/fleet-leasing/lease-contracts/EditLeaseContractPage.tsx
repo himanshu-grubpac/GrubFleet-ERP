@@ -12,6 +12,7 @@ import AssetLinesStep, {
 } from "@/components/modules/fleet-leasing/NewContract/AssetLinesStep";
 import TermsStep, {
     type LeaseTerms,
+    type TermsDraftSnapshot,
 } from "@/components/modules/fleet-leasing/NewContract/TermsStep";
 import ReviewStep from "@/components/modules/fleet-leasing/NewContract/ReviewStep";
 import CreateClientPage, {
@@ -29,6 +30,7 @@ import { Plus } from "lucide-react";
 import { useGrubpacAuth } from "@/lib/auth-context";
 import { useLeaseApi } from "@/lib/api/lease-contracts-context";
 import {
+    previewAssetAvailabilityBatch,
     updateLeaseContract,
     updateLeaseContractAssetLines,
     updateLeaseContractTerms,
@@ -39,7 +41,14 @@ import {
 import {
     showErrorToast,
     showLeaseContractUpdatedToast,
+    showSuccessToast,
 } from "@/lib/toast/show-toast";
+import {
+    buildPartialTermsPatch,
+    inferDraftWizardResumeScreen,
+    mapDetailToWizardAssetLines,
+    termsAreComplete,
+} from "@/lib/lease-contract/lease-contract-wizard.util";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
 
@@ -78,17 +87,6 @@ function isEditAllowed(
         return actions.includes("edit");
     }
     return actions.editContract?.allowed === true;
-}
-
-function mapDetailToAssetLines(
-    detail: LeaseContractDetail,
-): AssetLine[] {
-    return detail.assetLines.map((line) => ({
-        id: line.id,
-        assetClass: line.assetClass,
-        committedQuantity: line.committedQuantity,
-        ratePerVehicleMonth: String(line.ratePerVehicleMonth ?? ""),
-    }));
 }
 
 function mapDetailToTerms(detail: LeaseContractDetail): LeaseTerms {
@@ -182,6 +180,12 @@ export default function EditLeaseContractPage({
     const [selectedClientId, setSelectedClientId] = useState("");
     const [selectedClientName, setSelectedClientName] = useState("");
     const [registerClientDraftName, setRegisterClientDraftName] = useState("");
+    const registerClientInitialData = useMemo(
+        () => ({
+            companyName: registerClientDraftName,
+        }),
+        [registerClientDraftName],
+    );
     const [assetLines, setAssetLines] = useState<AssetLine[]>([]);
     const [terms, setTerms] = useState<LeaseTerms>({
         startDate: "",
@@ -191,6 +195,14 @@ export default function EditLeaseContractPage({
     });
     const [wizardError, setWizardError] = useState<string | null>(null);
     const [isPersistingStep, setIsPersistingStep] = useState(false);
+    const [assetLinesAvailabilityRefreshKey, setAssetLinesAvailabilityRefreshKey] =
+        useState(0);
+
+    useEffect(() => {
+        if (screen === "asset-lines") {
+            setAssetLinesAvailabilityRefreshKey((previous) => previous + 1);
+        }
+    }, [screen]);
 
     useEffect(() => {
         if (!contract || initialized) return;
@@ -201,11 +213,17 @@ export default function EditLeaseContractPage({
         const clientId = contract.client?.id ?? "";
         setSelectedClientId(String(clientId));
         setSelectedClientName(contract.client?.companyName ?? "");
-        setAssetLines(mapDetailToAssetLines(contract));
+        setAssetLines(mapDetailToWizardAssetLines(contract));
         setTerms(mapDetailToTerms(contract));
-        setScreen(clientId ? "asset-lines" : "select-client");
+        setScreen(
+            isDraft
+                ? inferDraftWizardResumeScreen(contract)
+                : clientId
+                  ? "asset-lines"
+                  : "select-client",
+        );
         setInitialized(true);
-    }, [contract, detailHref, initialized, router]);
+    }, [contract, detailHref, initialized, isDraft, router]);
 
     const persistClient = useCallback(
         async (clientId: string) => {
@@ -236,6 +254,183 @@ export default function EditLeaseContractPage({
         showLeaseContractUpdatedToast();
         router.push(detailHref);
     }, [detailHref, invalidateContract, router]);
+
+    const resolveDraftAssetLines = useCallback(
+        async (
+            lines: AssetLine[],
+        ): Promise<{
+            lines: AssetLine[];
+            skippedDueToShortfall: boolean;
+        }> => {
+            if (lines.length === 0) {
+                return { lines: [], skippedDueToShortfall: false };
+            }
+
+            const linesReady = lines.every(
+                (line) =>
+                    line.assetClass.trim().length > 0 &&
+                    line.committedQuantity >= 1,
+            );
+            if (!linesReady) {
+                return { lines: [], skippedDueToShortfall: true };
+            }
+
+            if (!token || !organizationId) {
+                return { lines: [], skippedDueToShortfall: false };
+            }
+
+            const preview = await previewAssetAvailabilityBatch(
+                token,
+                organizationId,
+                lines.map((line) => ({
+                    assetClass: line.assetClass,
+                    committedQuantity: line.committedQuantity,
+                })),
+            );
+
+            if (!preview.mvpAllLinesCovered) {
+                return { lines: [], skippedDueToShortfall: true };
+            }
+
+            return { lines, skippedDueToShortfall: false };
+        },
+        [organizationId, token],
+    );
+
+    const persistDraftWizardState = useCallback(
+        async (options: {
+            lines: AssetLine[];
+            nextTerms: LeaseTerms;
+            requireFullLines?: boolean;
+        }) => {
+            if (!token || !organizationId) {
+                throw new Error(
+                    "Authentication or organization information is missing.",
+                );
+            }
+            if (!selectedClientId) {
+                throw new Error("Select a client before saving a draft.");
+            }
+
+            let linesToPersist = options.lines;
+            if (!options.requireFullLines && linesToPersist.length > 0) {
+                const resolved = await resolveDraftAssetLines(linesToPersist);
+                linesToPersist = resolved.lines;
+            }
+
+            await updateLeaseContract(token, organizationId, leaseId, {
+                clientId: selectedClientId,
+                ...buildPartialTermsPatch(options.nextTerms),
+            });
+
+            if (linesToPersist.length > 0) {
+                await updateLeaseContractAssetLines(
+                    token,
+                    organizationId,
+                    leaseId,
+                    {
+                        assetLines: linesToPersist.map((line) => ({
+                            assetClass: line.assetClass,
+                            committedQuantity: Number(line.committedQuantity),
+                            ratePerVehicleMonth: String(
+                                line.ratePerVehicleMonth || "0",
+                            ),
+                        })),
+                    },
+                );
+            }
+
+            if (termsAreComplete(options.nextTerms)) {
+                await updateLeaseContractTerms(
+                    token,
+                    organizationId,
+                    leaseId,
+                    {
+                        startDate: options.nextTerms.startDate,
+                        termMonths: Number(options.nextTerms.termMonths),
+                        securityDeposit: String(
+                            options.nextTerms.securityDeposit,
+                        ),
+                        billingFrequency: options.nextTerms.billingFrequency,
+                    },
+                );
+            }
+
+            await invalidateContract();
+        },
+        [
+            invalidateContract,
+            leaseId,
+            organizationId,
+            resolveDraftAssetLines,
+            selectedClientId,
+            token,
+        ],
+    );
+
+    const handleSaveDraft = async (
+        linesOverride?: AssetLine[],
+        termsOverride?: LeaseTerms,
+    ) => {
+        if (!isDraft) {
+            return;
+        }
+        setWizardError(null);
+        setIsPersistingStep(true);
+        const draftLines = linesOverride ?? assetLines;
+        const draftTerms = termsOverride ?? terms;
+        try {
+            const { lines, skippedDueToShortfall } =
+                await resolveDraftAssetLines(draftLines);
+            await persistDraftWizardState({
+                lines,
+                nextTerms: draftTerms,
+            });
+            if (lines.length > 0) {
+                setAssetLines(lines);
+            }
+            setTerms(draftTerms);
+            showSuccessToast("Lease contract draft saved");
+            if (skippedDueToShortfall) {
+                showErrorToast(
+                    "Fix asset line quantities before saving lines",
+                );
+            }
+        } catch (err) {
+            const message =
+                err instanceof Error
+                    ? err.message
+                    : "Could not save draft contract.";
+            setWizardError(message);
+            showErrorToast(message);
+        } finally {
+            setIsPersistingStep(false);
+        }
+    };
+
+    const handleSaveDraftFromTerms = async (snapshot: TermsDraftSnapshot) => {
+        setTerms(snapshot.terms);
+        setAssetLines(snapshot.assetLinesWithRates);
+        await handleSaveDraft(
+            snapshot.assetLinesWithRates,
+            snapshot.terms,
+        );
+    };
+
+    const canSaveDraft =
+        isDraft &&
+        canUpdate &&
+        Boolean(selectedClientId) &&
+        screen !== "select-client" &&
+        screen !== "register-client";
+
+    const saveDraftFooterProps = {
+        showSaveDraft: canSaveDraft,
+        isSaveDraftPending: isPersistingStep,
+        onSaveDraft: () => {
+            void handleSaveDraft();
+        },
+    };
 
     const handleClientSelected = async (client: FleetClientListItem) => {
         setWizardError(null);
@@ -320,20 +515,14 @@ export default function EditLeaseContractPage({
                 error instanceof ApiClientError
                     ? error.message
                     : error instanceof Error
-                      ? error.message
-                      : "Could not save client.";
+                        ? error.message
+                        : "Could not save client.";
             showErrorToast(message);
             throw error;
         }
     };
 
-    const listBackLink = useMemo(
-        () => ({
-            label: "Back to contract",
-            href: detailHref,
-        }),
-        [detailHref],
-    );
+
 
     if (contractQuery.isLoading || !initialized) {
         return (
@@ -341,7 +530,7 @@ export default function EditLeaseContractPage({
                 title="Edit lease contract"
                 description="Loading contract…"
                 contentVariant="plain"
-                backLink={listBackLink}
+
             >
                 <div
                     className="rounded-lg border border-gray-200 bg-white p-5 text-sm text-gray-600"
@@ -358,7 +547,6 @@ export default function EditLeaseContractPage({
             <OrganizationFormLayout
                 title="Edit lease contract"
                 contentVariant="plain"
-                backLink={listBackLink}
             >
                 <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                     Could not load this contract. Return to the detail view and
@@ -404,9 +592,7 @@ export default function EditLeaseContractPage({
                 )}
                 <CreateClientPage
                     variant="embedded"
-                    initialData={{
-                        companyName: registerClientDraftName,
-                    }}
+                    initialData={registerClientInitialData}
                     onSaved={handleRegisterClientSaved}
                     onCancel={() => {
                         setRegisterClientDraftName("");
@@ -421,8 +607,14 @@ export default function EditLeaseContractPage({
                 clientId={selectedClientId}
                 clientName={selectedClientName}
                 initialAssetLines={assetLines}
+                availabilityRefreshKey={assetLinesAvailabilityRefreshKey}
+                showSaveDraft={saveDraftFooterProps.showSaveDraft}
+                isSaveDraftPending={saveDraftFooterProps.isSaveDraftPending}
+                onSaveDraft={(lines) => {
+                    void handleSaveDraft(lines);
+                }}
                 onBack={() => setScreen("select-client")}
-                onContinue={async (lines, options) => {
+                onContinue={async (lines) => {
                     if (!token || !organizationId) {
                         setWizardError(
                             "Authentication or organization information is missing.",
@@ -446,8 +638,6 @@ export default function EditLeaseContractPage({
                                         line.ratePerVehicleMonth || "0",
                                     ),
                                 })),
-                                confirmShortfall:
-                                    options?.confirmShortfall === true,
                             },
                         );
                         setAssetLines(lines);
@@ -474,6 +664,11 @@ export default function EditLeaseContractPage({
             <TermsStep
                 assetLines={assetLines}
                 initialTerms={terms}
+                showSaveDraft={saveDraftFooterProps.showSaveDraft}
+                isSaveDraftPending={saveDraftFooterProps.isSaveDraftPending}
+                onSaveDraft={(snapshot) => {
+                    void handleSaveDraftFromTerms(snapshot);
+                }}
                 onBack={() => setScreen("asset-lines")}
                 onContinue={async (nextTerms, linesWithRates) => {
                     if (!token || !organizationId) {
@@ -560,22 +755,13 @@ export default function EditLeaseContractPage({
                     draftContractId={leaseId}
                     assetLines={assetLines}
                     terms={terms}
+                    {...saveDraftFooterProps}
                     onBack={() => setScreen("terms")}
                 />
             </>
         );
     }
 
-    const backLink =
-        screen === "register-client"
-            ? {
-                  label: "Back to client selection",
-                  onClick: () => {
-                      setRegisterClientDraftName("");
-                      setScreen("select-client");
-                  },
-              }
-            : listBackLink;
 
     return (
         <OrganizationFormLayout
@@ -585,7 +771,7 @@ export default function EditLeaseContractPage({
             beforeHeader={
                 <LeaseContractStepper currentStep={SCREEN_STEP[screen]} />
             }
-            backLink={backLink}
+
             headerAction={
                 screen === "select-client" ? (
                     <Button

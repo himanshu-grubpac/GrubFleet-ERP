@@ -159,6 +159,27 @@ export function applyCrudToggle(
   kind: ModuleCrudKind,
   checked: boolean,
 ): ModuleCrudFlags {
+  if (
+    current.manage &&
+    (kind === "create" || kind === "update" || kind === "delete")
+  ) {
+    if (checked) {
+      return {
+        view: true,
+        create: true,
+        update: true,
+        delete: true,
+        manage: true,
+      };
+    }
+    const next = {
+      ...current,
+      manage: false,
+      [kind]: false,
+    };
+    return next;
+  }
+
   const next = { ...current, [kind]: checked };
 
   if (kind === "view" && !checked) {
@@ -180,7 +201,33 @@ export function applyCrudToggle(
     next.manage = true;
   }
 
+  if (kind === "manage" && !checked) {
+    next.create = false;
+    next.update = false;
+    next.delete = false;
+  }
+
   return next;
+}
+
+/** Disable toggles that would violate CRUD/admin symmetry in the matrix. */
+export function isModuleCrudToggleDisabled(
+  flags: ModuleCrudFlags,
+  kind: ModuleCrudKind,
+): boolean {
+  if (
+    flags.manage &&
+    (kind === "create" || kind === "update" || kind === "delete")
+  ) {
+    return true;
+  }
+  if (
+    kind === "view" &&
+    (flags.create || flags.update || flags.delete || flags.manage)
+  ) {
+    return true;
+  }
+  return false;
 }
 
 export function buildPermissionKeysFromCrudMap(

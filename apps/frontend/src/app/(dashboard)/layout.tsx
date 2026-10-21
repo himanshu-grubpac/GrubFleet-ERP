@@ -1,16 +1,9 @@
-'use client';
-
-import { AppShell } from '@/components/layout/app-shell';
-import { ProtectedRoute } from '@/providers/auth-provider';
+import { DashboardChrome } from '@/components/layout/dashboard-chrome';
 
 export default function DashboardGroupLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return (
-    <ProtectedRoute>
-      <AppShell>{children}</AppShell>
-    </ProtectedRoute>
-  );
+  return <DashboardChrome>{children}</DashboardChrome>;
 }

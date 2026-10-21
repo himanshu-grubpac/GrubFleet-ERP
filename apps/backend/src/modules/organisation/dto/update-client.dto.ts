@@ -12,6 +12,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
+import { IsValidPostalForCountry } from '../../../common/decorators/is-valid-postal-for-country.decorator';
 import { OrganisationClientPocDto } from './client-poc.dto';
 
 export class UpdateOrganisationClientDto {
@@ -70,6 +71,7 @@ export class UpdateOrganisationClientDto {
   @IsString()
   @MinLength(1)
   @MaxLength(20)
+  @IsValidPostalForCountry('addressCountry')
   addressPincode?: string;
 
   @ApiPropertyOptional({ type: [OrganisationClientPocDto] })

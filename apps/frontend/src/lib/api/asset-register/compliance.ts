@@ -1,5 +1,7 @@
 
 import type { PaginatedResponse } from "@grubpac/shared-types";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
 
 export type AssetRegisterComplianceFilterStatus =
@@ -7,16 +9,24 @@ export type AssetRegisterComplianceFilterStatus =
   | "expiring_soon"
   | "valid";
 
+
+export type AssetRegisterComplianceCredential = {
+  kind: "insurance" | "registration" | "warranty";
+  startDate: string | null;
+  endDate: string | null;
+  status: AssetRegisterComplianceFilterStatus;
+  premium?: string;
+};
 export type AssetRegisterComplianceListItem = {
   vehicleId: string;
   fleetCode: string;
   registrationNumber: string;
   assetClassName: string;
-  operationalStatus: string;
-  complianceStatus: AssetRegisterComplianceFilterStatus;
-  registrationEndDate: string;
-  insuranceEndDate: string;
-  warrantyEndDate: string;
+  overallComplianceStatus: AssetRegisterComplianceFilterStatus;
+
+  insurance: AssetRegisterComplianceCredential;
+  registration: AssetRegisterComplianceCredential;
+  warranty: AssetRegisterComplianceCredential;
 };
 
 export type AssetRegisterComplianceDetail =
@@ -31,14 +41,16 @@ function orgHeaders(organizationId: string): HeadersInit {
   return { "x-organization-id": organizationId };
 }
 
-export async function fetchAssetRegisterComplianceListApi(params: {
-  organizationId: string;
-  token: string;
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  complianceStatus?: AssetRegisterComplianceFilterStatus;
-}): Promise<PaginatedResponse<AssetRegisterComplianceListItem>> {
+export async function fetchAssetRegisterComplianceListApi(
+  params: ListSortParams & {
+    organizationId: string;
+    token: string;
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    complianceStatus?: AssetRegisterComplianceFilterStatus;
+  },
+): Promise<PaginatedResponse<AssetRegisterComplianceListItem>> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
     page: String(params.page ?? 1),
@@ -52,6 +64,7 @@ export async function fetchAssetRegisterComplianceListApi(params: {
   if (params.complianceStatus) {
     q.set("complianceStatus", params.complianceStatus);
   }
+  appendListSortSearchParams(q, params);
 
   return apiFetch<PaginatedResponse<AssetRegisterComplianceListItem>>(
     `/asset-register/compliance?${q.toString()}`,
@@ -100,6 +113,7 @@ export async function renewAssetRegisterComplianceApi(params: {
       token: params.token,
       headers: orgHeaders(params.organizationId),
       body: JSON.stringify({
+        organizationId: params.organizationId,
         type: params.type,
         startDate: params.startDate,
         endDate: params.endDate,

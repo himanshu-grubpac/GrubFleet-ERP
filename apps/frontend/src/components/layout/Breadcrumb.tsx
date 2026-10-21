@@ -1,5 +1,4 @@
 
-
 "use client";
 
 import Link from "next/link";
@@ -23,28 +22,29 @@ export default function Breadcrumb({
             aria-label="Breadcrumb"
             className="min-w-0"
         >
-            <ol className="flex items-center gap-1.5 text-xs">
+            <ol className="flex min-w-0 items-center gap-1.5 overflow-hidden text-xs">
                 {items.map((item, index) => {
                     const isLast = index === items.length - 1;
 
                     return (
                         <li
                             key={`${item.label}-${index}`}
-                            className="flex min-w-0 items-center gap-1.5"
+                            className="flex min-w-0 shrink items-center gap-1.5"
                         >
                             {item.href && !isLast ? (
                                 <Link
                                     href={item.href}
-                                    className="truncate text-slate-400 transition-colors hover:text-slate-700"
+                                    className="min-w-0 truncate text-slate-400 transition-colors hover:text-[#FE5720]"
                                 >
                                     {item.label}
                                 </Link>
                             ) : (
                                 <span
+                                    aria-current={isLast ? "page" : undefined}
                                     className={
                                         isLast
-                                            ? "truncate font-medium text-slate-900"
-                                            : "truncate text-slate-400"
+                                            ? "min-w-0 truncate font-medium text-slate-900"
+                                            : "min-w-0 truncate text-slate-400"
                                     }
                                 >
                                     {item.label}
@@ -53,6 +53,7 @@ export default function Breadcrumb({
 
                             {!isLast && (
                                 <ChevronRight
+                                    aria-hidden="true"
                                     className="h-3 w-3 shrink-0 text-slate-300"
                                     strokeWidth={1.8}
                                 />

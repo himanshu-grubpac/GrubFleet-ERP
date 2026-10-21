@@ -12,6 +12,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  VENDOR_PAYMENT_LIST_DEFAULT_SORT,
+  VENDOR_PAYMENT_LIST_SORT_FIELDS,
+} from './constants/finance-list-sort.constants';
 import type { FinanceInvoiceStatus } from './constants/invoice.constants';
 import { FINANCE_INVOICE_PAYMENT_METHOD_LABELS } from './constants/payment-method.constants';
 import type { CreateVendorPaymentDto } from './dto/create-vendor-payment.dto';
@@ -30,11 +35,17 @@ export class VendorPaymentsService {
   async list(query: ListVendorPaymentsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      VENDOR_PAYMENT_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      VENDOR_PAYMENT_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVendorPayments(
       query.organizationId,
       page,
       pageSize,
       query.search,
+      sort,
     );
 
     const invoiceIds = [...new Set(rows.map((r) => r.invoiceId))];

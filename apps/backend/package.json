@@ -22,6 +22,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "ts-node -r tsconfig-paths/register src/database/run-migrations.ts",
     "db:seed": "ts-node -r tsconfig-paths/register src/database/seed/run-seed.ts",
+    "db:seed:staging-workshop-demo": "ts-node -r tsconfig-paths/register src/database/seed/seed-staging-workshop-demo.ts",
     "db:clean-roles": "ts-node -r tsconfig-paths/register src/database/seed/clean-roles-keep-admin.ts",
     "clean:dev:locations": "npm run clean:dev:organisation-locations",
     "clean:dev:rbac-test-artifacts": "ts-node -r tsconfig-paths/register src/database/seed/clean-dev-rbac-test-artifacts.ts --confirm-dev",
@@ -45,7 +46,7 @@
     "reset:dev:organisation-drivers": "npm run clean:dev:organisation-drivers && npm run seed:dev:organisation-driver-fleet && npm run seed:dev:organisation-drivers",
     "reset:dev:organisation-all": "npm run reset:dev:organisation-locations && npm run reset:dev:organisation-employees && npm run reset:dev:organisation-suppliers && npm run reset:dev:organisation-clients && npm run reset:dev:organisation-drivers",
     "reset:dev:organisation-data": "npm run clean:dev:organisation-data && npm run seed:dev:organisation-data",
-    "test": "jest",
+    "test": "jest --runInBand --forceExit",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
@@ -65,6 +66,7 @@
     "class-transformer": "^0.5.1",
     "class-validator": "^0.15.1",
     "drizzle-orm": "^0.45.3",
+    "helmet": "^8.3.0",
     "i18n-iso-countries": "^7.14.0",
     "ioredis": "^6.0.0",
     "passport": "^0.7.0",
@@ -131,6 +133,7 @@
     ],
     "transformIgnorePatterns": [
       "node_modules/(?!(@nestjs/config|@nestjs/jwt|@nestjs/passport)/)"
-    ]
+    ],
+    "forceExit": true
   }
 }

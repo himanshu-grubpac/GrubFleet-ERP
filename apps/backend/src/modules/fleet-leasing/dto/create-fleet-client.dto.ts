@@ -13,6 +13,8 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
+import { IsValidGstin } from '../../../common/decorators/is-valid-gstin.decorator';
+import { IsValidPostalForCountry } from '../../../common/decorators/is-valid-postal-for-country.decorator';
 import { ClientPocDto } from './client-poc.dto';
 
 export class CreateFleetClientDto {
@@ -29,22 +31,14 @@ export class CreateFleetClientDto {
   @IsOptional()
   @IsString()
   @MaxLength(32)
+  @IsValidGstin()
   taxId?: string;
 
-  @ApiPropertyOptional({
-    description:
-      'Legacy single-line address when structured address fields are omitted',
-  })
-  @IsOptional()
+  @ApiProperty()
   @IsString()
-  @MaxLength(2000)
-  address?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
+  @MinLength(1)
   @MaxLength(255)
-  addressLine1?: string;
+  addressLine1!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -58,37 +52,36 @@ export class CreateFleetClientDto {
   @MaxLength(120)
   addressCity?: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     description: 'ISO 3166-1 alpha-2 country code',
     example: 'IN',
   })
-  @IsOptional()
   @IsString()
   @Length(2, 2)
   @Matches(/^[A-Za-z]{2}$/, {
     message: 'addressCountry must be a 2-letter ISO code',
   })
   @IsIso31661Alpha2Country()
-  addressCountry?: string;
+  addressCountry!: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
+  @MinLength(1)
   @MaxLength(120)
-  addressState?: string;
+  addressState!: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty()
   @IsString()
+  @MinLength(1)
   @MaxLength(120)
-  addressDistrict?: string;
+  addressDistrict!: string;
 
-  @ApiPropertyOptional()
-  @IsOptional()
+  @ApiProperty({ maxLength: 20 })
   @IsString()
   @MinLength(1)
   @MaxLength(20)
-  addressPincode?: string;
+  @IsValidPostalForCountry('addressCountry')
+  addressPincode!: string;
 
   @ApiProperty({ type: [ClientPocDto] })
   @IsArray()

@@ -8,6 +8,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  LOCATION_LIST_DEFAULT_SORT,
+  LOCATION_LIST_SORT_FIELDS,
+} from './constants/organisation-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateLocationDto } from './dto/create-location.dto';
 import type { ListLocationsQueryDto } from './dto/list-locations-query.dto';
@@ -39,6 +44,11 @@ export class LocationsService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      LOCATION_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      LOCATION_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listLocations(
       query.organizationId,
       page,
@@ -47,6 +57,7 @@ export class LocationsService {
         search: query.search,
         locationTypeId: query.locationTypeId,
         isActive,
+        sort,
       },
     );
     const employeeNameById = await this.resolveEmployeeNames(

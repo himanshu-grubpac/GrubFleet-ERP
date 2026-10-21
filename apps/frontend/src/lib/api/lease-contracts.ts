@@ -1,4 +1,6 @@
 import { apiFetch } from './client';
+import type { ListSortParams } from '@/lib/query/list-sort-params';
+import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared query helpers
@@ -126,6 +128,7 @@ export interface LeaseContractDetail {
 
     client?: {
         id: string;
+        organisationClientId?: string | null;
         companyName: string;
         pocs?: unknown[];
     } | null;
@@ -401,6 +404,7 @@ export type CreateLeaseContractDraftPayload = {
     amcTier?: string;
     description?: string;
     assetLines?: ContractAssetLineInput[];
+    confirmShortfall?: boolean;
     vehicleIds?: string[];
 };
 
@@ -469,15 +473,17 @@ export type VehicleAllocationResponse =
 // GET lease contracts list
 // ─────────────────────────────────────────────────────────────────────────────
 
+export type LeaseContractsListOptions = ListSortParams & {
+    page?: number;
+    pageSize?: number;
+    statusFilter?: LeaseContractStatusFilter;
+    search?: string;
+};
+
 export async function fetchLeaseContractsList(
     token: string,
     organizationId: string,
-    options: {
-        page?: number;
-        pageSize?: number;
-        statusFilter?: LeaseContractStatusFilter;
-        search?: string;
-    } = {},
+    options: LeaseContractsListOptions = {},
 ): Promise<PaginatedLeaseContracts> {
     const params = new URLSearchParams({
         organizationId,
@@ -511,6 +517,8 @@ export async function fetchLeaseContractsList(
         );
     }
 
+    appendListSortSearchParams(params, options);
+
     return apiFetch<PaginatedLeaseContracts>(
         `/fleet-leasing/lease-contracts?${params.toString()}`,
         {
@@ -538,7 +546,7 @@ export interface RenewLeaseContractResponse {
 export async function fetchRenewalsExtensionsList(
     token: string,
     organizationId: string,
-    options: {
+    options: ListSortParams & {
         page?: number;
         pageSize?: number;
         search?: string;
@@ -557,6 +565,8 @@ export async function fetchRenewalsExtensionsList(
     if (options.search) {
         params.set('search', options.search);
     }
+
+    appendListSortSearchParams(params, options);
 
     return apiFetch<PaginatedLeaseContracts>(
         `/fleet-leasing/renewals-extensions?${params.toString()}`,
@@ -958,7 +968,7 @@ export async function updateLeaseContract(
 export async function fetchFleetClients(
     token: string,
     organizationId: string,
-    options: {
+    options: ListSortParams & {
         page?: number;
         pageSize?: number;
         search?: string;
@@ -980,6 +990,7 @@ export async function fetchFleetClients(
             options.search,
         );
     }
+    appendListSortSearchParams(params, options);
 
     return apiFetch<PaginatedFleetClients>(
         `/fleet-leasing/clients?${params.toString()}`,
@@ -1114,7 +1125,7 @@ export async function fetchAssetAvailability(
 
 export async function fetchFleetVehicles(
     token: string,
-    request: {
+    request: ListSortParams & {
         organizationId: string;
         page?: number;
         pageSize?: number;
@@ -1140,6 +1151,7 @@ export async function fetchFleetVehicles(
         assetClass:
             request.assetClass,
     });
+    appendListSortSearchParams(params, request);
 
     return apiFetch<FleetVehicleListResponse>(
         `/fleet-leasing/vehicles?${params.toString()}`,

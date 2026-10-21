@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, type ReactNode } from "react";
@@ -6,10 +5,13 @@ import { FaCopy } from "react-icons/fa";
 import { Edit, Power } from "lucide-react";
 import Link from "next/link";
 
+import { MoreVertical } from "lucide-react";
+
 import {
     DashboardRowActionsMenu,
     DashboardRowActionsMenuItem,
 } from "./DashboardRowActionsMenu";
+import { dashboardRowMenuTriggerClassName } from "./dashboard-row-icon-button";
 
 import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
 
@@ -54,6 +56,8 @@ type DashboardTableActionsProps = {
     allowEditWhenInactive?: boolean;
     hideEdit?: boolean;
     alwaysShowOverflowMenu?: boolean;
+    /** Gray non-clickable ⋮ for row alignment when no menu actions apply. */
+    overflowMenuDisabled?: boolean;
     onEdit?: () => void;
     onToggleStatus?: () => void;
     renderAdditionalMenuItems?: () => ReactNode;
@@ -67,6 +71,7 @@ export default function DashboardTableActions({
     allowEditWhenInactive = false,
     hideEdit = false,
     alwaysShowOverflowMenu = false,
+    overflowMenuDisabled = false,
     onEdit,
     onToggleStatus,
     renderAdditionalMenuItems,
@@ -120,11 +125,11 @@ export default function DashboardTableActions({
         !!onToggleStatus;
 
     return (
-        <div className="flex items-center justify-end gap-3">
+        <div className="flex shrink-0 items-center justify-end gap-3 whitespace-nowrap">
             {/* View */}
             <Link
                 href={resolvedViewHref}
-                className="text-sm font-medium text-[#FE5720] hover:underline"
+                className="shrink-0 text-sm font-medium text-[#FE5720] hover:underline"
             >
                 View
             </Link>
@@ -137,8 +142,8 @@ export default function DashboardTableActions({
                 aria-label={copied ? "Copied!" : "Copy row"}
                 title={copied ? "Copied!" : "Copy row"}
                 className="
-                    inline-flex h-8 items-center justify-center gap-1.5
-                    rounded-md px-1.5 text-sm font-medium
+                    inline-flex h-8 shrink-0 items-center justify-center gap-1.5
+                    whitespace-nowrap rounded-md px-1.5 text-sm font-medium
                     text-gray-500 transition-colors
                     hover:bg-gray-100 hover:text-gray-900
                     disabled:cursor-not-allowed disabled:opacity-40
@@ -151,7 +156,20 @@ export default function DashboardTableActions({
             </button>
 
             {/* Three-dot actions menu */}
-            {hasOverflowMenu ? (
+            {overflowMenuDisabled ? (
+                <button
+                    type="button"
+                    disabled
+                    aria-label="Row actions unavailable"
+                    title="No actions available"
+                    className={`${dashboardRowMenuTriggerClassName} cursor-not-allowed text-gray-400 opacity-40`}
+                >
+                    <MoreVertical
+                        className="h-4 w-4"
+                        strokeWidth={1.75}
+                    />
+                </button>
+            ) : hasOverflowMenu ? (
                 <DashboardRowActionsMenu ariaLabel="Row actions">
                     {({ close }) => (
                         <>

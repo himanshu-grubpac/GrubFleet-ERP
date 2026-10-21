@@ -1,9 +1,10 @@
+
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { PackageSearch } from "lucide-react";
+import { Check, Copy, PackageSearch } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -12,6 +13,11 @@ import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { ASSET_REGISTER_COMPLIANCE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
+import {
+    listSortQueryKeyPart,
+    useDashboardTableListSort,
+} from "@/lib/query/dashboard-table-list-sort";
 import { fetchAssetRegisterComplianceListApi } from "@/lib/api/asset-register/compliance";
 import { assetRegisterComplianceRenewalDetailHref } from "@/lib/navigation/asset-register-static-routes";
 
@@ -27,8 +33,11 @@ type ComplianceItem = {
     id: string;
     fleetCode: string;
     assetClass: string;
+    insuranceStart: string;
     insuranceExpiry: string;
+    registrationStart: string;
     registrationExpiry: string;
+    warrantyStart: string;
     warrantyExpiry: string;
     status: ComplianceStatus;
 };
@@ -73,6 +82,19 @@ export default function ComplianceDashboardPage() {
         useState<"All" | ComplianceStatus>("All");
 
     const [currentPage, setCurrentPage] = useState(1);
+    const [copiedAssetClass, setCopiedAssetClass] = useState<string | null>(
+        null,
+    );
+    const {
+        sort: tableSort,
+        onSortChange,
+        listSortParams,
+        serverSorted,
+    } = useDashboardTableListSort(ASSET_REGISTER_COMPLIANCE_COLUMN_SORT);
+
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [listSortParams?.sortBy, listSortParams?.sortOrder]);
 
     const listQuery = useQuery({
         queryKey: [
@@ -81,6 +103,7 @@ export default function ComplianceDashboardPage() {
             organizationId,
             activeFilter,
             currentPage,
+            ...listSortQueryKeyPart(listSortParams),
         ],
         queryFn: () => {
             if (!token || !organizationId) {
@@ -95,6 +118,7 @@ export default function ComplianceDashboardPage() {
                 page: currentPage,
                 pageSize: PAGE_SIZE,
                 complianceStatus,
+                ...listSortParams,
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -107,49 +131,54 @@ export default function ComplianceDashboardPage() {
                 id: row.vehicleId,
                 fleetCode: row.fleetCode,
                 assetClass: row.assetClassName,
+
+                insuranceStart: formatAssetRegisterIsoDate(
+                    row.insurance?.startDate,
+                ),
                 insuranceExpiry: formatAssetRegisterIsoDate(
-                    row.insuranceEndDate,
+                    row.insurance?.endDate,
+                ),
+
+                registrationStart: formatAssetRegisterIsoDate(
+                    row.registration?.startDate,
                 ),
                 registrationExpiry: formatAssetRegisterIsoDate(
-                    row.registrationEndDate,
+                    row.registration?.endDate,
+                ),
+
+                warrantyStart: formatAssetRegisterIsoDate(
+                    row.warranty?.startDate,
                 ),
                 warrantyExpiry: formatAssetRegisterIsoDate(
-                    row.warrantyEndDate,
+                    row.warranty?.endDate,
                 ),
+
                 status: mapComplianceStatusToUi(
-                    row.complianceStatus,
+                    row.overallComplianceStatus,
                 ),
             })),
         [listQuery.data?.items],
     );
 
     const totalItems = listQuery.data?.total ?? 0;
-    const totalPages = Math.max(
-        1,
-        listQuery.data?.totalPages ?? 1,
-    );
+    const totalPages = Math.max(1, listQuery.data?.totalPages ?? 1);
 
     const isInitialLoading =
         isAuthLoading || (listQuery.isLoading && !listQuery.data);
 
-    // Empty state for an organization with no compliance records.
     const isEmptyOrgList =
         !isInitialLoading &&
         !listQuery.isError &&
         totalItems === 0 &&
         activeFilter === "All";
 
-    const handleFilterChange = (
-        filter: "All" | ComplianceStatus,
-    ) => {
+    const handleFilterChange = (filter: "All" | ComplianceStatus) => {
         setActiveFilter(filter);
         setCurrentPage(1);
     };
 
     const handleRenew = (item: ComplianceItem) => {
-        router.push(
-            assetRegisterComplianceRenewalDetailHref(item.id),
-        );
+        router.push(assetRegisterComplianceRenewalDetailHref(item.id));
     };
 
     const handleClearFilters = () => {
@@ -157,15 +186,90 @@ export default function ComplianceDashboardPage() {
         setCurrentPage(1);
     };
 
+    const handleCopyAssetClass = async (name: string) => {
+        try {
+            await navigator.clipboard.writeText(name);
+            setCopiedAssetClass(name);
+
+            window.setTimeout(() => {
+                setCopiedAssetClass((current) =>
+                    current === name ? null : current,
+                );
+            }, 1500);
+        } catch {
+            // Clipboard access may be unavailable in an insecure context.
+        }
+    };
+
     const complianceColumns = [
-        { key: "fleetCode", label: "FLEET CODE" },
-        { key: "assetClass", label: "ASSET CLASS" },
-        { key: "insuranceExpiry", label: "INSURANCE EXP." },
-        { key: "registrationExpiry", label: "REGISTRATION EXP." },
-        { key: "warrantyExpiry", label: "WARRANTY EXP." },
+        {
+            key: "fleetCode",
+            label: "FLEET CODE",
+            className: "w-[100px] whitespace-nowrap",
+        },
+        {
+            key: "assetClass",
+            label: "ASSET CLASS",
+            sortable: false,
+            className: "w-[180px] max-w-[180px]",
+            render: (item: ComplianceItem) => (
+                <div className="group/asset relative w-[180px] max-w-full">
+                    <span className="block truncate">
+                        {item.assetClass || "-"}
+                    </span>
+
+                    {item.assetClass && (
+                        <div
+                            className="
+                    invisible pointer-events-none
+                    absolute left-0 top-full z-50
+                    w-max min-w-[260px] max-w-[360px]
+                    rounded-md border border-gray-200
+                    bg-white p-3 shadow-lg
+                    opacity-0
+                    transition-opacity duration-150
+                    group-hover/asset:visible
+                    group-hover/asset:pointer-events-auto
+                    group-hover/asset:opacity-100
+                    group-focus-within/asset:visible
+                    group-focus-within/asset:pointer-events-auto
+                    group-focus-within/asset:opacity-100
+                "
+                        >
+                            <div className="flex items-start gap-1">
+                                <span className="min-w-0 flex-1 whitespace-normal break-words text-xs text-gray-800">
+                                    {item.assetClass}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={() => void handleCopyAssetClass(item.assetClass)}
+                                    className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                                    title="Copy full asset class name"
+                                    aria-label="Copy full asset class name"
+                                >
+                                    {copiedAssetClass === item.assetClass ? (
+                                        <Check className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                        <Copy className="h-4 w-4" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ),
+        },
+        { key: "insuranceStart", label: "INSURANCE START", sortable: false },
+        { key: "insuranceExpiry", label: "INSURANCE EXP.", sortable: false },
+        { key: "registrationStart", label: "REGISTRATION START", sortable: false },
+        { key: "registrationExpiry", label: "REGISTRATION EXP.", sortable: false },
+        { key: "warrantyStart", label: "WARRANTY START", sortable: false },
+        { key: "warrantyExpiry", label: "WARRANTY EXP.", sortable: false },
         {
             key: "status",
             label: "STATUS",
+            sortable: false,
             render: (item: ComplianceItem) => (
                 <span
                     className={[
@@ -195,7 +299,6 @@ export default function ComplianceDashboardPage() {
                     : undefined
             }
         >
-            {/* Status Filters */}
             <div className="mb-4 flex flex-wrap items-center justify-end gap-1.5">
                 {STATUS_FILTERS.map((filter) => {
                     const isActive = activeFilter === filter;
@@ -218,7 +321,6 @@ export default function ComplianceDashboardPage() {
                 })}
             </div>
 
-            {/* API Error */}
             {listQuery.isError ? (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
                     Could not load compliance records.{" "}
@@ -231,12 +333,10 @@ export default function ComplianceDashboardPage() {
                     </button>
                 </div>
             ) : isInitialLoading ? (
-                /* Loading State */
                 <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
                     Loading compliance records…
                 </div>
             ) : isEmptyOrgList ? (
-                /* Organization Empty State */
                 <DashboardEmptyState
                     icon={
                         <PackageSearch
@@ -248,7 +348,6 @@ export default function ComplianceDashboardPage() {
                     description="Add vehicles to your Fleet Register to start tracking insurance, registration, and warranty expiry dates."
                 />
             ) : paginatedComplianceItems.length === 0 ? (
-                /* No Results for Selected Filter */
                 <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white px-5 text-center">
                     <PackageSearch
                         className="mb-3 h-7 w-7 text-gray-400"
@@ -274,11 +373,13 @@ export default function ComplianceDashboardPage() {
                     )}
                 </div>
             ) : (
-                /* Compliance Table */
                 <DashboardTable
                     columns={complianceColumns}
                     data={paginatedComplianceItems}
                     getRowKey={(item) => item.id}
+                    sortState={tableSort}
+                    onSortChange={onSortChange}
+                    serverSorted={serverSorted}
                     renderActions={(item) => (
                         <Button
                             type="button"

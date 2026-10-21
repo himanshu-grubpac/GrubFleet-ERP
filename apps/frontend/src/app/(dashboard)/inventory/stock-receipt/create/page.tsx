@@ -12,7 +12,7 @@ import { createStockReceiptApi } from "@/lib/api/inventory/stock-receipts";
 import { fetchOrganisationLocationsApi } from "@/lib/api/organisation/locations";
 import { inventoryStockReceiptDetailHref } from "@/lib/navigation/inventory-static-routes";
 import {
-  showErrorToast,
+  showApiErrorToast,
   showStockReceiptCreatedToast,
 } from "@/lib/toast/show-toast";
 
@@ -68,7 +68,8 @@ export default function CreateStockPage() {
       showStockReceiptCreatedToast(result.receiptNumber);
       router.push(inventoryStockReceiptDetailHref(result.id));
     },
-    onError: () => showErrorToast("Failed to save stock receipt."),
+    onError: (error) =>
+      showApiErrorToast(error, "Failed to save stock receipt."),
   });
 
   if (!canCreate) {

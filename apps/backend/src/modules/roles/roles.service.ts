@@ -4,12 +4,19 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { mapPostgresErrorToHttp } from '../../infrastructure/database/postgres-error.util';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
   type PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ROLE_LIST_DEFAULT_SORT,
+  ROLE_LIST_SORT_FIELDS,
+} from './constants/roles-list-sort.constants';
+import type { ListRolesQueryDto } from './dto/list-roles-query.dto';
 import {
   ERP_MODULES,
   isKnownErpModuleId,
@@ -18,6 +25,7 @@ import {
   allowedLevelsForActor,
   deriveModuleAccessFromKeys,
   deriveModuleAccessFromKeysDetailed,
+  expandImpliedPermissionKeys,
   expandModuleAccess,
   resolveModuleAccessLevel,
   type ModuleAccessEntry,
@@ -99,26 +107,32 @@ export class RolesService {
 
   async listRoles(
     actorUserId: string,
-    organizationId: string,
-    page = DEFAULT_PAGE,
-    pageSize = DEFAULT_PAGE_SIZE,
+    query: ListRolesQueryDto,
   ): Promise<PaginatedResult<RoleDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      ROLE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ROLE_LIST_DEFAULT_SORT,
+    );
     const visibleRoleIds = await this.resolveVisibleRoleIds(
       actorUserId,
-      organizationId,
+      query.organizationId,
     );
     const { rows, total } = await this.rolesRepository.listOrgRoles(
-      organizationId,
+      query.organizationId,
       page,
       pageSize,
       visibleRoleIds,
+      sort,
     );
-    const items = await Promise.all(
-      rows.map(async (role) => {
-        const permissionKeys =
-          await this.rolesRepository.getPermissionKeysForRole(role.id);
-        return this.toDto(role, permissionKeys);
-      }),
+    const permissionKeysByRoleId =
+      await this.rolesRepository.getPermissionKeysForRoles(
+        rows.map((role) => role.id),
+      );
+    const items = rows.map((role) =>
+      this.toDto(role, permissionKeysByRoleId.get(role.id) ?? []),
     );
     return toPaginatedResult(items, page, pageSize, total);
   }
@@ -221,11 +235,15 @@ export class RolesService {
         description: dto.description ?? null,
         parentRoleId,
       });
-    } catch {
-      throw new ConflictException({
-        message: 'Role name already exists in this organization',
-        code: 'ROLE_NAME_CONFLICT',
-      });
+    } catch (err) {
+      const mapped = mapPostgresErrorToHttp(err);
+      if (mapped?.statusCode === 409) {
+        throw new ConflictException({
+          message: mapped.message,
+          code: mapped.code,
+        });
+      }
+      throw err;
     }
 
     const permissionIds =
@@ -583,7 +601,7 @@ export class RolesService {
         code: 'ROLE_PERMISSIONS_REQUIRED',
       });
     }
-    return [...new Set(dto.permissionKeys)].sort();
+    return expandImpliedPermissionKeys(dto.permissionKeys);
   }
 
   private resolvePermissionKeysFromUpdateDto(
@@ -594,7 +612,7 @@ export class RolesService {
       return expandModuleAccess(dto.moduleAccess);
     }
     if (dto.permissionKeys !== undefined) {
-      return [...new Set(dto.permissionKeys)].sort();
+      return expandImpliedPermissionKeys(dto.permissionKeys);
     }
     return undefined;
   }

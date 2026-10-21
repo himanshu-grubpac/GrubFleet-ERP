@@ -36,11 +36,7 @@ export class UsersController {
   @RequirePermissions(PermissionKeys.ADMINISTRATION_VIEW)
   @ApiOperation({ summary: 'List members in an organization' })
   list(@Query() query: ListUsersQueryDto) {
-    return this.usersService.listUsersInOrg(
-      query.organizationId,
-      query.page,
-      query.pageSize,
-    );
+    return this.usersService.listUsersInOrg(query);
   }
 
   @Post()

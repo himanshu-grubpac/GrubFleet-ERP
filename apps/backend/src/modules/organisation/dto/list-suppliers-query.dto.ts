@@ -12,7 +12,13 @@ import {
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
+  type ListSortOrder,
 } from '../../../common/dto/pagination-query.dto';
+import { LIST_SORT_ORDERS } from '../../../common/constants/list-sort.constants';
+import {
+  SUPPLIER_LIST_SORT_FIELDS,
+  type SupplierListSortField,
+} from '../constants/organisation-list-sort.constants';
 import {
   ORGANISATION_SUPPLIER_TYPES,
   type OrganisationSupplierType,
@@ -61,4 +67,14 @@ export class ListSuppliersQueryDto {
   @IsOptional()
   @IsIn(['active', 'inactive'])
   status?: 'active' | 'inactive';
+
+  @ApiPropertyOptional({ enum: SUPPLIER_LIST_SORT_FIELDS })
+  @IsOptional()
+  @IsIn(SUPPLIER_LIST_SORT_FIELDS)
+  sortBy?: SupplierListSortField;
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
 }

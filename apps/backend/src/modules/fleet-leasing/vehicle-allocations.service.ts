@@ -17,6 +17,17 @@ import type { CreateVehicleAllocationDto } from './dto/create-vehicle-allocation
 import type { ListVehicleAllocationsQueryDto } from './dto/list-vehicle-allocations-query.dto';
 import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 import { evaluateVehicleAllocation } from './utils/vehicle-allocation.util';
+import {
+  resolveListSort,
+  type ResolvedListSort,
+} from '../../common/utils/list-sort.util';
+import type { AssignableVehicleListSortField } from '../organisation/constants/organisation-list-sort.constants';
+import type { ListSortOrder } from '../../common/constants/list-sort.constants';
+import {
+  VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+  VEHICLE_ALLOCATION_LIST_SORT_FIELDS,
+  type VehicleAllocationListSortField,
+} from './constants/fleet-leasing-list-sort.constants';
 
 @Injectable()
 export class VehicleAllocationsService {
@@ -32,41 +43,29 @@ export class VehicleAllocationsService {
     page: number,
     pageSize: number,
     excludeVehicleCodes: string[],
+    sort?: ResolvedListSort<AssignableVehicleListSortField>,
   ) {
-    const [fromAllocations, fromContractLinks] = await Promise.all([
-      this.repo.listDriverAssignableFromAllocations({
-        organizationId,
-        excludeVehicleCodes,
-      }),
-      this.repo.listDriverAssignableFromActiveContracts({
-        organizationId,
-        excludeVehicleCodes,
-      }),
-    ]);
-    const byVehicleId = new Map<
-      string,
-      {
-        vehicleId: string;
-        vehicleCode: string;
-        assetClass: string;
-        activeLeaseId: string;
-      }
-    >();
-    for (const row of [...fromAllocations, ...fromContractLinks]) {
-      byVehicleId.set(row.vehicleId, row);
-    }
-    const merged = [...byVehicleId.values()].sort((a, b) =>
-      a.vehicleCode.localeCompare(b.vehicleCode),
-    );
+    const total = await this.repo.countDriverAssignableForDriverRegister({
+      organizationId,
+      excludeVehicleCodes,
+    });
     const offset = (page - 1) * pageSize;
-    const pageRows = merged.slice(offset, offset + pageSize);
+    const pageRows = await this.repo.listDriverAssignableForDriverRegisterSlice(
+      {
+        organizationId,
+        excludeVehicleCodes,
+        offset,
+        limit: pageSize,
+        sort,
+      },
+    );
     const items = pageRows.map((row) => ({
       id: row.vehicleId,
       vehicleCode: row.vehicleCode,
       assetClass: row.assetClass,
       activeLeaseId: row.activeLeaseId,
     }));
-    return toPaginatedResult(items, page, pageSize, merged.length);
+    return toPaginatedResult(items, page, pageSize, total);
   }
 
   async assertVehicleAssignableForDriver(
@@ -93,25 +92,45 @@ export class VehicleAllocationsService {
   async listHub(query: ListVehicleAllocationsQueryDto) {
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      VEHICLE_ALLOCATION_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVehicleAllocations({
       organizationId: query.organizationId,
       page,
       pageSize,
       contractId: query.contractId,
+      sort,
     });
     const items = rows.map((r) => this.toListItem(r));
     return toPaginatedResult(items, page, pageSize, total);
   }
 
-  async listForContract(organizationId: string, contractId: string) {
+  async listForContract(
+    organizationId: string,
+    contractId: string,
+    page = DEFAULT_PAGE,
+    pageSize = DEFAULT_PAGE_SIZE,
+    sortBy?: VehicleAllocationListSortField,
+    sortOrder?: ListSortOrder,
+  ) {
     await this.requireContract(organizationId, contractId);
-    const { rows } = await this.repo.listVehicleAllocations({
+    const sort = resolveListSort(
+      VEHICLE_ALLOCATION_LIST_SORT_FIELDS,
+      { sortBy, sortOrder },
+      VEHICLE_ALLOCATION_LIST_DEFAULT_SORT,
+    );
+    const { rows, total } = await this.repo.listVehicleAllocations({
       organizationId,
-      page: 1,
-      pageSize: 200,
+      page,
+      pageSize,
       contractId,
+      sort,
     });
-    return rows.map((r) => this.toListItem(r));
+    const items = rows.map((r) => this.toListItem(r));
+    return toPaginatedResult(items, page, pageSize, total);
   }
 
   async getById(organizationId: string, allocationId: string) {

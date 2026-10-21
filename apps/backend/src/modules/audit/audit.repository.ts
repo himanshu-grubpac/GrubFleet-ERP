@@ -1,5 +1,13 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { desc, eq, sql } from 'drizzle-orm';
+import { eq, sql, type AnyColumn } from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../common/utils/list-sort.util';
+import {
+  AUDIT_LIST_DEFAULT_SORT,
+  type AuditListSortField,
+} from './constants/audit-list-sort.constants';
 import type { AppDatabase } from '../../database/database.module';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import { auditLogs } from '../../database/schema';
@@ -14,6 +22,12 @@ export type AuditLogInsert = {
   metadata?: Record<string, unknown> | null;
   ipAddress?: string | null;
   correlationId?: string | null;
+};
+
+const AUDIT_LIST_SORT_COLUMNS: Record<AuditListSortField, AnyColumn> = {
+  createdAt: auditLogs.createdAt,
+  action: auditLogs.action,
+  resourceType: auditLogs.resourceType,
 };
 
 @Injectable()
@@ -38,6 +52,7 @@ export class AuditRepository {
     organizationId: string,
     page: number,
     pageSize: number,
+    sort?: ResolvedListSort<AuditListSortField>,
   ): Promise<{ rows: (typeof auditLogs.$inferSelect)[]; total: number }> {
     const offset = (page - 1) * pageSize;
     const where = eq(auditLogs.organizationId, organizationId);
@@ -46,7 +61,13 @@ export class AuditRepository {
         .select()
         .from(auditLogs)
         .where(where)
-        .orderBy(desc(auditLogs.createdAt))
+        .orderBy(
+          ...buildListOrderBy(
+            AUDIT_LIST_SORT_COLUMNS,
+            sort ?? AUDIT_LIST_DEFAULT_SORT,
+            auditLogs.id,
+          ),
+        )
         .limit(pageSize)
         .offset(offset),
       this.db

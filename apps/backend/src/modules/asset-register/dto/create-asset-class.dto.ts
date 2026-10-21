@@ -24,15 +24,16 @@ import {
   ASSET_CLASS_ENGINE_CC_MAX,
   ASSET_CLASS_ENGINE_CC_MIN,
   ASSET_CLASS_FUEL_SYSTEM_MAX_LENGTH,
-  ASSET_CLASS_FUEL_TYPE_MAX_LENGTH,
   ASSET_CLASS_INTAKE_ITEM_MAX_LENGTH,
   ASSET_CLASS_INTAKE_ITEMS_MAX,
   ASSET_CLASS_MANUFACTURING_YEAR_MAX,
   ASSET_CLASS_MANUFACTURING_YEAR_MIN,
-  ASSET_CLASS_MILEAGE_UNIT_MAX_LENGTH,
+  ASSET_CLASS_MILEAGE_UNITS,
   ASSET_CLASS_MODEL_NAME_MAX_LENGTH,
+  ASSET_CLASS_FUEL_TYPES,
   ASSET_REGISTER_VEHICLE_TYPES,
 } from '../constants/asset-class.constants';
+import { IsValidColorCode } from '../../../common/decorators/is-valid-color-code.decorator';
 
 export class CreateAssetClassDto {
   @ApiProperty()
@@ -102,6 +103,7 @@ export class CreateAssetClassDto {
   @IsString()
   @MinLength(1)
   @MaxLength(ASSET_CLASS_COLOR_CODE_MAX_LENGTH)
+  @IsValidColorCode()
   colorCode?: string;
 
   @ApiPropertyOptional({ maxLength: ASSET_CLASS_DESCRIPTION_MAX_LENGTH })
@@ -114,10 +116,8 @@ export class CreateAssetClassDto {
   @IsIn([...ASSET_REGISTER_VEHICLE_TYPES])
   vehicleType!: (typeof ASSET_REGISTER_VEHICLE_TYPES)[number];
 
-  @ApiProperty({ maxLength: ASSET_CLASS_FUEL_TYPE_MAX_LENGTH })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(ASSET_CLASS_FUEL_TYPE_MAX_LENGTH)
+  @ApiProperty({ enum: [...ASSET_CLASS_FUEL_TYPES] })
+  @IsIn([...ASSET_CLASS_FUEL_TYPES])
   fuelType!: string;
 
   @ApiProperty()
@@ -134,10 +134,8 @@ export class CreateAssetClassDto {
   @Max(99999999.99)
   mileageTo!: number;
 
-  @ApiProperty({ maxLength: ASSET_CLASS_MILEAGE_UNIT_MAX_LENGTH })
-  @IsString()
-  @MinLength(1)
-  @MaxLength(ASSET_CLASS_MILEAGE_UNIT_MAX_LENGTH)
+  @ApiProperty({ enum: [...ASSET_CLASS_MILEAGE_UNITS] })
+  @IsIn([...ASSET_CLASS_MILEAGE_UNITS])
   mileageUnit!: string;
 
   @ApiProperty()

@@ -4,15 +4,14 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import {
   buildClientPayloadFromForm,
   createOrganisationClientApi,
 } from "@/lib/api/organisation/clients";
 import {
   CLIENT_SAVE_ERROR,
+  showApiErrorToast,
   showClientCreatedToast,
-  showErrorToast,
 } from "@/lib/toast/show-toast";
 import { organisationClientDetailHref } from "@/lib/navigation/organisation-static-routes";
 
@@ -47,9 +46,9 @@ export default function CreateOrganisationClientRoute() {
         address: data.address,
         pointsOfContact: data.pointsOfContact,
       });
-    } catch {
-      showErrorToast(CLIENT_SAVE_ERROR);
-      throw new Error(CLIENT_SAVE_ERROR);
+    } catch (error) {
+      showApiErrorToast(error, CLIENT_SAVE_ERROR);
+      throw error;
     }
 
     try {
@@ -60,9 +59,7 @@ export default function CreateOrganisationClientRoute() {
       showClientCreatedToast(created.clientName);
       router.push(organisationClientDetailHref(created.id));
     } catch (error) {
-      const message =
-        error instanceof ApiClientError ? error.message : CLIENT_SAVE_ERROR;
-      showErrorToast(message);
+      showApiErrorToast(error, CLIENT_SAVE_ERROR);
       throw error;
     }
   };

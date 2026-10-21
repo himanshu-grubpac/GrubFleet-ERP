@@ -34,12 +34,12 @@ export class UpdateStockReceiptDto {
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   purchaseDate?: string;
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
-  @IsDateString()
+  @IsDateString({ strict: true })
   expiryDate?: string | null;
 
   @ApiPropertyOptional()

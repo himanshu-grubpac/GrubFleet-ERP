@@ -33,7 +33,7 @@ export class CreateVendorPaymentDto {
   amountMinor!: number;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   paymentDate!: string;
 
   @ApiProperty({ enum: FINANCE_INVOICE_PAYMENT_METHODS })

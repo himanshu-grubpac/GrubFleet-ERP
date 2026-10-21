@@ -10,6 +10,9 @@ export const STAGING_DEMO_SEED_SOURCE = 'staging-interconnected-seed-v2';
 /** Prior seed runs (purge matches these too). */
 export const STAGING_DEMO_LEGACY_SEED_MARKERS = ['staging-demo-v1'] as const;
 
+/** Workshop staging demo rows (notes / descriptions). */
+export const STAGING_WORKSHOP_DEMO_SEED_SOURCE = 'staging-workshop-demo-v1';
+
 /** Legacy demo inbox domain — purge only. */
 export const STAGING_DEMO_EMAIL_DOMAIN = '@grubpac-demo.local';
 
@@ -155,6 +158,30 @@ export function assertLocalAssetRegisterDemoSeedAllowed(): void {
     );
   }
   assertLocalDevelopmentDatabaseUrl(resolveStagingDatabaseUrl());
+}
+
+/**
+ * Purge staging interconnected demo rows only (keeps users, roles, org shell).
+ * Requires PURGE_STAGING_DEMO=1 and APP_ENV=staging on nonprod RDS.
+ */
+export function assertStagingDemoPurgeAllowed(): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (appEnv === 'production' || appEnv === 'pre-production') {
+    throw new Error(
+      `Refusing staging demo purge when APP_ENV=${appEnv ?? '(unset)'}.`,
+    );
+  }
+  if (process.env.PURGE_STAGING_DEMO !== '1') {
+    throw new Error(
+      'Refusing staging demo purge: set PURGE_STAGING_DEMO=1 explicitly.',
+    );
+  }
+  if (appEnv !== 'staging') {
+    throw new Error(
+      `Refusing staging demo purge: APP_ENV must be staging (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertStagingNonprodDatabaseUrl(resolveStagingDatabaseUrl());
 }
 
 export function assertStagingAssetRegisterCleanAllowed(): void {

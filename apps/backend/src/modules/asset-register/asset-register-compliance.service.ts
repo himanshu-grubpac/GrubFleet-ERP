@@ -8,6 +8,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ASSET_COMPLIANCE_LIST_DEFAULT_SORT,
+  ASSET_COMPLIANCE_LIST_SORT_FIELDS,
+} from './constants/asset-register-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import {
   AssetRegisterComplianceRenewType,
@@ -40,6 +45,11 @@ export class AssetRegisterComplianceService {
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     const filter =
       query.complianceStatus ?? AssetRegisterComplianceFilterStatus.ALL;
+    const sort = resolveListSort(
+      ASSET_COMPLIANCE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ASSET_COMPLIANCE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVehiclesForCompliance(
       query.organizationId,
       page,
@@ -47,6 +57,7 @@ export class AssetRegisterComplianceService {
       {
         assetClassId: query.assetClassId,
         complianceStatus: filter,
+        sort,
       },
     );
     const items = rows.map((row) => this.toComplianceListItem(row));

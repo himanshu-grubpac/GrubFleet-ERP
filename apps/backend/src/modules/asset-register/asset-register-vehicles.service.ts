@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Inject,
   Injectable,
   NotFoundException,
@@ -11,6 +12,11 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
+  ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
+} from './constants/asset-register-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import type { CreateAssetRegisterVehicleDto } from './dto/create-asset-register-vehicle.dto';
 import type { ListAssetRegisterVehiclesQueryDto } from './dto/list-asset-register-vehicles-query.dto';
@@ -20,6 +26,10 @@ import {
   AssetRegisterRepository,
   type AssetRegisterVehicleWithRelations,
 } from './repositories/asset-register.repository';
+import {
+  ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE,
+  normalizeAssetRegisterRegistrationNumber,
+} from './utils/registration-number.util';
 
 @Injectable()
 export class AssetRegisterVehiclesService {
@@ -39,6 +49,11 @@ export class AssetRegisterVehiclesService {
         : query.status === 'inactive'
           ? false
           : undefined;
+    const sort = resolveListSort(
+      ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.repo.listVehicles(
       query.organizationId,
       page,
@@ -48,6 +63,7 @@ export class AssetRegisterVehiclesService {
         isActive,
         assetClassId: query.assetClassId,
         operationalStatus: query.operationalStatus,
+        sort,
       },
     );
     const items = rows.map((row) => this.toListItem(row));
@@ -74,29 +90,46 @@ export class AssetRegisterVehiclesService {
       warrantyEndDate: dto.warrantyEndDate,
     });
 
+    const registrationNumber = normalizeAssetRegisterRegistrationNumber(
+      dto.registrationNumber,
+    );
+    await this.assertRegistrationNumberUnique(
+      dto.organizationId,
+      registrationNumber,
+    );
+
     const fleetCode = await this.repo.allocateFleetCodeInTransaction(
       dto.organizationId,
     );
-    const inserted = await this.repo.insertVehicle({
-      organizationId: dto.organizationId,
-      assetClassId: dto.assetClassId,
-      assetMasterId: null,
-      fleetCode,
-      registrationNumber: dto.registrationNumber.trim(),
-      chassisNumber: dto.chassisNumber.trim(),
-      modelYear: dto.modelYear,
-      odometer: dto.odometer,
-      registrationStartDate: dto.registrationStartDate,
-      registrationEndDate: dto.registrationEndDate,
-      insuranceStartDate: dto.insuranceStartDate,
-      insuranceEndDate: dto.insuranceEndDate,
-      insurancePremium: String(dto.insurancePremium),
-      warrantyStartDate: dto.warrantyStartDate,
-      warrantyEndDate: dto.warrantyEndDate,
-      specialNotes: dto.specialNotes?.trim() ?? null,
-      purchaseInvoiceId: dto.purchaseInvoiceId ?? null,
-    });
-    return this.getById(dto.organizationId, inserted.id);
+    try {
+      const inserted = await this.repo.insertVehicle({
+        organizationId: dto.organizationId,
+        assetClassId: dto.assetClassId,
+        assetMasterId: null,
+        fleetCode,
+        registrationNumber,
+        chassisNumber: dto.chassisNumber.trim(),
+        modelYear: dto.modelYear,
+        odometer: dto.odometer,
+        registrationStartDate: dto.registrationStartDate,
+        registrationEndDate: dto.registrationEndDate,
+        insuranceStartDate: dto.insuranceStartDate,
+        insuranceEndDate: dto.insuranceEndDate,
+        insurancePremium: String(dto.insurancePremium),
+        warrantyStartDate: dto.warrantyStartDate,
+        warrantyEndDate: dto.warrantyEndDate,
+        specialNotes: dto.specialNotes?.trim() ?? null,
+        purchaseInvoiceId: dto.purchaseInvoiceId ?? null,
+      });
+      return this.getById(dto.organizationId, inserted.id);
+    } catch (error) {
+      if (this.isRegistrationUniqueViolation(error)) {
+        throw new ConflictException(
+          ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE,
+        );
+      }
+      throw error;
+    }
   }
 
   async update(
@@ -148,46 +181,70 @@ export class AssetRegisterVehiclesService {
       warrantyEndDate,
     });
 
-    await this.repo.updateVehicle(organizationId, id, {
-      ...(dto.assetClassId !== undefined
-        ? { assetClassId: dto.assetClassId, assetMasterId: null }
-        : {}),
-      ...(dto.registrationNumber !== undefined
-        ? { registrationNumber: dto.registrationNumber.trim() }
-        : {}),
-      ...(dto.chassisNumber !== undefined
-        ? { chassisNumber: dto.chassisNumber.trim() }
-        : {}),
-      ...(dto.modelYear !== undefined ? { modelYear: dto.modelYear } : {}),
-      ...(dto.odometer !== undefined ? { odometer: dto.odometer } : {}),
-      ...(dto.registrationStartDate !== undefined
-        ? { registrationStartDate: dto.registrationStartDate }
-        : {}),
-      ...(dto.registrationEndDate !== undefined
-        ? { registrationEndDate: dto.registrationEndDate }
-        : {}),
-      ...(dto.insuranceStartDate !== undefined
-        ? { insuranceStartDate: dto.insuranceStartDate }
-        : {}),
-      ...(dto.insuranceEndDate !== undefined
-        ? { insuranceEndDate: dto.insuranceEndDate }
-        : {}),
-      ...(dto.insurancePremium !== undefined
-        ? { insurancePremium: String(dto.insurancePremium) }
-        : {}),
-      ...(dto.warrantyStartDate !== undefined
-        ? { warrantyStartDate: dto.warrantyStartDate }
-        : {}),
-      ...(dto.warrantyEndDate !== undefined
-        ? { warrantyEndDate: dto.warrantyEndDate }
-        : {}),
-      ...(dto.specialNotes !== undefined
-        ? { specialNotes: dto.specialNotes?.trim() ?? null }
-        : {}),
-      ...(dto.purchaseInvoiceId !== undefined
-        ? { purchaseInvoiceId: dto.purchaseInvoiceId }
-        : {}),
-    });
+    if (dto.registrationNumber !== undefined) {
+      const registrationNumber = normalizeAssetRegisterRegistrationNumber(
+        dto.registrationNumber,
+      );
+      await this.assertRegistrationNumberUnique(
+        organizationId,
+        registrationNumber,
+        id,
+      );
+    }
+
+    try {
+      await this.repo.updateVehicle(organizationId, id, {
+        ...(dto.assetClassId !== undefined
+          ? { assetClassId: dto.assetClassId, assetMasterId: null }
+          : {}),
+        ...(dto.registrationNumber !== undefined
+          ? {
+              registrationNumber: normalizeAssetRegisterRegistrationNumber(
+                dto.registrationNumber,
+              ),
+            }
+          : {}),
+        ...(dto.chassisNumber !== undefined
+          ? { chassisNumber: dto.chassisNumber.trim() }
+          : {}),
+        ...(dto.modelYear !== undefined ? { modelYear: dto.modelYear } : {}),
+        ...(dto.odometer !== undefined ? { odometer: dto.odometer } : {}),
+        ...(dto.registrationStartDate !== undefined
+          ? { registrationStartDate: dto.registrationStartDate }
+          : {}),
+        ...(dto.registrationEndDate !== undefined
+          ? { registrationEndDate: dto.registrationEndDate }
+          : {}),
+        ...(dto.insuranceStartDate !== undefined
+          ? { insuranceStartDate: dto.insuranceStartDate }
+          : {}),
+        ...(dto.insuranceEndDate !== undefined
+          ? { insuranceEndDate: dto.insuranceEndDate }
+          : {}),
+        ...(dto.insurancePremium !== undefined
+          ? { insurancePremium: String(dto.insurancePremium) }
+          : {}),
+        ...(dto.warrantyStartDate !== undefined
+          ? { warrantyStartDate: dto.warrantyStartDate }
+          : {}),
+        ...(dto.warrantyEndDate !== undefined
+          ? { warrantyEndDate: dto.warrantyEndDate }
+          : {}),
+        ...(dto.specialNotes !== undefined
+          ? { specialNotes: dto.specialNotes?.trim() ?? null }
+          : {}),
+        ...(dto.purchaseInvoiceId !== undefined
+          ? { purchaseInvoiceId: dto.purchaseInvoiceId }
+          : {}),
+      });
+    } catch (error) {
+      if (this.isRegistrationUniqueViolation(error)) {
+        throw new ConflictException(
+          ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE,
+        );
+      }
+      throw error;
+    }
     return this.getById(organizationId, id);
   }
 
@@ -267,6 +324,38 @@ export class AssetRegisterVehiclesService {
         'Asset class must be active to register a vehicle',
       );
     }
+  }
+
+  private async assertRegistrationNumberUnique(
+    organizationId: string,
+    registrationNumber: string,
+    excludeVehicleId?: string,
+  ): Promise<void> {
+    const existingId = await this.repo.findVehicleIdByNormalizedRegistration(
+      organizationId,
+      registrationNumber,
+      excludeVehicleId,
+    );
+    if (existingId) {
+      throw new ConflictException(
+        ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE,
+      );
+    }
+  }
+
+  private isRegistrationUniqueViolation(error: unknown): boolean {
+    if (
+      typeof error !== 'object' ||
+      error === null ||
+      !('code' in error) ||
+      (error as { code: string }).code !== '23505'
+    ) {
+      return false;
+    }
+    const constraint = String(
+      (error as { constraint?: string }).constraint ?? '',
+    );
+    return constraint === 'asset_register_vehicles_org_registration_norm_uidx';
   }
 
   private assertDateRanges(input: {

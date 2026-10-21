@@ -18,7 +18,7 @@ import {
 } from "@/lib/api/inventory/stock-receipts";
 import { fetchOrganisationLocationsApi } from "@/lib/api/organisation/locations";
 import {
-  showErrorToast,
+  showApiErrorToast,
   showStockReceiptUpdatedToast,
 } from "@/lib/toast/show-toast";
 
@@ -77,7 +77,8 @@ export default function StockEditPage() {
       showStockReceiptUpdatedToast(result.receiptNumber);
       router.push(inventoryStockReceiptDetailHref(receiptId));
     },
-    onError: () => showErrorToast("Failed to update stock receipt."),
+    onError: (error) =>
+      showApiErrorToast(error, "Failed to update stock receipt."),
   });
 
   if (detailQuery.isLoading || isAuthLoading) {

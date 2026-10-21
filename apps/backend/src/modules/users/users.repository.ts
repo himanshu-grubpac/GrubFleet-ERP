@@ -1,8 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type AnyColumn } from 'drizzle-orm';
+import {
+  buildListOrderBy,
+  type ResolvedListSort,
+} from '../../common/utils/list-sort.util';
+import {
+  USER_LIST_DEFAULT_SORT,
+  type UserListSortField,
+} from './constants/users-list-sort.constants';
 import type { AppDatabase } from '../../database/database.module';
 import { DRIZZLE } from '../../database/drizzle.tokens';
 import { memberships, users } from '../../database/schema';
+
+const USER_LIST_SORT_COLUMNS: Record<UserListSortField, AnyColumn> = {
+  email: users.email,
+  fullName: users.fullName,
+  createdAt: users.createdAt,
+  lastLoginAt: users.updatedAt,
+};
 
 @Injectable()
 export class UsersRepository {
@@ -12,6 +27,7 @@ export class UsersRepository {
     organizationId: string,
     page: number,
     pageSize: number,
+    sort?: ResolvedListSort<UserListSortField>,
   ): Promise<{
     rows: Array<{
       id: string;
@@ -36,7 +52,13 @@ export class UsersRepository {
       .from(memberships)
       .innerJoin(users, eq(memberships.userId, users.id))
       .where(eq(memberships.organizationId, organizationId))
-      .orderBy(users.email)
+      .orderBy(
+        ...buildListOrderBy(
+          USER_LIST_SORT_COLUMNS,
+          sort ?? USER_LIST_DEFAULT_SORT,
+          users.id,
+        ),
+      )
       .limit(pageSize)
       .offset(offset);
 

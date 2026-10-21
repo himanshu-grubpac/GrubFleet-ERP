@@ -9,7 +9,7 @@ info:
 
     Live Swagger UI when the backend is running: `/api/v1/docs`.
 
-    Authentication: login, refresh, logout, and `/auth/me` (Bearer JWT access token).
+    Authentication: login, refresh, logout, change-password, forgot-password, reset-password, and `/auth/me` (Bearer JWT access token).
     Org-scoped admin routes require Bearer JWT plus organization context (`X-Organization-Id` and/or `organizationId` query/body). Module access levels are NONE / VIEW / MANAGE / FULL; permission keys use dot notation (e.g. `administration.view`, `administration.create`). MANAGE expands to view plus CRUD keys; FULL adds legacy `{module}.manage`. Admin mutations accept `{module}.manage` or the matching CRUD key. TSV Edit/Approve/Admin types deferred — see auth-rbac-plan.
 servers:
   - url: http://localhost:4000/api/v1
@@ -43,7 +43,71 @@ tags:
     description: Finance — invoices, interim inventory parts catalog
   - name: inventory
     description: Inventory — stock register, receipts, balance, parts requests (read)
+  - name: workshop
+    description: Workshop — labor job card templates, work orders, AMC (phased)
+  - name: portal
+    description: Portal-wide utilities (global header search)
 paths:
+  /portal/search:
+    get:
+      tags: [portal]
+      summary: Global portal search (RBAC-filtered)
+      description: |
+        Search-as-you-type across modules the caller can **view** (`{module}.view`).
+        Each hit includes module/entity labels, static-export navigation hints (`routePath` + `routeQuery`),
+        and product-relevant `links` (e.g. driver → supplier, vehicle → asset class, lease → client).
+        Capped at 50 total hits; default 5 per entity type (`limitPerType`).
+      operationId: portalSearch
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: organizationId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 100
+        - name: limitPerType
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 20
+            default: 5
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PortalSearchResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Missing org context or not a member
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /health:
     get:
       tags: [health]
@@ -212,6 +276,98 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /auth/change-password:
+    post:
+      tags: [auth]
+      summary: Change password for the authenticated user
+      operationId: postAuthChangePassword
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '201':
+          description: Password updated; all refresh sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordFlowSuccessResponse'
+        '401':
+          description: Missing access token or incorrect current password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '400':
+          description: Validation error or new password same as current
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '429':
+          description: Change-password rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /auth/forgot-password:
+    post:
+      tags: [auth]
+      summary: Request password reset (generic response; no user enumeration)
+      operationId: postAuthForgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ForgotPasswordRequest'
+      responses:
+        '201':
+          description: Always returns generic message when request is accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ForgotPasswordResponse'
+        '429':
+          description: Forgot-password rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+  /auth/reset-password:
+    post:
+      tags: [auth]
+      summary: Set a new password using a single-use reset token
+      operationId: postAuthResetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResetPasswordRequest'
+      responses:
+        '201':
+          description: Password reset; refresh sessions revoked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PasswordFlowSuccessResponse'
+        '400':
+          description: Invalid or expired token, or validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Account inactive
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /organizations:
     get:
       tags: [organizations]
@@ -222,6 +378,12 @@ paths:
       parameters:
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [name, createdAt]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Paginated organizations
@@ -267,6 +429,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [email, fullName, createdAt, lastLoginAt]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Paginated members
@@ -364,6 +532,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [module, key]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Paginated permission catalog
@@ -412,6 +586,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Paginated roles
@@ -725,6 +905,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, action, resourceType]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Paginated audit entries
@@ -745,6 +931,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, contractNumber]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -781,6 +973,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, contractNumber, status, startDate, endDate]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: statusFilter
           in: query
           schema:
@@ -809,39 +1007,125 @@ paths:
     post:
       tags: [fleet-leasing]
       summary: Create draft lease contract
+      description: >-
+        Explicit draft save only (wizard Save draft or batch create before confirm).
+        Optional body fields mirror PATCH update. Asset lines on create reject shortfall
+        unless confirmShortfall is true (409 ASSET_SHORTFALL otherwise — same as PUT asset-lines).
+        Confirm step still validates allocation before activate.
       operationId: createLeaseContract
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                clientId:
+                  type: string
+                  format: uuid
+                startDate:
+                  type: string
+                  format: date
+                endDate:
+                  type: string
+                  format: date
+                termMonths:
+                  type: integer
+                  minimum: 1
+                securityDeposit:
+                  type: string
+                  pattern: '^\\d{1,12}(\\.\\d{1,2})?$'
+                billingFrequency:
+                  type: string
+                  enum: [monthly, quarterly, annual]
+                additionalTerms:
+                  type: string
+                  maxLength: 2000
+                amcTier:
+                  type: string
+                  maxLength: 120
+                  enum: [Gold, Silver, Bronze]
+                description:
+                  type: string
+                  maxLength: 2000
+                confirmShortfall:
+                  type: boolean
+                assetLines:
+                  type: array
+                  items:
+                    type: object
+                    required: [assetClass, committedQuantity, ratePerVehicleMonth]
+                    properties:
+                      assetClass:
+                        type: string
+                        maxLength: 64
+                      committedQuantity:
+                        type: integer
+                        minimum: 1
+                      ratePerVehicleMonth:
+                        type: string
+                        pattern: '^\\d{1,12}(\\.\\d{1,2})?$'
+                vehicleIds:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
       responses:
         '201':
           description: Created draft contract
+        '400':
+          description: Validation error (e.g. INVALID_CLIENT, CONTRACT_DATE_TERM_MISMATCH)
+        '409':
+          description: ASSET_SHORTFALL when lines exceed availability without confirmShortfall
         '403':
           $ref: '#/components/responses/Forbidden'
   /fleet-leasing/asset-classes:
     get:
       tags: [fleet-leasing]
-      summary: Distinct active asset class names from asset register
+      summary: Active asset register classes for lease wizard
       description: >-
-        Wizard dropdown source. Names match asset_register_asset_classes.name for active classes.
-        Lease asset lines store the same string in lease_contract_asset_lines.asset_class.
+        Returns paginated `items` (generated class names — legacy wizard) plus `catalog`
+        entries with stable `id`, current `name`, and human `specLabel`. Lease lines persist
+        `assetClassId` (FK) and denormalized `assetClass` name.
       operationId: listFleetAssetClasses
       security:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [assetClass, registrationNo]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
-          description: Sorted distinct asset class names for wizard dropdowns
+          description: Paginated class names (items) plus id/specLabel catalog
           content:
             application/json:
               schema:
-                type: object
-                required: [items]
-                properties:
-                  items:
-                    type: array
-                    items:
-                      type: string
+                allOf:
+                  - $ref: '#/components/schemas/PaginationMeta'
+                  - type: object
+                    required: [items, catalog]
+                    properties:
+                      items:
+                        type: array
+                        description: Legacy wizard — generated class names only
+                        items:
+                          type: string
+                      catalog:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FleetAssetClassCatalogItem'
         '403':
           $ref: '#/components/responses/Forbidden'
   /fleet-leasing/asset-classes/availability/preview:
@@ -867,8 +1151,11 @@ paths:
                   minItems: 1
                   items:
                     type: object
-                    required: [assetClass, committedQuantity]
+                    required: [committedQuantity]
                     properties:
+                      assetClassId:
+                        type: string
+                        format: uuid
                       assetClass:
                         type: string
                         maxLength: 64
@@ -893,9 +1180,15 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - name: assetClass
           in: query
-          required: true
+          required: false
           schema:
             type: string
+        - name: assetClassId
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uuid
         - name: committedQuantity
           in: query
           required: true
@@ -944,6 +1237,11 @@ paths:
     put:
       tags: [fleet-leasing]
       summary: Save wizard step 2 asset-class lines
+      description: >-
+        Replaces all asset-class lines on a draft/pre-active contract. When committed quantity
+        exceeds available fleet, returns 409 ASSET_SHORTFALL unless confirmShortfall is true
+        (lines persist as awaiting assets). POST /lease-contracts with assetLines follows the
+        same rule. Final POST /confirm still runs full review validation before activate.
       operationId: updateLeaseContractAssetLines
       security:
         - bearerAuth: []
@@ -955,6 +1253,32 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assetLines]
+              properties:
+                assetLines:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required: [assetClass, committedQuantity, ratePerVehicleMonth]
+                    properties:
+                      assetClass:
+                        type: string
+                        maxLength: 64
+                      committedQuantity:
+                        type: integer
+                        minimum: 1
+                      ratePerVehicleMonth:
+                        type: string
+                        pattern: '^\\d{1,12}(\\.\\d{1,2})?$'
+                confirmShortfall:
+                  type: boolean
       responses:
         '200':
           description: Saved lines with lineAvailability
@@ -969,6 +1293,8 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
         - name: id
           in: path
           required: true
@@ -978,8 +1304,8 @@ paths:
       responses:
         '200':
           description: >-
-            contractId, contractNumber, items[] with field, fieldLabel, fromValue,
-            toValue (human-readable labels for references, dates, and money),
+            contractId, contractNumber, page, pageSize, total, totalPages, items[] with field,
+            fieldLabel, fromValue, toValue (human-readable labels for references, dates, and money),
             changedBy, changedAt
         '404':
           $ref: '#/components/responses/NotFound'
@@ -1232,6 +1558,50 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/approve:
+    post:
+      tags: [fleet-leasing]
+      summary: Approve contract pending approval (activates or awaiting assets)
+      operationId: approveLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Approved contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
+  /fleet-leasing/lease-contracts/{id}/activate:
+    post:
+      tags: [fleet-leasing]
+      summary: Activate approved or draft contract (direct activation path)
+      operationId: activateLeaseContract
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Activated contract detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
   /fleet-leasing/lease-contracts/{id}/reactivate:
     post:
       tags: [fleet-leasing]
@@ -1375,6 +1745,14 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, status]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: contractId
           in: path
           required: true
@@ -1383,7 +1761,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Allocation rows for contract
+          description: Paginated allocation rows for contract (items, page, pageSize, total, totalPages)
     post:
       tags: [fleet-leasing]
       summary: Allocate or reassign vehicle to contract (Flow 02)
@@ -1438,6 +1816,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [registrationNo, assetClass]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: assetClass
           in: query
           schema:
@@ -1530,6 +1914,8 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
         - name: clientId
           in: path
           required: true
@@ -1538,7 +1924,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Contract list
+          description: Paginated eligible contract list
   /fleet-leasing/support/lease-contracts/{contractId}/allocated-vehicles:
     get:
       tags: [fleet-leasing]
@@ -1548,6 +1934,8 @@ paths:
         - bearerAuth: []
       parameters:
         - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
         - name: contractId
           in: path
           required: true
@@ -1556,7 +1944,7 @@ paths:
             format: uuid
       responses:
         '200':
-          description: Allocated vehicles
+          description: Paginated allocated vehicles (legacy + register merge)
   /fleet-leasing/support/vehicle-replacements:
     post:
       tags: [fleet-leasing]
@@ -1608,6 +1996,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, status]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: contractId
           in: query
           schema:
@@ -1645,6 +2039,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, status]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: contractId
           in: query
           schema:
@@ -1682,6 +2082,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [companyName, createdAt, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -1701,63 +2107,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              required: [organizationId, companyName, pointsOfContact]
-              properties:
-                organizationId:
-                  type: string
-                  format: uuid
-                companyName:
-                  type: string
-                  maxLength: 255
-                taxId:
-                  type: string
-                  maxLength: 32
-                  description: GSTIN / Tax ID (optional)
-                address:
-                  type: string
-                  description: Legacy line when structured address fields omitted
-                addressLine1:
-                  type: string
-                  maxLength: 255
-                addressLine2:
-                  type: string
-                  maxLength: 255
-                addressCity:
-                  type: string
-                  maxLength: 120
-                addressCountry:
-                  type: string
-                  minLength: 2
-                  maxLength: 2
-                addressState:
-                  type: string
-                  maxLength: 120
-                addressDistrict:
-                  type: string
-                  maxLength: 120
-                addressPincode:
-                  type: string
-                  maxLength: 20
-                pointsOfContact:
-                  type: array
-                  minItems: 1
-                  items:
-                    type: object
-                    required: [name, contactNumber, email, isPrimary]
-                    properties:
-                      name:
-                        type: string
-                        maxLength: 255
-                      contactNumber:
-                        type: string
-                        maxLength: 32
-                      email:
-                        type: string
-                        format: email
-                        maxLength: 320
-                      isPrimary:
-                        type: boolean
+              $ref: '#/components/schemas/CreateFleetClientRequest'
       responses:
         '201':
           description: Client created
@@ -1793,6 +2143,12 @@ paths:
           schema:
             type: string
             format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFleetClientRequest'
       responses:
         '200':
           description: Updated client
@@ -1807,6 +2163,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [registrationNo, assetClass, createdAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: status
           in: query
           schema:
@@ -1885,6 +2247,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2009,6 +2377,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, supplierType, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2026,6 +2400,8 @@ paths:
       responses:
         '200':
           description: Paginated supplier rows for dashboard
+        '400':
+          description: Invalid sortBy or sortOrder
     post:
       tags: [organisation]
       summary: Create organisation supplier
@@ -2173,6 +2549,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2293,6 +2675,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, sku, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2443,6 +2831,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, receiptNumber]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2584,6 +2978,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, sku, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2624,6 +3024,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [requestedAt, status, requestNumber]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Paginated requests
@@ -2647,6 +3053,606 @@ paths:
           description: Request detail
         '404':
           $ref: '#/components/responses/NotFound'
+  /workshop/labor-job-cards:
+    get:
+      tags: [workshop]
+      summary: List labor job card templates (paginated)
+      operationId: listWorkshopLaborJobCards
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, jobCardNumber, status]
+        - $ref: '#/components/parameters/SortOrderParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Paginated labor job card templates
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [workshop]
+      summary: Create labor job card template
+      operationId: createWorkshopLaborJobCard
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopLaborJobCardRequest'
+      responses:
+        '201':
+          description: Labor job card created
+        '400':
+          description: Validation error
+        '409':
+          description: Duplicate name in organization
+  /workshop/labor-job-cards/{id}:
+    get:
+      tags: [workshop]
+      summary: Labor job card template detail
+      operationId: getWorkshopLaborJobCard
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Template with parts
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update labor job card template
+      operationId: updateWorkshopLaborJobCard
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopLaborJobCardRequest'
+      responses:
+        '200':
+          description: Updated labor job card
+        '400':
+          description: Validation or inactive edit blocked
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/labor-job-cards/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Activate or deactivate labor job card
+      operationId: updateWorkshopLaborJobCardStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopLaborJobCardStatusRequest'
+      responses:
+        '200':
+          description: Labor job card after status change
+        '400':
+          description: Validation error
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/work-orders:
+    get:
+      tags: [workshop]
+      summary: List work orders (paginated)
+      operationId: listWorkshopWorkOrders
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, workOrderNumber, status, closedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, in_progress, closed, cancelled]
+      responses:
+        '200':
+          description: Paginated work orders
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      tags: [workshop]
+      summary: Create work order
+      operationId: createWorkshopWorkOrder
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopWorkOrderRequest'
+      responses:
+        '201':
+          description: Work order created with lines, totals, and inventory parts_requests reserved when stock is available
+        '400':
+          description: Validation error or insufficient inventory stock for part lines
+        '404':
+          description: Vehicle, template, or technician not found
+  /workshop/work-orders/{id}:
+    get:
+      tags: [workshop]
+      summary: Work order detail
+      operationId: getWorkshopWorkOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Work order with fleet snapshot, line items, parts fulfillment, and availableActions for the current user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopWorkOrderDetailResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update work order header fields
+      operationId: updateWorkshopWorkOrder
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopWorkOrderRequest'
+      responses:
+        '200':
+          description: Updated work order detail
+        '400':
+          description: Validation error or closed/cancelled edit blocked
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/work-orders/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Start, close, or cancel work order
+      operationId: updateWorkshopWorkOrderStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopWorkOrderStatusRequest'
+      responses:
+        '200':
+          description: Work order after status change
+        '400':
+          description: Invalid transition
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/technicians:
+    get:
+      tags: [workshop]
+      summary: List technicians with open work order counts
+      operationId: listWorkshopTechnicians
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [fullName, openWorkOrderCount]
+        - $ref: '#/components/parameters/SortOrderParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Paginated employees with open work order counts
+  /workshop/amc/tiers:
+    get:
+      tags: [workshop]
+      summary: List AMC tiers
+      operationId: listWorkshopAmcTiers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [name, createdAt]
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Paginated AMC tiers
+    post:
+      tags: [workshop]
+      summary: Create AMC tier
+      operationId: createWorkshopAmcTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopAmcTierRequest'
+      responses:
+        '201':
+          description: Created AMC tier
+        '409':
+          description: Tier name already exists
+  /workshop/amc/tiers/{id}:
+    get:
+      tags: [workshop]
+      summary: AMC tier detail
+      operationId: getWorkshopAmcTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: AMC tier detail
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update AMC tier
+      operationId: updateWorkshopAmcTier
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopAmcTierRequest'
+      responses:
+        '200':
+          description: Updated AMC tier
+        '400':
+          description: Inactive tier cannot be edited
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/tiers/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Activate or deactivate AMC tier
+      operationId: updateWorkshopAmcTierStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopAmcStatusRequest'
+      responses:
+        '200':
+          description: AMC tier after status change
+        '400':
+          description: Invalid transition or missing deactivate reason
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/schedules:
+    get:
+      tags: [workshop]
+      summary: List maintenance schedules
+      operationId: listWorkshopAmcSchedules
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [name, createdAt]
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Paginated maintenance schedules
+    post:
+      tags: [workshop]
+      summary: Create maintenance schedule
+      operationId: createWorkshopMaintenanceSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopMaintenanceScheduleRequest'
+      responses:
+        '201':
+          description: Created maintenance schedule
+  /workshop/amc/schedules/{id}/vehicles:
+    get:
+      tags: [workshop]
+      summary: List vehicles on maintenance schedule with threshold status
+      operationId: listWorkshopMaintenanceScheduleVehicles
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [fleetCode, registrationNumber]
+        - $ref: '#/components/parameters/SortOrderParam'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Paginated vehicles matched by schedule asset class
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/schedules/{id}:
+    get:
+      tags: [workshop]
+      summary: Maintenance schedule detail
+      operationId: getWorkshopMaintenanceSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Schedule detail
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [workshop]
+      summary: Update maintenance schedule
+      operationId: updateWorkshopMaintenanceSchedule
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopMaintenanceScheduleRequest'
+      responses:
+        '200':
+          description: Updated schedule
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/schedules/{id}/status:
+    patch:
+      tags: [workshop]
+      summary: Activate or deactivate maintenance schedule
+      operationId: updateWorkshopMaintenanceScheduleStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateWorkshopAmcStatusRequest'
+      responses:
+        '200':
+          description: Schedule after status change
+        '400':
+          description: Invalid transition or missing deactivate reason
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /workshop/amc/subscribers:
+    get:
+      tags: [workshop]
+      summary: List AMC subscribers
+      operationId: listWorkshopAmcSubscribers
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: amcTierId
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [subscriberCode, createdAt]
+        - $ref: '#/components/parameters/SortOrderParam'
+      responses:
+        '200':
+          description: Paginated AMC subscribers
+    post:
+      tags: [workshop]
+      summary: Subscribe vehicle to AMC tier
+      operationId: createWorkshopAmcSubscriber
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWorkshopAmcSubscriberRequest'
+      responses:
+        '201':
+          description: Created subscriber
+        '409':
+          description: Vehicle already subscribed to tier
+  /workshop/amc/subscribers/by-code/{subscriberCode}:
+    get:
+      tags: [workshop]
+      summary: AMC subscriber detail by fleet code
+      operationId: getWorkshopAmcSubscriberByCode
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: subscriberCode
+          in: path
+          required: true
+          schema:
+            type: string
+            maxLength: 64
+      responses:
+        '200':
+          description: Subscriber detail
+        '404':
+          $ref: '#/components/responses/NotFound'
   /finance/invoices:
     get:
       tags: [finance]
@@ -2658,6 +3664,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [invoiceDate, invoiceNumber, status, createdAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2874,6 +3886,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [name, sku]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -2908,6 +3926,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [paymentDate, paymentNumber, createdAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -3033,6 +4057,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [periodStart, clientName]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: periodStart
           in: query
           required: true
@@ -3080,9 +4110,13 @@ paths:
           schema:
             type: string
             format: date
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
       responses:
         '200':
-          description: Summary and billing invoice rows (cancelled listed, excluded from totals)
+          description: >-
+            Period summary (aggregates full period); invoices[] is paginated
+            (invoicePage, invoicePageSize, invoiceTotal, invoiceTotalPages)
         '404':
           description: Client not found
   /finance/client-statements/{clientId}/send:
@@ -3137,6 +4171,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, name, licenseExpiry, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -3182,6 +4222,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [registrationNo, assetClass]
+        - $ref: '#/components/parameters/SortOrderParam'
       responses:
         '200':
           description: Paginated assignable vehicles (may be empty)
@@ -3328,6 +4374,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, fullName, employeeCode, department, dateOfJoining, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -3502,6 +4554,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [classId, createdAt, name, brand, modelName, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: search
           in: query
           schema:
@@ -3514,6 +4572,10 @@ paths:
       responses:
         '200':
           description: Paginated asset class rows
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAssetRegisterAssetClasses'
         '401':
           description: Unauthorized
         '403':
@@ -3555,6 +4617,10 @@ paths:
       responses:
         '200':
           description: Asset class detail (class name is system-generated, read-only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssetRegisterAssetClassDetail'
         '404':
           description: Not found
     patch:
@@ -3631,6 +4697,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [createdAt, fleetCode, registrationNumber, operationalStatus, updatedAt]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: assetClassId
           in: query
           schema:
@@ -3676,6 +4748,8 @@ paths:
           description: Validation error or inactive class/master
         '403':
           description: Forbidden
+        '409':
+          description: Registration number already exists in the organisation
   /asset-register/vehicles/{id}:
     get:
       tags: [asset-register]
@@ -3721,6 +4795,8 @@ paths:
           description: Updated vehicle
         '400':
           description: Inactive vehicle or validation error
+        '409':
+          description: Registration number already exists in the organisation
   /asset-register/vehicles/{id}/lease-history:
     get:
       tags: [asset-register]
@@ -3800,7 +4876,10 @@ paths:
                 organisationClientId:
                   type: string
                   format: uuid
-                  description: Optional org client id for future org↔fleet link (not validated against lease client yet)
+                  description: >-
+                    Organisation client id, or fleet client id from lease detail client.id
+                    (resolved via fleet_clients.organisation_client_id when linked).
+                    Omitted when the lease fleet client is linked — server resolves the org client.
                 vehicleIds:
                   type: array
                   minItems: 1
@@ -3812,7 +4891,10 @@ paths:
         '200':
           description: Assignments recorded; vehicles operationalStatus set to leased
         '400':
-          description: NO_ACTIVE_LEASE_CONTRACT, LEASE_CAPACITY_SHORTFALL, or vehicle not assignable
+          description: >-
+            NO_ACTIVE_LEASE_CONTRACT, LEASE_CAPACITY_SHORTFALL, VEHICLE_NOT_ASSIGNABLE,
+            ORGANISATION_CLIENT_MISMATCH, ORGANISATION_CLIENT_NOT_FOUND,
+            FLEET_CLIENT_ORGANISATION_LINK_MISSING, or LEASE_FLEET_CLIENT_NOT_FOUND
   /asset-register/vehicle-assignments/{vehicleId}/unassign:
     patch:
       tags: [asset-register]
@@ -3844,6 +4926,12 @@ paths:
         - $ref: '#/components/parameters/OrganizationIdQuery'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/PageSizeParam'
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [registrationNumber, fleetCode, complianceDueDate]
+        - $ref: '#/components/parameters/SortOrderParam'
         - name: complianceStatus
           in: query
           schema:
@@ -3904,13 +4992,12 @@ paths:
                   type: string
                   enum: [insurance, registration, warranty]
                 startDate:
-                  type: string
-                  format: date
+                  $ref: '#/components/schemas/StrictIsoDateString'
                 endDate:
-                  type: string
-                  format: date
+                  $ref: '#/components/schemas/StrictIsoDateString'
                 insurancePremium:
-                  type: number
+                  allOf:
+                    - $ref: '#/components/schemas/DecimalMoneyString'
                   description: Required when type is insurance
       responses:
         '200':
@@ -3939,6 +5026,13 @@ components:
         minimum: 1
         maximum: 50
         default: 20
+    SortOrderParam:
+      name: sortOrder
+      in: query
+      schema:
+        type: string
+        enum: [asc, desc]
+      description: Sort direction when sortBy is set. Defaults to module-specific order when omitted.
     OrganizationIdQuery:
       name: organizationId
       in: query
@@ -4006,6 +5100,32 @@ components:
             database: up
             redis: up
             drizzle: up
+    StrictIsoDateString:
+      type: string
+      format: date
+      description: >-
+        ISO 8601 calendar date (YYYY-MM-DD) only. Strict validation rejects
+        datetime strings with a time component (e.g. 2026-01-15T00:00:00Z).
+      example: '2026-01-15'
+    DecimalMoneyString:
+      type: string
+      pattern: '^\d{1,12}(\.\d{1,2})?$'
+      description: >-
+        Decimal amount string with up to 12 integer digits and optional 2
+        decimal places (asset insurance premium, lease decimal amounts).
+      example: '12000.00'
+    OptionalGstin:
+      type: string
+      maxLength: 32
+      description: Optional GSTIN / tax ID (15-character Indian GSTIN when provided).
+      pattern: '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$'
+    CompactE164Phone:
+      type: string
+      maxLength: 32
+      description: >-
+        Compact international phone (E.164 or digits). Validated with
+        libphonenumber-js at the API boundary.
+      example: '+919876543210'
     CreateOrganisationLocationTypeRequest:
       type: object
       required:
@@ -4217,6 +5337,135 @@ components:
           type: string
           format: uuid
           nullable: true
+    AssetRegisterAssetClassListItem:
+      type: object
+      required:
+        - id
+        - classId
+        - name
+        - specLabel
+        - vehicleType
+        - fuelType
+        - inFleetCount
+        - availableCount
+        - status
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Internal stable identifier for APIs and FKs (lease assetClassId, vehicles).
+        classId:
+          type: string
+          pattern: '^[0-9]{6}$'
+          description: Org-unique 6-digit display class identifier (server-assigned on create).
+        name:
+          type: string
+          description: System-generated class name from spec fields (read-only).
+        specLabel:
+          type: string
+          description: Human-readable spec summary for dropdowns and tooltips.
+        vehicleType:
+          type: string
+          enum: ['2W', '3W', '4W']
+        fuelType:
+          type: string
+        inFleetCount:
+          type: integer
+          minimum: 0
+        availableCount:
+          type: integer
+          minimum: 0
+        status:
+          type: string
+          enum: [active, inactive]
+      additionalProperties: false
+    AssetRegisterAssetClassDetail:
+      allOf:
+        - $ref: '#/components/schemas/AssetRegisterAssetClassListItem'
+        - type: object
+          required:
+            - brand
+            - modelName
+            - manufacturingYear
+            - engineDisplacementCc
+            - fuelSystem
+            - color
+            - colorCode
+            - description
+            - intakeChecklistItems
+            - defaultIntakeChecklist
+            - isActive
+            - createdAt
+            - updatedAt
+          properties:
+            brand:
+              type: string
+            modelName:
+              type: string
+            manufacturingYear:
+              type: integer
+            engineDisplacementCc:
+              type: integer
+            fuelCapacity:
+              type: string
+              nullable: true
+            fuelSystem:
+              type: string
+            color:
+              type: string
+            colorCode:
+              type: string
+            description:
+              type: string
+            mileageFrom:
+              type: string
+              nullable: true
+            mileageTo:
+              type: string
+              nullable: true
+            mileageUnit:
+              type: string
+              nullable: true
+            fuelTankCapacity:
+              type: string
+              nullable: true
+            ratedLoadFrom:
+              type: string
+              nullable: true
+            ratedLoadTo:
+              type: string
+              nullable: true
+            intakeChecklistItems:
+              type: array
+              items:
+                type: string
+            defaultIntakeChecklist:
+              type: string
+            isActive:
+              type: boolean
+            deactivatedAt:
+              type: string
+              format: date-time
+              nullable: true
+            deactivateReason:
+              type: string
+              nullable: true
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    PaginatedAssetRegisterAssetClasses:
+      allOf:
+        - type: object
+          required: [items]
+          properties:
+            items:
+              type: array
+              items:
+                $ref: '#/components/schemas/AssetRegisterAssetClassListItem'
+        - $ref: '#/components/schemas/PaginationMeta'
     CreateAssetRegisterAssetClassRequest:
       type: object
       required:
@@ -4396,7 +5645,12 @@ components:
           format: uuid
         registrationNumber:
           type: string
+          minLength: 4
           maxLength: 32
+          pattern: '^[A-Za-z0-9 -]+$'
+          description: >-
+            Letters, digits, spaces, and hyphens only (min 4, max 32 after trim).
+            Must include at least one letter and one digit. Stored uppercased with collapsed spaces.
         chassisNumber:
           type: string
           maxLength: 64
@@ -4409,26 +5663,19 @@ components:
           minimum: 0
           maximum: 9999999
         registrationStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         registrationEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insurancePremium:
-          type: number
-          minimum: 0
+          $ref: '#/components/schemas/DecimalMoneyString'
         warrantyStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         warrantyEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         specialNotes:
           type: string
           maxLength: 2000
@@ -4448,7 +5695,10 @@ components:
           format: uuid
         registrationNumber:
           type: string
+          minLength: 4
           maxLength: 32
+          pattern: '^[A-Za-z0-9 -]+$'
+          description: Same rules as create registrationNumber.
         chassisNumber:
           type: string
           maxLength: 64
@@ -4461,26 +5711,19 @@ components:
           minimum: 0
           maximum: 9999999
         registrationStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         registrationEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insuranceEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         insurancePremium:
-          type: number
-          minimum: 0
+          $ref: '#/components/schemas/DecimalMoneyString'
         warrantyStartDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         warrantyEndDate:
-          type: string
-          format: date
+          $ref: '#/components/schemas/StrictIsoDateString'
         specialNotes:
           type: string
           maxLength: 2000
@@ -4518,8 +5761,7 @@ components:
           type: string
           maxLength: 255
         contactPhone:
-          type: string
-          maxLength: 32
+          $ref: '#/components/schemas/CompactE164Phone'
         contactEmail:
           type: string
           format: email
@@ -4609,8 +5851,95 @@ components:
           type: string
           maxLength: 255
         contactNumber:
+          $ref: '#/components/schemas/CompactE164Phone'
+        email:
           type: string
-          maxLength: 32
+          format: email
+          maxLength: 320
+        isPrimary:
+          type: boolean
+    CreateFleetClientRequest:
+      type: object
+      required:
+        - organizationId
+        - companyName
+        - addressLine1
+        - addressCountry
+        - addressState
+        - addressDistrict
+        - addressPincode
+        - pointsOfContact
+      additionalProperties: false
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        companyName:
+          type: string
+          maxLength: 255
+        taxId:
+          $ref: '#/components/schemas/OptionalGstin'
+        addressLine1:
+          type: string
+          maxLength: 255
+        addressLine2:
+          type: string
+          maxLength: 255
+        addressCity:
+          type: string
+          maxLength: 120
+        addressCountry:
+          type: string
+          minLength: 2
+          maxLength: 2
+          pattern: '^[A-Za-z]{2}$'
+          description: ISO 3166-1 alpha-2 country code
+        addressState:
+          type: string
+          maxLength: 120
+        addressDistrict:
+          type: string
+          maxLength: 120
+        addressPincode:
+          type: string
+          maxLength: 20
+          description: Country-aware postal validation (see addressCountry)
+        pointsOfContact:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FleetClientPoc'
+    UpdateFleetClientRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        companyName:
+          type: string
+          maxLength: 255
+        taxId:
+          allOf:
+            - $ref: '#/components/schemas/OptionalGstin'
+          nullable: true
+        address:
+          type: string
+          description: Legacy single-line address on PATCH only (structured fields on create)
+        pointsOfContact:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/FleetClientPoc'
+    FleetClientPoc:
+      type: object
+      required: [name, contactNumber, email, isPrimary]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        contactNumber:
+          $ref: '#/components/schemas/CompactE164Phone'
         email:
           type: string
           format: email
@@ -4628,6 +5957,10 @@ components:
         - addressDistrict
         - addressPincode
         - pointsOfContact
+      description: >-
+        Organisation client register (no GSTIN/taxId on this entity). Fleet
+        leasing clients linked from this record may carry optional taxId (GSTIN).
+      additionalProperties: false
       properties:
         organizationId:
           type: string
@@ -4658,6 +5991,7 @@ components:
         addressPincode:
           type: string
           maxLength: 20
+          description: Country-aware postal validation (see addressCountry)
         pointsOfContact:
           type: array
           minItems: 1
@@ -4734,7 +6068,13 @@ components:
           maxLength: 320
         licenseNumber:
           type: string
+          minLength: 4
           maxLength: 64
+          pattern: '^[A-Za-z0-9/ -]+$'
+          description: >-
+            Driving licence id (min 4, max 64). Letters, digits, spaces, hyphens, slashes.
+            Must include at least one letter and one digit. Stored uppercased with collapsed spaces.
+            Unique per organisation (case/space insensitive).
         licenseExpiry:
           type: string
           format: date
@@ -4782,7 +6122,10 @@ components:
           maxLength: 320
         licenseNumber:
           type: string
+          minLength: 4
           maxLength: 64
+          pattern: '^[A-Za-z0-9/ -]+$'
+          description: Same rules as create licenseNumber.
         licenseExpiry:
           type: string
           format: date
@@ -4888,6 +6231,53 @@ components:
           type: integer
           description: Access token lifetime in seconds
     LogoutResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          minLength: 8
+        newPassword:
+          type: string
+          minLength: 8
+          description: Must differ from current password; same minimum length as login.
+    ForgotPasswordRequest:
+      type: object
+      required: [email]
+      properties:
+        email:
+          type: string
+          format: email
+    ForgotPasswordResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          description: Generic copy; identical whether the email is registered.
+        resetToken:
+          type: string
+          description: >-
+            Integration tests only when PASSWORD_RESET_EXPOSE_TOKEN_FOR_TESTS=1.
+            Never returned in production deployments.
+    ResetPasswordRequest:
+      type: object
+      required: [token, newPassword]
+      properties:
+        token:
+          type: string
+          minLength: 16
+        newPassword:
+          type: string
+          minLength: 8
+    PasswordFlowSuccessResponse:
       type: object
       required: [success]
       properties:
@@ -5257,7 +6647,10 @@ components:
           type: array
           items:
             type: string
-          description: Alternate contract; ignored when moduleAccess is set
+          description: >-
+            Alternate contract; ignored when moduleAccess is set. Server expands
+            implied keys before save (create/update/delete/manage imply view for the
+            same module; manage implies view plus create, update, and delete).
         parentRoleId:
           type: string
           format: uuid
@@ -5280,6 +6673,9 @@ components:
           type: array
           items:
             type: string
+          description: >-
+            Explicit keys; server expands implied view/CRUD keys per module before save
+            (same rules as CreateRoleRequest.permissionKeys).
         isActive:
           type: boolean
         parentRoleId:
@@ -5472,13 +6868,31 @@ components:
           items:
             type: string
           description: User ids or emails (logged in audit/event metadata for v1)
+    FleetAssetClassCatalogItem:
+      type: object
+      required: [id, name, specLabel]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          description: Current generated class name (recomputed when spec changes)
+        specLabel:
+          type: string
+          description: Human-readable spec line for dropdowns
     LeaseContractAssetLineInput:
       type: object
-      required: [assetClass, committedQuantity, ratePerVehicleMonth]
+      required: [committedQuantity, ratePerVehicleMonth]
       properties:
+        assetClassId:
+          type: string
+          format: uuid
+          description: Preferred stable reference to asset register class
         assetClass:
           type: string
-          example: Sedan
+          description: Legacy generated name; resolved to assetClassId on write
+          example: 2026_activa_150_petrol_efi_bl
         committedQuantity:
           type: integer
           minimum: 1
@@ -5737,6 +7151,394 @@ components:
         partCode:
           type: string
           maxLength: 64
+    CreateWorkshopLaborJobCardRequest:
+      type: object
+      required: [organizationId, name, laborChargeMinor]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+        laborChargeMinor:
+          type: integer
+          minimum: 0
+          description: Labor charge in minor currency units (paise for INR)
+        parts:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [partId, quantity]
+            properties:
+              partId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+    CreateWorkshopWorkOrderRequest:
+      type: object
+      required: [organizationId, vehicleId]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+          description: Asset register fleet vehicle id
+        laborJobCardId:
+          type: string
+          format: uuid
+        technicianEmployeeId:
+          type: string
+          format: uuid
+        expectedCompletionDate:
+          type: string
+          format: date
+        reportedBy:
+          type: string
+          maxLength: 255
+        odometerReading:
+          type: integer
+          minimum: 0
+        issueDescription:
+          type: string
+          maxLength: 2000
+        notes:
+          type: string
+          maxLength: 2000
+        additionalParts:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [partId, quantity]
+            properties:
+              partId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+              unitCostMinor:
+                type: integer
+                minimum: 0
+        additionalLabor:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [description, amountMinor]
+            properties:
+              description:
+                type: string
+                maxLength: 255
+              amountMinor:
+                type: integer
+                minimum: 0
+    UpdateWorkshopWorkOrderRequest:
+      type: object
+      properties:
+        technicianEmployeeId:
+          type: string
+          format: uuid
+          nullable: true
+        expectedCompletionDate:
+          type: string
+          format: date
+          nullable: true
+        reportedBy:
+          type: string
+          maxLength: 255
+          nullable: true
+        odometerReading:
+          type: integer
+          minimum: 0
+          nullable: true
+        issueDescription:
+          type: string
+          maxLength: 2000
+          nullable: true
+        notes:
+          type: string
+          maxLength: 2000
+          nullable: true
+    UpdateWorkshopWorkOrderStatusRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [start, close, cancel]
+    WorkshopWorkOrderPartLine:
+      type: object
+      properties:
+        fulfillmentStatus:
+          type: string
+          enum: [reserved, issued, cancelled]
+    WorkshopWorkOrderAvailableActions:
+      type: object
+      properties:
+        edit:
+          type: boolean
+        start:
+          type: boolean
+        complete:
+          type: boolean
+    WorkshopWorkOrderDetailResponse:
+      type: object
+      description: Work order detail including source label, parts fulfillment summary, and viewer-specific availableActions
+      properties:
+        partsFulfillmentSummary:
+          type: string
+          enum: [none, reserved, issued, mixed]
+        sourceLabel:
+          type: string
+        availableActions:
+          $ref: '#/components/schemas/WorkshopWorkOrderAvailableActions'
+        partLines:
+          type: array
+          items:
+            $ref: '#/components/schemas/WorkshopWorkOrderPartLine'
+    UpdateWorkshopLaborJobCardRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        laborChargeMinor:
+          type: integer
+          minimum: 0
+        parts:
+          type: array
+          maxItems: 50
+          items:
+            type: object
+            required: [partId, quantity]
+            properties:
+              partId:
+                type: string
+                format: uuid
+              quantity:
+                type: integer
+                minimum: 1
+    UpdateWorkshopLaborJobCardStatusRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [activate, deactivate]
+        reason:
+          type: string
+          maxLength: 2000
+    UpdateWorkshopAmcStatusRequest:
+      type: object
+      required: [action]
+      properties:
+        action:
+          type: string
+          enum: [activate, deactivate]
+        reason:
+          type: string
+          maxLength: 2000
+    CreateWorkshopAmcTierRequest:
+      type: object
+      required: [organizationId, name]
+      additionalProperties: false
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+        pricePaise:
+          type: integer
+          minimum: 0
+          description: >-
+            Optional annual price in minor currency units (paise for INR).
+            Display label is derived server-side when set.
+    UpdateWorkshopAmcTierRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+        pricePaise:
+          type: integer
+          minimum: 0
+          nullable: true
+          description: Minor currency units (paise for INR); null clears stored price
+    CreateWorkshopMaintenanceScheduleRequest:
+      type: object
+      required: [organizationId, name]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        name:
+          type: string
+          maxLength: 255
+        assetClassLabel:
+          type: string
+          maxLength: 255
+        intervalLabel:
+          type: string
+          maxLength: 120
+        maintenanceType:
+          type: string
+          maxLength: 64
+        intervalType:
+          type: string
+          maxLength: 32
+        vehicleApplicability:
+          type: string
+          maxLength: 32
+        description:
+          type: string
+          maxLength: 2000
+    UpdateWorkshopMaintenanceScheduleRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        assetClassLabel:
+          type: string
+          maxLength: 255
+          nullable: true
+        intervalLabel:
+          type: string
+          maxLength: 120
+          nullable: true
+        maintenanceType:
+          type: string
+          maxLength: 64
+          nullable: true
+        intervalType:
+          type: string
+          maxLength: 32
+          nullable: true
+        vehicleApplicability:
+          type: string
+          maxLength: 32
+          nullable: true
+        description:
+          type: string
+          maxLength: 2000
+          nullable: true
+    CreateWorkshopAmcSubscriberRequest:
+      type: object
+      required: [organizationId, amcTierId, vehicleId]
+      properties:
+        organizationId:
+          type: string
+          format: uuid
+        amcTierId:
+          type: string
+          format: uuid
+        vehicleId:
+          type: string
+          format: uuid
+        startedAt:
+          type: string
+          format: date
+    PortalSearchLink:
+      type: object
+      required: [rel, label, display]
+      properties:
+        rel:
+          type: string
+        label:
+          type: string
+        entityId:
+          type: string
+          format: uuid
+        display:
+          type: string
+    PortalSearchHit:
+      type: object
+      required:
+        - id
+        - title
+        - moduleKey
+        - moduleLabel
+        - entityType
+        - entityTypeLabel
+        - routePath
+        - routeQuery
+        - links
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        subtitle:
+          type: string
+        moduleKey:
+          type: string
+        moduleLabel:
+          type: string
+        entityType:
+          type: string
+        entityTypeLabel:
+          type: string
+        status:
+          type: string
+        routePath:
+          type: string
+        routeQuery:
+          type: object
+          additionalProperties:
+            type: string
+        links:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortalSearchLink'
+    PortalSearchResponse:
+      type: object
+      required: [query, items, meta]
+      properties:
+        query:
+          type: string
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PortalSearchHit'
+        meta:
+          type: object
+          required: [totalReturned, limitPerType, capApplied, searchedModules]
+          properties:
+            totalReturned:
+              type: integer
+            limitPerType:
+              type: integer
+            capApplied:
+              type: boolean
+            searchedModules:
+              type: array
+              items:
+                type: string
     ApiError:
       type: object
       required: [message, code, statusCode]

@@ -7,8 +7,10 @@ import type { Env } from '../../config/env.schema';
 import { AuditModule } from '../audit/audit.module';
 import { AuthorizationModule } from './authorization/authorization.module';
 import { AuthController } from './auth.controller';
+import { AuthPasswordService } from './auth-password.service';
 import { AuthRepository } from './auth.repository';
 import { AuthService } from './auth.service';
+import { PasswordResetNotificationService } from './password-reset-notification.service';
 import { DEV_JWT_ACCESS_SECRET } from './constants/auth.constants';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { JwtStrategy } from './jwt.strategy';
@@ -39,6 +41,8 @@ import { parseDurationToSeconds } from './utils/duration.util';
   controllers: [AuthController],
   providers: [
     AuthService,
+    AuthPasswordService,
+    PasswordResetNotificationService,
     AuthRepository,
     JwtStrategy,
     LoginRateLimiterService,

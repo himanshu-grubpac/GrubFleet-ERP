@@ -63,9 +63,24 @@ try {
   $env:AWS_REQUEST_CHECKSUM_CALCULATION = 'when_required'
   $env:AWS_RESPONSE_CHECKSUM_VALIDATION = 'when_required'
 
-  Write-Host "Syncing to s3://$bucket ..."
-  aws s3 sync $outDir "s3://$bucket" --delete --profile $Profile --region $Region
+  Write-Host "Syncing to s3://$bucket (HTML short cache; _next/static immutable) ..."
+  aws s3 sync $outDir "s3://$bucket" `
+    --delete `
+    --cache-control "public,max-age=0,must-revalidate" `
+    --exclude "_next/static/*" `
+    --profile $Profile `
+    --region $Region
   if ($LASTEXITCODE -ne 0) { throw 'S3 sync failed' }
+
+  $nextStatic = Join-Path $outDir '_next\static'
+  if (Test-Path $nextStatic) {
+    aws s3 sync $nextStatic "s3://$bucket/_next/static" `
+      --delete `
+      --cache-control "public,max-age=31536000,immutable" `
+      --profile $Profile `
+      --region $Region
+    if ($LASTEXITCODE -ne 0) { throw 'S3 sync (_next/static) failed' }
+  }
 
   Write-Host "Invalidating CloudFront distribution $distributionId ..."
   aws cloudfront create-invalidation `

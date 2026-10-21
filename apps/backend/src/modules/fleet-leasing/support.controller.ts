@@ -21,6 +21,7 @@ import { CreateVehicleReplacementsDto } from './dto/create-vehicle-replacements.
 import { ListReplacementCandidatesQueryDto } from './dto/list-replacement-candidates-query.dto';
 import { LookupOnLeaseVehicleQueryDto } from './dto/lookup-on-lease-vehicle-query.dto';
 import { ReplacementFilterOptionsQueryDto } from './dto/replacement-filter-options-query.dto';
+import { ListSupportPaginatedQueryDto } from './dto/list-support-paginated-query.dto';
 import { SupportVehicleReplacementService } from './support-vehicle-replacement.service';
 
 @ApiTags('fleet-leasing')
@@ -83,12 +84,14 @@ export class FleetSupportController {
     summary: 'Active/on-lease contracts for a fleet client (Other path)',
   })
   listActiveContractsForClient(
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Query() query: ListSupportPaginatedQueryDto,
     @Param('clientId', ParseUUIDPipe) clientId: string,
   ) {
     return this.supportReplacement.listActiveContractsForClient(
-      organizationId,
+      query.organizationId,
       clientId,
+      query.page,
+      query.pageSize,
     );
   }
 
@@ -97,12 +100,14 @@ export class FleetSupportController {
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
   @ApiOperation({ summary: 'Vehicles currently allocated to a contract' })
   listAllocatedVehicles(
-    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Query() query: ListSupportPaginatedQueryDto,
     @Param('contractId', ParseUUIDPipe) contractId: string,
   ) {
     return this.supportReplacement.listAllocatedVehicles(
-      organizationId,
+      query.organizationId,
       contractId,
+      query.page,
+      query.pageSize,
     );
   }
 

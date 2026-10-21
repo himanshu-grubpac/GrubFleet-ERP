@@ -11,6 +11,6 @@ export class RenewLeaseContractDto {
     example: '2027-01-12',
     description: 'New contract start date (ISO date)',
   })
-  @IsDateString()
+  @IsDateString({ strict: true })
   newStartDate!: string;
 }

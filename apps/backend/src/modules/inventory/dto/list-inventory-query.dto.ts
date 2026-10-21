@@ -13,6 +13,10 @@ import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
 } from '../../../common/dto/pagination-query.dto';
+import {
+  LIST_SORT_ORDERS,
+  type ListSortOrder,
+} from '../../../common/constants/list-sort.constants';
 
 export const INVENTORY_LIST_MAX_PAGE_SIZE = 50;
 
@@ -49,4 +53,17 @@ export class ListInventoryQueryDto {
   @IsOptional()
   @IsIn(['active', 'inactive'])
   status?: 'active' | 'inactive';
+
+  @ApiPropertyOptional({ enum: LIST_SORT_ORDERS })
+  @IsOptional()
+  @IsIn(LIST_SORT_ORDERS)
+  sortOrder?: ListSortOrder;
+
+  @ApiPropertyOptional({
+    description:
+      'Sort field (inventory part, stock receipt, or parts request list)',
+  })
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
 }

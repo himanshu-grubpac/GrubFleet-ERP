@@ -10,6 +10,7 @@ import {
   countSelectedPermissions,
   emptyCrudFlags,
   grantableCrudKindsForActor,
+  isModuleCrudToggleDisabled,
   maxAssignablePermissionSlots,
 } from "@/lib/administration/module-access-ui";
 
@@ -296,13 +297,20 @@ function ModuleCrudRow({
           );
         }
 
+        const toggleDisabled =
+          readOnly || isModuleCrudToggleDisabled(flags, col.key);
+
         return (
           <td key={col.key} className="px-2 py-3 text-center">
-            <label className="inline-flex cursor-pointer items-center justify-center">
+            <label
+              className={`inline-flex items-center justify-center ${
+                toggleDisabled ? "cursor-not-allowed" : "cursor-pointer"
+              }`}
+            >
               <input
                 type="checkbox"
                 checked={flags[col.key]}
-                disabled={readOnly}
+                disabled={toggleDisabled}
                 aria-label={`${col.label} — ${mod.label}`}
                 onChange={(e) => onToggleKind(col.key, e.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-[#FE5720] focus:ring-[#FE5720] disabled:cursor-not-allowed disabled:opacity-50"

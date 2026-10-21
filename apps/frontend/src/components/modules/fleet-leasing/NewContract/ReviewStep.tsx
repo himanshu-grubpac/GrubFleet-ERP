@@ -29,6 +29,9 @@ interface ReviewStepProps {
     assetLines: AssetLine[];
     terms: LeaseTerms;
     onBack: () => void;
+    onSaveDraft?: () => void;
+    isSaveDraftPending?: boolean;
+    showSaveDraft?: boolean;
 }
 
 function formatBillingFrequency(
@@ -74,6 +77,9 @@ export default function ReviewStep({
     assetLines,
     terms,
     onBack,
+    onSaveDraft,
+    isSaveDraftPending = false,
+    showSaveDraft = false,
 }: ReviewStepProps) {
     const router = useRouter();
     const { token, organizationId } = useGrubpacAuth();
@@ -269,31 +275,45 @@ export default function ReviewStep({
                 </div>
             </ReviewCard>
 
-            <div className="mt-5 flex items-center justify-between">
+            <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <button
                     type="button"
                     onClick={onBack}
-                    disabled={isSubmitting}
-                    className="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={isSubmitting || isSaveDraftPending}
+                    className="inline-flex h-10 w-full items-center justify-center rounded-md border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                 >
                     Back
                 </button>
 
-                <Button
-                    type="button"
-                    variant="primary"
-                    onClick={handleSubmitContract}
-                    disabled={primaryDisabled}
-                >
-                    {isSubmitting ? (
-                        <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            Submitting…
-                        </>
-                    ) : (
-                        "Submit contract"
-                    )}
-                </Button>
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                    {showSaveDraft && onSaveDraft ? (
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            onClick={onSaveDraft}
+                            disabled={isSubmitting || isSaveDraftPending}
+                            className="w-full sm:w-auto"
+                        >
+                            {isSaveDraftPending ? "Saving…" : "Save draft"}
+                        </Button>
+                    ) : null}
+                    <Button
+                        type="button"
+                        variant="primary"
+                        onClick={handleSubmitContract}
+                        disabled={primaryDisabled || isSaveDraftPending}
+                        className="w-full sm:w-auto"
+                    >
+                        {isSubmitting ? (
+                            <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Submitting…
+                            </>
+                        ) : (
+                            "Submit contract"
+                        )}
+                    </Button>
+                </div>
             </div>
 
             <p className="mt-3 flex items-start gap-2 text-[11px] leading-5 text-slate-400">

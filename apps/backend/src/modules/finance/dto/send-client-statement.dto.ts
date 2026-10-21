@@ -7,10 +7,10 @@ export class SendClientStatementDto {
   organizationId!: string;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   periodStart!: string;
 
   @ApiProperty({ format: 'date' })
-  @IsDateString()
+  @IsDateString({ strict: true })
   periodEnd!: string;
 }

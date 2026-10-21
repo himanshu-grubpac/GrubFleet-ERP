@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Search, PackageSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -28,12 +28,18 @@ const formatOdometer = (value: number) => {
     return `${value.toLocaleString("en-IN")} km`;
 };
 
-const PAGE_SIZE = 50;
+// Keep this consistent with the shared pagination pattern.
+const PAGE_SIZE = 10;
 
 export default function AssetAssignmentDashboardPage() {
     const router = useRouter();
-    const { token, organizationId, isLoading: isAuthLoading, permissions } =
-        useAuth();
+
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+        permissions,
+    } = useAuth();
 
     const canAssign =
         permissions.has("asset_register.update") ||
@@ -42,6 +48,14 @@ export default function AssetAssignmentDashboardPage() {
     const [search, setSearch] = useState("");
     const debouncedSearch = useDebouncedValue(search, 300);
 
+    // Pagination state
+    const [page, setPage] = useState(1);
+
+    // Reset to the first page when the search changes.
+    useEffect(() => {
+        setPage(1);
+    }, [debouncedSearch]);
+
     const listQuery = useQuery({
         queryKey: [
             "asset-register",
@@ -49,15 +63,17 @@ export default function AssetAssignmentDashboardPage() {
             "assignment-available",
             organizationId,
             debouncedSearch,
+            page,
         ],
         queryFn: () => {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
+
             return fetchAssetRegisterVehiclesApi({
                 token,
                 organizationId,
-                page: 1,
+                page,
                 pageSize: PAGE_SIZE,
                 search: debouncedSearch.trim() || undefined,
                 operationalStatus: "available",
@@ -79,16 +95,25 @@ export default function AssetAssignmentDashboardPage() {
         }));
     }, [listQuery.data?.items]);
 
+    // Pagination metadata from the API response.
+    const totalItems = listQuery.data?.total ?? 0;
+
+    const totalPages = Math.max(
+        1,
+        Math.ceil(totalItems / PAGE_SIZE),
+    );
+
     const handleAssign = (vehicle: AssetAssignmentVehicle) => {
         router.push(assetRegisterAssetAssignDetailHref(vehicle.id));
     };
 
     const isInitialLoading =
         isAuthLoading || (listQuery.isLoading && !listQuery.data);
+
     const isEmpty =
         !isInitialLoading &&
         !listQuery.isError &&
-        (listQuery.data?.total ?? 0) === 0 &&
+        totalItems === 0 &&
         !debouncedSearch.trim();
 
     const assignmentColumns = [
@@ -101,13 +126,27 @@ export default function AssetAssignmentDashboardPage() {
             render: (vehicle: AssetAssignmentVehicle) =>
                 formatOdometer(vehicle.odometer),
         },
-        { key: "availableSince", label: "AVAILABLE SINCE" },
+        {
+            key: "availableSince",
+            label: "AVAILABLE SINCE",
+        },
     ];
 
     return (
         <DashboardLayout
             title="Asset Assignment"
             description="Assign available fleet vehicles to active lease contracts."
+            pagination={
+                totalItems > 0
+                    ? {
+                        currentPage: page,
+                        totalPages,
+                        totalItems,
+                        pageSize: PAGE_SIZE,
+                        onPageChange: setPage,
+                    }
+                    : undefined
+            }
         >
             <div className="mb-4 flex items-center gap-3">
                 <div className="relative min-w-0 flex-1">
@@ -115,10 +154,13 @@ export default function AssetAssignmentDashboardPage() {
                         className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
                         strokeWidth={1.8}
                     />
+
                     <input
                         type="text"
                         value={search}
-                        onChange={(event) => setSearch(event.target.value)}
+                        onChange={(event) =>
+                            setSearch(event.target.value)
+                        }
                         placeholder="Search by fleet code, registration or asset class"
                         className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
                     />
@@ -143,7 +185,10 @@ export default function AssetAssignmentDashboardPage() {
             ) : isEmpty ? (
                 <DashboardEmptyState
                     icon={
-                        <PackageSearch className="h-7 w-7" strokeWidth={1.4} />
+                        <PackageSearch
+                            className="h-7 w-7"
+                            strokeWidth={1.4}
+                        />
                     }
                     title="No vehicles available for assignment"
                     description="Vehicles must be active and in Available status to appear here."
@@ -154,9 +199,11 @@ export default function AssetAssignmentDashboardPage() {
                         className="mb-3 h-7 w-7 text-gray-400"
                         strokeWidth={1.4}
                     />
+
                     <h3 className="text-sm font-semibold text-gray-900">
                         No vehicles found
                     </h3>
+
                     <p className="mt-1 text-xs text-gray-500">
                         Try changing your search.
                     </p>

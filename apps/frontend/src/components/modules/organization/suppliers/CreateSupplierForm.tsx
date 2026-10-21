@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -17,7 +17,7 @@ import {
     validatePhone,
     hasValidationErrors,
     type OrganizationValidationErrors,
-} from "@/components/common/OrganizationValidation";
+} from "@/components/common/Commonvalidation";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -200,6 +200,8 @@ export default function CreateSupplierForm({
             {}
         );
 
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+
     const [
         isSaving,
         setIsSaving,
@@ -322,6 +324,7 @@ export default function CreateSupplierForm({
     /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
+        setHasAttemptedSubmit(true);
         setError("");
         setValidationErrors({});
 
@@ -525,6 +528,10 @@ export default function CreateSupplierForm({
             ],
     };
 
+    const validationSummary = Object.values(validationErrors).filter(
+        (message): message is string => Boolean(message),
+    );
+
     const canSubmit = useMemo(() => {
         if (isSaving) {
             return false;
@@ -569,38 +576,43 @@ export default function CreateSupplierForm({
             title="Add Supplier"
             description="Register a vehicle, spare-parts, driver-staffing, or compliance-authority (insurance/RTO) supplier."
             infoText="This is the shared Supplier Register — one record per supplier, reused across Asset Management (vehicle procurement, and insurance/RTO contacts on Compliance & Renewals) and Inventory (parts stock receipt). Link drivers or parts to this supplier from their own registers."
+
+
             actions={
-                <>
-                    {/* Cancel */}
+                <div className="flex w-full flex-col gap-4">
+                    {hasAttemptedSubmit && validationSummary.length > 0 && (
+                        <div
+                            role="status"
+                            aria-live="polite"
+                            className="w-full text-xs leading-5 text-red-600"
+                        >
+                            <span className="font-semibold">Please fix:</span>{" "}
+                            {validationSummary.join(" | ")}
+                        </div>
+                    )}
 
-                    <button
-                        type="button"
-                        onClick={
-                            handleCancel
-                        }
-                        className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
+                    <div className="flex items-center justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={handleCancel}
+                            className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            Cancel
+                        </button>
 
-                    {/* Save */}
-
-                    <Button
-                        type="button"
-                        onClick={
-                            handleSave
-                        }
-                        disabled={
-                            !canSubmit
-                        }
-                        className="h-10 px-5"
-                    >
-                        {isSaving
-                            ? "Saving..."
-                            : "Save supplier"}
-                    </Button>
-                </>
+                        <Button
+                            type="button"
+                            onClick={handleSave}
+                            disabled={isSaving}
+                            className="h-10 px-5"
+                        >
+                            {isSaving ? "Saving..." : "Save supplier"}
+                        </Button>
+                    </div>
+                </div>
             }
+
+
         >
             {/* ============================================================ */}
             {/* SUPPLIER / COMPANY NAME                                      */}

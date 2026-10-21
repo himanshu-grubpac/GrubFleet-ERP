@@ -8,6 +8,7 @@ import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
 import { AppModule } from '../../src/app.module';
 import { GlobalHttpExceptionFilter } from '../../src/common/filters/http-exception.filter';
+import { applyHttpSecurityHeaders } from '../../src/common/http/apply-http-security-headers';
 import type { AppDatabase } from '../../src/database/database.module';
 import {
   DEV_ADMIN_EMAIL,
@@ -56,11 +57,10 @@ export type IntegrationAuthContext = {
 };
 
 /** Mirrors the global pipe + filter from `src/bootstrap-app.ts`. */
-export async function createIntegrationApp(): Promise<INestApplication<App>> {
-  const moduleFixture: TestingModule = await Test.createTestingModule({
-    imports: [AppModule],
-  }).compile();
-  const app = moduleFixture.createNestApplication<INestApplication<App>>();
+export function configureIntegrationNestApp(
+  app: INestApplication<App>,
+): INestApplication<App> {
+  applyHttpSecurityHeaders(app);
   app.setGlobalPrefix('api/v1');
   app.useGlobalPipes(
     new ValidationPipe({
@@ -70,8 +70,31 @@ export async function createIntegrationApp(): Promise<INestApplication<App>> {
     }),
   );
   app.useGlobalFilters(new GlobalHttpExceptionFilter());
+  app.enableShutdownHooks();
+  return app;
+}
+
+export async function createIntegrationApp(): Promise<INestApplication<App>> {
+  const moduleFixture: TestingModule = await Test.createTestingModule({
+    imports: [AppModule],
+  }).compile();
+  const app = moduleFixture.createNestApplication<INestApplication<App>>();
+  configureIntegrationNestApp(app);
   await app.init();
   return app;
+}
+
+/** Close Nest app (Redis, DB pool inside AppModule) then optional external pg pool. */
+export async function closeIntegrationResources(
+  app: INestApplication<App> | undefined,
+  externalPool?: Pool,
+): Promise<void> {
+  if (app) {
+    await app.close();
+  }
+  if (externalPool) {
+    await externalPool.end();
+  }
 }
 
 export async function loginAs(
@@ -211,7 +234,12 @@ export async function bootstrapIntegrationAuth(): Promise<IntegrationAuthContext
   const connectionString =
     process.env.DATABASE_URL ??
     'postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp';
-  const pool = new Pool({ connectionString });
+  const pool = new Pool({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 15_000,
+    idleTimeoutMillis: 30_000,
+  });
   try {
     await pool.query('SELECT 1');
   } catch {
@@ -254,8 +282,7 @@ export async function bootstrapIntegrationAuth(): Promise<IntegrationAuthContext
     adminAccessToken,
     orgViewOnlyAccessToken,
     close: async () => {
-      await app.close();
-      await pool.end();
+      await closeIntegrationResources(app, pool);
     },
   };
 }

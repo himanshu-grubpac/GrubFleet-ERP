@@ -10,6 +10,8 @@ import {
   MinLength,
 } from 'class-validator';
 import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
+import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
+import { IsValidPostalForCountry } from '../../../common/decorators/is-valid-postal-for-country.decorator';
 
 export class UpdateLocationDto {
   @ApiPropertyOptional()
@@ -77,12 +79,14 @@ export class UpdateLocationDto {
   @IsOptional()
   @IsString()
   @MaxLength(20)
+  @IsValidPostalForCountry('addressCountry')
   addressPincode?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @MaxLength(32)
+  @IsValidPhone()
   siteContactPhone?: string;
 
   @ApiPropertyOptional()

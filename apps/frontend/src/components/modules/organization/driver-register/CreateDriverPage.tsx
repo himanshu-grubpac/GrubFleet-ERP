@@ -1,17 +1,22 @@
 "use client";
 
+
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+
 
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 
+
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+
 
 import OrganizationAddressForm, {
     type OrganizationAddress,
 } from "@/components/common/OrganizationAddressForm";
+
 
 import {
     validateOrganizationAddress,
@@ -19,7 +24,13 @@ import {
     validatePhone,
     hasValidationErrors,
     type OrganizationValidationErrors,
-} from "@/components/common/OrganizationValidation";
+} from "@/components/common/Commonvalidation";
+
+
+import {
+    getDriverLicenseValidationError,
+    normalizeDriverLicenseNumber,
+} from "@grubpac/validation";
 
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
@@ -28,9 +39,11 @@ import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-o
 import { DRIVER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
 
+
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
+
 
 export type DriverFormData = {
     name: string;
@@ -43,15 +56,18 @@ export type DriverFormData = {
     address: OrganizationAddress;
 };
 
+
 type CreateDriverFormProps = {
     onCancel?: () => void;
     onSaved?: (driver: DriverFormData) => void | Promise<void>;
     initialData?: Partial<DriverFormData>;
 };
 
+
 /* -------------------------------------------------------------------------- */
 /* Component                                                                  */
 /* -------------------------------------------------------------------------- */
+
 
 export default function CreateDriverForm({
     onCancel,
@@ -64,6 +80,7 @@ export default function CreateDriverForm({
         organizationId,
         isLoading: isAuthLoading,
     } = useAuth();
+
 
     const suppliersQuery = useQuery({
         queryKey: [
@@ -87,6 +104,7 @@ export default function CreateDriverForm({
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardCatalogQueryOptions,
     });
+
 
     const supplierOptions = useMemo(() => {
         const items = suppliersQuery.data?.items ?? [];
@@ -112,9 +130,11 @@ export default function CreateDriverForm({
         }));
     }, [suppliersQuery.data?.items, initialData?.supplier]);
 
+
     /* ---------------------------------------------------------------------- */
     /* Form                                                                   */
     /* ---------------------------------------------------------------------- */
+
 
     const [form, setForm] = useState<DriverFormData>({
         name: initialData?.name ?? "",
@@ -144,20 +164,25 @@ export default function CreateDriverForm({
         },
     });
 
+
     /* ---------------------------------------------------------------------- */
     /* State                                                                  */
     /* ---------------------------------------------------------------------- */
 
+
     const [validationErrors, setValidationErrors] =
         useState<OrganizationValidationErrors>({});
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+    const isSubmittingRef = useRef(false);
 
     const [error, setError] = useState("");
-
     const [isSaving, setIsSaving] = useState(false);
+
 
     /* ---------------------------------------------------------------------- */
     /* Navigation                                                              */
     /* ---------------------------------------------------------------------- */
+
 
     const handleCancel = () => {
         if (onCancel) {
@@ -165,12 +190,15 @@ export default function CreateDriverForm({
             return;
         }
 
+
         router.push("/organization/driver-register");
     };
+
 
     /* ---------------------------------------------------------------------- */
     /* General Form Update                                                     */
     /* ---------------------------------------------------------------------- */
+
 
     const updateForm = <K extends keyof DriverFormData>(
         key: K,
@@ -182,182 +210,40 @@ export default function CreateDriverForm({
         }));
     };
 
+
     /* ---------------------------------------------------------------------- */
     /* Clear Validation Error                                                  */
     /* ---------------------------------------------------------------------- */
 
+
     const clearError = (field: string) => {
         setError("");
 
+        // Do not display validation errors until the first Save attempt.
+        if (!hasAttemptedSubmit) {
+            return;
+        }
+
         setValidationErrors((previous) => {
             const next = { ...previous };
-
             delete next[field];
-
             return next;
         });
     };
+
 
     /* ---------------------------------------------------------------------- */
     /* Save Driver                                                             */
     /* ---------------------------------------------------------------------- */
 
-    const handleSave = async () => {
-        setError("");
-        setValidationErrors({});
 
-        const errors: OrganizationValidationErrors = {};
-
-        /* Driver name */
-
-        if (!form.name.trim()) {
-            errors.name = "Driver name is required.";
-        }
-
-        /* CPR */
-
-        if (!form.cprNo.trim()) {
-            errors.cprNo = "CPR no. is required.";
-        }
-
-        /* Mobile */
-
-        const phoneError = validatePhone(
-            form.mobileNo,
-            "Mobile number",
-        );
-
-        if (phoneError) {
-            errors.mobileNo = phoneError;
-        }
-
-        /* Driving license */
-
-        if (!form.drivingLicenseNo.trim()) {
-            errors.drivingLicenseNo =
-                "Driving license no. is required.";
-        }
-
-        /* License expiry */
-
-        if (!form.licenseExpiryDate.trim()) {
-            errors.licenseExpiryDate =
-                "License expiry date is required.";
-        }
-
-        /* Supplier */
-
-        if (!form.supplier.trim()) {
-            errors.supplier = "Supplier is required.";
-        }
-
-        /* Email */
-
-        const emailError = validateEmail(
-            form.email,
-            "Email",
-        );
-
-        if (emailError) {
-            errors.email = emailError;
-        }
-
-        /* Address */
-
-        const addressValidationErrors =
-            validateOrganizationAddress(form.address);
-
-        Object.entries(addressValidationErrors).forEach(
-            ([field, message]) => {
-                errors[`address.${field}`] = message;
-            },
-        );
-
-        setValidationErrors(errors);
-
-        if (hasValidationErrors(errors)) {
-            return;
-        }
-
-        /* ------------------------------------------------------------------ */
-        /* Normalized payload                                                  */
-        /* ------------------------------------------------------------------ */
-
-        const driver: DriverFormData = {
-            name: form.name.trim(),
-            cprNo: form.cprNo.trim(),
-            mobileNo: form.mobileNo.trim(),
-            drivingLicenseNo:
-                form.drivingLicenseNo.trim(),
-            licenseExpiryDate:
-                form.licenseExpiryDate.trim(),
-            supplier: form.supplier.trim(),
-            email: form.email.trim(),
-            address: {
-                line1: form.address.line1.trim(),
-                line2: form.address.line2.trim(),
-                city: form.address.city.trim(),
-                state: form.address.state.trim(),
-                district:
-                    form.address.district.trim(),
-                pincode:
-                    form.address.pincode.trim(),
-                country:
-                    form.address.country.trim(),
-            },
-        };
-
-        try {
-            setIsSaving(true);
-
-            /*
-             * The parent owns the actual Driver API call and navigation.
-             */
-
-            await onSaved?.(driver);
-        } catch (saveError) {
-            const message =
-                saveError instanceof ApiClientError
-                    ? saveError.message
-                    : "Failed to save driver. Please try again.";
-
-            setError(message);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    /* ---------------------------------------------------------------------- */
-    /* Address Errors                                                          */
-    /* ---------------------------------------------------------------------- */
-
-    const addressErrors = {
-        line1:
-            validationErrors["address.line1"],
-        line2:
-            validationErrors["address.line2"],
-        city:
-            validationErrors["address.city"],
-        state:
-            validationErrors["address.state"],
-        district:
-            validationErrors["address.district"],
-        pincode:
-            validationErrors["address.pincode"],
-        country:
-            validationErrors["address.country"],
-    };
-
-    const canSubmit = useMemo(() => {
-        if (isSaving) {
-            return false;
-        }
-
+    const validateForm = (): OrganizationValidationErrors => {
         const errors: OrganizationValidationErrors = {};
 
         if (!form.name.trim()) {
             errors.name = "Driver name is required.";
         }
+
         if (!form.cprNo.trim()) {
             errors.cprNo = "CPR no. is required.";
         }
@@ -369,10 +255,17 @@ export default function CreateDriverForm({
 
         if (!form.drivingLicenseNo.trim()) {
             errors.drivingLicenseNo = "Driving license no. is required.";
+        } else {
+            const licenseError = getDriverLicenseValidationError(
+                form.drivingLicenseNo,
+            );
+            if (licenseError) errors.drivingLicenseNo = licenseError;
         }
+
         if (!form.licenseExpiryDate.trim()) {
             errors.licenseExpiryDate = "License expiry date is required.";
         }
+
         if (!form.supplier.trim()) {
             errors.supplier = "Supplier is required.";
         }
@@ -387,24 +280,118 @@ export default function CreateDriverForm({
             errors[`address.${field}`] = message;
         });
 
-        return !hasValidationErrors(errors);
-    }, [form, isSaving]);
+        return errors;
+    };
+
+    // Recalculate errors as the user edits, but show them only after Save is attempted.
+    const liveValidationErrors = validateForm();
+
+    const displayedValidationErrors = hasAttemptedSubmit
+        ? liveValidationErrors
+        : validationErrors;
+
+    const handleSave = async () => {
+        if (isSubmittingRef.current || isSaving) {
+            return;
+        }
+
+        setError("");
+        setHasAttemptedSubmit(true);
+
+        const errors = validateForm();
+        setValidationErrors(errors);
+
+        if (hasValidationErrors(errors)) {
+            return;
+        }
+
+        const driver: DriverFormData = {
+            name: form.name.trim(),
+            cprNo: form.cprNo.trim(),
+            mobileNo: form.mobileNo.trim(),
+            drivingLicenseNo: normalizeDriverLicenseNumber(
+                form.drivingLicenseNo,
+            ),
+            licenseExpiryDate: form.licenseExpiryDate.trim(),
+            supplier: form.supplier.trim(),
+            email: form.email.trim(),
+            address: {
+                line1: form.address.line1.trim(),
+                line2: form.address.line2.trim(),
+                city: form.address.city.trim(),
+                state: form.address.state.trim(),
+                district: form.address.district.trim(),
+                pincode: form.address.pincode.trim(),
+                country: form.address.country.trim(),
+            },
+        };
+
+        isSubmittingRef.current = true;
+
+        try {
+            setIsSaving(true);
+            // The parent route owns the API call, toast, cache invalidation, and navigation.
+            await onSaved?.(driver);
+        } catch (saveError) {
+            const message =
+                saveError instanceof ApiClientError
+                    ? saveError.message
+                    : saveError instanceof Error
+                        ? saveError.message
+                        : "Failed to save driver. Please try again.";
+
+            setError(message);
+        } finally {
+            isSubmittingRef.current = false;
+            setIsSaving(false);
+        }
+    };
+
+
+    /* ---------------------------------------------------------------------- */
+    /* Address Errors                                                          */
+    /* ---------------------------------------------------------------------- */
+
+
+    const addressErrors = {
+        line1:
+            displayedValidationErrors["address.line1"],
+        line2:
+            displayedValidationErrors["address.line2"],
+        city:
+            displayedValidationErrors["address.city"],
+        state:
+            displayedValidationErrors["address.state"],
+        district:
+            displayedValidationErrors["address.district"],
+        pincode:
+            displayedValidationErrors["address.pincode"],
+        country:
+            displayedValidationErrors["address.country"],
+    };
+
+
+    const canSubmit = !isSaving;
+
 
     /* ---------------------------------------------------------------------- */
     /* Input Class                                                             */
     /* ---------------------------------------------------------------------- */
 
+
     const inputClass = (field: string) =>
         [
             "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
-            validationErrors[field]
+            displayedValidationErrors[field]
                 ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                 : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
         ].join(" ");
 
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                      */
     /* ---------------------------------------------------------------------- */
+
 
     return (
         <OrganizationFormLayout
@@ -412,7 +399,19 @@ export default function CreateDriverForm({
             description="Register a driver sourced through a staffing supplier."
             infoText="New drivers are created Inactive. A driver is assigned to a vehicle only once that vehicle is on an active lease — assignment happens from the driver or vehicle record once it is saved."
             actions={
-                <>
+                <div className="flex flex-wrap items-center justify-end gap-3">
+                    {hasAttemptedSubmit &&
+                        hasValidationErrors(displayedValidationErrors) && (
+                            <div
+                                role="status"
+                                aria-live="polite"
+                                className="mr-auto max-w-full text-xs leading-5 text-red-600"
+                            >
+                                <span className="font-semibold">Please fix:</span>{" "}
+                                {Object.values(displayedValidationErrors).join(" | ")}
+                            </div>
+                        )}
+
                     <button
                         type="button"
                         onClick={handleCancel}
@@ -428,16 +427,15 @@ export default function CreateDriverForm({
                         disabled={!canSubmit}
                         className="h-10 px-5"
                     >
-                        {isSaving
-                            ? "Saving..."
-                            : "Save driver"}
+                        {isSaving ? "Saving..." : "Save driver"}
                     </Button>
-                </>
+                </div>
             }
         >
             {/* ============================================================ */}
             {/* DRIVER NAME                                                  */}
             {/* ============================================================ */}
+
 
             <div>
                 <label
@@ -449,6 +447,7 @@ export default function CreateDriverForm({
                         *
                     </span>
                 </label>
+
 
                 <RestrictedInput
                     id="driver-name"
@@ -463,16 +462,19 @@ export default function CreateDriverForm({
                     className={inputClass("name")}
                 />
 
-                {validationErrors.name && (
+
+                {displayedValidationErrors.name && (
                     <p className="mt-1 text-xs text-red-500">
-                        {validationErrors.name}
+                        {displayedValidationErrors.name}
                     </p>
                 )}
             </div>
 
+
             {/* ============================================================ */}
             {/* CPR + MOBILE                                                 */}
             {/* ============================================================ */}
+
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
@@ -485,6 +487,7 @@ export default function CreateDriverForm({
                             *
                         </span>
                     </label>
+
 
                     <RestrictedInput
                         id="driver-cpr"
@@ -499,12 +502,14 @@ export default function CreateDriverForm({
                         className={inputClass("cprNo")}
                     />
 
-                    {validationErrors.cprNo && (
+
+                    {displayedValidationErrors.cprNo && (
                         <p className="mt-1 text-xs text-red-500">
-                            {validationErrors.cprNo}
+                            {displayedValidationErrors.cprNo}
                         </p>
                     )}
                 </div>
+
 
                 <div>
                     <label
@@ -516,6 +521,7 @@ export default function CreateDriverForm({
                             *
                         </span>
                     </label>
+
 
                     <RestrictedInput
                         id="driver-mobile"
@@ -530,17 +536,20 @@ export default function CreateDriverForm({
                         className={inputClass("mobileNo")}
                     />
 
-                    {validationErrors.mobileNo && (
+
+                    {displayedValidationErrors.mobileNo && (
                         <p className="mt-1 text-xs text-red-500">
-                            {validationErrors.mobileNo}
+                            {displayedValidationErrors.mobileNo}
                         </p>
                     )}
                 </div>
             </div>
 
+
             {/* ============================================================ */}
             {/* LICENSE NO + EXPIRY                                          */}
             {/* ============================================================ */}
+
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
@@ -553,6 +562,7 @@ export default function CreateDriverForm({
                             *
                         </span>
                     </label>
+
 
                     <RestrictedInput
                         id="driving-license"
@@ -570,14 +580,16 @@ export default function CreateDriverForm({
                         className={inputClass("drivingLicenseNo")}
                     />
 
-                    {validationErrors.drivingLicenseNo && (
+
+                    {displayedValidationErrors.drivingLicenseNo && (
                         <p className="mt-1 text-xs text-red-500">
                             {
-                                validationErrors.drivingLicenseNo
+                                displayedValidationErrors.drivingLicenseNo
                             }
                         </p>
                     )}
                 </div>
+
 
                 <div>
                     <label
@@ -589,6 +601,7 @@ export default function CreateDriverForm({
                             *
                         </span>
                     </label>
+
 
                     <input
                         id="license-expiry"
@@ -610,19 +623,22 @@ export default function CreateDriverForm({
                         )}
                     />
 
-                    {validationErrors.licenseExpiryDate && (
+
+                    {displayedValidationErrors.licenseExpiryDate && (
                         <p className="mt-1 text-xs text-red-500">
                             {
-                                validationErrors.licenseExpiryDate
+                                displayedValidationErrors.licenseExpiryDate
                             }
                         </p>
                     )}
                 </div>
             </div>
 
+
             {/* ============================================================ */}
             {/* SUPPLIER + EMAIL                                              */}
             {/* ============================================================ */}
+
 
             <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
@@ -635,6 +651,7 @@ export default function CreateDriverForm({
                             *
                         </span>
                     </label>
+
 
                     <select
                         id="driver-supplier"
@@ -654,6 +671,7 @@ export default function CreateDriverForm({
                             Select supplier
                         </option>
 
+
                         {supplierOptions.map((supplier) => (
                             <option
                                 key={supplier.id}
@@ -664,12 +682,14 @@ export default function CreateDriverForm({
                         ))}
                     </select>
 
-                    {validationErrors.supplier && (
+
+                    {displayedValidationErrors.supplier && (
                         <p className="mt-1 text-xs text-red-500">
-                            {validationErrors.supplier}
+                            {displayedValidationErrors.supplier}
                         </p>
                     )}
                 </div>
+
 
                 <div>
                     <label
@@ -681,6 +701,7 @@ export default function CreateDriverForm({
                             *
                         </span>
                     </label>
+
 
                     <RestrictedInput
                         id="driver-email"
@@ -695,17 +716,20 @@ export default function CreateDriverForm({
                         className={inputClass("email")}
                     />
 
-                    {validationErrors.email && (
+
+                    {displayedValidationErrors.email && (
                         <p className="mt-1 text-xs text-red-500">
-                            {validationErrors.email}
+                            {displayedValidationErrors.email}
                         </p>
                     )}
                 </div>
             </div>
 
+
             {/* ============================================================ */}
             {/* SHARED ADDRESS                                                */}
             {/* ============================================================ */}
+
 
             <div className="mt-3">
                 <OrganizationAddressForm
@@ -716,7 +740,9 @@ export default function CreateDriverForm({
                             address,
                         }));
 
+
                         setError("");
+
 
                         setValidationErrors(
                             (previous) => {
@@ -724,33 +750,41 @@ export default function CreateDriverForm({
                                     ...previous,
                                 };
 
+
                                 delete next[
                                     "address.line1"
                                 ];
+
 
                                 delete next[
                                     "address.line2"
                                 ];
 
+
                                 delete next[
                                     "address.city"
                                 ];
+
 
                                 delete next[
                                     "address.state"
                                 ];
 
+
                                 delete next[
                                     "address.district"
                                 ];
+
 
                                 delete next[
                                     "address.pincode"
                                 ];
 
+
                                 delete next[
                                     "address.country"
                                 ];
+
 
                                 return next;
                             },
@@ -762,9 +796,11 @@ export default function CreateDriverForm({
                 />
             </div>
 
+
             {/* ============================================================ */}
             {/* GENERAL ERROR                                                 */}
             {/* ============================================================ */}
+
 
             {error && (
                 <div className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
@@ -774,3 +810,4 @@ export default function CreateDriverForm({
         </OrganizationFormLayout>
     );
 }
+

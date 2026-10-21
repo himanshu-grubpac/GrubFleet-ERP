@@ -4,7 +4,13 @@ import Link from "next/link";
 
 import { usePathname } from "next/navigation";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+    useEffect,
+    useLayoutEffect,
+    useMemo,
+    useRef,
+    useState,
+} from "react";
 
 import {
 
@@ -80,6 +86,11 @@ export type SidebarProps = {
 
     onToggleCollapsed: () => void;
 
+    /** Full-width nav drawer on viewports below `md` (header menu). */
+    mobileOpen?: boolean;
+
+    onMobileClose?: () => void;
+
 };
 
 export function Sidebar({
@@ -87,6 +98,10 @@ export function Sidebar({
     collapsed,
 
     onToggleCollapsed,
+
+    mobileOpen = false,
+
+    onMobileClose,
 
 }: SidebarProps) {
 
@@ -98,6 +113,8 @@ export function Sidebar({
 
         isAuthenticated,
 
+        isLoading: isAuthLoading,
+
         isLoggingOut,
 
         user,
@@ -106,25 +123,27 @@ export function Sidebar({
 
     } = useAuth();
 
-    const items = useMemo(
+    const stableNavItemsRef = useRef<NavItem[]>(mainNavItems);
 
-        () =>
+    const items = useMemo(() => {
+        if (!isAuthenticated) {
+            return [];
+        }
 
-            filterNavByPermissions(
+        const permissionSource =
+            permissions.size > 0 ? permissions : null;
 
-                mainNavItems,
+        const filtered = filterNavByPermissions(
+            mainNavItems,
+            permissionSource,
+        );
 
-                isAuthenticated && permissions.size > 0
+        if (permissions.size > 0 || !isAuthLoading) {
+            stableNavItemsRef.current = filtered;
+        }
 
-                    ? permissions
-
-                    : null,
-
-            ),
-
-        [isAuthenticated, permissions],
-
-    );
+        return stableNavItemsRef.current;
+    }, [isAuthenticated, isAuthLoading, permissions]);
 
     // Only one expanded submenu at a time.
 
@@ -134,14 +153,42 @@ export function Sidebar({
 
     const [openFlyout, setOpenFlyout] = useState<string | null>(null);
 
-    // Route changes close flyouts but never open a submenu automatically.
     useEffect(() => {
         setOpenFlyout(null);
-    }, [pathname]);
+
+        const activeParent = items.find((item) => {
+            if (!item.children?.length) {
+                return false;
+            }
+
+            return item.children.some((child) =>
+                isNavHrefActive(pathname, child.href),
+            );
+        });
+
+        if (activeParent) {
+            setOpenModule(activeParent.href);
+            return;
+        }
+
+        const onModuleLanding = items.find(
+            (item) =>
+                item.children?.length &&
+                isNavHrefActive(pathname, item.href),
+        );
+
+        if (onModuleLanding) {
+            setOpenModule(onModuleLanding.href);
+        }
+    }, [pathname, items]);
 
     useEffect(() => {
         setOpenFlyout(null);
     }, [collapsed]);
+
+    useEffect(() => {
+        onMobileClose?.();
+    }, [pathname, onMobileClose]);
 
     const toggleModule = (href: string) => {
 
@@ -169,17 +216,36 @@ export function Sidebar({
 
     };
 
+    const effectiveCollapsed = collapsed && !mobileOpen;
+
     return (
+
+        <>
+
+            {mobileOpen && onMobileClose ? (
+                <button
+                    type="button"
+                    aria-label="Close navigation menu"
+                    className="fixed inset-0 z-40 bg-slate-900/40 md:hidden"
+                    onClick={onMobileClose}
+                />
+            ) : null}
 
         <aside
 
             className={cn(
 
-                "hidden h-full shrink-0 border-r border-slate-200 bg-white md:flex md:flex-col",
+                "h-full shrink-0 border-r border-slate-200 bg-white flex flex-col",
 
                 "transition-[width] duration-200 ease-in-out",
 
-                collapsed ? "w-16" : "w-64",
+                mobileOpen
+                    ? "fixed inset-y-0 left-0 z-50 w-64 md:relative md:z-auto"
+                    : "hidden md:flex",
+
+                effectiveCollapsed ? "md:w-16" : "md:w-64",
+
+                mobileOpen ? "w-64" : "",
 
             )}
 
@@ -197,7 +263,7 @@ export function Sidebar({
 
                         "flex items-center",
 
-                        collapsed
+                        effectiveCollapsed && !mobileOpen
 
                             ? "justify-center px-2 py-2.5"
 
@@ -207,9 +273,9 @@ export function Sidebar({
 
                 >
 
-                    {!collapsed && (
+                    {(!effectiveCollapsed || mobileOpen) && (
 
-                        <h1 className="text-xl font-bold text-[#FE5720]">
+                        <h1 className="truncate text-xl font-bold text-[#FE5720]">
 
                             Fleet Pulse
 
@@ -223,13 +289,13 @@ export function Sidebar({
 
                         onClick={onToggleCollapsed}
 
-                        aria-expanded={!collapsed}
+                        aria-expanded={!effectiveCollapsed}
 
                         aria-controls="erp-sidebar-nav"
 
                         aria-label={
 
-                            collapsed
+                            effectiveCollapsed
 
                                 ? "Expand menu"
 
@@ -239,7 +305,7 @@ export function Sidebar({
 
                         title={
 
-                            collapsed
+                            effectiveCollapsed
 
                                 ? "Expand menu"
 
@@ -249,7 +315,7 @@ export function Sidebar({
 
                         className={cn(
 
-                            "flex items-center gap-2 rounded-lg px-2 py-2",
+                            "hidden items-center gap-2 rounded-lg px-2 py-2 md:flex",
 
                             "text-sm font-medium text-slate-600",
 
@@ -259,13 +325,13 @@ export function Sidebar({
 
                             "focus-visible:outline-offset-2 focus-visible:outline-[#FE5720]",
 
-                            collapsed && "justify-center",
+                            effectiveCollapsed && "justify-center",
 
                         )}
 
                     >
 
-                        {collapsed ? (
+                        {effectiveCollapsed ? (
 
                             <ChevronRight
 
@@ -301,15 +367,22 @@ export function Sidebar({
 
                 className={cn(
                     "flex-1 space-y-1 hide-scrollbar overflow-y-auto overflow-x-hidden",
-                    collapsed ? "px-1.5 py-3" : "p-3",
+                    effectiveCollapsed ? "px-1.5 py-3" : "p-3",
                 )}
 
                 aria-label="Main"
 
             >
 
-                {items.map((item) => (
+                {items.map((item) => {
 
+                    const isChildActive =
+                        !!item.children?.length &&
+                        item.children.some((child) =>
+                            isNavHrefActive(pathname, child.href),
+                        );
+
+                    return (
                     <SidebarItem
 
                         key={item.href}
@@ -318,9 +391,9 @@ export function Sidebar({
 
                         pathname={pathname}
 
-                        collapsed={collapsed}
+                        collapsed={effectiveCollapsed}
 
-                        open={openModule === item.href}
+                        open={openModule === item.href || isChildActive}
 
                         onToggle={() => toggleModule(item.href)}
 
@@ -335,8 +408,8 @@ export function Sidebar({
                         onCloseFlyout={closeFlyout}
 
                     />
-
-                ))}
+                    );
+                })}
 
             </nav>
 
@@ -344,9 +417,11 @@ export function Sidebar({
 
             {(isAuthenticated || isLoggingOut) && (
 
+                <div className="hidden md:block">
+
                 <SidebarAccountFooter
 
-                    collapsed={collapsed}
+                    collapsed={effectiveCollapsed}
 
                     displayName={
 
@@ -378,9 +453,13 @@ export function Sidebar({
 
                 />
 
+                </div>
+
             )}
 
         </aside>
+
+        </>
 
     );
 
@@ -756,7 +835,95 @@ function SidebarItem({
 
     const flyoutRef = useRef<HTMLDivElement>(null);
 
+    const flyoutPanelRef = useRef<HTMLDivElement>(null);
+
+    const [flyoutPosition, setFlyoutPosition] = useState<{
+
+        top: number;
+
+        left: number;
+
+    } | null>(null);
+
     const Icon = item.icon;
+
+    useLayoutEffect(() => {
+
+        if (!flyoutOpen || !flyoutRef.current) {
+
+            setFlyoutPosition(null);
+
+            return;
+
+        }
+
+        const FLYOUT_MIN_WIDTH = 192;
+
+        const VIEWPORT_PADDING = 8;
+
+        function updatePosition() {
+
+            const trigger = flyoutRef.current;
+
+            if (!trigger) {
+
+                return;
+
+            }
+
+            const rect = trigger.getBoundingClientRect();
+
+            let left = rect.right + 8;
+
+            if (
+
+                left + FLYOUT_MIN_WIDTH >
+
+                window.innerWidth - VIEWPORT_PADDING
+
+            ) {
+
+                left = Math.max(
+
+                    VIEWPORT_PADDING,
+
+                    rect.left - FLYOUT_MIN_WIDTH - 8,
+
+                );
+
+            }
+
+            let top = rect.top;
+
+            const maxTop = window.innerHeight - VIEWPORT_PADDING - 280;
+
+            top = Math.min(
+
+                Math.max(VIEWPORT_PADDING, top),
+
+                Math.max(VIEWPORT_PADDING, maxTop),
+
+            );
+
+            setFlyoutPosition({ top, left });
+
+        }
+
+        updatePosition();
+
+        window.addEventListener("resize", updatePosition);
+
+        window.addEventListener("scroll", updatePosition, true);
+
+        return () => {
+
+            window.removeEventListener("resize", updatePosition);
+
+            window.removeEventListener("scroll", updatePosition, true);
+
+        };
+
+    }, [flyoutOpen]);
 
     useEffect(() => {
 
@@ -764,17 +931,21 @@ function SidebarItem({
 
         function handlePointer(event: PointerEvent) {
 
+            const target = event.target as Node;
+
             if (
 
-                flyoutRef.current &&
+                flyoutRef.current?.contains(target) ||
 
-                !flyoutRef.current.contains(event.target as Node)
+                flyoutPanelRef.current?.contains(target)
 
             ) {
 
-                onCloseFlyout();
+                return;
 
             }
+
+            onCloseFlyout();
 
         }
 
@@ -794,16 +965,6 @@ function SidebarItem({
 
     }, [flyoutOpen, onCloseFlyout]);
 
-    useEffect(() => {
-
-        onCloseFlyout();
-
-        // Close any flyout when the route changes.
-
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-
-    }, [pathname, collapsed]);
-
     if (hasChildren) {
 
         if (collapsed) {
@@ -812,11 +973,21 @@ function SidebarItem({
 
                 <div className="relative" ref={flyoutRef}>
 
-                    {flyoutOpen && (
+                    {flyoutOpen && flyoutPosition ? (
 
                         <div
 
-                            className="absolute left-full top-0 z-50 ml-2 min-w-[12rem] rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-900/5"
+                            ref={flyoutPanelRef}
+
+                            className="fixed z-[60] max-h-[min(24rem,calc(100vh-1rem))] min-w-[12rem] overflow-y-auto rounded-lg border border-slate-200 bg-white py-1 shadow-lg ring-1 ring-slate-900/5"
+
+                            style={{
+
+                                top: flyoutPosition.top,
+
+                                left: flyoutPosition.left,
+
+                            }}
 
                             role="menu"
 
@@ -878,13 +1049,16 @@ function SidebarItem({
 
                         </div>
 
-                    )}
+                    ) : null}
 
                     <div className="flex h-11 w-full items-center">
-                        <Link
-                            href={internalHref(item.href)}
+                        <button
+                            type="button"
                             title={item.label}
                             aria-label={item.label}
+                            aria-expanded={flyoutOpen}
+                            aria-haspopup="menu"
+                            onClick={onToggleFlyout}
                             className={cn(
                                 "flex h-10 w-full min-w-0 items-center justify-center rounded-lg",
                                 "transition-colors",
@@ -895,7 +1069,7 @@ function SidebarItem({
                         >
                             <Icon className="h-5 w-5 shrink-0" aria-hidden />
                             <span className="sr-only">{item.label}</span>
-                        </Link>
+                        </button>
                     </div>
 
                 </div>

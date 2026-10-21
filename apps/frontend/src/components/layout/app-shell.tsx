@@ -1,8 +1,10 @@
+
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 
 import LayoutHeader from "@/components/layout/LayoutHeader";
+import ModuleSubHeader from "@/components/layout/ModuleSubHeader";
 import { Sidebar } from "@/components/layout/sidebar";
 
 import {
@@ -16,7 +18,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [preferenceReady, setPreferenceReady] = useState(false);
 
   useEffect(() => {
@@ -32,6 +34,22 @@ export function AppShell({
     writeSidebarCollapsedPreference(sidebarCollapsed);
   }, [sidebarCollapsed, preferenceReady]);
 
+  useEffect(() => {
+    if (!mobileNavOpen) {
+      return;
+    }
+
+    const previousOverflow =
+      document.documentElement.style.overflow;
+
+    document.documentElement.style.overflow = "hidden";
+
+    return () => {
+      document.documentElement.style.overflow =
+        previousOverflow;
+    };
+  }, [mobileNavOpen]);
+
   const toggleSidebarCollapsed = useCallback(() => {
     setSidebarCollapsed((value) => !value);
   }, []);
@@ -41,12 +59,25 @@ export function AppShell({
       <Sidebar
         collapsed={sidebarCollapsed}
         onToggleCollapsed={toggleSidebarCollapsed}
+        mobileOpen={mobileNavOpen}
+        onMobileClose={() => setMobileNavOpen(false)}
       />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <LayoutHeader />
+        {/* Main Header */}
+        <LayoutHeader onMenuClick={() => setMobileNavOpen(true)} />
 
-        <main className="min-h-0 flex-1 overflow-auto">
+        {/* Breadcrumb Sub-header (useSearchParams — Suspense boundary) */}
+        <Suspense
+          fallback={
+            <div className="flex min-h-12 min-w-0 items-center bg-[#f8f8f8] px-4 py-3 md:px-6" />
+          }
+        >
+          <ModuleSubHeader />
+        </Suspense>
+
+        {/* Page Content */}
+        <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-y-contain">
           {children}
         </main>
       </div>

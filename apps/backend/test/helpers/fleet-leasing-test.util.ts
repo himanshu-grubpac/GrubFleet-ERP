@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import type { App } from 'supertest/types';
+import { fleetClientStructuredAddressIn } from './fleet-client-address.fixture';
 
 export type DraftLeaseContractResponse = {
   id: string;
@@ -33,6 +34,7 @@ export async function createFleetClientForIntegrationTest(
     .send({
       organizationId,
       companyName: `${label} ${suffix}`,
+      ...fleetClientStructuredAddressIn(),
       pointsOfContact: [
         {
           name: `${label} POC`,

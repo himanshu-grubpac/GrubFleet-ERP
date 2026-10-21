@@ -6,6 +6,7 @@ import type { INestApplication } from '@nestjs/common';
 import { AppModule } from './app.module';
 import type { Env } from './config/env.schema';
 import { GlobalHttpExceptionFilter } from './common/filters/http-exception.filter';
+import { applyHttpSecurityHeaders } from './common/http/apply-http-security-headers';
 import { StructuredLoggerService } from './common/logger/structured-logger.service';
 
 /**
@@ -17,6 +18,7 @@ export async function createNestApplication(): Promise<INestApplication> {
   const config = app.get(ConfigService<Env, true>);
   const logger = app.get(StructuredLoggerService);
   app.useLogger(logger);
+  applyHttpSecurityHeaders(app);
 
   const apiPrefix = config.get('API_PREFIX', { infer: true });
   app.setGlobalPrefix(apiPrefix);

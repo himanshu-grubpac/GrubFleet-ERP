@@ -32,7 +32,7 @@ import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
 import {
   FINANCE_INVOICE_CANCEL_ERROR,
   FINANCE_INVOICE_REMOVE_ERROR,
-  showErrorToast,
+  showApiErrorToast,
   showFinanceInvoiceCancelledToast,
   showFinanceInvoiceRemovedToast,
 } from "@/lib/toast/show-toast";
@@ -70,7 +70,7 @@ export default function InvoiceDetailPage() {
       });
       void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
     },
-    onError: () => showErrorToast(FINANCE_INVOICE_CANCEL_ERROR),
+    onError: (error) => showApiErrorToast(error, FINANCE_INVOICE_CANCEL_ERROR),
   });
 
   const removeMutation = useMutation({
@@ -82,7 +82,7 @@ export default function InvoiceDetailPage() {
       void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
       router.push(financeInvoicesListHref);
     },
-    onError: () => showErrorToast(FINANCE_INVOICE_REMOVE_ERROR),
+    onError: (error) => showApiErrorToast(error, FINANCE_INVOICE_REMOVE_ERROR),
   });
 
   if (!invoiceId) {
@@ -128,7 +128,7 @@ export default function InvoiceDetailPage() {
 
   return (
     <OrganizationViewLayout>
-      <SubPageBackLink href={financeInvoicesListHref} label="Back to invoices" />
+
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">

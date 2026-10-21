@@ -13,6 +13,12 @@ import {
   toPaginatedResult,
   type PaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import {
+  USER_LIST_DEFAULT_SORT,
+  USER_LIST_SORT_FIELDS,
+} from './constants/users-list-sort.constants';
+import type { ListUsersQueryDto } from './dto/list-users-query.dto';
 import { AuditService } from '../audit/audit.service';
 import type { CreateUserDto } from './dto/create-user.dto';
 import type { UpdateUserDto } from './dto/update-user.dto';
@@ -40,14 +46,20 @@ export class UsersService {
   ) {}
 
   async listUsersInOrg(
-    organizationId: string,
-    page = DEFAULT_PAGE,
-    pageSize = DEFAULT_PAGE_SIZE,
+    query: ListUsersQueryDto,
   ): Promise<PaginatedResult<UserMemberDto>> {
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
+    const sort = resolveListSort(
+      USER_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      USER_LIST_DEFAULT_SORT,
+    );
     const { rows, total } = await this.usersRepository.listMembersInOrg(
-      organizationId,
+      query.organizationId,
       page,
       pageSize,
+      sort,
     );
     return toPaginatedResult(
       rows.map((r) => this.toDto(r)),

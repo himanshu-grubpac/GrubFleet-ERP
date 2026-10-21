@@ -190,7 +190,7 @@ export default function EmployeeViewPage() {
             {canUpdate && isActive ? (
               <Button
                 type="button"
-                variant="neutral"
+                variant="outline"
                 onClick={handleEdit}
                 className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
               >
@@ -202,18 +202,18 @@ export default function EmployeeViewPage() {
               isActive ? (
                 <Button
                   type="button"
-                  variant="neutral"
+                  variant="primary"
                   onClick={handleOpenDeactivate}
-                  className="h-9 border-red-500 bg-white px-5 text-red-600 hover:bg-red-50"
+                  className="h-9"
                 >
                   Deactivate
                 </Button>
               ) : (
                 <Button
                   type="button"
-                  variant="neutral"
+                  variant="primary"
                   onClick={handleActivate}
-                  className="h-9 border-[#FE5720] bg-white px-5 text-[#FE5720] hover:bg-orange-50"
+                  className="h-9"
                 >
                   Activate
                 </Button>
@@ -230,6 +230,13 @@ export default function EmployeeViewPage() {
             <InfoItem
               label="EMPLOYMENT TYPE"
               value={EMPLOYMENT_TYPE_LABELS[employee.employmentType]}
+            />
+          </div>
+
+          <div className="mt-3 grid grid-cols-4 gap-6 border-t border-gray-100 pt-3">
+            <InfoItem
+              label="WORKSHOP TECHNICIAN"
+              value={detail.isWorkshopTechnician ? "Yes" : "No"}
             />
           </div>
 
@@ -300,7 +307,7 @@ function InfoItem({
 }) {
   return (
     <div>
-      <p className="text-[10px] font-medium text-gray-400">{label}</p>
+      <p className="text-[12px] font-medium text-gray-400">{label}</p>
       <p className="mt-0.5 text-xs font-medium text-gray-800">{value}</p>
     </div>
   );

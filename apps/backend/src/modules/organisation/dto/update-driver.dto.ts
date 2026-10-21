@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  IsDateString,
   IsEmail,
   IsOptional,
   IsString,
@@ -9,7 +10,11 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { IsValidCprNo } from '../../../common/decorators/is-valid-cpr-no.decorator';
+import { IsValidDriverLicenseNumber } from '../../../common/decorators/is-valid-driver-license-number.decorator';
 import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
+import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
+import { IsValidPostalForCountry } from '../../../common/decorators/is-valid-postal-for-country.decorator';
 import { ORGANISATION_DRIVER_FIELD_LIMITS as L } from '../constants/driver-field.constants';
 
 export class UpdateDriverDto {
@@ -25,6 +30,7 @@ export class UpdateDriverDto {
   @IsString()
   @MinLength(1)
   @MaxLength(L.cprNo)
+  @IsValidCprNo()
   cprNo?: string;
 
   @ApiPropertyOptional()
@@ -32,6 +38,7 @@ export class UpdateDriverDto {
   @IsString()
   @MinLength(1)
   @MaxLength(L.phone)
+  @IsValidPhone()
   phone?: string;
 
   @ApiPropertyOptional()
@@ -45,16 +52,14 @@ export class UpdateDriverDto {
   @IsString()
   @MinLength(1)
   @MaxLength(L.licenseNumber)
+  @IsValidDriverLicenseNumber()
   licenseNumber?: string;
 
   @ApiPropertyOptional({
     description: 'ISO 8601 calendar date (YYYY-MM-DD)',
   })
   @IsOptional()
-  @IsString()
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
-    message: 'licenseExpiry must be an ISO date (YYYY-MM-DD)',
-  })
+  @IsDateString({ strict: true })
   licenseExpiry?: string;
 
   @ApiPropertyOptional()
@@ -110,5 +115,6 @@ export class UpdateDriverDto {
   @IsString()
   @MinLength(1)
   @MaxLength(L.addressPincode)
+  @IsValidPostalForCountry('addressCountry')
   addressPincode?: string;
 }

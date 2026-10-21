@@ -36,7 +36,6 @@ import {
 } from "@/lib/toast/show-toast";
 import {
     ORG_INPUT_LIMITS,
-    isValidOrgEmail,
 } from "@/lib/validation/org-input-constraints";
 import {
     DEFAULT_COUNTRY_CODE,
@@ -56,8 +55,11 @@ import LocationTypeSelector, {
 import {
     validateOrganizationAddress,
     hasValidationErrors,
-    type OrganizationValidationErrors,
-} from "@/components/common/OrganizationValidation";
+    validateRequired,
+    validatePhone,
+    validateEmail,
+    type ValidationErrors,
+}from "@/components/common/Commonvalidation";
 
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import Button from "@/components/ui/GrubpacButton";
@@ -265,7 +267,7 @@ export default function AddLocationForm({
         }
         if (!detail.isActive || detail.status === "inactive") {
             router.replace(
-              organisationLocationDetailHref(locationId),
+                organisationLocationDetailHref(locationId),
             );
         }
     }, [
@@ -396,9 +398,11 @@ export default function AddLocationForm({
         validationErrors,
         setValidationErrors,
     ] =
-        useState<OrganizationValidationErrors>(
+        useState<ValidationErrors>(
             {}
         );
+
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
 
     /* ---------------------------------------------------------------------- */
     /* Populate Edit Data                                                     */
@@ -514,6 +518,7 @@ export default function AddLocationForm({
                 dateOfJoining: "",
                 phone: form.responsiblePerson.phone,
                 email: form.responsiblePerson.email,
+                isWorkshopTechnician: false,
                 status: "active" as const,
             });
         }
@@ -541,6 +546,7 @@ export default function AddLocationForm({
                 dateOfJoining: "",
                 phone: form.deputy.phone,
                 email: form.deputy.email,
+                isWorkshopTechnician: false,
                 status: "active" as const,
             });
         }
@@ -596,17 +602,9 @@ export default function AddLocationForm({
         ) {
             return false;
         }
-        if (!form.name.trim() || !matchedLocationType) {
-            return false;
-        }
-        if (
-            form.name.trim().length > ORG_INPUT_LIMITS.locationName ||
-            !isValidOrgEmail(form.contactInformation.email)
-        ) {
-            return false;
-        }
-        const addressErrors = validateOrganizationAddress(form.address);
-        return !hasValidationErrors(addressErrors);
+        // Keep field validation in handleSave so users can see inline errors.
+        // This memo only guards permissions, loading state, and edit availability.
+        return true;
     }, [
         canSave,
         isSaving,
@@ -769,30 +767,40 @@ export default function AddLocationForm({
     /* ---------------------------------------------------------------------- */
 
     const handleSave = async () => {
+        setHasAttemptedSubmit(true);
         setError("");
 
         setValidationErrors({});
 
-        const errors: OrganizationValidationErrors =
-            {};
+        const errors: ValidationErrors = {};
 
         /* ------------------------------------------------------------------ */
-        /* Location Name                                                      */
+        /* Location Name and Type                                             */
         /* ------------------------------------------------------------------ */
 
-        if (!form.name.trim()) {
-            errors.name =
-                "Location name is required.";
-        }
+        const nameError = validateRequired(form.name, "Location name");
+        if (nameError) errors.name = nameError;
+
+        const typeError = validateRequired(form.type, "Location type");
+        if (typeError) errors.type = "Please select a location type.";
 
         /* ------------------------------------------------------------------ */
-        /* Location Type                                                      */
+        /* Optional Contact Information                                       */
         /* ------------------------------------------------------------------ */
 
-        if (!form.type.trim()) {
-            errors.type =
-                "Please select a location type.";
-        }
+        const phoneError = validatePhone(
+            form.contactInformation.phone,
+            "Phone number",
+            { required: false },
+        );
+        if (phoneError) errors["contactInformation.phone"] = phoneError;
+
+        const emailError = validateEmail(
+            form.contactInformation.email,
+            "Email",
+            { required: false },
+        );
+        if (emailError) errors["contactInformation.email"] = emailError;
 
         /* ------------------------------------------------------------------ */
         /* Address                                                            */
@@ -1014,6 +1022,10 @@ export default function AddLocationForm({
             ],
     };
 
+    const validationSummary = Object.values(validationErrors).filter(
+        (message): message is string => Boolean(message),
+    );
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                      */
     /* ---------------------------------------------------------------------- */
@@ -1030,40 +1042,45 @@ export default function AddLocationForm({
                     ? "Update the location details, address, contacts, and responsible people."
                     : "Register an office, workshop, warehouse, retail outlet, or other organization location."
             }
+            
             infoText="Locations aren't just for warehousing — Offices, Workshops, Retail Outlets and more all live in this same register, and are what Asset Management and Inventory select from when marking a vehicle's or part's location."
-            actions={
-                <>
-                    {/* Cancel */}
 
-                    <button
-                        type="button"
-                        onClick={
-                            onCancel
-                        }
-                        className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
-                    >
-                        Cancel
-                    </button>
+             actions={
+                <div className="flex w-full flex-col gap-4">
+                    {hasAttemptedSubmit && validationSummary.length > 0 && (
+                        <div
+                            role="status"
+                            aria-live="polite"
+                            className="w-full text-xs leading-5 text-red-600"
+                        >
+                            <span className="font-semibold">Please fix:</span>{" "}
+                            {validationSummary.join(" | ")}
+                        </div>
+                    )}
 
-                    {/* Save */}
+                    <div className="flex items-center justify-end gap-3">
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            className="h-10 rounded-md border border-gray-300 bg-white px-5 text-sm font-semibold text-gray-700 hover:bg-gray-50"
+                        >
+                            Cancel
+                        </button>
 
-                    <Button
-                        type="button"
-                        onClick={
-                            handleSave
-                        }
-                        disabled={
-                            !canSubmit
-                        }
-                        className="h-10 px-5"
-                    >
-                        {isSaving
-                            ? "Saving..."
-                            : isEditMode
-                                ? "Save changes"
-                                : "Save location"}
-                    </Button>
-                </>
+                        <Button
+                            type="button"
+                            onClick={handleSave}
+                            disabled={!canSubmit}
+                            className="h-10 px-5"
+                        >
+                            {isSaving
+                                ? "Saving..."
+                                : isEditMode
+                                  ? "Save changes"
+                                  : "Save location"}
+                        </Button>
+                    </div>
+                </div>
             }
         >
             {/* ============================================================ */}
@@ -1271,10 +1288,25 @@ export default function AddLocationForm({
                                         phone,
                                     },
                                 }));
+                                setValidationErrors((previous) => {
+                                    const next = { ...previous };
+                                    delete next["contactInformation.phone"];
+                                    return next;
+                                });
                             }}
                             placeholder={sitePhonePlaceholder}
-                            className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                            className={[
+                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400 focus:ring-1",
+                                validationErrors["contactInformation.phone"]
+                                    ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
+                                    : "border-gray-300 focus:border-[#FE5720] focus:ring-[#FE5720]/20",
+                            ].join(" ")}
                         />
+                        {validationErrors["contactInformation.phone"] && (
+                            <p className="mt-1 text-xs text-red-500">
+                                {validationErrors["contactInformation.phone"]}
+                            </p>
+                        )}
                     </div>
 
                     {/* Email */}
@@ -1296,10 +1328,25 @@ export default function AddLocationForm({
                                         email,
                                     },
                                 }));
+                                setValidationErrors((previous) => {
+                                    const next = { ...previous };
+                                    delete next["contactInformation.email"];
+                                    return next;
+                                });
                             }}
                             placeholder="name@company.com"
-                            className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                            className={[
+                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400 focus:ring-1",
+                                validationErrors["contactInformation.email"]
+                                    ? "border-red-400 focus:border-red-500 focus:ring-red-500/20"
+                                    : "border-gray-300 focus:border-[#FE5720] focus:ring-[#FE5720]/20",
+                            ].join(" ")}
                         />
+                        {validationErrors["contactInformation.email"] && (
+                            <p className="mt-1 text-xs text-red-500">
+                                {validationErrors["contactInformation.email"]}
+                            </p>
+                        )}
                     </div>
                 </div>
             </div>

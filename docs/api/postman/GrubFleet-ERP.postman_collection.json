@@ -33,6 +33,54 @@
       ]
     },
     {
+      "name": "Portal",
+      "description": "Portal-wide utilities (header global search). Requires Bearer accessToken and organizationId.",
+      "item": [
+        {
+          "name": "Global search",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/portal/search?organizationId={{organizationId}}&q={{searchQuery}}&limitPerType=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "portal",
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "organizationId",
+                  "value": "{{organizationId}}"
+                },
+                {
+                  "key": "q",
+                  "value": "{{searchQuery}}"
+                },
+                {
+                  "key": "limitPerType",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "GET /portal/search — RBAC-filtered global search; modules included match caller `{module}.view` keys."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Auth",
       "description": "JWT access + rotating refresh tokens. Run Login first; set collection variables accessToken, refreshToken, organizationId from responses.",
       "item": [
@@ -40,7 +88,12 @@
           "name": "Login",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"admin@grubpac.local\",\n  \"password\": \"ChangeMeDev123!\"\n}"
@@ -54,7 +107,12 @@
           "name": "Refresh",
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
@@ -69,7 +127,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/auth/me",
             "description": "GET /auth/me — user, memberships (permissionKeys, moduleAccess, permissionRevision per org), union permissionKeys/moduleAccess. Refetch after RBAC changes; revision bumps when roles/assignments change."
@@ -81,8 +142,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -90,6 +157,67 @@
             },
             "url": "{{baseUrl}}/auth/logout",
             "description": "POST /auth/logout — revoke refresh session(s); Bearer access token required."
+          },
+          "response": []
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"Grubpac123\",\n  \"newPassword\": \"Grubpac456!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/change-password",
+            "description": "POST /auth/change-password — Bearer required; revokes all refresh tokens on success."
+          },
+          "response": []
+        },
+        {
+          "name": "Forgot password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@grubpac.local\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/forgot-password",
+            "description": "POST /auth/forgot-password — always generic message; stores hashed reset token; email via PASSWORD_RESET_EMAIL_MODE."
+          },
+          "response": []
+        },
+        {
+          "name": "Reset password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"token\": \"{{passwordResetToken}}\",\n  \"newPassword\": \"Grubpac789!\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/reset-password",
+            "description": "POST /auth/reset-password — single-use token from email or test hook."
           },
           "response": []
         }
@@ -104,7 +232,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/organizations?page=1&pageSize=20",
             "description": "GET /organizations — paginated orgs for caller."
@@ -116,7 +247,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/organizations/{{organizationId}}",
             "description": "GET /organizations/:id — member or system admin."
@@ -128,7 +262,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/users?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /users — requires administration.view."
@@ -140,9 +277,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -158,9 +304,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -176,7 +331,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/roles?organizationId={{organizationId}}&page=1",
             "description": "GET /roles — requires administration.view. List is filtered by role hierarchy unless actor has administration.manage (parent sees descendant roles)."
@@ -188,9 +346,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -206,9 +373,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -224,8 +400,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/roles/{{roleId}}?organizationId={{organizationId}}",
             "description": "GET /roles/:id — administration.view; org-scoped. Returns 404 ROLE_NOT_FOUND when id is missing or role is outside actor hierarchy visibility (IDOR-safe)."
@@ -237,9 +419,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -255,8 +446,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/roles/{{roleId}}?organizationId={{organizationId}}",
             "description": "DELETE /roles/:id — administration.delete or administration.manage. 409 ROLE_IS_SYSTEM (system roles); 409 ROLE_HAS_CHILDREN when child roles exist in hierarchy."
@@ -268,9 +465,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -286,9 +492,18 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "X-Organization-Id", "value": "{{organizationId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "X-Organization-Id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -304,7 +519,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/roles/editor-matrix?organizationId={{organizationId}}",
             "description": "GET /roles/editor-matrix — NONE/VIEW/MANAGE/FULL rows per sidebar module."
@@ -316,7 +534,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/modules?organizationId={{organizationId}}",
             "description": "GET /modules — sidebar module registry for role editor."
@@ -328,7 +549,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/permissions?organizationId={{organizationId}}&page=1",
             "description": "GET /permissions — requires administration.view."
@@ -340,7 +564,10 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              }
             ],
             "url": "{{baseUrl}}/audit?organizationId={{organizationId}}&page=1",
             "description": "GET /audit — requires administration.view."
@@ -358,8 +585,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/catalog/intake-checklist-items",
             "description": "GET /asset-register/catalog/intake-checklist-items — seed labels for asset class create form."
@@ -371,11 +604,17 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/asset-classes?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /asset-register/asset-classes — paginated list; optional search, status."
+            "description": "GET /asset-register/asset-classes — paginated list; each item includes id (UUID, stable assetClassId), name, specLabel, vehicleType, fuelType, inFleetCount, availableCount, status. Optional search, status."
           },
           "response": []
         },
@@ -384,9 +623,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -402,8 +650,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/asset-classes/{{assetClassId}}?organizationId={{organizationId}}",
             "description": "GET /asset-register/asset-classes/{id}"
@@ -415,9 +669,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -433,9 +696,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -451,8 +723,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/vehicles?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /asset-register/vehicles — filter assetClassId, operationalStatus, lifecycle status, search."
@@ -464,16 +742,25 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": 15000,\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"assetClassId\": \"{{assetClassId}}\",\n  \"registrationNumber\": \"MH12AB1234\",\n  \"chassisNumber\": \"CHASSIS001\",\n  \"modelYear\": 2024,\n  \"odometer\": 1200,\n  \"registrationStartDate\": \"2024-01-01\",\n  \"registrationEndDate\": \"2029-01-01\",\n  \"insuranceStartDate\": \"2024-01-01\",\n  \"insuranceEndDate\": \"2025-01-01\",\n  \"insurancePremium\": \"15000.00\",\n  \"warrantyStartDate\": \"2024-01-01\",\n  \"warrantyEndDate\": \"2027-01-01\",\n  \"specialNotes\": \"Optional notes\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/vehicles",
-            "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; active asset class only (class-only register; asset master layer retired)."
+            "description": "POST /asset-register/vehicles — fleetCode VH-1001+ per org; registrationNumber unique per org (trim + case-insensitive). 409 when duplicate. Active asset class only (class-only register; asset master layer retired)."
           },
           "response": []
         },
@@ -482,8 +769,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/vehicles/{{assetRegisterVehicleId}}?organizationId={{organizationId}}",
             "description": "GET /asset-register/vehicles/{id} — class and master names joined."
@@ -495,9 +788,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -513,9 +815,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -531,9 +842,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -549,8 +869,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/vehicle-assignments/{{assetRegisterVehicleId}}/unassign?organizationId={{organizationId}}",
             "description": "PATCH /asset-register/vehicle-assignments/{vehicleId}/unassign"
@@ -562,8 +888,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/compliance?organizationId={{organizationId}}&page=1&pageSize=20&complianceStatus=all",
             "description": "GET /asset-register/compliance — expired | expiring_soon | valid from vehicle date fields."
@@ -575,8 +907,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/asset-register/compliance/{{assetRegisterVehicleId}}?organizationId={{organizationId}}",
             "description": "GET /asset-register/compliance/{vehicleId}"
@@ -588,13 +926,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"type\": \"insurance\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"insurancePremium\": 12000\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"type\": \"insurance\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"insurancePremium\": \"12000.00\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/compliance/{{assetRegisterVehicleId}}/renew",
             "description": "POST /asset-register/compliance/{vehicleId}/renew — type insurance | registration | warranty"
@@ -608,12 +955,45 @@
       "description": "Lease contract wizard and lifecycle. Set leaseContractId from Create draft response.",
       "item": [
         {
+          "name": "Create fleet leasing client",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"companyName\": \"Meridian Fleet Client\",\n  \"taxId\": \"29ABCDE1234F1Z5\",\n  \"addressLine1\": \"12 Industrial Estate\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai\",\n  \"addressPincode\": \"400001\",\n  \"pointsOfContact\": [\n    {\n      \"name\": \"Aditi Rao\",\n      \"contactNumber\": \"+919876543201\",\n      \"email\": \"aditi@meridian.example\",\n      \"isPrimary\": true\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/clients",
+            "description": "POST /fleet-leasing/clients — structured address required; optional GSTIN taxId; POC phone validated E.164."
+          },
+          "response": []
+        },
+        {
           "name": "List fleet asset classes",
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/asset-classes?organizationId={{organizationId}}",
             "description": "GET /fleet-leasing/asset-classes — distinct asset classes from fleet vehicle master (wizard dropdown)."
@@ -625,9 +1005,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -643,16 +1032,25 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"clientId\": \"{{fleetClientId}}\",\n  \"startDate\": \"2026-04-01\",\n  \"termMonths\": 12,\n  \"securityDeposit\": \"50000.00\",\n  \"billingFrequency\": \"monthly\"\n}"
             },
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts?organizationId={{organizationId}}",
-            "description": "POST /fleet-leasing/lease-contracts — wizard entry (draft)."
+            "description": "POST /fleet-leasing/lease-contracts — explicit Save draft / batch create. Optional clientId, terms, assetLines, confirmShortfall. 400 INVALID_CLIENT; 409 ASSET_SHORTFALL without confirmShortfall."
           },
           "response": []
         },
@@ -661,8 +1059,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/review?organizationId={{organizationId}}",
             "description": "GET .../review — client, lines, terms, pricingEvaluation, reviewAction, messages, canSubmit."
@@ -674,8 +1078,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/terms/evaluation?organizationId={{organizationId}}",
             "description": "GET .../terms/evaluation — pricing engine preview."
@@ -687,9 +1097,18 @@
           "request": {
             "method": "PUT",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -705,8 +1124,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/submit?organizationId={{organizationId}}",
             "description": "POST .../submit — legacy pending-approval path; MVP wizard uses POST .../confirm (Submit contract) instead."
@@ -718,8 +1143,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirm?organizationId={{organizationId}}",
             "description": "POST .../confirm — Submit contract (MVP); activates or awaiting_assets without pending approval. Response includes confirmation summary."
@@ -731,8 +1162,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/change-history?organizationId={{organizationId}}",
             "description": "GET .../change-history — field-level FROM/TO rows from lease_contract_edit_logs."
@@ -744,8 +1181,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/confirmation?organizationId={{organizationId}}",
             "description": "GET .../confirmation — allocationByLine, infoMessages; active, awaiting_assets, or approved."
@@ -757,8 +1200,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}?organizationId={{organizationId}}",
             "description": "GET .../{id} — subtitle, statusTags, statusBanner, lifecycleLogs, availableActions, returnProgress, terminatedAt."
@@ -770,9 +1219,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -784,13 +1242,60 @@
           "response": []
         },
         {
+          "name": "Approve lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/approve?organizationId={{organizationId}}",
+            "description": "POST .../approve — pending approval → active or awaiting_assets; requires fleet leasing approve permission."
+          },
+          "response": []
+        },
+        {
+          "name": "Activate lease contract",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/activate?organizationId={{organizationId}}",
+            "description": "POST .../activate — direct activation path for eligible contract states."
+          },
+          "response": []
+        },
+        {
           "name": "Deactivate lease contract",
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -806,8 +1311,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/reactivate?organizationId={{organizationId}}",
             "description": "POST .../reactivate — direct to active/awaiting_assets; no approval."
@@ -819,8 +1330,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/support/on-lease-vehicle-lookup?organizationId={{organizationId}}&q=MH-REG-001",
             "description": "GET /fleet-leasing/support/on-lease-vehicle-lookup — fleet register registration, VIN/chassis, or fleet code on an eligible active lease."
@@ -832,8 +1349,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/support/replacement-candidates?organizationId={{organizationId}}&page=1&pageSize=50",
             "description": "GET /fleet-leasing/support/replacement-candidates — available compliant vehicles (optional vehicleType, brand, modelName, assetClass, excludeVehicleIds)."
@@ -845,8 +1368,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/support/available-replacement-lookup?organizationId={{organizationId}}&q=MH-REG-001",
             "description": "GET /fleet-leasing/support/available-replacement-lookup — registration, VIN/chassis, or fleet code for an available replacement (not on another active contract)."
@@ -858,8 +1387,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/support/replacement-filter-options?organizationId={{organizationId}}&vehicleType=4W",
             "description": "GET /fleet-leasing/support/replacement-filter-options — distinct brands for vehicleType, or models when brand is also set."
@@ -871,9 +1406,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -889,8 +1433,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/renewals-extensions?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /fleet-leasing/renewals-extensions — paginated active contracts only (LEASE-16)."
@@ -902,9 +1452,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -920,8 +1479,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/pause-billing?organizationId={{organizationId}}",
             "description": "POST .../pause-billing — requires returnProgress.canPauseBilling."
@@ -933,8 +1498,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/terminate?organizationId={{organizationId}}",
             "description": "POST .../terminate — from deactivated, billing_paused, or legacy pending_termination; closes contract in one step."
@@ -946,8 +1517,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/vehicle-allocations?organizationId={{organizationId}}&page=1",
             "description": "GET /fleet-leasing/vehicle-allocations — org allocation hub."
@@ -959,9 +1536,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -977,8 +1563,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/fleet-leasing/returns?organizationId={{organizationId}}&page=1",
             "description": "GET /fleet-leasing/returns — Flow 06 hub."
@@ -996,8 +1588,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/location-types?organizationId={{organizationId}}",
             "description": "GET /organisation/location-types — seeds system presets per org on first call."
@@ -1009,9 +1607,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1027,8 +1634,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/location-types/{{locationTypeId}}?organizationId={{organizationId}}",
             "description": "DELETE /organisation/location-types/{id} — custom types only; returns 409 when type is in use."
@@ -1040,8 +1653,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/locations?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /organisation/locations — paginated list with optional search, locationTypeId, status. Default sort: createdAt desc (newest first), then id desc."
@@ -1053,9 +1672,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1071,8 +1699,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/locations/{{locationId}}?organizationId={{organizationId}}",
             "description": "GET /organisation/locations/{id}"
@@ -1084,9 +1718,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1102,9 +1745,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1120,8 +1772,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/suppliers?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /organisation/suppliers — paginated list with optional search, supplierType, status."
@@ -1133,8 +1791,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/suppliers/types?organizationId={{organizationId}}",
             "description": "GET /organisation/suppliers/types — fixed supplier type catalog (key + label)."
@@ -1146,9 +1810,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1164,8 +1837,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/suppliers/{{supplierId}}?organizationId={{organizationId}}",
             "description": "GET /organisation/suppliers/{id} — detail with linkedSections. Driver-type suppliers return linked drivers (page 1, max 50). Other linked rows empty until inventory/asset/compliance modules ship."
@@ -1177,9 +1856,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1195,9 +1883,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1213,8 +1910,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/clients?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /organisation/clients — paginated list with optional search and status."
@@ -1226,9 +1929,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1244,8 +1956,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/clients/{{clientId}}?organizationId={{organizationId}}",
             "description": "GET /organisation/clients/{id} — detail with pointsOfContact; contractHistory empty until fleet link."
@@ -1257,9 +1975,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1275,9 +2002,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1293,8 +2029,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/drivers?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /organisation/drivers — paginated list with optional search and status (active, inactive, license-expired)."
@@ -1306,9 +2048,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1324,8 +2075,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/drivers/{{driverId}}?organizationId={{organizationId}}",
             "description": "GET /organisation/drivers/{id}"
@@ -1337,9 +2094,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1355,9 +2121,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1373,9 +2148,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1391,8 +2175,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/drivers/{{driverId}}/unassign?organizationId={{organizationId}}",
             "description": "POST /organisation/drivers/{id}/unassign — clears assignment; inactive when tied to contract."
@@ -1404,8 +2194,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/drivers/assignable-vehicles?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /organisation/drivers/assignable-vehicles — active lease contract vehicles without a linked driver."
@@ -1417,8 +2213,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/employees?organizationId={{organizationId}}&page=1&pageSize=50&status=active",
             "description": "GET /organisation/employees — paginated list for employee register and location assignment dropdowns. Default sort: createdAt desc (newest first), then id desc."
@@ -1430,8 +2232,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/employees/departments?organizationId={{organizationId}}",
             "description": "GET /organisation/employees/departments — distinct department names for employee filters."
@@ -1443,9 +2251,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1461,8 +2278,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/organisation/employees/{{employeeId}}?organizationId={{organizationId}}",
             "description": "GET /organisation/employees/{id}"
@@ -1474,9 +2297,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1492,9 +2324,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1516,8 +2357,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/invoices?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /finance/invoices — paginated list with optional search, status, invoiceType."
@@ -1529,8 +2376,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/invoices/payment-methods/catalog?organizationId={{organizationId}}",
             "description": "GET /finance/invoices/payment-methods/catalog — sale/billing record payment picker."
@@ -1542,8 +2395,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/invoices/asset-classes/catalog?organizationId={{organizationId}}&page=1&pageSize=50&status=active",
             "description": "GET /finance/invoices/asset-classes/catalog — vehicle purchase invoice asset class picker (finance.view)."
@@ -1555,9 +2414,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1573,9 +2441,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1591,9 +2468,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1609,9 +2495,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1627,9 +2522,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1645,8 +2549,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}?organizationId={{organizationId}}",
             "description": "DELETE /finance/invoices/{id} — hard delete unpaid purchase invoice only."
@@ -1658,8 +2568,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/invoices/{{financeInvoiceId}}?organizationId={{organizationId}}",
             "description": "GET /finance/invoices/{id} — payment summary and availableActions."
@@ -1671,9 +2587,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1689,9 +2614,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1707,8 +2641,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/inventory-parts?organizationId={{organizationId}}&page=1&pageSize=50",
             "description": "GET /finance/inventory-parts — interim catalog for spare-parts purchase invoices."
@@ -1720,9 +2660,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1738,8 +2687,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/vendor-payments?organizationId={{organizationId}}&page=1&pageSize=10",
             "description": "GET /finance/vendor-payments — payments against purchase invoices."
@@ -1751,8 +2706,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/vendor-payments/purchase-invoices/catalog?organizationId={{organizationId}}&page=1&pageSize=50",
             "description": "GET /finance/vendor-payments/purchase-invoices/catalog — unpaid/partial purchase invoices with balance."
@@ -1764,9 +2725,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1782,8 +2752,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/vendor-payments/{{financeVendorPaymentId}}?organizationId={{organizationId}}",
             "description": "GET /finance/vendor-payments/{id}"
@@ -1795,8 +2771,14 @@
           "request": {
             "method": "DELETE",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/vendor-payments/{{financeVendorPaymentId}}?organizationId={{organizationId}}",
             "description": "DELETE /finance/vendor-payments/{id} — latest payment on invoice only (LIFO)."
@@ -1808,8 +2790,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/client-statements?organizationId={{organizationId}}&periodStart=2026-07-01&periodEnd=2026-09-30&page=1&pageSize=10",
             "description": "GET /finance/client-statements — billing-only aggregates per org client for a period."
@@ -1821,8 +2809,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/finance/client-statements/{{organisationClientId}}?organizationId={{organisationId}}&periodStart=2026-07-01&periodEnd=2026-09-30",
             "description": "GET /finance/client-statements/{clientId} — summary + billing invoice rows."
@@ -1834,9 +2828,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" },
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1858,8 +2861,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/stock-register?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /inventory/stock-register — spare parts catalog."
@@ -1871,9 +2880,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1889,8 +2907,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/stock-register/{{inventorySparePartId}}?organizationId={{organizationId}}",
             "description": "GET /inventory/stock-register/{id}"
@@ -1902,9 +2926,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1920,9 +2953,18 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1938,8 +2980,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/stock-receipts?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /inventory/stock-receipts"
@@ -1951,9 +2999,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1969,8 +3026,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/stock-receipts/{{inventoryStockReceiptId}}?organizationId={{organizationId}}",
             "description": "GET /inventory/stock-receipts/{id}"
@@ -1982,8 +3045,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/stock-balance?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /inventory/stock-balance"
@@ -1995,8 +3064,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/stock-balance/{{inventorySparePartId}}?organizationId={{organizationId}}",
             "description": "GET /inventory/stock-balance/{id} — part id."
@@ -2008,8 +3083,14 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/parts-requests?organizationId={{organizationId}}&page=1&pageSize=20",
             "description": "GET /inventory/parts-requests — read-only."
@@ -2021,11 +3102,689 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
-              { "key": "x-organization-id", "value": "{{organizationId}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
             ],
             "url": "{{baseUrl}}/inventory/parts-requests/{{inventoryPartsRequestId}}?organizationId={{organizationId}}",
             "description": "GET /inventory/parts-requests/{id}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Workshop",
+      "description": "Labor job card templates and work orders (AMC phased).",
+      "item": [
+        {
+          "name": "List labor job cards",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/labor-job-cards?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/labor-job-cards — saved templates."
+          },
+          "response": []
+        },
+        {
+          "name": "Create labor job card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"General service\",\n  \"description\": \"Oil + filter\",\n  \"laborChargeMinor\": 25000,\n  \"parts\": [\n    { \"partId\": \"{{inventorySparePartId}}\", \"quantity\": 1 }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/workshop/labor-job-cards",
+            "description": "POST /workshop/labor-job-cards"
+          },
+          "response": []
+        },
+        {
+          "name": "Get labor job card",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/labor-job-cards/{{workshopLaborJobCardId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/labor-job-cards/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update labor job card",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"General service (updated)\",\n  \"laborChargeMinor\": 30000\n}"
+            },
+            "url": "{{baseUrl}}/workshop/labor-job-cards/{{workshopLaborJobCardId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/labor-job-cards/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "List work orders",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/workshop/work-orders?organizationId={{organizationId}}&page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "workshop",
+                "work-orders"
+              ],
+              "query": [
+                {
+                  "key": "organizationId",
+                  "value": "{{organizationId}}"
+                },
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                },
+                {
+                  "key": "sortBy",
+                  "value": "",
+                  "description": "Optional list sort field (see OpenAPI enum)"
+                },
+                {
+                  "key": "sortOrder",
+                  "value": "",
+                  "description": "asc or desc when sortBy is set"
+                }
+              ]
+            },
+            "description": "GET /workshop/work-orders — paginated list."
+          },
+          "response": []
+        },
+        {
+          "name": "Create work order",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"vehicleId\": \"{{assetRegisterVehicleId}}\",\n  \"laborJobCardId\": \"{{workshopLaborJobCardId}}\",\n  \"expectedCompletionDate\": \"2026-12-15\",\n  \"issueDescription\": \"Routine service\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders",
+            "description": "POST /workshop/work-orders — fleet + optional template."
+          },
+          "response": []
+        },
+        {
+          "name": "Get work order",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/work-orders/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"issueDescription\": \"Updated from Postman\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Start work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"start\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}/status — start"
+          },
+          "response": []
+        },
+        {
+          "name": "Close work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"close\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}/status — close"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel work order",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"cancel\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/work-orders/{{workshopWorkOrderId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/work-orders/{id}/status — cancel"
+          },
+          "response": []
+        },
+        {
+          "name": "List technicians",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/technicians?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/technicians"
+          },
+          "response": []
+        },
+        {
+          "name": "List AMC tiers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/tiers?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/amc/tiers"
+          },
+          "response": []
+        },
+        {
+          "name": "Create AMC tier",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Gold AMC\",\n  \"description\": \"Annual coverage\",\n  \"pricePaise\": 2500000\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/tiers",
+            "description": "POST /workshop/amc/tiers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get AMC tier",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/tiers/{{workshopAmcTierId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/amc/tiers/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Update AMC tier",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Updated tier copy\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/tiers/{{workshopAmcTierId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/tiers/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate AMC tier",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired plan\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/tiers/{{workshopAmcTierId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/tiers/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "List maintenance schedules",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/schedules?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/amc/schedules"
+          },
+          "response": []
+        },
+        {
+          "name": "Create maintenance schedule",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"4k service\",\n  \"assetClassLabel\": \"Sample class\",\n  \"intervalLabel\": \"4000 km\",\n  \"maintenanceType\": \"Preventive Maintenance\",\n  \"intervalType\": \"Odometer\",\n  \"vehicleApplicability\": \"Leased\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/schedules",
+            "description": "POST /workshop/amc/schedules"
+          },
+          "response": []
+        },
+        {
+          "name": "Get maintenance schedule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/amc/schedules/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "List maintenance schedule vehicles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}/vehicles?organizationId={{organizationId}}&page=1&pageSize=50",
+            "description": "GET /workshop/amc/schedules/{id}/vehicles — asset class match + threshold; auto-creates PM work orders when threshold reached."
+          },
+          "response": []
+        },
+        {
+          "name": "Update maintenance schedule",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"intervalLabel\": \"5000 km\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/schedules/{id}"
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate maintenance schedule",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired schedule\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/schedules/{{workshopAmcScheduleId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/amc/schedules/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "Deactivate labor job card",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"deactivate\",\n  \"reason\": \"Retired template\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/labor-job-cards/{{workshopLaborJobCardId}}/status?organizationId={{organizationId}}",
+            "description": "PATCH /workshop/labor-job-cards/{id}/status"
+          },
+          "response": []
+        },
+        {
+          "name": "List AMC subscribers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/subscribers?organizationId={{organizationId}}&page=1&pageSize=20",
+            "description": "GET /workshop/amc/subscribers"
+          },
+          "response": []
+        },
+        {
+          "name": "Create AMC subscriber",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"amcTierId\": \"{{workshopAmcTierId}}\",\n  \"vehicleId\": \"{{assetRegisterVehicleId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/workshop/amc/subscribers",
+            "description": "POST /workshop/amc/subscribers"
+          },
+          "response": []
+        },
+        {
+          "name": "Get AMC subscriber by code",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/workshop/amc/subscribers/by-code/{{workshopAmcSubscriberCode}}?organizationId={{organizationId}}",
+            "description": "GET /workshop/amc/subscribers/by-code/{subscriberCode}"
           },
           "response": []
         }
@@ -2111,6 +3870,30 @@
     },
     {
       "key": "inventoryPartsRequestId",
+      "value": ""
+    },
+    {
+      "key": "workshopLaborJobCardId",
+      "value": ""
+    },
+    {
+      "key": "workshopWorkOrderId",
+      "value": ""
+    },
+    {
+      "key": "workshopAmcTierId",
+      "value": ""
+    },
+    {
+      "key": "workshopAmcScheduleId",
+      "value": ""
+    },
+    {
+      "key": "workshopAmcSubscriberCode",
+      "value": ""
+    },
+    {
+      "key": "assetRegisterVehicleId",
       "value": ""
     }
   ]

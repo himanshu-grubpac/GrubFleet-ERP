@@ -8,6 +8,12 @@ import {
   DEFAULT_PAGE_SIZE,
   toPaginatedResult,
 } from '../../common/dto/pagination-query.dto';
+import { resolveListSort } from '../../common/utils/list-sort.util';
+import type { ClientListSortField } from '../organisation/constants/organisation-list-sort.constants';
+import {
+  CLIENT_STATEMENT_LIST_DEFAULT_SORT,
+  CLIENT_STATEMENT_LIST_SORT_FIELDS,
+} from './constants/finance-list-sort.constants';
 import { AuditService } from '../audit/audit.service';
 import { OrganisationRepository } from '../organisation/repositories/organisation.repository';
 import type {
@@ -27,24 +33,6 @@ function assertValidPeriod(periodStart: string, periodEnd: string): void {
   if (start > end) {
     throw new BadRequestException('periodStart must be on or before periodEnd');
   }
-}
-
-function summarizeInvoices(
-  invoices: Array<{
-    status: string;
-    totalAmountMinor: number;
-    amountPaidMinor: number;
-  }>,
-) {
-  let totalBilledMinor = 0;
-  let totalPaidMinor = 0;
-  for (const inv of invoices) {
-    if (inv.status === 'cancelled') continue;
-    totalBilledMinor += inv.totalAmountMinor;
-    totalPaidMinor += inv.amountPaidMinor;
-  }
-  const balanceDueMinor = Math.max(0, totalBilledMinor - totalPaidMinor);
-  return { totalBilledMinor, totalPaidMinor, balanceDueMinor };
 }
 
 @Injectable()
@@ -67,6 +55,13 @@ export class ClientStatementsService {
     const hasAnyBillingInvoicesEver =
       await this.financeRepo.hasAnyBillingInvoiceEver(organizationId);
 
+    const sort = resolveListSort(
+      CLIENT_STATEMENT_LIST_SORT_FIELDS,
+      { sortBy: query.sortBy, sortOrder: query.sortOrder },
+      CLIENT_STATEMENT_LIST_DEFAULT_SORT,
+    );
+    const clientSortBy: ClientListSortField =
+      sort.sortBy === 'clientName' ? 'name' : 'createdAt';
     const { rows: clients, total } =
       await this.organisationRepo.listOrganisationClients(
         organizationId,
@@ -74,7 +69,7 @@ export class ClientStatementsService {
         pageSize,
         {
           search: query.search,
-          orderBy: 'name',
+          sort: { sortBy: clientSortBy, sortOrder: sort.sortOrder },
         },
       );
 
@@ -127,22 +122,54 @@ export class ClientStatementsService {
       throw new NotFoundException('Client not found');
     }
 
-    const invoices =
-      await this.financeRepo.listBillingInvoicesForClientInPeriod(
-        organizationId,
-        clientId,
-        periodStart,
-        periodEnd,
-      );
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
 
-    const summary = summarizeInvoices(invoices);
-    const billableInvoiceCount =
-      await this.financeRepo.countNonCancelledBillingInvoicesForClientInPeriod(
+    const [invoicePage, aggregates, billableInvoiceCount] = await Promise.all([
+      this.financeRepo.listBillingInvoicesForClientInPeriod(
         organizationId,
         clientId,
         periodStart,
         periodEnd,
-      );
+        { page, pageSize },
+      ),
+      this.financeRepo.aggregateBillingByClientIdsInPeriod(
+        organizationId,
+        [clientId],
+        periodStart,
+        periodEnd,
+      ),
+      this.financeRepo.countNonCancelledBillingInvoicesForClientInPeriod(
+        organizationId,
+        clientId,
+        periodStart,
+        periodEnd,
+      ),
+    ]);
+
+    const agg = aggregates.get(clientId);
+    const summary = {
+      totalBilledMinor: agg?.totalBilledMinor ?? 0,
+      totalPaidMinor: agg?.totalPaidMinor ?? 0,
+      balanceDueMinor: agg?.balanceDueMinor ?? 0,
+    };
+
+    const invoiceItems = invoicePage.rows.map((inv) => ({
+      id: inv.id,
+      invoiceNumber: inv.invoiceNumber,
+      invoiceDate: inv.invoiceDate,
+      description: inv.description,
+      amountMinor: inv.totalAmountMinor,
+      status: inv.status,
+      excludedFromSummaryTotals: inv.status === 'cancelled',
+    }));
+
+    const invoicePagination = toPaginatedResult(
+      invoiceItems,
+      page,
+      pageSize,
+      invoicePage.total,
+    );
 
     return {
       clientId: client.id,
@@ -150,18 +177,14 @@ export class ClientStatementsService {
       isActive: client.isActive,
       periodStart,
       periodEnd,
-      billingInvoiceCount: invoices.length,
+      billingInvoiceCount: invoicePage.total,
       billableInvoiceCount,
       summary,
-      invoices: invoices.map((inv) => ({
-        id: inv.id,
-        invoiceNumber: inv.invoiceNumber,
-        invoiceDate: inv.invoiceDate,
-        description: inv.description,
-        amountMinor: inv.totalAmountMinor,
-        status: inv.status,
-        excludedFromSummaryTotals: inv.status === 'cancelled',
-      })),
+      invoices: invoiceItems,
+      invoicePage: invoicePagination.page,
+      invoicePageSize: invoicePagination.pageSize,
+      invoiceTotal: invoicePagination.total,
+      invoiceTotalPages: invoicePagination.totalPages,
     };
   }
 

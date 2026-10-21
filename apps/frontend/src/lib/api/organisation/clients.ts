@@ -4,6 +4,8 @@ import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
 import type { CreateFleetClientPayload } from "@/lib/api/lease-contracts";
 import { apiFetch } from "../client";
+import type { ListSortParams } from "@/lib/query/list-sort-params";
+import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
 export type ClientStatus = "active" | "inactive";
 
@@ -72,7 +74,7 @@ export type OrganisationClientRecord = {
   updatedAt: string;
 };
 
-export type ListOrganisationClientsParams = {
+export type ListOrganisationClientsParams = ListSortParams & {
   organizationId: string;
   page?: number;
   pageSize?: number;
@@ -164,6 +166,7 @@ export async function fetchOrganisationClientsApi(
   if (params.status) {
     query.set("status", params.status);
   }
+  appendListSortSearchParams(query, params);
   return apiFetch<PaginatedResponse<OrganisationClientListItem>>(
     `/organisation/clients?${query.toString()}`,
     {

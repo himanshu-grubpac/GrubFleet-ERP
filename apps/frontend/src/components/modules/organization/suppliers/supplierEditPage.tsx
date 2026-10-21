@@ -9,7 +9,6 @@ import {
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import {
     buildSupplierPayloadFromForm,
     fetchOrganisationSupplierByIdApi,
@@ -18,7 +17,8 @@ import {
 } from "@/lib/api/organisation/suppliers";
 import {
     SUPPLIER_SAVE_ERROR,
-    showErrorToast,
+    getApiErrorMessage,
+    showApiErrorToast,
     showSupplierUpdatedToast,
 } from "@/lib/toast/show-toast";
 
@@ -98,9 +98,9 @@ export default function EditSupplierPage() {
             const { organizationId: payloadOrgId, ...updatePayload } = full;
             void payloadOrgId;
             payload = updatePayload;
-        } catch {
-            showErrorToast(SUPPLIER_SAVE_ERROR);
-            throw new Error(SUPPLIER_SAVE_ERROR);
+        } catch (error) {
+            showApiErrorToast(error, SUPPLIER_SAVE_ERROR);
+            throw error;
         }
 
         try {
@@ -119,11 +119,7 @@ export default function EditSupplierPage() {
             showSupplierUpdatedToast(updated.name);
             router.push(organisationSupplierDetailHref(supplierId));
         } catch (error) {
-            const message =
-                error instanceof ApiClientError
-                    ? error.message
-                    : SUPPLIER_SAVE_ERROR;
-            showErrorToast(message);
+            showApiErrorToast(error, SUPPLIER_SAVE_ERROR);
             throw error;
         }
     };
@@ -148,9 +144,7 @@ export default function EditSupplierPage() {
         return (
             <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
                 <p className="text-sm font-medium text-red-600">
-                    {supplierQuery.error instanceof ApiClientError
-                        ? supplierQuery.error.message
-                        : "Supplier not found."}
+                    {getApiErrorMessage(supplierQuery.error, "Supplier not found.")}
                 </p>
                 <button
                     type="button"

@@ -246,6 +246,83 @@
       "when": 1793600000000,
       "tag": "0034_finance_purchase_vehicle_line_tax",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793700000000,
+      "tag": "0035_workshop_labor_job_cards_work_orders",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793800000000,
+      "tag": "0036_asset_register_vehicle_registration_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793900000000,
+      "tag": "0037_workshop_amc_tiers_schedules",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794000000000,
+      "tag": "0038_organisation_employee_workshop_technician",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1794100000000,
+      "tag": "0039_workshop_amc_subscribers_schedule_fields",
+      "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1794200000000,
+      "tag": "0040_workshop_work_order_pm_schedule",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794300000000,
+      "tag": "0041_workshop_work_order_part_fulfillment",
+      "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1794400000000,
+      "tag": "0042_organisation_drivers_license_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1794500000000,
+      "tag": "0043_lease_contract_asset_class_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794600000000,
+      "tag": "0044_password_reset_tokens",
+      "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1794700000000,
+      "tag": "0045_asset_class_six_digit_id",
+      "breakpoints": true
     }
   ]
 }

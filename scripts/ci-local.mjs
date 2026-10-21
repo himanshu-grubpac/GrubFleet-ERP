@@ -4,6 +4,7 @@
  *
  * Requires: Docker Postgres + Redis (same as npm run dev), or set DATABASE_URL / REDIS_URL.
  * Skip hook: SKIP_PREPUSH=1 git push …  or  HUSKY=0 git push …
+ * After a green ci:local: CI_LOCAL_RAN=1 git push … (skips re-running the full gate on push).
  */
 import { spawnSync } from 'node:child_process';
 import { createConnection } from 'node:net';
@@ -80,6 +81,7 @@ async function main() {
   await waitForPort('127.0.0.1', 5432, 'Postgres');
   await waitForPort('127.0.0.1', 6379, 'Redis');
 
+  runStep('OpenAPI route coverage', ['run', 'audit:openapi-routes']);
   runStep('Migrate database', ['run', 'db:migrate', '-w', 'backend']);
   // Workspace lint scripts use --max-warnings 0 (same as ci.yml npm run lint).
   runStep('Lint backend', ['run', 'lint', '-w', 'backend']);
