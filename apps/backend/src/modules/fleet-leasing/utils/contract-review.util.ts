@@ -1,7 +1,7 @@
 import type { ContractPricingEvaluation } from './contract-pricing-engine.util';
 import type { AssetLineAvailabilityStatus } from './asset-class-availability.util';
 
-/** MVP review step always submits via confirm (activates without pending approval). */
+/** Review step submits via confirm (activates without pending approval). */
 export type ReviewAction = 'confirm_contract';
 
 export type ReviewMessageLevel = 'info' | 'warning';
@@ -40,7 +40,7 @@ export function buildContractReviewMessages(input: {
       code: 'PRICING_NON_STANDARD',
       text:
         'One or more line rates or the security deposit are outside standard pricing limits. ' +
-        'Submit contract to activate now (MVP — no pending-approval step on this path).',
+        'Submitting will activate the contract; no separate approval step is required.',
     });
   }
 

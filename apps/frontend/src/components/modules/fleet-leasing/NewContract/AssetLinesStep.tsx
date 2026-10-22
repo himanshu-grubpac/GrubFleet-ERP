@@ -2,8 +2,14 @@
 
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    keepPreviousData,
+    useMutation,
+    useQuery,
+    useQueryClient,
+} from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import InlineAddField from "@/components/ui/inline-add-field";
 import {
     Plus,
@@ -55,13 +61,33 @@ export interface AssetLine {
     ratePerVehicleMonth: string;
 }
 
+export type AssetLineEditConstraints = {
+    lockAssetClass?: boolean;
+    lockRemove?: boolean;
+    minCommittedQuantity?: number;
+};
+
+export type AssetLinesContinueOptions = {
+    confirmShortfall?: boolean;
+};
+
+/** New contract wizard blocks shortfall; active contract edit confirms proceed. */
+export type AssetLinesShortfallProceedMode = "block" | "confirm";
+
 interface AssetLinesStepProps {
     clientId: string;
     clientName: string;
     initialAssetLines?: AssetLine[];
     availabilityRefreshKey?: number;
+    /** When editing an existing contract, exclude its pool from availability. */
+    draftContractId?: string | null;
+    lineConstraintsById?: Record<string, AssetLineEditConstraints>;
+    shortfallProceedMode?: AssetLinesShortfallProceedMode;
     onBack: () => void;
-    onContinue: (assetLines: AssetLine[]) => void | Promise<void>;
+    onContinue: (
+        assetLines: AssetLine[],
+        options?: AssetLinesContinueOptions,
+    ) => void | Promise<void>;
     onSaveDraft?: (assetLines: AssetLine[]) => void;
     isSaveDraftPending?: boolean;
     showSaveDraft?: boolean;
@@ -75,12 +101,63 @@ const createEmptyAssetLine = (id: string): AssetLine => ({
     ratePerVehicleMonth: "",
 });
 
+const DUPLICATE_ASSET_CLASS_MESSAGE =
+    "Each asset class may only appear once on the contract. Combine quantities on a single line.";
+
+function normalizeAssetClassSelectionKey(assetClass: string): string {
+    return assetClass.trim().toLowerCase();
+}
+
+function assetLineAvailabilityInputMatches(
+    a: { assetClass: string; committedQuantity: number },
+    b: { assetClass: string; committedQuantity: number },
+): boolean {
+    return (
+        normalizeAssetClassSelectionKey(a.assetClass) ===
+            normalizeAssetClassSelectionKey(b.assetClass) &&
+        a.committedQuantity === b.committedQuantity
+    );
+}
+
+function resolveMinCommittedQuantity(
+    lineId: string,
+    lineConstraintsById?: Record<string, AssetLineEditConstraints>,
+): number {
+    const explicit = lineConstraintsById?.[lineId]?.minCommittedQuantity;
+    if (explicit !== undefined) {
+        return explicit;
+    }
+    return lineConstraintsById !== undefined ? 0 : 1;
+}
+
+function assetLinesHaveDuplicateClasses(lines: AssetLine[]): boolean {
+    const seen = new Set<string>();
+
+    for (const line of lines) {
+        const name = line.assetClass.trim();
+        if (!name) {
+            continue;
+        }
+
+        const key = normalizeAssetClassSelectionKey(name);
+        if (seen.has(key)) {
+            return true;
+        }
+
+        seen.add(key);
+    }
+
+    return false;
+}
 
 export default function AssetLinesStep({
     clientId,
     clientName: _clientName,
     initialAssetLines,
     availabilityRefreshKey = 0,
+    draftContractId = null,
+    lineConstraintsById,
+    shortfallProceedMode = "block",
     onBack,
     onContinue,
     onSaveDraft,
@@ -105,6 +182,7 @@ export default function AssetLinesStep({
 
     const [formError, setFormError] = useState<string | null>(null);
     const [isContinuing, setIsContinuing] = useState(false);
+    const [shortfallConfirmOpen, setShortfallConfirmOpen] = useState(false);
 
     const assetClassesQuery = useQuery({
         queryKey: ["fleet-leasing-asset-classes", organizationId],
@@ -123,6 +201,29 @@ export default function AssetLinesStep({
     });
 
     const assetClassOptions = assetClassesQuery.data?.items ?? [];
+
+    const takenAssetClassKeysByLineId = useMemo(() => {
+        const map = new Map<string, Set<string>>();
+
+        for (const line of assetLines) {
+            const taken = new Set<string>();
+
+            for (const other of assetLines) {
+                if (other.id === line.id) {
+                    continue;
+                }
+
+                const otherName = other.assetClass.trim();
+                if (otherName) {
+                    taken.add(normalizeAssetClassSelectionKey(otherName));
+                }
+            }
+
+            map.set(line.id, taken);
+        }
+
+        return map;
+    }, [assetLines]);
 
     const createAssetClassMutation = useMutation({
         mutationFn: async (modelName: string) => {
@@ -173,7 +274,7 @@ export default function AssetLinesStep({
      * Debounce availability requests instead of requesting new availability
      * on every quantity click. The form stays mounted while the request runs.
      */
-    const debouncedAvailabilityLines = useDebouncedValue(assetLines, 300);
+    const debouncedAvailabilityLines = useDebouncedValue(assetLines, 500);
 
     const currentLinesKey = useMemo(
         () =>
@@ -211,6 +312,7 @@ export default function AssetLinesStep({
         queryKey: [
             "fleet-leasing-availability-batch",
             organizationId,
+            draftContractId,
             availabilityRefreshKey,
             debouncedAvailabilityLines.map(
                 (line) =>
@@ -231,6 +333,9 @@ export default function AssetLinesStep({
                     assetClass: line.assetClass,
                     committedQuantity: line.committedQuantity,
                 })),
+                draftContractId
+                    ? { excludeContractId: draftContractId }
+                    : undefined,
             );
         },
         enabled:
@@ -239,6 +344,7 @@ export default function AssetLinesStep({
             validAvailabilityLines,
         staleTime: 10_000,
         refetchOnWindowFocus: false,
+        placeholderData: keepPreviousData,
     });
 
     const availabilityByIndex = useMemo(() => {
@@ -256,20 +362,103 @@ export default function AssetLinesStep({
 
     const currentLinesAreValid =
         assetLines.length > 0 &&
-        assetLines.every(
-            (line) =>
-                line.assetClass.trim().length > 0 &&
-                line.committedQuantity >= 1,
-        );
+        assetLines.every((line) => {
+            if (!line.assetClass.trim()) {
+                return false;
+            }
+            const minQty = resolveMinCommittedQuantity(
+                line.id,
+                lineConstraintsById,
+            );
+            return (
+                Number.isInteger(line.committedQuantity) &&
+                line.committedQuantity >= Math.max(1, minQty)
+            );
+        });
 
     const availabilityReady =
         availabilityInputIsCurrent &&
-        !availabilityPreviewQuery.isLoading &&
+        !availabilityPreviewQuery.isFetching &&
         !availabilityPreviewQuery.isError &&
         currentLinesAreValid &&
         Boolean(availabilityPreviewQuery.data);
 
     const hasShortfall = availabilityReady && !mvpAllLinesCovered;
+
+    const shortfallSummary = useMemo(() => {
+        if (!availabilityPreviewQuery.data?.lines) {
+            return "";
+        }
+        const parts: string[] = [];
+        availabilityPreviewQuery.data.lines.forEach((snapshot, index) => {
+            if (snapshot.mvpAvailableNowCovers) {
+                return;
+            }
+            const label =
+                assetLines[index]?.assetClass.trim() || snapshot.assetClass;
+            parts.push(
+                `${label}: short by ${snapshot.mvpShortByCount} (only ${snapshot.availableNow} available now)`,
+            );
+        });
+        return parts.join("; ");
+    }, [assetLines, availabilityPreviewQuery.data?.lines]);
+
+    const continueBlockedReason = useMemo((): string | null => {
+        if (isContinuing || isSaveDraftPending) {
+            return null;
+        }
+        if (assetClassesQuery.isLoading) {
+            return "Loading asset classes…";
+        }
+        if (!assetLines.length) {
+            return "Add at least one asset-class line.";
+        }
+        if (!currentLinesAreValid) {
+            return "Select an asset class and quantity of at least 1 on every line.";
+        }
+        if (
+            !availabilityInputIsCurrent ||
+            availabilityPreviewQuery.isFetching
+        ) {
+            return "Checking fleet availability…";
+        }
+        if (availabilityPreviewQuery.isError) {
+            return "Could not verify fleet availability.";
+        }
+        if (!availabilityPreviewQuery.data) {
+            return "Waiting for availability check…";
+        }
+        if (hasShortfall && shortfallProceedMode === "block") {
+            return shortfallSummary
+                ? `Reduce quantities or fix availability — ${shortfallSummary}`
+                : "Reduce requested quantities so each line is within available fleet.";
+        }
+        return null;
+    }, [
+        assetClassesQuery.isLoading,
+        assetLines.length,
+        availabilityInputIsCurrent,
+        availabilityPreviewQuery.data,
+        availabilityPreviewQuery.isError,
+        availabilityPreviewQuery.isFetching,
+        currentLinesAreValid,
+        hasShortfall,
+        isContinuing,
+        isSaveDraftPending,
+        shortfallProceedMode,
+        shortfallSummary,
+    ]);
+
+    const proceedAfterContinueChecks = (confirmShortfall: boolean) => {
+        setIsContinuing(true);
+
+        void Promise.resolve(
+            onContinue(assetLines, confirmShortfall ? { confirmShortfall } : undefined),
+        ).finally(() => {
+            setIsContinuing(false);
+            setShortfallConfirmOpen(false);
+        });
+    };
 
     const addAssetLine = () => {
         setFormError(null);
@@ -336,15 +525,33 @@ export default function AssetLinesStep({
                 return;
             }
 
-            if (!Number.isInteger(line.committedQuantity) ||
-                line.committedQuantity < 1) {
-                setFormError("Requested quantity must be at least 1.");
+            const minQty = resolveMinCommittedQuantity(
+                line.id,
+                lineConstraintsById,
+            );
+            const requiredQty = Math.max(1, minQty);
+            if (
+                !Number.isInteger(line.committedQuantity) ||
+                line.committedQuantity < requiredQty
+            ) {
+                setFormError(
+                    minQty > 1
+                        ? `Requested quantity cannot be below ${minQty} for an existing line.`
+                        : "Requested quantity must be at least 1.",
+                );
                 return;
             }
         }
 
-        if (!availabilityInputIsCurrent ||
-            availabilityPreviewQuery.isLoading) {
+        if (assetLinesHaveDuplicateClasses(assetLines)) {
+            setFormError(DUPLICATE_ASSET_CLASS_MESSAGE);
+            return;
+        }
+
+        if (
+            !availabilityInputIsCurrent ||
+            availabilityPreviewQuery.isFetching
+        ) {
             setFormError("Still checking fleet availability. Please wait.");
             return;
         }
@@ -357,18 +564,20 @@ export default function AssetLinesStep({
             return;
         }
 
-        if (hasShortfall) {
+        if (hasShortfall && shortfallProceedMode === "block") {
             setFormError(
-                "Reduce requested quantities so each line is within available fleet.",
+                shortfallSummary ||
+                    "Reduce requested quantities so each line is within available fleet.",
             );
             return;
         }
 
-        setIsContinuing(true);
+        if (hasShortfall && shortfallProceedMode === "confirm") {
+            setShortfallConfirmOpen(true);
+            return;
+        }
 
-        void Promise.resolve(onContinue(assetLines)).finally(() => {
-            setIsContinuing(false);
-        });
+        proceedAfterContinueChecks(false);
     };
 
     const canContinue =
@@ -377,7 +586,7 @@ export default function AssetLinesStep({
         !assetClassesQuery.isLoading &&
         currentLinesAreValid &&
         availabilityReady &&
-        !hasShortfall;
+        (!hasShortfall || shortfallProceedMode === "confirm");
 
     const catalogReady =
         !assetClassesQuery.isLoading && !assetClassesQuery.isError;
@@ -434,10 +643,70 @@ export default function AssetLinesStep({
 
                 {assetLines.map((line, index) => {
                     const snapshot = availabilityByIndex.get(index);
+                    const lineConstraints = lineConstraintsById?.[line.id];
+                    const minQty = resolveMinCommittedQuantity(
+                        line.id,
+                        lineConstraintsById,
+                    );
 
-                    const availabilityLoading =
-                        !availabilityInputIsCurrent ||
+                    const lineHasValidAvailabilityInput =
+                        line.assetClass.trim().length > 0 &&
+                        line.committedQuantity >= 1;
+
+                    const debouncedLineAtIndex =
+                        debouncedAvailabilityLines[index];
+
+                    const rowPendingDebounce =
+                        lineHasValidAvailabilityInput &&
+                        debouncedLineAtIndex !== undefined &&
+                        !assetLineAvailabilityInputMatches(
+                            line,
+                            debouncedLineAtIndex,
+                        );
+
+                    const rowSnapshotStaleDuringFetch =
+                        lineHasValidAvailabilityInput &&
+                        snapshot !== undefined &&
+                        debouncedLineAtIndex !== undefined &&
+                        availabilityPreviewQuery.isFetching &&
+                        !assetLineAvailabilityInputMatches(
+                            debouncedLineAtIndex,
+                            snapshot,
+                        );
+
+                    const availabilityRefreshing =
+                        lineHasValidAvailabilityInput &&
+                        Boolean(snapshot) &&
+                        (rowPendingDebounce || rowSnapshotStaleDuringFetch);
+
+                    const availabilityInitialLoading =
+                        lineHasValidAvailabilityInput &&
+                        !snapshot &&
+                        !availabilityPreviewQuery.data &&
                         availabilityPreviewQuery.isLoading;
+
+                    const takenOnOtherLines =
+                        takenAssetClassKeysByLineId.get(line.id) ??
+                        new Set<string>();
+                    const ownSelectionKey = line.assetClass.trim()
+                        ? normalizeAssetClassSelectionKey(line.assetClass)
+                        : "";
+
+                    const dropdownAssetClassOptions = assetClassOptions.filter(
+                        (assetClass) => {
+                            const key =
+                                normalizeAssetClassSelectionKey(assetClass);
+
+                            if (ownSelectionKey && key === ownSelectionKey) {
+                                return true;
+                            }
+
+                            return !takenOnOtherLines.has(key);
+                        },
+                    );
+
+                    const hasAssetClassSelected =
+                        line.assetClass.trim().length > 0;
 
                     return (
                         <div
@@ -447,82 +716,110 @@ export default function AssetLinesStep({
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.9fr_1fr_40px] sm:items-center sm:gap-3">
                                 <select
                                     value={line.assetClass}
+                                    disabled={lineConstraints?.lockAssetClass}
                                     onChange={(event) => {
                                         const assetClass = event.target.value;
 
                                         updateAssetLine(line.id, {
                                             assetClass,
-                                            committedQuantity: assetClass
-                                                ? Math.max(1, line.committedQuantity)
-                                                : 0,
+                                            ...(assetClass
+                                                ? {
+                                                      committedQuantity:
+                                                          Math.max(
+                                                              minQty,
+                                                              line.committedQuantity,
+                                                          ),
+                                                  }
+                                                : {}),
                                         });
                                     }}
-
-
-
-                                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                                    className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
                                     aria-label="Select an asset class"
                                 >
                                     <option value="">
                                         Select an asset class
                                     </option>
 
-                                    {assetClassOptions.map((assetClass) => (
-                                        <option
-                                            key={assetClass}
-                                            value={assetClass}
-                                        >
-                                            {assetClass}
-                                        </option>
-                                    ))}
+                                    {dropdownAssetClassOptions.map(
+                                        (assetClass) => (
+                                            <option
+                                                key={assetClass}
+                                                value={assetClass}
+                                            >
+                                                {assetClass}
+                                            </option>
+                                        ),
+                                    )}
                                 </select>
-                                <QuantityControl
-                                    value={line.committedQuantity}
-                                    disabled={!line.assetClass}
-                                    onDecrease={() =>
-                                        updateAssetLine(line.id, {
-                                            committedQuantity: Math.max(
-                                                0,
-                                                line.committedQuantity - 1,
-                                            ),
-                                        })
-                                    }
-                                    onIncrease={() =>
-                                        updateAssetLine(line.id, {
-                                            committedQuantity:
-                                                line.committedQuantity + 1,
-                                        })
-                                    }
-                                    onChange={(value) => {
-                                        const numericValue = Number(value);
-
-                                        updateAssetLine(line.id, {
-                                            committedQuantity:
+                                {hasAssetClassSelected ? (
+                                    <QuantityControl
+                                        value={line.committedQuantity}
+                                        min={minQty}
+                                        onDecrease={() =>
+                                            updateAssetLine(line.id, {
+                                                committedQuantity: Math.max(
+                                                    minQty,
+                                                    line.committedQuantity - 1,
+                                                ),
+                                            })
+                                        }
+                                        onIncrease={() =>
+                                            updateAssetLine(line.id, {
+                                                committedQuantity:
+                                                    line.committedQuantity + 1,
+                                            })
+                                        }
+                                        onChange={(value) => {
+                                            const numericValue =
+                                                Number(value);
+                                            const next =
                                                 Number.isFinite(numericValue) &&
-                                                    numericValue >= 0
+                                                numericValue >= 0
                                                     ? Math.floor(numericValue)
-                                                    : 0,
-                                        });
-                                    }}
-                                />
+                                                    : 0;
 
-                                <AvailabilityCell
-                                    loading={availabilityLoading}
-                                    snapshot={
-                                        availabilityInputIsCurrent
-                                            ? snapshot
-                                            : undefined
-                                    }
-                                    error={
-                                        availabilityInputIsCurrent &&
-                                        availabilityPreviewQuery.isError
-                                    }
-                                />
+                                            updateAssetLine(line.id, {
+                                                committedQuantity: Math.max(
+                                                    minQty,
+                                                    next,
+                                                ),
+                                            });
+                                        }}
+                                    />
+                                ) : (
+                                    <div
+                                        className="hidden min-h-10 sm:block"
+                                        aria-hidden
+                                    />
+                                )}
+
+                                {hasAssetClassSelected ? (
+                                    <AvailabilityCell
+                                        initialLoading={
+                                            availabilityInitialLoading
+                                        }
+                                        refreshing={availabilityRefreshing}
+                                        snapshot={snapshot}
+                                        error={
+                                            availabilityInputIsCurrent &&
+                                            availabilityPreviewQuery.isError
+                                        }
+                                    />
+                                ) : (
+                                    <div
+                                        className="hidden min-h-6 sm:block"
+                                        aria-hidden
+                                    />
+                                )}
 
                                 <button
                                     type="button"
                                     onClick={() => removeAssetLine(line.id)}
-                                    disabled={isContinuing || isSaveDraftPending}
+                                    disabled={
+                                        isContinuing ||
+                                        isSaveDraftPending ||
+                                        lineConstraints?.lockRemove
+                                    }
                                     className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 sm:justify-self-end"
                                     title="Remove asset line"
                                     aria-label="Remove asset line"
@@ -607,7 +904,18 @@ export default function AssetLinesStep({
                         <Button
                             type="button"
                             variant="outline"
-                            onClick={() => onSaveDraft(assetLines)}
+                            onClick={() => {
+                                setFormError(null);
+
+                                if (
+                                    assetLinesHaveDuplicateClasses(assetLines)
+                                ) {
+                                    setFormError(DUPLICATE_ASSET_CLASS_MESSAGE);
+                                    return;
+                                }
+
+                                onSaveDraft(assetLines);
+                            }}
                             disabled={isContinuing || isSaveDraftPending}
                             className="w-full sm:w-auto"
                         >
@@ -626,54 +934,95 @@ export default function AssetLinesStep({
                     </Button>
                 </div>
             </div>
+
+            {continueBlockedReason && !formError ? (
+                <p
+                    className="mt-3 text-xs text-slate-600"
+                    role="status"
+                >
+                    {continueBlockedReason}
+                </p>
+            ) : null}
+
+            <ConfirmDialog
+                open={shortfallConfirmOpen}
+                title="Proceed with fleet shortfall?"
+                message={
+                    shortfallSummary
+                        ? `Some lines exceed available fleet today. Lines not fully covered will be marked awaiting assets: ${shortfallSummary}`
+                        : "Some lines exceed available fleet today. Lines not fully covered will be marked awaiting assets."
+                }
+                confirmLabel="Proceed anyway"
+                isConfirmPending={isContinuing}
+                onClose={() => {
+                    if (!isContinuing) {
+                        setShortfallConfirmOpen(false);
+                    }
+                }}
+                onConfirm={() => proceedAfterContinueChecks(true)}
+            />
         </>
     );
 }
 
 function AvailabilityCell({
-    loading,
+    initialLoading,
+    refreshing,
     snapshot,
     error,
 }: {
-    loading: boolean;
+    initialLoading: boolean;
+    refreshing: boolean;
     snapshot?: AssetClassAvailabilitySnapshot;
     error: boolean;
 }) {
-    if (loading) {
+    if (initialLoading) {
         return (
-            <span className="inline-flex h-6 items-center text-xs text-slate-400">
+            <span className="inline-flex min-h-6 items-center text-xs text-slate-400">
                 Checking…
             </span>
         );
     }
 
     if (error || !snapshot) {
-        return <span className="inline-flex h-6 items-center text-xs text-slate-400">—</span>;
-    }
-
-    if (snapshot.mvpAvailableNowCovers) {
         return (
-            <span className="inline-flex h-6 items-center text-sm font-semibold text-green-700">
-                {snapshot.availableNow} available
+            <span className="inline-flex min-h-6 items-center text-xs text-slate-400">
+                —
             </span>
         );
     }
 
+    const covers = snapshot.mvpAvailableNowCovers;
+    const labelClass = covers ? "text-green-700" : "text-red-600";
+    const label = covers
+        ? `${snapshot.availableNow} available`
+        : `${snapshot.availableNow} available — short by ${snapshot.mvpShortByCount}`;
+
     return (
-        <span className="inline-flex h-6 items-center text-sm font-semibold text-red-600">
-            {snapshot.availableNow} available — short by {snapshot.mvpShortByCount}
+        <span
+            className={`inline-flex min-h-6 items-center gap-1.5 text-sm font-semibold ${labelClass}`}
+        >
+            {label}
+            {refreshing ? (
+                <Loader2
+                    className="h-3.5 w-3.5 shrink-0 animate-spin text-slate-400"
+                    aria-hidden
+                />
+            ) : null}
         </span>
     );
 }
 
 function QuantityControl({
     value,
+    min = 0,
     disabled = false,
     onDecrease,
     onIncrease,
     onChange,
 }: {
     value: number;
+    min?: number;
     disabled?: boolean;
     onDecrease: () => void;
     onIncrease: () => void;
@@ -684,7 +1033,7 @@ function QuantityControl({
             <button
                 type="button"
                 onClick={onDecrease}
-                disabled={value <= 0}
+                disabled={disabled || value <= min}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-l-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Decrease requested quantity"
             >
@@ -693,7 +1042,7 @@ function QuantityControl({
 
             <input
                 type="number"
-                min="0"
+                min={min}
                 step="1"
                 value={value}
                 disabled={disabled}

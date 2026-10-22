@@ -234,7 +234,6 @@ export default function StockDashboardPage() {
               key: "compatibleClass",
               label: "Compatible Class",
               options: [
-                { label: "Both classes", value: "Both classes" },
                 {
                   label: "Petrol Scooter — Standard",
                   value: "Petrol Scooter — Standard",

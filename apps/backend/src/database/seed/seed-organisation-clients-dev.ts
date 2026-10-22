@@ -10,7 +10,7 @@ import { pgPoolOptions } from '../pg-pool-options';
 import * as schema from '../schema';
 import { organisationClientPocs, organisationClients } from '../schema';
 import {
-  assertDevOnly,
+  assertDevOnlyForLegacyOrgSeed,
   maskDatabaseUrl,
   resolveDevDatabaseUrl,
   resolveDevOrganizationId,
@@ -98,7 +98,7 @@ export const DEV_SEED_CLIENT_EXPECTED_COUNT = CLIENT_SEEDS.length;
 
 async function main(): Promise<void> {
   const connectionString = resolveDevDatabaseUrl();
-  assertDevOnly(connectionString);
+  assertDevOnlyForLegacyOrgSeed(connectionString);
 
   const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });

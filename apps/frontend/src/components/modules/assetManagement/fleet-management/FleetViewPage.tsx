@@ -196,7 +196,9 @@ export default function FleetViewPage() {
             id: detailQuery.data.id,
             fleetCode: detailQuery.data.fleetCode,
             assetClass: detailQuery.data.assetClassName,
-            vehicleName: detailQuery.data.assetClassName,
+            vehicleName:
+                detailQuery.data.assetClassSpecLabel ||
+                detailQuery.data.assetClassName,
             registrationNumber: detailQuery.data.registrationNumber,
             odometerReading: `${detailQuery.data.odometer.toLocaleString("en-IN")} km`,
             registrationStartDate: formatAssetRegisterIsoDate(
@@ -207,7 +209,8 @@ export default function FleetViewPage() {
             ),
             modelYear: String(detailQuery.data.modelYear),
             chassisNumber: detailQuery.data.chassisNumber,
-            insuranceSupplier: "—",
+            insuranceSupplier:
+                detailQuery.data.insuranceSupplierName?.trim() || "—",
             insurancePremium: detailQuery.data.insurancePremium,
             insuranceStartDate: formatAssetRegisterIsoDate(
                 detailQuery.data.insuranceStartDate,
@@ -464,33 +467,28 @@ export default function FleetViewPage() {
                     </p>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-
                         <InfoRow
                             label="Purchase price"
-                            value="Rs. 68,500"
+                            value={
+                                detailQuery.data?.purchaseInvoiceId
+                                    ? "—"
+                                    : "No purchase invoice linked"
+                            }
                         />
 
                         <InfoRow
                             label="Insurance paid to date"
-                            value="Rs. 9,600"
+                            value="—"
                         />
 
-                        <InfoRow
-                            label="14-Jun-2024 — Routine service"
-                            value="Rs. 1,850"
-                        />
-
-                        <InfoRow
-                            label="02-Feb-2025 — Tyre replacement (front)"
-                            value="Rs. 2,100"
-                        />
-
-                        <InfoRow
-                            label="20-Aug-2025 — Odometer sensor repair"
-                            value="Rs. 950"
-                        />
-
-                        {/* TCO Total */}
+                        <div className="border-t border-gray-200 px-4 py-3">
+                            <p className="text-[12px] font-medium text-gray-700">
+                                Work orders
+                            </p>
+                            <p className="mt-1 text-[12px] text-gray-500">
+                                No work orders linked for this vehicle yet.
+                            </p>
+                        </div>
 
                         <div className="flex min-h-[30px] items-center border-t border-gray-200 px-3">
                             <p className="w-1/2 text-[14px] font-semibold text-gray-700">
@@ -498,7 +496,7 @@ export default function FleetViewPage() {
                             </p>
 
                             <p className="w-1/2 text-right text-[14px] font-bold text-gray-900">
-                                Rs. 83,000
+                                —
                             </p>
                         </div>
                     </div>

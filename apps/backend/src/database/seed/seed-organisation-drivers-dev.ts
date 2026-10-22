@@ -16,7 +16,7 @@ import {
   DEV_SEED_SUPPLIER_EMAIL_PREFIX,
 } from './seed-organisation-suppliers-dev';
 import {
-  assertDevOnly,
+  assertDevOnlyForLegacyOrgSeed,
   maskDatabaseUrl,
   resolveDevDatabaseUrl,
   resolveDevOrganizationId,
@@ -159,7 +159,7 @@ async function resolveDriverSupplierId(
 
 async function main(): Promise<void> {
   const connectionString = resolveDevDatabaseUrl();
-  assertDevOnly(connectionString);
+  assertDevOnlyForLegacyOrgSeed(connectionString);
 
   const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });

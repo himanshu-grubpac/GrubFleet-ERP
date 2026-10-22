@@ -1,5 +1,8 @@
 /**
- * Dev-only: purge integration junk (RBAC roles + org submodule test rows) and reseed demo data.
+ * Dev-only: purge integration-test RBAC junk and reseed demo org roles.
+ *
+ * On canonical local Docker DB (grubpac_erp) this does **not** touch org/asset
+ * business rows — use `npm run db:reset:local-professional` after `npm run test`.
  *
  * Prefer: node scripts/dev-clean-test-roles.mjs
  */
@@ -11,7 +14,9 @@ import { pgPoolOptions } from '../pg-pool-options';
 import * as schema from '../schema';
 import {
   assertDevOnly,
+  assertDevOnlyForLegacyOrgSeed,
   cleanDevRbacTestArtifacts,
+  isCanonicalLocalDevDatabase,
   maskDatabaseUrl,
   resolveDevDatabaseUrl,
   resolveDevOrganizationId,
@@ -47,6 +52,7 @@ async function main(): Promise<void> {
   const skipOrg = process.argv.includes('--skip-organisation');
   const connectionString = resolveDevDatabaseUrl();
   assertDevOnly(connectionString);
+  const canonicalLocal = isCanonicalLocalDevDatabase(connectionString);
 
   const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });
@@ -60,6 +66,7 @@ async function main(): Promise<void> {
       {
         phase: 'rbac-clean',
         connection: maskDatabaseUrl(connectionString),
+        canonicalLocalDocker: canonicalLocal,
         rbac: rbacResult,
       },
       null,
@@ -67,7 +74,11 @@ async function main(): Promise<void> {
     ),
   );
 
-  if (!skipOrg) {
+  if (canonicalLocal) {
+    console.log(
+      'Canonical local DB: org/asset rows unchanged. After backend integration tests, run: npm run db:reset:local-professional',
+    );
+  } else if (!skipOrg) {
     runSeedScript('clean-organisation-locations-dev');
     runSeedScript('clean-organisation-employees-dev');
     runSeedScript('clean-organisation-suppliers-dev');
@@ -81,7 +92,8 @@ async function main(): Promise<void> {
   const seededRoleNames = await seedDevOrgDemoRoles(db2, orgId);
   await pool2.end();
 
-  if (!skipOrg) {
+  if (!canonicalLocal && !skipOrg) {
+    assertDevOnlyForLegacyOrgSeed(connectionString);
     runSeedScript('seed-organisation-sample-dev');
   }
 

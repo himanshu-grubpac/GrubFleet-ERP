@@ -32,6 +32,14 @@ import {
 } from './utils/contract-field-diff.util';
 import { computeAssetLineAvailability } from './utils/asset-class-availability.util';
 import {
+  assertNoDuplicateAssetClassNamesInRequest,
+  assertNoDuplicateResolvedAssetClassIds,
+} from './utils/contract-asset-line-duplicate.util';
+import {
+  computeEffectivePoolAvailableNow,
+  computePoolAvailableNow,
+} from './utils/asset-class-pool.util';
+import {
   buildContractReviewMessages,
   computeCanSubmitReview,
   resolveReviewAction,
@@ -78,7 +86,11 @@ import {
   mapLifecycleLogs,
 } from './utils/contract-detail.presentation.util';
 import { getContractEditBlockReason } from './utils/contract-edit.util';
+import { assertActiveContractAssetLineChangesAllowed } from './utils/contract-active-asset-line-edit.util';
 import { resolveFleetClientCompanyDisplayName } from './utils/fleet-client-display.util';
+import type { ContractEditClassification } from './constants/contract-edit-classification';
+import { OrganizationDomainEventsService } from '../../infrastructure/organization-realtime/organization-domain-events.service';
+import { OrganizationDomainEventType } from '../../infrastructure/organization-realtime/organization-domain-event.types';
 
 @Injectable()
 export class LeaseContractsService {
@@ -89,6 +101,7 @@ export class LeaseContractsService {
     private readonly driversService: DriversService,
     @Inject(forwardRef(() => AssetRegisterCatalogService))
     private readonly assetRegisterCatalog: AssetRegisterCatalogService,
+    private readonly domainEvents: OrganizationDomainEventsService,
   ) {}
 
   async getSummary(organizationId: string) {
@@ -312,7 +325,7 @@ export class LeaseContractsService {
     };
   }
 
-  /** Post-wizard success screen — allocation table + info blocks (Figma confirmation). */
+  /** Post-wizard success screen — allocation table + info blocks. */
   async getConfirmation(organizationId: string, contractId: string) {
     const contract = await this.repo.findContractInOrg(
       organizationId,
@@ -420,6 +433,9 @@ export class LeaseContractsService {
       resourceId: row.id,
       status: 'SUCCESS',
     });
+    if (enrichedLines.length > 0 || vehicleIds.length > 0) {
+      await this.emitLeaseContractPoolChanged(organizationId, row.id);
+    }
     return this.getById(organizationId, row.id);
   }
 
@@ -430,22 +446,88 @@ export class LeaseContractsService {
     dto: UpdateContractAssetLinesDto,
   ) {
     const contract = await this.requireContract(organizationId, contractId);
-    if (!['draft', 'pending_approval', 'approved'].includes(contract.status)) {
-      throw new ConflictException(
-        'Asset lines can only be edited on draft or pre-active contracts',
+    const editBlockReason = getContractEditBlockReason(contract.status);
+    if (editBlockReason) {
+      throw new ConflictException(editBlockReason);
+    }
+    const liveEdit =
+      contract.status === 'active' || contract.status === 'awaiting_assets';
+    const recordFieldHistory = contract.status !== 'draft';
+    let beforeSnapshot: ReturnType<typeof contractRowToSnapshot> | undefined;
+    if (recordFieldHistory) {
+      const [beforeLines, beforeVehicleIds] = await Promise.all([
+        this.repo.listAssetLines(contractId),
+        this.repo.listContractVehicleIds(contractId),
+      ]);
+      beforeSnapshot = this.contractRowToEditSnapshot(
+        contract,
+        beforeLines,
+        beforeVehicleIds,
       );
+      if (liveEdit) {
+        const allocatedByClass =
+          await this.repo.countAllocatedVehiclesByAssetClass(contractId);
+        assertActiveContractAssetLineChangesAllowed(
+          beforeLines.map((l) => ({
+            assetClass: l.assetClass,
+            committedQuantity: l.committedQuantity,
+          })),
+          dto.assetLines,
+          allocatedByClass,
+        );
+      }
     }
     const snapshots = await this.applyAssetLines(
       organizationId,
       contractId,
       dto.assetLines,
-      { confirmShortfall: dto.confirmShortfall === true },
+      {
+        confirmShortfall: dto.confirmShortfall === true,
+        excludeContractId: contractId,
+      },
     );
     const hasAwaitingLine = snapshots.some((s) => s.awaitingAssetsLine);
     await this.repo.updateContract(contractId, organizationId, {
       awaitingFutureAssets: hasAwaitingLine,
       updatedByUserId: userId,
     });
+    if (recordFieldHistory && beforeSnapshot) {
+      if (liveEdit) {
+        const pricingEvaluation = await this.buildPricingEvaluation(
+          organizationId,
+          contractId,
+        );
+        await this.repo.updateContract(contractId, organizationId, {
+          rateRequiresApproval: pricingEvaluation.requiresApproval,
+          updatedByUserId: userId,
+        });
+      }
+      const updatedRow = await this.repo.findContractInOrg(
+        organizationId,
+        contractId,
+      );
+      if (updatedRow) {
+        const [afterLines, afterVehicleIds] = await Promise.all([
+          this.repo.listAssetLines(contractId),
+          this.repo.listContractVehicleIds(contractId),
+        ]);
+        const afterSnapshot = this.contractRowToEditSnapshot(
+          updatedRow,
+          afterLines,
+          afterVehicleIds,
+        );
+        await this.persistContractEditLog(
+          userId,
+          organizationId,
+          contractId,
+          contract.contractNumber,
+          beforeSnapshot,
+          afterSnapshot,
+          'material',
+        );
+      }
+    }
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return {
       contract: await this.getById(organizationId, contractId),
       lineAvailability: snapshots,
@@ -456,12 +538,29 @@ export class LeaseContractsService {
     organizationId: string,
     assetClass: string,
     committedQuantity: number,
+    excludeContractId?: string | null,
   ) {
-    const { availableNow, inbound } =
-      await this.assetRegisterCatalog.getAssetClassInventory(
+    const ref =
+      await this.assetRegisterCatalog.resolveActiveAssetClassReference(
         organizationId,
-        assetClass,
+        { assetClass },
       );
+    const effective = ref.id
+      ? await this.resolveEffectiveAvailableNowByClassIds(
+          organizationId,
+          [ref.id],
+          excludeContractId,
+        )
+      : new Map<string, number>();
+    const availableNow = ref.id
+      ? (effective.get(ref.id) ?? 0)
+      : (
+          await this.assetRegisterCatalog.getAssetClassInventory(
+            organizationId,
+            assetClass,
+          )
+        ).availableNow;
+    const inbound = 0;
     return computeAssetLineAvailability(
       assetClass,
       committedQuantity,
@@ -469,6 +568,46 @@ export class LeaseContractsService {
       inbound,
       false,
     );
+  }
+
+  private async resolveEffectiveAvailableNowByClassIds(
+    organizationId: string,
+    assetClassIds: string[],
+    excludeContractId?: string | null,
+  ): Promise<Map<string, number>> {
+    const uniqueIds = [...new Set(assetClassIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+    const [physicalById, reservedById, ownAllocatedById] = await Promise.all([
+      this.assetRegisterCatalog.getAssetClassInventoryBatchByIds(
+        organizationId,
+        uniqueIds,
+      ),
+      this.repo.sumUnallocatedCommitmentsByAssetClassIds(
+        organizationId,
+        uniqueIds,
+        excludeContractId,
+      ),
+      excludeContractId
+        ? this.repo.countAllocatedRegisterVehiclesByAssetClassIds(
+            excludeContractId,
+          )
+        : Promise.resolve(new Map<string, number>()),
+    ]);
+    const out = new Map<string, number>();
+    for (const id of uniqueIds) {
+      const physical = physicalById.get(id) ?? 0;
+      const reserved = reservedById.get(id) ?? 0;
+      const ownAllocated = ownAllocatedById.get(id) ?? 0;
+      out.set(
+        id,
+        excludeContractId
+          ? computeEffectivePoolAvailableNow(physical, reserved, ownAllocated)
+          : computePoolAvailableNow(physical, reserved),
+      );
+    }
+    return out;
   }
 
   async getTermsEvaluation(organizationId: string, contractId: string) {
@@ -569,6 +708,7 @@ export class LeaseContractsService {
         securityDeposit: contract.securityDeposit,
         billingFrequency: contract.billingFrequency,
         startDate: contract.startDate?.toISOString().slice(0, 10) ?? null,
+        endDate: contract.endDate?.toISOString().slice(0, 10) ?? null,
       },
       pricingEvaluation,
       reviewAction,
@@ -613,7 +753,7 @@ export class LeaseContractsService {
     });
     await this.markLinkedVehiclesLeased(contractId);
     const rateNote = pricing.requiresApproval
-      ? ' (non-standard rates — MVP activates without pending approval)'
+      ? ' (non-standard rates — activated on submit)'
       : '';
     await this.logEvent(
       contractId,
@@ -641,6 +781,7 @@ export class LeaseContractsService {
     const confirmation = confirmed
       ? await this.buildConfirmationSummary(organizationId, confirmed)
       : null;
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return {
       contract: detail,
       pricingEvaluation: pricing,
@@ -659,9 +800,21 @@ export class LeaseContractsService {
     dto: UpdateContractTermsDto,
   ) {
     const contract = await this.requireContract(organizationId, contractId);
-    if (!['draft', 'pending_approval', 'approved'].includes(contract.status)) {
-      throw new ConflictException(
-        'Terms can only be edited on draft or pre-active contracts',
+    const editBlockReason = getContractEditBlockReason(contract.status);
+    if (editBlockReason) {
+      throw new ConflictException(editBlockReason);
+    }
+    const recordFieldHistory = contract.status !== 'draft';
+    let beforeSnapshot: ReturnType<typeof contractRowToSnapshot> | undefined;
+    if (recordFieldHistory) {
+      const [beforeLines, beforeVehicleIds] = await Promise.all([
+        this.repo.listAssetLines(contractId),
+        this.repo.listContractVehicleIds(contractId),
+      ]);
+      beforeSnapshot = this.contractRowToEditSnapshot(
+        contract,
+        beforeLines,
+        beforeVehicleIds,
       );
     }
     this.validateAmcTierOptional(dto.amcTier);
@@ -685,12 +838,38 @@ export class LeaseContractsService {
       rateRequiresApproval: pricingEvaluation.requiresApproval,
       updatedByUserId: userId,
     });
+    if (recordFieldHistory && beforeSnapshot) {
+      const updatedRow = await this.repo.findContractInOrg(
+        organizationId,
+        contractId,
+      );
+      if (updatedRow) {
+        const [afterLines, afterVehicleIds] = await Promise.all([
+          this.repo.listAssetLines(contractId),
+          this.repo.listContractVehicleIds(contractId),
+        ]);
+        const afterSnapshot = this.contractRowToEditSnapshot(
+          updatedRow,
+          afterLines,
+          afterVehicleIds,
+        );
+        await this.persistContractEditLog(
+          userId,
+          organizationId,
+          contractId,
+          contract.contractNumber,
+          beforeSnapshot,
+          afterSnapshot,
+          'material',
+        );
+      }
+    }
     await this.logEvent(
       contractId,
       organizationId,
       userId,
       'contract.terms_updated',
-      'Contract terms updated (wizard step 3)',
+      'Contract terms updated',
     );
     return {
       contract: await this.getById(organizationId, contractId),
@@ -722,23 +901,11 @@ export class LeaseContractsService {
       this.repo.listAssetLines(contractId),
       this.repo.listContractVehicleIds(contractId),
     ]);
-    const beforeSnapshot = contractRowToSnapshot({
-      clientId: existing.clientId,
-      startDate: existing.startDate,
-      endDate: existing.endDate,
-      termMonths: existing.termMonths,
-      securityDeposit: existing.securityDeposit,
-      billingFrequency: existing.billingFrequency,
-      additionalTerms: existing.additionalTerms,
-      amcTier: existing.amcTier,
-      description: existing.description,
-      assetLines: beforeLines.map((l) => ({
-        assetClass: l.assetClass,
-        committedQuantity: l.committedQuantity,
-        ratePerVehicleMonth: l.ratePerVehicleMonth,
-      })),
-      vehicleIds: beforeVehicleIds,
-    });
+    const beforeSnapshot = this.contractRowToEditSnapshot(
+      existing,
+      beforeLines,
+      beforeVehicleIds,
+    );
     const patchClientId =
       dto.clientId !== undefined
         ? this.normalizeOptionalClientId(dto.clientId)
@@ -816,7 +983,7 @@ export class LeaseContractsService {
         organizationId,
         contractId,
         dto.assetLines,
-        { confirmShortfall: false },
+        { confirmShortfall: false, excludeContractId: contractId },
       );
       const hasAwaitingLine = snapshots.some((s) => s.awaitingAssetsLine);
       await this.repo.updateContract(contractId, organizationId, {
@@ -848,66 +1015,26 @@ export class LeaseContractsService {
       this.repo.listAssetLines(contractId),
       this.repo.listContractVehicleIds(contractId),
     ]);
-    const afterSnapshot = contractRowToSnapshot({
-      clientId: updatedRow?.clientId ?? existing.clientId,
-      startDate: updatedRow?.startDate ?? existing.startDate,
-      endDate: updatedRow?.endDate ?? existing.endDate,
-      termMonths: updatedRow?.termMonths ?? existing.termMonths,
-      securityDeposit: updatedRow?.securityDeposit ?? existing.securityDeposit,
-      billingFrequency:
-        updatedRow?.billingFrequency ?? existing.billingFrequency,
-      additionalTerms: updatedRow?.additionalTerms ?? existing.additionalTerms,
-      amcTier: updatedRow?.amcTier ?? existing.amcTier,
-      description: updatedRow?.description ?? existing.description,
-      assetLines: afterLines.map((l) => ({
-        assetClass: l.assetClass,
-        committedQuantity: l.committedQuantity,
-        ratePerVehicleMonth: l.ratePerVehicleMonth,
-      })),
-      vehicleIds: afterVehicleIds,
-    });
-    const changedFields = computeContractFieldDiff(
+    const afterContractRow = updatedRow ?? existing;
+    const afterSnapshot = this.contractRowToEditSnapshot(
+      afterContractRow,
+      afterLines,
+      afterVehicleIds,
+    );
+    await this.persistContractEditLog(
+      userId,
+      organizationId,
+      contractId,
+      existing.contractNumber,
       beforeSnapshot,
       afterSnapshot,
+      classification,
     );
-    if (changedFields.length > 0) {
-      await this.repo.insertEditLog({
-        organizationId,
-        contractId,
-        actorUserId: userId,
-        classification,
-        changedFields,
-      });
-      if (classification === 'material') {
-        await this.repo.updateContract(contractId, organizationId, {
-          requiresEditReview: true,
-          updatedByUserId: userId,
-        });
-      }
-    }
-
-    await this.logEvent(
-      contractId,
-      organizationId,
-      userId,
-      'contract.edited',
-      `Contract ${existing.contractNumber} edited`,
-      {
-        classification,
-        changedFields,
-      },
-    );
-    await this.audit.log({
-      organizationId,
-      userId,
-      action: 'lease_contract.update',
-      resourceType: 'lease_contract',
-      resourceId: contractId,
-      status: 'SUCCESS',
-      metadata: { classification, fieldCount: changedFields.length },
-    });
 
     const detail = await this.getById(organizationId, contractId);
+    if (dto.assetLines !== undefined || dto.vehicleIds !== undefined) {
+      await this.emitLeaseContractPoolChanged(organizationId, contractId);
+    }
     if (pricingEvaluation) {
       return { ...detail, pricingEvaluation };
     }
@@ -994,6 +1121,7 @@ export class LeaseContractsService {
       pricing,
       assetLines: reviewAssetLineInputs,
     });
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return {
       contract: contractDetail,
       pricingEvaluation: pricing,
@@ -1030,6 +1158,7 @@ export class LeaseContractsService {
       'contract.approved',
       'Contract approved',
     );
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return this.getById(organizationId, contractId);
   }
 
@@ -1067,6 +1196,7 @@ export class LeaseContractsService {
     const confirmation = updated
       ? await this.buildConfirmationSummary(organizationId, updated)
       : null;
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return {
       contract: await this.getById(organizationId, contractId),
       confirmation,
@@ -1074,7 +1204,7 @@ export class LeaseContractsService {
     };
   }
 
-  /** Figma: direct reactivate — no approval workflow. */
+  /** Direct reactivate — no approval workflow. */
   async reactivate(userId: string, organizationId: string, contractId: string) {
     const contract = await this.requireContract(organizationId, contractId);
     if (contract.status === 'closed' || contract.status === 'concluded') {
@@ -1124,6 +1254,7 @@ export class LeaseContractsService {
       resourceId: contractId,
       status: 'SUCCESS',
     });
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return this.getById(organizationId, contractId);
   }
 
@@ -1168,6 +1299,7 @@ export class LeaseContractsService {
       contractId,
       'fleet_contract_inactive',
     );
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return this.getById(organizationId, contractId);
   }
 
@@ -1259,6 +1391,7 @@ export class LeaseContractsService {
       contractId,
       'fleet_contract_inactive',
     );
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
     return this.getById(organizationId, contractId);
   }
 
@@ -1304,6 +1437,13 @@ export class LeaseContractsService {
       'return.registered',
       `Vehicle ${vehicle.registrationNo} registered as returned`,
     );
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
+    await this.domainEvents.emit({
+      type: OrganizationDomainEventType.ASSET_REGISTER_VEHICLE_POOL_CHANGED,
+      organizationId,
+      resource: 'asset_register_vehicle',
+      ids: { vehicleId: dto.vehicleId, leaseContractId: contractId },
+    });
     return this.getById(organizationId, contractId);
   }
 
@@ -1375,6 +1515,91 @@ export class LeaseContractsService {
     });
   }
 
+  private contractRowToEditSnapshot(
+    contract: {
+      clientId: string | null;
+      startDate: Date | null;
+      endDate: Date | null;
+      termMonths: number | null;
+      securityDeposit: string | null;
+      billingFrequency: string | null;
+      additionalTerms: string | null;
+      amcTier: string | null;
+      description: string | null;
+    },
+    lines: Awaited<ReturnType<FleetLeasingRepository['listAssetLines']>>,
+    vehicleIds: string[],
+  ) {
+    return contractRowToSnapshot({
+      clientId: contract.clientId,
+      startDate: contract.startDate,
+      endDate: contract.endDate,
+      termMonths: contract.termMonths,
+      securityDeposit: contract.securityDeposit,
+      billingFrequency: contract.billingFrequency ?? 'monthly',
+      additionalTerms: contract.additionalTerms,
+      amcTier: contract.amcTier,
+      description: contract.description,
+      assetLines: lines.map((l) => ({
+        assetClass: l.assetClass,
+        committedQuantity: l.committedQuantity,
+        ratePerVehicleMonth: l.ratePerVehicleMonth,
+      })),
+      vehicleIds,
+    });
+  }
+
+  private async persistContractEditLog(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+    contractNumber: string,
+    beforeSnapshot: ReturnType<typeof contractRowToSnapshot>,
+    afterSnapshot: ReturnType<typeof contractRowToSnapshot>,
+    classification: ContractEditClassification,
+  ): Promise<void> {
+    const changedFields = computeContractFieldDiff(
+      beforeSnapshot,
+      afterSnapshot,
+    );
+    if (changedFields.length === 0) {
+      return;
+    }
+    await this.repo.insertEditLog({
+      organizationId,
+      contractId,
+      actorUserId: userId,
+      classification,
+      changedFields,
+    });
+    if (classification === 'material') {
+      await this.repo.updateContract(contractId, organizationId, {
+        requiresEditReview: true,
+        updatedByUserId: userId,
+      });
+    }
+    await this.logEvent(
+      contractId,
+      organizationId,
+      userId,
+      'contract.edited',
+      `Contract ${contractNumber} edited`,
+      {
+        classification,
+        changedFields,
+      },
+    );
+    await this.audit.log({
+      organizationId,
+      userId,
+      action: 'lease_contract.update',
+      resourceType: 'lease_contract',
+      resourceId: contractId,
+      status: 'SUCCESS',
+      metadata: { classification, fieldCount: changedFields.length },
+    });
+  }
+
   private async applyAssetLines(
     organizationId: string,
     contractId: string,
@@ -1384,7 +1609,7 @@ export class LeaseContractsService {
       committedQuantity: number;
       ratePerVehicleMonth: string;
     }[],
-    options: { confirmShortfall: boolean },
+    options: { confirmShortfall: boolean; excludeContractId?: string | null },
   ) {
     const { enriched, snapshots } = await this.buildEnrichedAssetLines(
       organizationId,
@@ -1403,8 +1628,10 @@ export class LeaseContractsService {
       committedQuantity: number;
       ratePerVehicleMonth: string;
     }[],
-    options: { confirmShortfall: boolean },
+    options: { confirmShortfall: boolean; excludeContractId?: string | null },
   ) {
+    assertNoDuplicateAssetClassNamesInRequest(lines);
+
     const resolved = await Promise.all(
       lines.map((line) =>
         this.assetRegisterCatalog.resolveActiveAssetClassReference(
@@ -1417,14 +1644,19 @@ export class LeaseContractsService {
       ),
     );
 
-    const inventoryById =
-      await this.assetRegisterCatalog.getAssetClassInventoryBatchByIds(
-        organizationId,
-        resolved.map((row) => row.id),
-      );
+    assertNoDuplicateResolvedAssetClassIds(resolved);
+
+    const classIds = resolved
+      .map((row) => row.id)
+      .filter((id): id is string => Boolean(id));
+    const inventoryById = await this.resolveEffectiveAvailableNowByClassIds(
+      organizationId,
+      classIds,
+      options.excludeContractId,
+    );
     const snapshots = resolved.map((ref, index) => {
       const line = lines[index];
-      const availableNow = inventoryById.get(ref.id) ?? 0;
+      const availableNow = ref.id ? (inventoryById.get(ref.id) ?? 0) : 0;
       const inbound = 0;
       return computeAssetLineAvailability(
         ref.name,
@@ -1472,12 +1704,18 @@ export class LeaseContractsService {
     organizationId: string,
     vehicleIds: string[],
   ) {
+    const uniqueIds = [...new Set(vehicleIds.filter(Boolean))];
+    if (uniqueIds.length === 0) {
+      return;
+    }
     const now = new Date();
-    for (const vehicleId of vehicleIds) {
-      const vehicle = await this.repo.getVehicleInOrg(
-        organizationId,
-        vehicleId,
-      );
+    const vehicles = await this.repo.getVehiclesByIds(
+      organizationId,
+      uniqueIds,
+    );
+    const byId = new Map(vehicles.map((v) => [v.id, v]));
+    for (const vehicleId of uniqueIds) {
+      const vehicle = byId.get(vehicleId);
       if (!vehicle) {
         throw new BadRequestException({
           code: 'VEHICLE_NOT_FOUND',
@@ -1567,14 +1805,18 @@ export class LeaseContractsService {
     contractId: string,
     vehicleIds: string[],
   ) {
+    const uniqueIds = [...new Set(vehicleIds.filter(Boolean))];
     const now = new Date();
-    for (const vehicleId of vehicleIds) {
-      const vehicle = await this.repo.getVehicleInOrg(
-        organizationId,
-        vehicleId,
-      );
-      if (!vehicle)
+    const vehicles = await this.repo.getVehiclesByIds(
+      organizationId,
+      uniqueIds,
+    );
+    const byId = new Map(vehicles.map((v) => [v.id, v]));
+    for (const vehicleId of uniqueIds) {
+      const vehicle = byId.get(vehicleId);
+      if (!vehicle) {
         throw new BadRequestException(`Vehicle ${vehicleId} not found`);
+      }
       if (vehicle.status !== 'available') {
         throw new BadRequestException(
           `Vehicle ${vehicle.registrationNo} is not available`,
@@ -1717,7 +1959,7 @@ export class LeaseContractsService {
       buildContractLineAllocationRow({
         assetClass: line.assetClass,
         committedQuantity: line.committedQuantity,
-        allocatedCount: allocatedByClass[line.assetClass] ?? 0,
+        allocatedCount: allocatedByClass[line.assetClass.trim()] ?? 0,
         inboundCount: line.inboundCount,
         shortfallCount: line.shortfallCount,
         awaitingAssetsLine: line.awaitingAssetsLine,
@@ -1844,6 +2086,7 @@ export class LeaseContractsService {
           assetClassId: l.assetClassId ?? null,
           assetClass: l.assetClass,
           committedQuantity: l.committedQuantity,
+          allocatedCount: allocation.allocatedCount,
           ratePerVehicleMonth: l.ratePerVehicleMonth,
           availabilityCovered: l.availabilityCovered,
           availabilityStatus: l.availabilityStatus,
@@ -1915,7 +2158,7 @@ export class LeaseContractsService {
       buildContractLineAllocationRow({
         assetClass: line.assetClass,
         committedQuantity: line.committedQuantity,
-        allocatedCount: allocatedByClass[line.assetClass] ?? 0,
+        allocatedCount: allocatedByClass[line.assetClass.trim()] ?? 0,
         inboundCount: line.inboundCount,
         shortfallCount: line.shortfallCount,
         awaitingAssetsLine: line.awaitingAssetsLine,
@@ -2052,6 +2295,18 @@ export class LeaseContractsService {
       concluded: 'Closed',
     };
     return map[status] ?? status;
+  }
+
+  private async emitLeaseContractPoolChanged(
+    organizationId: string,
+    contractId: string,
+  ): Promise<void> {
+    await this.domainEvents.emit({
+      type: OrganizationDomainEventType.FLEET_LEASING_CONTRACT_POOL_CHANGED,
+      organizationId,
+      resource: 'lease_contract',
+      ids: { leaseContractId: contractId },
+    });
   }
 }
 

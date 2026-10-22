@@ -24,6 +24,7 @@ import {
 import { organisationDriverDetailHref } from "@/lib/navigation/organisation-static-routes";
 import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
 import { ApiClientError } from "@/lib/api/client";
+import { invalidateLeaseContractCaches } from "@/lib/query/invalidate-lease-contract-caches";
 import {
     LEASE_CONTRACT_STATUS_UPDATE_ERROR,
     showErrorToast,
@@ -242,19 +243,12 @@ export default function LeaseContractDetails() {
         retry: false,
     });
 
-    const invalidateLeaseContractCaches = () => {
-        void queryClient.invalidateQueries({
-            queryKey: ["lease-contract", leaseId, organizationId],
-        });
-        void queryClient.invalidateQueries({
-            queryKey: ["lease-contract-detail", organizationId, leaseId],
-        });
-        void queryClient.invalidateQueries({
-            queryKey: ["lease-contracts-list", organizationId],
-        });
-        void queryClient.invalidateQueries({
-            queryKey: ["renewals-extensions-list", organizationId],
-        });
+    const refreshLeaseContractCaches = () => {
+        void invalidateLeaseContractCaches(
+            queryClient,
+            organizationId,
+            leaseId,
+        );
     };
 
     const statusMutationError = (error: unknown) => {
@@ -270,7 +264,7 @@ export default function LeaseContractDetails() {
             api.activate(leaseId),
 
         onSuccess: () => {
-            invalidateLeaseContractCaches();
+            refreshLeaseContractCaches();
             showLeaseContractActivatedToast();
         },
         onError: statusMutationError,
@@ -281,7 +275,7 @@ export default function LeaseContractDetails() {
             api.deactivate(leaseId, reason),
 
         onSuccess: () => {
-            invalidateLeaseContractCaches();
+            refreshLeaseContractCaches();
             showLeaseContractDeactivatedToast();
         },
         onError: statusMutationError,
@@ -292,7 +286,7 @@ export default function LeaseContractDetails() {
             api.reactivate(leaseId),
 
         onSuccess: () => {
-            invalidateLeaseContractCaches();
+            refreshLeaseContractCaches();
             showLeaseContractReactivatedToast();
         },
         onError: statusMutationError,
@@ -301,7 +295,7 @@ export default function LeaseContractDetails() {
     const terminate = useMutation({
         mutationFn: () => api.terminate(leaseId),
         onSuccess: () => {
-            invalidateLeaseContractCaches();
+            refreshLeaseContractCaches();
             showLeaseContractTerminatedToast();
         },
         onError: statusMutationError,
@@ -310,7 +304,7 @@ export default function LeaseContractDetails() {
     const pauseBilling = useMutation({
         mutationFn: () => api.pauseBilling(leaseId),
         onSuccess: () => {
-            invalidateLeaseContractCaches();
+            refreshLeaseContractCaches();
             showLeaseContractBillingPausedToast();
         },
         onError: statusMutationError,
@@ -384,14 +378,18 @@ export default function LeaseContractDetails() {
                             : "Not Covered",
 
                 lineStatusLabel:
-                    line.lineStatusLabel ??
-                    (line.lineAllocationStatus === "allocated"
-                        ? "Allocated"
-                        : line.lineAllocationStatus === "partially_allocated"
-                          ? "Partially allocated"
-                          : line.awaitingAssetsLine
-                            ? "Awaiting assets"
-                            : "—"),
+                    line.allocatedCount != null &&
+                    line.committedQuantity > 0
+                        ? `${line.allocatedCount} of ${line.committedQuantity} allocated`
+                        : (line.lineStatusLabel ??
+                          (line.lineAllocationStatus === "allocated"
+                              ? "Allocated"
+                              : line.lineAllocationStatus ===
+                                  "partially_allocated"
+                                ? "Partially allocated"
+                                : line.awaitingAssetsLine
+                                  ? "Awaiting assets"
+                                  : "—")),
             }),
         );
 

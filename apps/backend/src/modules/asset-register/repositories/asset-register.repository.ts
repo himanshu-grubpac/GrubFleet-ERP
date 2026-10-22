@@ -309,6 +309,30 @@ export class AssetRegisterRepository {
     return map;
   }
 
+  async countAvailableVehiclesForClassExcludingIds(
+    organizationId: string,
+    assetClassId: string,
+    excludeVehicleIds: string[],
+  ): Promise<number> {
+    const uniqueExclude = [...new Set(excludeVehicleIds)];
+    const conditions = [
+      eq(assetRegisterVehicles.organizationId, organizationId),
+      eq(assetRegisterVehicles.isActive, true),
+      eq(assetRegisterVehicles.operationalStatus, 'available'),
+      eq(assetRegisterVehicles.assetClassId, assetClassId),
+    ];
+    if (uniqueExclude.length > 0) {
+      conditions.push(notInArray(assetRegisterVehicles.id, uniqueExclude));
+    }
+    const [row] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(assetRegisterVehicles)
+      .where(and(...conditions));
+    return row?.count ?? 0;
+  }
+
   async countAvailableVehiclesByClassIds(
     organizationId: string,
     assetClassIds: string[],
@@ -657,6 +681,8 @@ export class AssetRegisterRepository {
       isActive?: boolean;
       assetClassId?: string;
       operationalStatus?: AssetRegisterVehicleRow['operationalStatus'];
+      demandFilter?: 'any' | 'in_demand' | 'no_demand';
+      assetClassIdsWithOpenDemand?: string[];
       sort?: ResolvedListSort<AssetRegisterVehicleListSortField>;
     },
   ): Promise<{ rows: AssetRegisterVehicleWithRelations[]; total: number }> {
@@ -684,8 +710,22 @@ export class AssetRegisterRepository {
         or(
           ilike(assetRegisterVehicles.fleetCode, pattern),
           ilike(assetRegisterVehicles.registrationNumber, pattern),
+          ilike(assetRegisterAssetClasses.name, pattern),
         )!,
       );
+    }
+    if (options.demandFilter === 'in_demand') {
+      const ids = options.assetClassIdsWithOpenDemand ?? [];
+      if (ids.length === 0) {
+        conditions.push(sql`false`);
+      } else {
+        conditions.push(inArray(assetRegisterVehicles.assetClassId, ids));
+      }
+    } else if (options.demandFilter === 'no_demand') {
+      const ids = options.assetClassIdsWithOpenDemand ?? [];
+      if (ids.length > 0) {
+        conditions.push(notInArray(assetRegisterVehicles.assetClassId, ids));
+      }
     }
     const where = and(...conditions);
     const offset = (page - 1) * pageSize;
@@ -749,6 +789,7 @@ export class AssetRegisterRepository {
         | 'insuranceStartDate'
         | 'insuranceEndDate'
         | 'insurancePremium'
+        | 'insuranceSupplierId'
         | 'warrantyStartDate'
         | 'warrantyEndDate'
         | 'specialNotes'
@@ -1312,9 +1353,14 @@ export class AssetRegisterRepository {
     fleetClientId: string | null;
     organisationClientId: string | null;
     vehicleIds: string[];
+    assignedAt?: Date;
+    odometerAtHandover?: number;
+    handoverLocation?: string;
+    notes?: string;
   }): Promise<AssetRegisterVehicleAssignmentRow[]> {
     return this.db.transaction(async (tx) => {
       const now = new Date();
+      const assignedAt = input.assignedAt ?? now;
       const inserted: AssetRegisterVehicleAssignmentRow[] = [];
       for (const vehicleId of input.vehicleIds) {
         const [row] = await tx
@@ -1325,14 +1371,27 @@ export class AssetRegisterRepository {
             leaseContractId: input.leaseContractId,
             fleetClientId: input.fleetClientId,
             organisationClientId: input.organisationClientId,
-            assignedAt: now,
+            assignedAt,
+            handoverLocation: input.handoverLocation?.trim() || null,
+            notes: input.notes?.trim() || null,
           })
           .returning();
         if (!row) throw new Error('Failed to insert vehicle assignment');
         inserted.push(row);
+        const vehiclePatch: {
+          operationalStatus: 'leased';
+          updatedAt: Date;
+          odometer?: number;
+        } = {
+          operationalStatus: 'leased',
+          updatedAt: now,
+        };
+        if (input.odometerAtHandover !== undefined) {
+          vehiclePatch.odometer = input.odometerAtHandover;
+        }
         await tx
           .update(assetRegisterVehicles)
-          .set({ operationalStatus: 'leased', updatedAt: now })
+          .set(vehiclePatch)
           .where(
             and(
               eq(assetRegisterVehicles.organizationId, input.organizationId),

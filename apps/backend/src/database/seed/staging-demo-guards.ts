@@ -79,6 +79,7 @@ export function assertStagingDemoSeedAllowed(): void {
 }
 
 const STAGING_NONPROD_DB_NAME = 'grubfleet_erp_nonprod';
+const PREPROD_DB_NAME = 'grubfleet_erp_preprod';
 
 function assertStagingNonprodDatabaseUrl(connectionString: string): void {
   let dbName: string | undefined;
@@ -136,6 +137,37 @@ function assertLocalDevelopmentDatabaseUrl(connectionString: string): void {
 export const LOCAL_ASSET_REGISTER_DEMO_SEED_SOURCE =
   'local-asset-register-demo-v1';
 
+/** Slim local org + asset seed (2–3 rows per submodule). */
+export const LOCAL_SLIM_ORG_ASSET_SEED_SOURCE = 'local-slim-org-asset-v1';
+
+/**
+ * Local Docker Postgres — slim professional dev data for org + asset modules.
+ * Invoked via `npm run db:seed:local-slim -w backend` (APP_ENV=development).
+ */
+export function assertLocalSlimOrgAssetSeedAllowed(
+  connectionString: string,
+): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (
+    appEnv === 'production' ||
+    appEnv === 'staging' ||
+    appEnv === 'pre-production'
+  ) {
+    throw new Error(
+      `Refusing local slim seed when APP_ENV=${appEnv ?? '(unset)'}.`,
+    );
+  }
+  if (appEnv !== 'development') {
+    throw new Error(
+      `Refusing local slim seed: set APP_ENV=development (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertLocalDevelopmentDatabaseUrl(connectionString);
+  if (/rds\.amazonaws\.com/i.test(connectionString)) {
+    throw new Error('Refusing local slim seed against RDS.');
+  }
+}
+
 /**
  * Local Docker Postgres only — full Asset Register demo rows for dev org.
  * Requires SEED_LOCAL_ASSET_REGISTER_DEMO=1 and APP_ENV=development.
@@ -182,6 +214,51 @@ export function assertStagingDemoPurgeAllowed(): void {
     );
   }
   assertStagingNonprodDatabaseUrl(resolveStagingDatabaseUrl());
+}
+
+function assertPreprodDatabaseUrl(connectionString: string): void {
+  let dbName: string | undefined;
+  try {
+    dbName = new URL(
+      connectionString.replace(/^postgresql:/, 'postgres:'),
+    ).pathname
+      .replace(/^\//, '')
+      .split('?')[0];
+  } catch {
+    throw new Error('DATABASE_URL is not a valid URL.');
+  }
+  if (dbName !== PREPROD_DB_NAME) {
+    throw new Error(
+      `Refusing pre-prod business purge: expected database "${PREPROD_DB_NAME}", got "${dbName ?? '(unknown)'}".`,
+    );
+  }
+  if (/grubfleet_erp_production/i.test(connectionString)) {
+    throw new Error('Refusing pre-prod purge against production database.');
+  }
+}
+
+/**
+ * Purge pre-prod org business + demo rows; keeps users, password hashes, memberships, roles, org shell.
+ * Requires PURGE_PREPROD_BUSINESS=1 and APP_ENV=preprod.
+ */
+export function assertPreprodBusinessPurgeAllowed(): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (appEnv === 'production' || appEnv === 'pre-production') {
+    throw new Error(
+      `Refusing pre-prod business purge when APP_ENV=${appEnv ?? '(unset)'} (use preprod).`,
+    );
+  }
+  if (process.env.PURGE_PREPROD_BUSINESS !== '1') {
+    throw new Error(
+      'Refusing pre-prod business purge: set PURGE_PREPROD_BUSINESS=1 explicitly.',
+    );
+  }
+  if (appEnv !== 'preprod') {
+    throw new Error(
+      `Refusing pre-prod business purge: APP_ENV must be preprod (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertPreprodDatabaseUrl(resolveStagingDatabaseUrl());
 }
 
 export function assertStagingAssetRegisterCleanAllowed(): void {

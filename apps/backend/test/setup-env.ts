@@ -1,6 +1,8 @@
 process.env.NODE_ENV = 'test';
 process.env.PORT = '4000';
 process.env.API_PREFIX = 'api/v1';
+// Same Docker DB as dev by default — integration specs create rows here.
+// After tests: npm run db:reset:local-professional
 process.env.DATABASE_URL =
   process.env.DATABASE_URL ??
   'postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp';

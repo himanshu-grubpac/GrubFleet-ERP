@@ -9,6 +9,7 @@ import {
 
 import { Loader2 } from "lucide-react";
 
+import { PortalEnvironmentBadge } from "@/components/layout/PortalEnvironmentBadge";
 import Button from "@/components/ui/GrubpacButton";
 import { AuthBootstrapLoader } from "@/components/states/auth-bootstrap-loader";
 import {
@@ -120,9 +121,12 @@ export default function LoginPage() {
 
         {/* Header */}
         <div className="mb-6 space-y-1">
-          <p className="text-xs font-bold uppercase tracking-wider text-[#FE5720]">
-            Fleet Pulse
-          </p>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-[#FE5720]">
+              Fleet Pulse
+            </p>
+            <PortalEnvironmentBadge className="mt-1 normal-case tracking-wide" />
+          </div>
 
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Sign in to ERP

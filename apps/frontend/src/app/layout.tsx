@@ -5,6 +5,7 @@ import { QueryProvider } from '@/providers/query-provider';
 import { AuthProvider } from '@/providers/auth-provider';
 import { AppToaster } from '@/components/ui/app-toaster';
 import { ChunkLoadRecovery } from '@/components/chunk-load-recovery';
+import { getPortalDocumentTitle } from '@/lib/env/portal-tier';
 import './globals.css';
 
 const geistSans = Geist({
@@ -20,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'GrubPac ERP',
+  title: getPortalDocumentTitle(),
   description: 'GrubPac modular monolith ERP platform',
 };
 

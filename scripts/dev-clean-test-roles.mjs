@@ -1,5 +1,9 @@
 /**
- * Local dev: purge integration-test RBAC/org junk and reseed demo roles + organisation sample.
+ * Local dev: purge integration-test RBAC junk and reseed demo org roles.
+ *
+ * On grubpac_erp (canonical Docker DB) this does not re-run legacy org sample seeds.
+ * After `npm run test` or `npm run ci:local`, reset portal data with:
+ *   npm run db:reset:local-professional
  *
  * Requires: Docker Postgres up, APP_ENV=development (or pass --confirm-dev via ts scripts).
  *

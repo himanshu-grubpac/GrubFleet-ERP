@@ -62,5 +62,8 @@ export const assetRegisterFleetLeaseHistoryHref = (vehicleId: string) => {
 export const assetRegisterAssetAssignDetailHref = (vehicleId: string) =>
   detailHref(MODULE_BASE.assetAssign, "vehicleId", vehicleId);
 
+export const assetRegisterBulkAssignHref = () =>
+  `${MODULE_BASE.assetAssign}/bulk/`;
+
 export const assetRegisterComplianceRenewalDetailHref = (vehicleId: string) =>
   detailHref(MODULE_BASE.complianceRenewals, "vehicleId", vehicleId);

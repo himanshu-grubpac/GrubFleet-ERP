@@ -38,6 +38,7 @@ import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 
 import { useAuth } from "@/providers/auth-provider";
 
+import { PortalEnvironmentBadge } from "@/components/layout/PortalEnvironmentBadge";
 import { cn } from "@/lib/utils";
 
 function userInitials(
@@ -269,11 +270,17 @@ export function Sidebar({
 
                     {(!effectiveCollapsed || mobileOpen) && (
 
-                        <h1 className="truncate text-xl font-bold text-[#FE5720]">
+                        <div className="min-w-0">
 
-                            Fleet Pulse
+                            <h1 className="truncate text-xl font-bold text-[#FE5720]">
 
-                        </h1>
+                                Fleet Pulse
+
+                            </h1>
+
+                            <PortalEnvironmentBadge className="mt-0.5" />
+
+                        </div>
 
                     )}
 

@@ -87,6 +87,9 @@ async function main() {
   runStep('Lint backend', ['run', 'lint', '-w', 'backend']);
   runStep('Typecheck backend', ['run', 'typecheck', '-w', 'backend']);
   runStep('Test backend', ['run', 'test', '-w', 'backend']);
+  console.log(
+    '\nNote: backend tests write to local grubpac_erp. For slim portal data again:\n  npm run db:reset:local-professional\n',
+  );
   runStep('Build backend', ['run', 'build', '-w', 'backend']);
   runStep('Verify Lambda SAM bundle (prepare:lambda)', [
     'run',

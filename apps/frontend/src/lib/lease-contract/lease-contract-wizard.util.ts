@@ -9,9 +9,43 @@ export type LeaseWizardScreen =
     | "terms"
     | "review";
 
+/** Matches backend `addMonthsUtc` / ISO date-only storage. */
+export function computeLeaseEndDateIso(
+    startDate: string,
+    termMonths: number | "",
+): string {
+    const trimmedStart = startDate.trim();
+    if (
+        !trimmedStart ||
+        termMonths === "" ||
+        Number(termMonths) < 1
+    ) {
+        return "";
+    }
+
+    const parts = trimmedStart.split("-").map((part) => Number(part));
+    if (parts.length !== 3 || parts.some((n) => !Number.isFinite(n))) {
+        return "";
+    }
+
+    const [year, month, day] = parts;
+    const utc = new Date(Date.UTC(year, month - 1, day));
+    if (Number.isNaN(utc.getTime())) {
+        return "";
+    }
+
+    utc.setUTCMonth(utc.getUTCMonth() + Number(termMonths));
+    return utc.toISOString().slice(0, 10);
+}
+
 export function termsAreComplete(terms: LeaseTerms): boolean {
+    const endDate =
+        terms.endDate.trim() ||
+        computeLeaseEndDateIso(terms.startDate, terms.termMonths);
+
     return Boolean(
         terms.startDate.trim() &&
+            endDate &&
             terms.termMonths &&
             Number(terms.termMonths) >= 1 &&
             String(terms.securityDeposit).trim() &&
@@ -94,12 +128,14 @@ export function buildPartialTermsPatch(
     terms: LeaseTerms,
 ): {
     startDate?: string;
+    endDate?: string;
     termMonths?: number;
     securityDeposit?: string;
     billingFrequency?: LeaseTerms["billingFrequency"];
 } {
     const patch: {
         startDate?: string;
+        endDate?: string;
         termMonths?: number;
         securityDeposit?: string;
         billingFrequency?: LeaseTerms["billingFrequency"];
@@ -111,6 +147,16 @@ export function buildPartialTermsPatch(
     if (terms.termMonths !== "" && Number(terms.termMonths) >= 1) {
         patch.termMonths = Number(terms.termMonths);
     }
+
+    const endDate =
+        terms.endDate.trim() ||
+        (patch.startDate && patch.termMonths
+            ? computeLeaseEndDateIso(patch.startDate, patch.termMonths)
+            : "");
+    if (endDate) {
+        patch.endDate = endDate;
+    }
+
     if (String(terms.securityDeposit).trim()) {
         patch.securityDeposit = String(terms.securityDeposit).trim();
     }
@@ -119,4 +165,34 @@ export function buildPartialTermsPatch(
     }
 
     return patch;
+}
+
+export function buildCompleteTermsApiPayload(terms: LeaseTerms): {
+    startDate: string;
+    endDate: string;
+    termMonths: number;
+    securityDeposit: string;
+    billingFrequency: LeaseTerms["billingFrequency"];
+} | null {
+    if (!termsAreComplete(terms)) {
+        return null;
+    }
+
+    const startDate = terms.startDate.trim();
+    const termMonths = Number(terms.termMonths);
+    const endDate =
+        terms.endDate.trim() ||
+        computeLeaseEndDateIso(startDate, termMonths);
+
+    if (!endDate) {
+        return null;
+    }
+
+    return {
+        startDate,
+        endDate,
+        termMonths,
+        securityDeposit: String(terms.securityDeposit).trim(),
+        billingFrequency: terms.billingFrequency,
+    };
 }

@@ -287,9 +287,14 @@ export default function StockViewPage() {
     const compatibleClass =
         stock.compatibleAssetClasses.length === 0
             ? "—"
+            : stock.compatibleAssetClasses.join(", ");
+
+    const compatibleClassesSubtitle =
+        stock.compatibleAssetClasses.length === 0
+            ? "No compatible asset classes."
             : stock.compatibleAssetClasses.length === 1
-                ? stock.compatibleAssetClasses[0]
-                : "Both classes";
+              ? `Compatible with ${stock.compatibleAssetClasses[0]}.`
+              : `Compatible with ${stock.compatibleAssetClasses.join(", ")}.`;
 
     /* ---------------------------------------------------------------------- */
     /* UI                                                                      */
@@ -323,11 +328,7 @@ export default function StockViewPage() {
                         <p className="mt-0.5 text-[12px] text-gray-500">
                             {stock.partNumber}
                             {" — "}
-                            compatible with{" "}
-                            {stock.compatibleAssetClasses.length > 1
-                                ? "both classes"
-                                : "one class"}
-                            .
+                            {compatibleClassesSubtitle}
                         </p>
                     </div>
 

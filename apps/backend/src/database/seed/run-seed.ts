@@ -7,6 +7,7 @@ import * as schema from '../schema';
 import { permissions } from '../schema';
 import { buildPhase1PermissionCatalog } from './permission-catalog';
 import { seedDevAdminBootstrap } from './dev-admin-bootstrap';
+import { isCanonicalLocalDevDatabase } from './organisation-dev-data-guards';
 import {
   assertLocalAssetRegisterDemoSeedAllowed,
   assertStagingDemoSeedAllowed,
@@ -21,6 +22,19 @@ async function main(): Promise<void> {
   const connectionString =
     process.env.DATABASE_URL ??
     'postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp';
+
+  const appEnv = process.env.APP_ENV?.trim();
+  if (
+    isCanonicalLocalDevDatabase(connectionString) &&
+    process.env.ALLOW_LEGACY_DB_SEED !== '1' &&
+    (!appEnv || appEnv === 'development')
+  ) {
+    throw new Error(
+      'Refusing permissions/bootstrap seed on local Docker grubpac_erp. ' +
+        'Canonical path: npm run db:seed -w backend (slim org + asset) or npm run db:reset:local-professional. ' +
+        'Set ALLOW_LEGACY_DB_SEED=1 to run this script locally.',
+    );
+  }
 
   const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });

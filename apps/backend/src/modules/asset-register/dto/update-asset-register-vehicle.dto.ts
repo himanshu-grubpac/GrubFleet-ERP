@@ -109,4 +109,14 @@ export class UpdateAssetRegisterVehicleDto {
   @ValidateIf((_o, v) => v !== null)
   @IsUUID()
   purchaseInvoiceId?: string | null;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description: 'Organisation supplier (compliance / insurance).',
+  })
+  @IsOptional()
+  @ValidateIf((_o, v) => v !== null)
+  @IsUUID()
+  insuranceSupplierId?: string | null;
 }

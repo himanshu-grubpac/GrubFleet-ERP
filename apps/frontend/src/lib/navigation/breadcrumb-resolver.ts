@@ -220,6 +220,22 @@ export function resolveBreadcrumbs(
         ];
     }
 
+    if (path === "/asset-register/asset-assign/bulk") {
+        return [
+            {
+                label: "Asset Management",
+                href: "/asset-register/",
+            },
+            {
+                label: "Asset Assignment",
+                href: "/asset-register/asset-assign/",
+            },
+            {
+                label: "Bulk assign",
+            },
+        ];
+    }
+
     // Compliance & Renewals: override generic "View Details".
     if (path === "/asset-register/compliance-renewals/detail") {
         return [
