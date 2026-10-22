@@ -47,7 +47,7 @@ import {
     showSuccessToast,
 } from "@/lib/toast/show-toast";
 import LeaseContractStepper from "./LeaseContractStepper";
-import { fleetLeaseContractEditHref } from "@/lib/navigation/fleet-static-routes";
+
 import {
     buildPartialTermsPatch,
     termsAreComplete,
@@ -340,40 +340,50 @@ export default function NewLeaseContractPage() {
         ],
     );
 
+
     const handleSaveDraft = async (
         linesOverride?: AssetLine[],
         termsOverride?: LeaseTerms,
     ) => {
+        if (isPersistingStep) return;
+
         setWizardError(null);
         setIsPersistingStep(true);
+
         const draftLines = linesOverride ?? assetLines;
         const draftTerms = termsOverride ?? terms;
+
         try {
             const { lines, skippedDueToShortfall } =
                 await resolveDraftAssetLines(draftLines);
-            const wasNewDraft = !draftContractId;
-            const contractId = await persistWizardDraft({
+
+            await persistWizardDraft({
                 lines,
                 nextTerms: draftTerms,
+                requireFullLines: true,
             });
+
             if (lines.length > 0) {
                 setAssetLines(lines);
             }
+
             setTerms(draftTerms);
+
             showSuccessToast("Lease contract draft saved");
+
             if (skippedDueToShortfall) {
                 showErrorToast(
                     "Fix asset line quantities before saving lines",
                 );
             }
-            if (wasNewDraft) {
-                router.replace(fleetLeaseContractEditHref(contractId));
-            }
+
+            router.replace("/fleet-leasing/lease-contracts");
         } catch (err) {
             const message =
                 err instanceof Error
                     ? err.message
                     : "Could not save draft contract.";
+
             setWizardError(message);
             showErrorToast(message);
         } finally {

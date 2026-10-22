@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
@@ -69,9 +70,11 @@ interface AssetLinesStepProps {
 const createEmptyAssetLine = (id: string): AssetLine => ({
     id,
     assetClass: "",
-    committedQuantity: 1,
+    // Start at zero so the user can increase the quantity explicitly.
+    committedQuantity: 0,
     ratePerVehicleMonth: "",
 });
+
 
 export default function AssetLinesStep({
     clientId,
@@ -444,11 +447,19 @@ export default function AssetLinesStep({
                             <div className="grid grid-cols-1 gap-4 sm:grid-cols-[1.2fr_0.9fr_1fr_40px] sm:items-center sm:gap-3">
                                 <select
                                     value={line.assetClass}
-                                    onChange={(event) =>
+                                    onChange={(event) => {
+                                        const assetClass = event.target.value;
+
                                         updateAssetLine(line.id, {
-                                            assetClass: event.target.value,
-                                        })
-                                    }
+                                            assetClass,
+                                            committedQuantity: assetClass
+                                                ? Math.max(1, line.committedQuantity)
+                                                : 0,
+                                        });
+                                    }}
+
+
+
                                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
                                     aria-label="Select an asset class"
                                 >
@@ -465,13 +476,13 @@ export default function AssetLinesStep({
                                         </option>
                                     ))}
                                 </select>
-
                                 <QuantityControl
                                     value={line.committedQuantity}
+                                    disabled={!line.assetClass}
                                     onDecrease={() =>
                                         updateAssetLine(line.id, {
                                             committedQuantity: Math.max(
-                                                1,
+                                                0,
                                                 line.committedQuantity - 1,
                                             ),
                                         })
@@ -488,9 +499,9 @@ export default function AssetLinesStep({
                                         updateAssetLine(line.id, {
                                             committedQuantity:
                                                 Number.isFinite(numericValue) &&
-                                                    numericValue >= 1
+                                                    numericValue >= 0
                                                     ? Math.floor(numericValue)
-                                                    : 1,
+                                                    : 0,
                                         });
                                     }}
                                 />
@@ -530,7 +541,7 @@ export default function AssetLinesStep({
                             : "No asset-class lines yet."}
                     </div>
                 )}
-            </div>
+            </div >
 
 
             {catalogReady &&
@@ -551,9 +562,11 @@ export default function AssetLinesStep({
                             onAdd={handleInlineCreateAssetClass}
                         />
                     </div>
-                )}
+                )
+            }
 
-            {catalogReady &&
+            {
+                catalogReady &&
                 assetClassOptions.length === 0 &&
                 !canCreateAssetClass && (
                     <p className="mt-4 text-xs text-slate-600">
@@ -561,7 +574,8 @@ export default function AssetLinesStep({
                         under Asset Register, or ask an administrator for
                         access.
                     </p>
-                )}
+                )
+            }
 
             <button
                 type="button"
@@ -592,7 +606,7 @@ export default function AssetLinesStep({
                     {showSaveDraft && onSaveDraft ? (
                         <Button
                             type="button"
-                            variant="secondary"
+                            variant="outline"
                             onClick={() => onSaveDraft(assetLines)}
                             disabled={isContinuing || isSaveDraftPending}
                             className="w-full sm:w-auto"
@@ -654,11 +668,13 @@ function AvailabilityCell({
 
 function QuantityControl({
     value,
+    disabled = false,
     onDecrease,
     onIncrease,
     onChange,
 }: {
     value: number;
+    disabled?: boolean;
     onDecrease: () => void;
     onIncrease: () => void;
     onChange: (value: string) => void;
@@ -668,7 +684,7 @@ function QuantityControl({
             <button
                 type="button"
                 onClick={onDecrease}
-                disabled={value <= 1}
+                disabled={value <= 0}
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-l-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Decrease requested quantity"
             >
@@ -677,18 +693,20 @@ function QuantityControl({
 
             <input
                 type="number"
-                min="1"
+                min="0"
                 step="1"
                 value={value}
+                disabled={disabled}
                 onChange={(event) => onChange(event.target.value)}
-                className="h-10 min-w-0 flex-1 border-y border-slate-300 bg-white px-2 text-center text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                className="h-10 min-w-0 flex-1 border-y border-slate-300 bg-white px-2 text-center text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
                 aria-label="Requested quantity"
             />
 
             <button
                 type="button"
                 onClick={onIncrease}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-r-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50"
+                disabled={disabled}
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-r-md border border-slate-300 bg-white text-slate-500 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label="Increase requested quantity"
             >
                 <Plus className="h-4 w-4" />
