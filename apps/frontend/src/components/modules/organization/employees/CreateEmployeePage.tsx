@@ -13,6 +13,7 @@ import {
   validateEmail,
   validatePhone,
   validateRequired,
+  validateDate,
   type ValidationErrors,
 } from "@/components/common/Commonvalidation"
 import { useAuth } from "@/providers/auth-provider";
@@ -31,7 +32,6 @@ import {
   EMPLOYMENT_TYPE_UI_OPTIONS,
   employmentTypeApiToUi,
   employmentTypeUiToApi,
-  formatEmployeeDateForForm,
   parseEmployeeDateForApi,
   type EmploymentTypeUiLabel,
 } from "./employeeFormMappers";
@@ -157,6 +157,51 @@ function buildEmploymentTypes(initialType?: string): LocationType[] {
   return items;
 }
 
+/** Convert supported API/form date values to the ISO format required by input[type="date"]. */
+function toISODateInput(value: string): string {
+  const trimmed = value.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // Existing employee records may be formatted as DD-MMM-YYYY.
+  const monthIndexes: Record<string, string> = {
+    jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
+    jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
+  };
+  const match = trimmed.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/);
+  if (match) {
+    const [, day, monthName, year] = match;
+    const month = monthIndexes[monthName.toLowerCase()];
+    if (month) return `${year}-${month}-${day.padStart(2, "0")}`;
+  }
+
+  // Also accept DD-MM-YYYY if supplied by an existing form value.
+  const numericMatch = trimmed.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+  if (numericMatch) {
+    const [, day, month, year] = numericMatch;
+    return `${year}-${month}-${day}`;
+  }
+
+  return "";
+}
+
+/** Convert ISO input back to the existing mapper's DD-MMM-YYYY input format. */
+function toEmployeeMapperDate(isoDate: string): string {
+  const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "";
+
+  const [, year, month, day] = match;
+  const monthNames = [
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+  ];
+  const monthName = monthNames[Number(month) - 1];
+  if (!monthName) return "";
+  return `${day}-${monthName}-${year}`;
+}
+
 export default function CreateEmployeePage({
   onCancel,
   onSaved,
@@ -184,7 +229,7 @@ export default function CreateEmployeePage({
     reportsToEmployeeId: initialData?.reportsToEmployeeId ?? "",
     employmentTypeUi: initialEmploymentUi,
     dateOfJoining: initialData?.dateOfJoining
-      ? formatEmployeeDateForForm(initialData.dateOfJoining)
+      ? toISODateInput(initialData.dateOfJoining)
       : "",
     phone: initialData?.phone ?? "",
     email: initialData?.email ?? "",
@@ -424,6 +469,22 @@ export default function CreateEmployeePage({
     const locationError = validateRequired(form.locationId, "Location");
     if (locationError) errors.location = "Please select a location.";
 
+
+    const phone = form.phone.trim();
+
+    if (!phone) {
+      errors.phone = "Phone number is required.";
+    } else if (!/^\+?\d[\d\s-]*$/.test(phone)) {
+      errors.phone = "Phone number must contain only digits.";
+    } else {
+      const digits = phone.replace(/\D/g, "");
+
+      if (digits.length < 10 || digits.length > 15) {
+        errors.phone = "Enter a valid phone number (10–15 digits).";
+      }
+    }
+
+
     const employmentTypeError = validateRequired(
       form.employmentTypeUi,
       "Employment type",
@@ -435,16 +496,11 @@ export default function CreateEmployeePage({
         "Employment type must be Full-time, Part-time, or Contract.";
     }
 
-    const dateError = validateRequired(
-      form.dateOfJoining,
-      "Date of joining",
-    );
-    if (dateError) {
-      errors.dateOfJoining = dateError;
-    } else if (!parseEmployeeDateForApi(form.dateOfJoining)) {
-      // Keep the employee form's existing DD-MMM-YYYY date format.
-      errors.dateOfJoining = "Use DD-MMM-YYYY (e.g. 14-Jun-2022).";
-    }
+    const dateError = validateDate(form.dateOfJoining, {
+      label: "Date of joining",
+      maxDate: new Date().toISOString().slice(0, 10),
+    });
+    if (dateError) errors.dateOfJoining = dateError;
 
     const phoneError = validatePhone(form.phone, "Phone number");
     if (phoneError) errors.phone = phoneError;
@@ -473,12 +529,14 @@ export default function CreateEmployeePage({
       }
 
       const employmentType = employmentTypeUiToApi(form.employmentTypeUi);
-      const dateOfJoining = parseEmployeeDateForApi(form.dateOfJoining);
+      // Keep the existing API mapper contract while the UI uses ISO dates.
+      const dateOfJoining = parseEmployeeDateForApi(
+        toEmployeeMapperDate(form.dateOfJoining),
+      );
 
       if (!employmentType || !dateOfJoining) {
         return;
       }
-
       const employee: EmployeeFormData = {
         fullName: form.fullName.trim(),
         designation: form.designation.trim(),
@@ -765,7 +823,7 @@ export default function CreateEmployeePage({
         />
       </div>
 
-      {/* Date of Joining */}
+
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div>
           <label
@@ -775,17 +833,25 @@ export default function CreateEmployeePage({
             Date of joining
             <span className="ml-1 text-red-500">*</span>
           </label>
+
           <input
             id="employee-date-of-joining"
-            type="text"
+            type="date"
             value={form.dateOfJoining}
+            max={new Date().toISOString().slice(0, 10)}
             onChange={(event) => {
-              updateForm("dateOfJoining", event.target.value);
-              clearError("dateOfJoining");
+              const value = event.target.value;
+
+              // Native date inputs use YYYY-MM-DD. Reject values with a
+              // non-four-digit year while preserving the browser calendar.
+              if (value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                updateForm("dateOfJoining", value);
+                clearError("dateOfJoining");
+              }
             }}
-            placeholder="DD-MMM-YYYY"
             className={inputClass("dateOfJoining")}
           />
+
           {displayedErrors.dateOfJoining && (
             <p className="mt-1 text-xs text-red-500">
               {displayedErrors.dateOfJoining}
@@ -793,6 +859,7 @@ export default function CreateEmployeePage({
           )}
         </div>
       </div>
+
 
       {/* Phone and Email */}
       <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -804,17 +871,34 @@ export default function CreateEmployeePage({
             Phone
             <span className="ml-1 text-red-500">*</span>
           </label>
+
           <input
             id="employee-phone"
             type="tel"
+            inputMode="tel"
             value={form.phone}
             onChange={(event) => {
-              updateForm("phone", event.target.value);
-              clearError("phone");
+              const value = event.target.value;
+
+              // Allow only digits, an optional leading +, spaces, and hyphens.
+              if (/^\+?\d[\d\s-]*$/.test(value) || value === "") {
+                updateForm("phone", value);
+                clearError("phone");
+              }
             }}
-            placeholder="+91 98XXXXXXXX"
+            onKeyDown={(event) => {
+              if (
+                /^[a-zA-Z]$/.test(event.key) ||
+                /^[^\da-zA-Z\s]$/.test(event.key) &&
+                !["+", "-"].includes(event.key)
+              ) {
+                event.preventDefault();
+              }
+            }}
+            placeholder="+91 9876543210"
             className={inputClass("phone")}
           />
+
           {displayedErrors.phone && (
             <p className="mt-1 text-xs text-red-500">
               {displayedErrors.phone}
