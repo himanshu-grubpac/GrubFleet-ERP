@@ -273,12 +273,7 @@ export default function DashboardInvoicesPage() {
       sortable: false,
       render: (row) => row.partyName,
     },
-    {
-      key: "description",
-      label: "Description",
-      sortable: false,
-      render: (row) => row.description,
-    },
+
     {
       key: "amount",
       label: "Amount",
@@ -291,7 +286,7 @@ export default function DashboardInvoicesPage() {
       label: "Status",
       render: (row) => (
         <span
-          className={`inline-flex rounded-md px-2.5 py-1 text-xs font-semibold ${statusBadgeClass(row.status)}`}
+          className={`inline-flex min-w-[132px] shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold ${statusBadgeClass(row.status)}`}
         >
           {statusLabel(row.status)}
         </span>
@@ -301,13 +296,13 @@ export default function DashboardInvoicesPage() {
 
   const renderRowActions = (row: FinanceInvoiceListItem) => {
     const copyText = [
-      row.invoiceNumber,
-      typeLabel(row.invoiceType),
-      row.invoiceDate,
-      row.partyName,
-      formatInrFromMinor(row.totalAmountMinor),
-      statusLabel(row.status),
-    ].join("\t");
+      `Invoice number: ${row.invoiceNumber}`,
+      `Type: ${typeLabel(row.invoiceType)}`,
+      `Date: ${row.invoiceDate}`,
+      `Party: ${row.partyName}`,
+      `Amount: ${formatInrFromMinor(row.totalAmountMinor)}`,
+      `Status: ${statusLabel(row.status)}`,
+    ].join("\n");
 
     const rowActions = row.availableActions;
 
@@ -493,7 +488,7 @@ export default function DashboardInvoicesPage() {
                 />
               ) : (
                 <div
-                  className={showFilters ? "mt-4" : undefined}
+                  className={`relative w-full min-w-0 overflow-visible ${showFilters ? "mt-4" : ""}`}
                   aria-busy={
                     listQuery.isFetching &&
                     listQuery.isPlaceholderData

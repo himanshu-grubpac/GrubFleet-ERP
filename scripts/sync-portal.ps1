@@ -2,7 +2,7 @@
 # Usage: .\scripts\sync-portal.ps1 -Tier staging [-PortalOrigin https://dxxx.cloudfront.net]
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('staging', 'preprod', 'production')]
+  [ValidateSet('staging', 'preprod', 'fleetbeta', 'production')]
   [string] $Tier,
 
   [string] $Profile = 'grubfleet-erp',
@@ -39,6 +39,7 @@ if (-not $ApiBaseUrl) {
   $apiUrls = @{
     staging    = 'https://hyfx146jyh.execute-api.ap-south-1.amazonaws.com/api/v1'
     preprod    = 'https://y5i28pmmk4.execute-api.ap-south-1.amazonaws.com/api/v1'
+    fleetbeta  = 'https://yyie4pz8da.execute-api.ap-south-1.amazonaws.com/api/v1'
     production = 'https://ie9a7d5742.execute-api.ap-south-1.amazonaws.com/api/v1'
   }
   $ApiBaseUrl = $apiUrls[$Tier]

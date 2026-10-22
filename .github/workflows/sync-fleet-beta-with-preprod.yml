@@ -1,0 +1,23 @@
+name: Sync fleet-beta branch with pre-prod
+
+# After staging → pre-prod promotion, keep fleet-beta on the same commit and deploy via deploy-fleet-beta.yml.
+on:
+  push:
+    branches: [pre-prod]
+
+permissions:
+  contents: write
+
+jobs:
+  sync-fleet-beta:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fast-forward fleet-beta to pre-prod
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch origin pre-prod
+          git push origin "origin/pre-prod:refs/heads/fleet-beta"

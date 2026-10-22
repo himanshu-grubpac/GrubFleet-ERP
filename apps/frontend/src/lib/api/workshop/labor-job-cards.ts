@@ -1,6 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { apiFetch } from "../client";
+import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { WORKSHOP_FORM_CATALOG_PAGE_SIZE } from "./catalog-page-size";
@@ -135,7 +136,7 @@ export async function updateWorkshopLaborJobCardApi(
       method: "PATCH",
       token,
       headers: orgHeaders(payload.organizationId),
-      body: JSON.stringify(payload),
+      body: serializeOrgScopedPatchBody(payload),
     },
   );
 }

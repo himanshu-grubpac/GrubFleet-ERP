@@ -3,6 +3,7 @@ import type { DriverFormData } from "@/components/modules/organization/driver-re
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
 import { apiFetch } from "../client";
+import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
@@ -169,7 +170,7 @@ export async function updateOrganisationDriverApi(
       method: "PATCH",
       token,
       headers: orgHeaders(organizationId),
-      body: JSON.stringify(payload),
+      body: serializeOrgScopedPatchBody(payload),
     },
   );
 }

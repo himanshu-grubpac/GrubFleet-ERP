@@ -40,7 +40,8 @@
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/aws-sam-cli-managed-default/*",
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-staging/*",
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-preprod/*",
-        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-production/*"
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-production/*",
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-api-fleetbeta/*"
       ]
     },
     {
@@ -74,7 +75,8 @@
       "Resource": [
         "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-staging",
         "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-preprod",
-        "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-production"
+        "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-production",
+        "arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-fleetbeta"
       ]
     },
     {
@@ -111,7 +113,8 @@
       "Resource": [
         "arn:aws:iam::662252246711:role/grubfleet-api-staging-*",
         "arn:aws:iam::662252246711:role/grubfleet-api-preprod-*",
-        "arn:aws:iam::662252246711:role/grubfleet-api-production-*"
+        "arn:aws:iam::662252246711:role/grubfleet-api-production-*",
+        "arn:aws:iam::662252246711:role/grubfleet-api-fleetbeta-*"
       ]
     },
     {
@@ -130,7 +133,8 @@
       "Resource": [
         "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-staging-*",
         "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-preprod-*",
-        "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-production-*"
+        "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-production-*",
+        "arn:aws:events:ap-south-1:662252246711:rule/grubfleet-api-fleetbeta-*"
       ]
     },
     {

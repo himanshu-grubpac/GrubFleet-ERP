@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
@@ -152,7 +153,7 @@ export async function updateOrganisationLocationApi(
       method: "PATCH",
       token,
       headers: orgHeaders(organizationId),
-      body: JSON.stringify(payload),
+      body: serializeOrgScopedPatchBody(payload),
     },
   );
 }

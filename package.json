@@ -24,12 +24,15 @@
     "sam:build": "sam build",
     "deploy:staging:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs staging",
     "deploy:preprod:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs preprod",
+    "deploy:fleetbeta:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs fleetbeta",
     "deploy:production:api": "npm run prepare:lambda && node scripts/stage-sam-artifacts.mjs && node scripts/sam-deploy.mjs production",
     "deploy:staging:portal-stack": "powershell -File scripts/deploy-portal-stack.ps1 -Tier staging",
     "deploy:preprod:portal-stack": "powershell -File scripts/deploy-portal-stack.ps1 -Tier preprod",
+    "deploy:fleetbeta:portal-stack": "powershell -File scripts/deploy-portal-stack.ps1 -Tier fleetbeta",
     "deploy:production:portal-stack": "powershell -File scripts/deploy-portal-stack.ps1 -Tier production",
     "sync:staging:portal": "powershell -File scripts/sync-portal.ps1 -Tier staging",
     "sync:preprod:portal": "powershell -File scripts/sync-portal.ps1 -Tier preprod",
+    "sync:fleetbeta:portal": "powershell -File scripts/sync-portal.ps1 -Tier fleetbeta",
     "sync:production:portal": "powershell -File scripts/sync-portal.ps1 -Tier production"
   },
   "engines": {

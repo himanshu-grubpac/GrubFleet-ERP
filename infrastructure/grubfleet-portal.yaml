@@ -9,6 +9,7 @@ Parameters:
     AllowedValues:
       - staging
       - preprod
+      - fleetbeta
       - production
     Description: Deployment tier (matches SAM AppEnv naming)
 

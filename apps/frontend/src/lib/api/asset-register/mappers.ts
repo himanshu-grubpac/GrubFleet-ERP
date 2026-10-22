@@ -6,6 +6,7 @@ import type { AssetRegisterComplianceFilterStatus } from "./compliance";
 import type { AssetRegisterVehicleDetail } from "./vehicles";
 import type { AssetClassFormData } from "@/components/modules/assetManagement/asset-register/AssetFormPage";
 import type { FleetVehicleFormData } from "@/components/modules/assetManagement/fleet-management/FleetFormPage";
+import { parseRupeeInputToMajorNumber } from "@/lib/format/money-format";
 
 /** Maps API vehicle type to existing list UI labels (no layout change). */
 export type AssetRegisterVehicleTypeUiLabel =
@@ -414,7 +415,7 @@ export function fleetFormToCreateVehiclePayload(
     registrationEndDate: form.registrationEndDate,
     insuranceStartDate: form.insuranceStartDate,
     insuranceEndDate: form.insuranceEndDate,
-    insurancePremium: Number(form.insurancePremium),
+    insurancePremium: parseRupeeInputToMajorNumber(form.insurancePremium),
     warrantyStartDate: form.warrantyStartDate,
     warrantyEndDate: form.warrantyEndDate,
     specialNotes: form.notes.trim() || undefined,
@@ -432,7 +433,7 @@ export function fleetFormToUpdateVehiclePayload(form: FleetVehicleFormData) {
     registrationEndDate: form.registrationEndDate,
     insuranceStartDate: form.insuranceStartDate,
     insuranceEndDate: form.insuranceEndDate,
-    insurancePremium: Number(form.insurancePremium),
+    insurancePremium: parseRupeeInputToMajorNumber(form.insurancePremium),
     warrantyStartDate: form.warrantyStartDate,
     warrantyEndDate: form.warrantyEndDate,
     specialNotes: form.notes.trim() || undefined,

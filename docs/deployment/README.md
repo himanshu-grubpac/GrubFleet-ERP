@@ -17,11 +17,13 @@ GrubPac ERP deploys from Git branches via GitHub Actions. Local machines use Doc
 ```text
 feature/fix/chore  →  PR  →  develop     →  CI only (no AWS deploy)
 develop            →  PR  →  staging     →  merge push triggers deploy-staging.yml
-staging            →  PR  →  pre-prod    →  merge push triggers deploy-preprod.yml
+staging            →  PR  →  pre-prod    →  merge push triggers deploy-preprod.yml + sync/deploy fleet-beta
 pre-prod           →  PR  →  main        →  merge push triggers deploy-production.yml (approval on production)
 ```
 
-Each deploy workflow runs **Drizzle migrate** (staging + pre-prod only), **SAM Lambda API** (`sam-api-deploy`), and **portal S3 + CloudFront** when Environment secrets/vars are set. Production **never** runs migrate in GHA — manual migrate only. See [Environments](./environments.md) for required GitHub secrets.
+Fleet + beta: [fleet-beta-bootstrap.md](./fleet-beta-bootstrap.md). Branch **`fleet-beta`**, GitHub Environment **`fleet-beta`**, database **`grubfleet_erp_fleet_beta`** on shared RDS.
+
+Each deploy workflow runs **Drizzle migrate** (non-production tiers including fleet-beta), **SAM Lambda API** (`sam-api-deploy`), and **portal S3 + CloudFront** when Environment secrets/vars are set. Production **never** runs migrate in GHA — manual migrate only. See [Environments](./environments.md) for required GitHub secrets.
 
 Container build contexts:
 

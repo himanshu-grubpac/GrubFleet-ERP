@@ -383,25 +383,31 @@ export default function ClientStatementsPage() {
                 onSortChange={onSortChange}
                 serverSorted={serverSorted}
                 allowOverflow
-                renderActions={(row) => (
-                  <DashboardTableActions
-                    status="active"
-                    hideEdit
-                    alwaysShowOverflowMenu
-                    viewHref={financeClientStatementDetailHref(
-                      row.clientId,
-                      periodStart,
-                      periodEnd
-                    )}
-                    copyText={[
-                      row.clientName,
-                      String(row.invoiceCount),
-                      formatInrFromMinor(row.totalBilledMinor),
-                      formatInrFromMinor(row.totalPaidMinor),
-                      formatInrFromMinor(row.balanceDueMinor),
-                    ].join("\t")}
-                  />
-                )}
+                renderActions={(row) => {
+                  const copyText = [
+                    `Client: ${row.clientName}`,
+                    `Invoice Count: ${row.invoiceCount}`,
+                    `Total Billed: ${formatInrFromMinor(row.totalBilledMinor)}`,
+                    `Total Paid: ${formatInrFromMinor(row.totalPaidMinor)}`,
+                    `Balance Due: ${formatInrFromMinor(row.balanceDueMinor)}`,
+                    `Period Start: ${periodStart}`,
+                    `Period End: ${periodEnd}`,
+                  ].join("\n");
+
+                  return (
+                    <DashboardTableActions
+                      status="active"
+                      hideEdit
+                      alwaysShowOverflowMenu
+                      viewHref={financeClientStatementDetailHref(
+                        row.clientId,
+                        periodStart,
+                        periodEnd,
+                      )}
+                      copyText={copyText}
+                    />
+                  );
+                }}
               />
             )}
           </>

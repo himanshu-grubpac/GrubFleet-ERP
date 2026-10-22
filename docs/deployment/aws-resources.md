@@ -2,7 +2,7 @@
 
 
 
-**Last updated:** 2026-10-01
+**Last updated:** 2026-10-22
 
 
 
@@ -64,11 +64,17 @@ GrubFleet **frontend** is deployed via **S3 + CloudFront** (stack `grubfleet-por
 
 | `grubfleet-api-preprod` | SAM API (pre-prod) | `CREATE_COMPLETE` |
 
+| `grubfleet-data-fleetbeta` | ElastiCache Redis (Fleet + beta); ERP Postgres on shared `grubpac-v2` | `CREATE_COMPLETE` |
+
+| `grubfleet-api-fleetbeta` | SAM API (Fleet + beta) | `CREATE_COMPLETE` |
+
 | `grubfleet-api-production` | SAM API (production) | `UPDATE_COMPLETE` (health + auth smoke OK) |
 
 | `grubfleet-portal-staging` | S3 + CloudFront portal (staging) | `UPDATE_COMPLETE` |
 
 | `grubfleet-portal-preprod` | Portal (pre-prod) | `UPDATE_COMPLETE` |
+
+| `grubfleet-portal-fleetbeta` | Portal (Fleet + beta) | `CREATE_COMPLETE` |
 
 | `grubfleet-portal-production` | Portal (production) | `UPDATE_COMPLETE` |
 
@@ -114,7 +120,7 @@ Template: `infrastructure/grubfleet-network.yaml`
 
 
 
-As of **2026-10-01**, GrubFleet ERP Postgres for all tiers runs on one shared RDS instance (not per-tier `grubfleet-data-*` RDS). **Redis** remains per-tier from `grubfleet-data-*` stacks (unchanged).
+As of **2026-10-01**, GrubFleet ERP Postgres for all tiers runs on one shared RDS **instance** (`grubpac-v2`; not per-tier `grubfleet-data-*` RDS). **2026-10-22 (live check):** staging, pre-production, and production each use a **separate logical database name** on that host — they do **not** share one nonprod database. **Redis** remains per-tier from `grubfleet-data-*` stacks (unchanged).
 
 
 
@@ -136,13 +142,19 @@ As of **2026-10-01**, GrubFleet ERP Postgres for all tiers runs on one shared RD
 
 
 
-| Logical database | Environment(s) | Notes |
+| Logical database | GitHub Environment / samconfig | Notes |
 
-|------------------|----------------|--------|
+|------------------|--------------------------------|--------|
 
-| `grubfleet_erp_nonprod` | Staging + pre-prod | Same `DATABASE_URL` in GitHub Environments `staging` and `pre-production` (separate schemas/data; one server DB name) |
+| `grubfleet_erp_nonprod` | `staging` → `samconfig.staging.toml` | Staging-only database on shared host |
 
-| `grubfleet_erp_production` | Production | GitHub Environment `production` `DATABASE_URL` |
+| `grubfleet_erp_preprod` | `pre-production` → `samconfig.preprod.toml` | Pre-prod-only database on shared host (**not** `grubfleet_erp_nonprod`) |
+
+| `grubfleet_erp_fleet_beta` | `fleet-beta` → `samconfig.fleetbeta.toml` | Fleet + beta database on shared host |
+
+| `grubfleet_erp_production` | `production` → `samconfig.production.toml` | Production database on shared host |
+
+Tier isolation is by **logical database** (and tier-specific `DATABASE_URL` secrets), not by reusing one nonprod DB for both staging and pre-production.
 
 
 
@@ -174,7 +186,7 @@ Former hosts (`grubfleet-*-postgres.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com`) 
 
 
 
-Per-tier stack: `grubfleet-data-<tier>` where `<tier>` is `staging`, `preprod`, or `production`. Stacks still provision **ElastiCache Redis** per environment; ERP RDS in these stacks is decommissioned (template/stack cleanup may follow).
+Per-tier stack: `grubfleet-data-<tier>` where `<tier>` is `staging`, `preprod`, `fleetbeta`, or `production`. Stacks still provision **ElastiCache Redis** per environment; ERP RDS in these stacks is decommissioned (template/stack cleanup may follow).
 
 
 
@@ -208,11 +220,29 @@ Pre-prod Redis sizing: `cache.t4g.micro` (see template `TierSizing` map).
 
 |----------|--------|
 
-| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_nonprod` (same server DB as staging; tier isolation via app/env) |
+| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_preprod` |
 
 | Redis cluster id | `grubfleet-preprod-redis` |
 
 | Redis host | `grubfleet-preprod-redis.s9s067.0001.aps1.cache.amazonaws.com` |
+
+| Redis port | `6379` |
+
+
+
+### Fleet + beta (`grubfleet-data-fleetbeta`)
+
+
+
+| Resource | Value |
+
+|----------|--------|
+
+| ERP Postgres | Shared `grubpac-v2` → DB `grubfleet_erp_fleet_beta` |
+
+| Redis cluster id | `grubfleet-fleetbeta-redis` |
+
+| Redis host | `grubfleet-fleetbeta-redis.s9s067.0001.aps1.cache.amazonaws.com` |
 
 | Redis port | `6379` |
 
@@ -307,6 +337,34 @@ Pre-prod Redis sizing: `cache.t4g.micro` (see template `TierSizing` map).
 
 
 **Status:** Migrations + seed applied; health + login smoke OK.
+
+
+
+### Fleet + beta (`grubfleet-api-fleetbeta`)
+
+
+
+| Resource | Value |
+
+|----------|--------|
+
+| Lambda function | `grubfleet-api-fleetbeta` |
+
+| Lambda ARN | `arn:aws:lambda:ap-south-1:662252246711:function:grubfleet-api-fleetbeta` |
+
+| HTTP API base URL | `https://yyie4pz8da.execute-api.ap-south-1.amazonaws.com` |
+
+| Nest API prefix | `/api/v1` |
+
+| Portal URL | `https://d206aq3nodl3r1.cloudfront.net` |
+
+| `ClientOrigin` (CORS) | `https://d206aq3nodl3r1.cloudfront.net,http://localhost:3000` (via SAM) |
+
+| VPC | Private subnets + Lambda SG |
+
+
+
+**Status:** Migrations applied; portal synced (2026-10-22).
 
 
 

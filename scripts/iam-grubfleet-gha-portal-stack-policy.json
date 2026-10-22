@@ -24,7 +24,8 @@
       "Resource": [
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-portal-staging/*",
         "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-portal-preprod/*",
-        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-portal-production/*"
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-portal-production/*",
+        "arn:aws:cloudformation:ap-south-1:662252246711:stack/grubfleet-portal-fleetbeta/*"
       ]
     },
     {
@@ -45,7 +46,8 @@
       "Resource": [
         "arn:aws:s3:::grubfleet-portal-staging-662252246711",
         "arn:aws:s3:::grubfleet-portal-preprod-662252246711",
-        "arn:aws:s3:::grubfleet-portal-production-662252246711"
+        "arn:aws:s3:::grubfleet-portal-production-662252246711",
+        "arn:aws:s3:::grubfleet-portal-fleetbeta-662252246711"
       ]
     },
     {

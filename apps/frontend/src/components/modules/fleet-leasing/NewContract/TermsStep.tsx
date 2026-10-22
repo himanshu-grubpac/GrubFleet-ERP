@@ -1,15 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import FormActions from "@/components/common/FormActions";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { FLEET_LEASE_TERMS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import Button from "@/components/ui/GrubpacButton";
 import {
     validateDate,
     validateNumber,
     validateRequired,
 } from "@/components/common/Commonvalidation";
-
+import FormActions from "@/components/common/FormActions";
 import type { AssetLine } from "./AssetLinesStep";
 
 const BILLING_FREQUENCIES = [
@@ -248,12 +248,16 @@ export default function TermsStep({
         }
     };
 
+
     const handleSaveDraft = () => {
         if (!onSaveDraft || isSaveDraftPending || isContinuing) {
             return;
         }
+
+        // The parent handles persistence, errors, and redirect after a successful save.
         void onSaveDraft(buildTermsSnapshot());
     };
+
 
     const renderRateField = (line: AssetLine) => (
         <MoneyField
@@ -435,29 +439,33 @@ export default function TermsStep({
                 </div>
             </div>
 
+
             <div className="mt-5">
                 <FormActions
                     hasAttemptedSubmit={hasAttemptedSubmit}
                     validationSummary={validationSummary}
                     isSaving={isContinuing}
+                    canSubmit={true}
                     onCancel={onBack}
                     onSave={handleContinue}
-                    cancelLabel="Back"
                     saveLabel="Continue"
                     savingLabel="Saving..."
+                    cancelLabel="Back"
                     secondaryAction={
                         showSaveDraft && onSaveDraft
                             ? {
-                                  label: "Save draft",
-                                  pendingLabel: "Saving…",
-                                  isPending: isSaveDraftPending,
-                                  disabled: isContinuing || isSaveDraftPending,
-                                  onClick: handleSaveDraft,
-                              }
+                                label: "Save draft",
+                                onClick: handleSaveDraft,
+                                disabled: isSaveDraftPending,
+                                isPending: isSaveDraftPending,
+                                pendingLabel: "Saving...",
+                            }
                             : undefined
                     }
                 />
             </div>
+
+
         </>
     );
 }

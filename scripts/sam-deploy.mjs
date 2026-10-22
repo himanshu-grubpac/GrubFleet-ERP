@@ -8,7 +8,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const tier = process.argv[2];
-const allowed = ['staging', 'preprod', 'production'];
+const allowed = ['staging', 'preprod', 'fleetbeta', 'production'];
 if (!allowed.includes(tier)) {
   console.error(`Usage: node scripts/sam-deploy.mjs <${allowed.join('|')}>`);
   process.exit(1);

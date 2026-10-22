@@ -3,7 +3,6 @@ import {
   validatePostalForCountry,
   normalizeCountryCode,
 } from "@grubpac/validation";
-import { postcodeValidatorExistsForCountry } from "postcode-validator";
 
 import { getCountryDefinition } from "./countries";
 
@@ -32,12 +31,9 @@ export function isValidPostalForCountry(
 }
 
 export function postalValidationMessage(
-  countryCode: string | null | undefined,
+  countryCode?: string | null | undefined,
 ): string {
-  const code = normalizeCountryCode(countryCode?.trim() ?? "");
-  if (postcodeValidatorExistsForCountry(code)) {
-    return `Enter a valid ${getCountryDefinition(code).postalLabel.toLowerCase()} for this country.`;
-  }
+  void countryCode;
   return "Enter a valid postal code (letters, numbers, spaces, hyphens).";
 }
 

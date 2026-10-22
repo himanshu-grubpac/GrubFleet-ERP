@@ -28,3 +28,4 @@ export * from './color-code';
 export * from './chassis-vin';
 export * from './cpr-no';
 export * from './money';
+export * from './calendar-date';

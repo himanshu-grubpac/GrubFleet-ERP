@@ -13,13 +13,16 @@ Daily integration on **`develop`** may be direct-push or feature PRs per team pr
 | `develop`   | — (local / CI)     | `development`       | Integrate features; run locally with Docker Compose |
 | `staging`   | `staging`          | `staging`           | Shared staging |
 | `pre-prod`  | `pre-production`   | `preprod`           | Production-like validation |
+| `fleet-beta`| `fleet-beta`       | `fleetbeta`         | Fleet + beta (parallel to pre-prod; same code after promotion) |
 | `main`      | `production`       | `production`        | Live production |
 
 Promotion path (do not skip; **PR only**, no direct pushes):
 
-`feature|fix|chore` → PR → `develop` → PR → `staging` → PR → `pre-prod` → PR → `main`
+`feature|fix|chore` → PR → `develop` → PR → `staging` → PR → `pre-prod` (+ sync **`fleet-beta`**) → PR → `main`
 
-Each merge to `staging`, `pre-prod`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR (SAM API + portal via GHA).
+When **`pre-prod`** is updated, **`sync-fleet-beta-with-preprod.yml`** fast-forwards **`fleet-beta`** to the same commit, then **`deploy-fleet-beta.yml`** deploys Fleet + beta. See [fleet-beta-bootstrap.md](./fleet-beta-bootstrap.md).
+
+Each merge to `staging`, `pre-prod`, `fleet-beta`, or `main` triggers the matching deploy workflow after CI is green on the promotion PR (SAM API + portal via GHA).
 
 ## URLs (placeholders)
 
@@ -30,6 +33,7 @@ Replace `example.com` with your real domains in GitHub **Environment variables**
 | Local dev  | `http://localhost:4000/api/v1`       | `http://localhost:3000`         |
 | Staging    | `https://api-staging.example.com/api/v1` | `https://staging.example.com` |
 | Pre-prod   | `https://api-preprod.example.com/api/v1` | `https://preprod.example.com` |
+| Fleet + beta | `https://api-fleet-beta.example.com/api/v1` | `https://fleet-beta.example.com` |
 | Production | `https://api.example.com/api/v1`     | `https://app.example.com`       |
 
 ## Local development
@@ -40,7 +44,7 @@ Replace `example.com` with your real domains in GitHub **Environment variables**
 
 ## Backend configuration
 
-- **`APP_ENV`**: deployment tier (`development` | `staging` | `preprod` | `production`). Validated at startup in `apps/backend/src/config/env.schema.ts`.
+- **`APP_ENV`**: deployment tier (`development` | `staging` | `preprod` | `fleetbeta` | `production`). Validated at startup in `apps/backend/src/config/env.schema.ts`.
 - **`NODE_ENV`**: Node/Nest runtime mode (`development` | `test` | `production`). Deployed containers typically use `NODE_ENV=production` with `APP_ENV` set to the tier.
 - **Production**: when `APP_ENV=production`, `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` (each ≥ 32 characters) are **required** or the process exits on boot.
 
@@ -58,13 +62,26 @@ Local: `http://localhost:3000` (default in `.env.example`).
 
 Configure under **Settings → Environments** for `staging`, `pre-production`, and `production`.
 
-Local deploy/migrate uses the same values in **gitignored** `samconfig.staging.toml`, `samconfig.preprod.toml`, and `samconfig.production.toml` (committed template: `samconfig.staging.example.toml` only). Do not commit real `DATABASE_URL` or passwords.
+Local deploy/migrate uses the same values in **gitignored** `samconfig.staging.toml`, `samconfig.preprod.toml`, `samconfig.fleetbeta.toml`, and `samconfig.production.toml` (committed templates: `samconfig.*.example.toml`). Do not commit real `DATABASE_URL` or passwords.
+
+### ERP PostgreSQL (shared RDS host)
+
+All deployed tiers connect to one RDS instance; **each tier has its own logical database** on that host (verified 2026-10-22). Staging and pre-production **do not** share `grubfleet_erp_nonprod`.
+
+| Tier | GitHub Environment | samconfig | Database name |
+|------|--------------------|-----------|---------------|
+| Staging | `staging` | `samconfig.staging.toml` | `grubfleet_erp_nonprod` |
+| Pre-prod | `pre-production` | `samconfig.preprod.toml` | `grubfleet_erp_preprod` |
+| Fleet + beta | `fleet-beta` | `samconfig.fleetbeta.toml` | `grubfleet_erp_fleet_beta` |
+| Production | `production` | `samconfig.production.toml` | `grubfleet_erp_production` |
+
+Host: `grubpac-v2.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com` — full inventory in [aws-resources.md](./aws-resources.md).
 
 ### Secrets (never commit values)
 
 | Secret | Used by | Description |
 |--------|---------|-------------|
-| `DATABASE_URL` | Runtime / deploy | PostgreSQL connection string for that tier. **ERP (2026-10-01):** all tiers use shared RDS `grubpac-v2` (`grubpac-v2.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com`). Staging and pre-production share the same URL target database `grubfleet_erp_nonprod`; production uses `grubfleet_erp_production`. Values live in GitHub Environment secrets and gitignored `samconfig.*.toml` — never commit passwords. Inventory: [aws-resources.md](./aws-resources.md). |
+| `DATABASE_URL` | Runtime / deploy | PostgreSQL connection string for that tier. **ERP:** shared RDS host `grubpac-v2` with **separate logical databases per tier** (see table above). Values live in GitHub Environment secrets and gitignored `samconfig.*.toml` — never commit passwords or full URLs. Inventory: [aws-resources.md](./aws-resources.md). |
 | `REDIS_URL` | Runtime / deploy | Redis connection string — still **per tier** from `grubfleet-data-*` ElastiCache (unchanged by RDS cutover) |
 | `JWT_ACCESS_SECRET` | Backend | Required when `APP_ENV=production` |
 | `JWT_REFRESH_SECRET` | Backend | Required when `APP_ENV=production` |

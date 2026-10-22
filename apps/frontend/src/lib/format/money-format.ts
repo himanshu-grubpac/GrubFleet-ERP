@@ -112,3 +112,13 @@ export function formatIndianRupeeLabel(
 }
 
 export const INR_RUPEE_INPUT_PLACEHOLDER = "e.g. 50,000";
+
+/** Parse controlled rupee input to JSON number (major units, max 2 decimals). */
+export function parseRupeeInputToMajorNumber(value: string): number {
+  const normalized = stripRupeeInputGrouping(value);
+  if (!normalized) {
+    return 0;
+  }
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import {
   showCopiedToClipboardToast,
@@ -12,9 +13,13 @@ type DashboardRowCopyButtonProps = {
   ariaLabel?: string;
 };
 
-export async function copyDashboardRowText(text: string): Promise<boolean> {
+export async function copyDashboardRowText(
+  text: string,
+): Promise<boolean> {
   const trimmed = text.trim();
+
   if (!trimmed) return false;
+
   try {
     await navigator.clipboard.writeText(trimmed);
     return true;
@@ -27,28 +32,56 @@ export default function DashboardRowCopyButton({
   text,
   ariaLabel = "Copy row details",
 }: DashboardRowCopyButtonProps) {
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    if (!copied) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setCopied(false);
+    }, 1500);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [copied]);
+
   if (!text.trim()) {
     return null;
   }
 
   const handleCopy = async () => {
-    const copied = await copyDashboardRowText(text);
-    if (copied) {
+    const success = await copyDashboardRowText(text);
+
+    if (success) {
+      setCopied(true);
       showCopiedToClipboardToast();
       return;
     }
+
+    setCopied(false);
     showCopyToClipboardErrorToast();
   };
 
   return (
-    <button
-      type="button"
-      onClick={() => void handleCopy()}
-      className={dashboardRowCopyButtonClassName}
-      title={ariaLabel}
-      aria-label={ariaLabel}
-    >
-      <Copy className="h-4 w-4" strokeWidth={1.75} />
-    </button>
+    <span className="relative inline-flex shrink-0 items-center justify-center">
+      {copied && (
+        <span
+          role="status"
+          className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-orange-100 bg-white px-3 py-1.5 text-xs font-semibold text-[#FE5720] shadow-md"
+        >
+          Copied!
+          <span className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-white" />
+        </span>
+      )}
+
+      <button
+        type="button"
+        onClick={() => void handleCopy()}
+        className={dashboardRowCopyButtonClassName}
+        title={ariaLabel}
+        aria-label={ariaLabel}
+      >
+        <Copy className="h-4 w-4" strokeWidth={1.75} />
+      </button>
+    </span>
   );
 }
