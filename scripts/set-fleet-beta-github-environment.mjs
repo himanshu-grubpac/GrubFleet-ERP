@@ -48,7 +48,7 @@ setSecret('REDIS_URL', redisUrl);
 setSecret('JWT_ACCESS_SECRET', jwtAccess);
 setSecret('JWT_REFRESH_SECRET', jwtRefresh);
 setSecret('AWS_ROLE_ARN', roleArn);
-setSecret('DEPLOY_HEALTH_URL', `${apiBase}/health`);
+setSecret('DEPLOY_HEALTH_URL', apiBase);
 
 setVar('AWS_REGION', 'ap-south-1');
 setVar('ACTIVE_SLOT', 'blue');
