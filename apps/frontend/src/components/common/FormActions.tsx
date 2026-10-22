@@ -34,9 +34,9 @@ export default function FormActions({
     secondaryAction,
 }: FormActionsProps) {
     const secondaryPending = Boolean(secondaryAction?.isPending);
+
     return (
         <div className="flex w-full flex-col items-stretch gap-4">
-            {/* Validation summary: left-aligned on its own row */}
             {hasAttemptedSubmit && validationSummary.length > 0 && (
                 <div
                     role="status"
@@ -48,8 +48,8 @@ export default function FormActions({
                 </div>
             )}
 
-            {/* Action buttons: right-aligned */}
-            <div className="flex w-full items-center justify-end gap-3">
+            <div className="flex w-full items-center justify-between gap-3">
+                {/* Back stays on the left */}
                 <button
                     type="button"
                     onClick={onCancel}
@@ -59,32 +59,36 @@ export default function FormActions({
                     {cancelLabel}
                 </button>
 
-                {secondaryAction ? (
+                {/* Save draft and Continue stay on the right */}
+                <div className="flex items-center gap-3">
+                    {secondaryAction ? (
+                        <Button
+                            type="button"
+                            variant="outline"
+                            onClick={secondaryAction.onClick}
+                            disabled={
+                                secondaryAction.disabled ||
+                                isSaving ||
+                                secondaryPending
+                            }
+                            className="h-10 px-5"
+                        >
+                            {secondaryPending && secondaryAction.pendingLabel
+                                ? secondaryAction.pendingLabel
+                                : secondaryAction.label}
+                        </Button>
+                    ) : null}
+
                     <Button
                         type="button"
-                        variant="secondary"
-                        onClick={secondaryAction.onClick}
-                        disabled={
-                            secondaryAction.disabled || isSaving || secondaryPending
-                        }
+                        variant="primary"
+                        onClick={() => void onSave()}
+                        disabled={isSaving || secondaryPending}
                         className="h-10 px-5"
                     >
-                        {secondaryPending && secondaryAction.pendingLabel
-                            ? secondaryAction.pendingLabel
-                            : secondaryAction.label}
+                        {isSaving ? savingLabel : saveLabel}
                     </Button>
-                ) : null}
-
-                <Button
-                    type="button"
-                    onClick={() => void onSave()}
-                    disabled={
-                        !canSubmit || isSaving || secondaryPending
-                    }
-                    className="h-10 px-5"
-                >
-                    {isSaving ? savingLabel : saveLabel}
-                </Button>
+                </div>
             </div>
         </div>
     );

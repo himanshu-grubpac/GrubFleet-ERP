@@ -50,11 +50,10 @@ export function RolesListTable({
         const active = row.isActive !== false;
         return (
           <span
-            className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
-              active
-                ? "bg-emerald-100 text-emerald-800"
-                : "bg-slate-200 text-slate-600"
-            }`}
+            className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${active
+              ? "bg-emerald-100 text-emerald-800"
+              : "bg-slate-200 text-slate-600"
+              }`}
           >
             {active ? "Active" : "Inactive"}
           </span>
@@ -85,11 +84,10 @@ export function RolesListTable({
       sortable: true,
       cell: ({ row }) => (
         <span
-          className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
-            row.isSystem
-              ? "bg-purple-100 text-purple-700"
-              : "bg-blue-100 text-blue-700"
-          }`}
+          className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${row.isSystem
+            ? "bg-purple-100 text-purple-700"
+            : "bg-blue-100 text-blue-700"
+            }`}
         >
           {row.isSystem ? "System" : "Custom"}
         </span>
@@ -133,8 +131,12 @@ export function RolesListTable({
   ];
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white">
-      <DataTable data={roles} columns={columns} getRowId={(row) => row.id} />
+    <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white [&_*]:[scrollbar-width:none] [&_*::-webkit-scrollbar]:hidden">
+      <DataTable
+        data={roles}
+        columns={columns}
+        getRowId={(row) => row.id}
+      />
     </div>
   );
 }

@@ -289,7 +289,7 @@ export default function ReviewStep({
                     {showSaveDraft && onSaveDraft ? (
                         <Button
                             type="button"
-                            variant="secondary"
+                            variant="outline"
                             onClick={onSaveDraft}
                             disabled={isSubmitting || isSaveDraftPending}
                             className="w-full sm:w-auto"
