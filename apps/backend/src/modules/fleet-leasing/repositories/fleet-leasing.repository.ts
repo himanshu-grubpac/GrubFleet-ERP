@@ -551,9 +551,8 @@ export class FleetLeasingRepository {
   async listAssetClassIdsWithOpenContractDemand(
     organizationId: string,
   ): Promise<string[]> {
-    const contractSets = await this.collectOpenDemandContractsByAssetClassId(
-      organizationId,
-    );
+    const contractSets =
+      await this.collectOpenDemandContractsByAssetClassId(organizationId);
     return [...contractSets.keys()];
   }
 
@@ -562,9 +561,8 @@ export class FleetLeasingRepository {
     openDemandUnits: number;
     openDemandContractCount: number;
   }> {
-    const contractSets = await this.collectOpenDemandContractsByAssetClassId(
-      organizationId,
-    );
+    const contractSets =
+      await this.collectOpenDemandContractsByAssetClassId(organizationId);
     const contractIds = new Set<string>();
     for (const set of contractSets.values()) {
       for (const id of set) {
@@ -598,10 +596,7 @@ export class FleetLeasingRepository {
 
     const lineConditions = [
       eq(leaseContracts.organizationId, organizationId),
-      inArray(
-        leaseContracts.status,
-        ASSET_POOL_COMMITMENT_CONTRACT_STATUSES,
-      ),
+      inArray(leaseContracts.status, ASSET_POOL_COMMITMENT_CONTRACT_STATUSES),
     ];
     if (uniqueIds !== undefined) {
       if (uniqueIds.length === 0) {

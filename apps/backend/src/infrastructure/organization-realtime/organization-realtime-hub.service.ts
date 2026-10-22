@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  OnModuleDestroy,
-  OnModuleInit,
-} from '@nestjs/common';
+import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Redis from 'ioredis';
 import { Subject, interval, merge, type Observable } from 'rxjs';
@@ -27,7 +23,8 @@ export class OrganizationRealtimeHubService
     Subject<OrganizationDomainEventPayload>
   >();
   private readonly activeStreamConnections = new Map<string, number>();
-  private maxConnectionsPerOrg = ORG_REALTIME_SSE_DEFAULT_MAX_CONNECTIONS_PER_ORG;
+  private maxConnectionsPerOrg =
+    ORG_REALTIME_SSE_DEFAULT_MAX_CONNECTIONS_PER_ORG;
   private redisSubscriber: Redis | null = null;
 
   constructor(

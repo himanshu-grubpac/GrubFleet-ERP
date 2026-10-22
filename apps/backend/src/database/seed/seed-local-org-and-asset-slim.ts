@@ -253,7 +253,9 @@ async function seedSlimEmployees(
 
     const locationId = locationIds.get(seed.locationKey);
     if (!locationId) {
-      throw new Error(`Missing slim location for employee key ${seed.locationKey}.`);
+      throw new Error(
+        `Missing slim location for employee key ${seed.locationKey}.`,
+      );
     }
 
     const [row] = await db
@@ -623,7 +625,10 @@ async function seedSlimAssetRegister(
     });
 
     const [existing] = await db
-      .select({ id: assetRegisterAssetClasses.id, name: assetRegisterAssetClasses.name })
+      .select({
+        id: assetRegisterAssetClasses.id,
+        name: assetRegisterAssetClasses.name,
+      })
       .from(assetRegisterAssetClasses)
       .where(
         and(
@@ -812,6 +817,19 @@ async function seedSlimAssetRegister(
   if (existingContract) {
     contractId = existingContract.id;
     bump(modules, 'leaseContracts', false);
+    // Keep one open bulk-assign slot: demo assigns 1 vehicle on a 2-unit line.
+    await db
+      .update(leaseContractAssetLines)
+      .set({
+        committedQuantity: 2,
+        assetClassId: classRef.id,
+      })
+      .where(
+        and(
+          eq(leaseContractAssetLines.contractId, contractId),
+          eq(leaseContractAssetLines.assetClass, classRef.name.slice(0, 64)),
+        ),
+      );
   } else {
     const [contractRow] = await db
       .insert(leaseContracts)
@@ -836,7 +854,8 @@ async function seedSlimAssetRegister(
       .values({
         contractId,
         assetClass: classRef.name.slice(0, 64),
-        committedQuantity: 1,
+        assetClassId: classRef.id,
+        committedQuantity: 2,
         ratePerVehicleMonth: '14500.00',
         availabilityCovered: true,
         availabilityStatus: 'covered',
@@ -891,7 +910,12 @@ export async function seedLocalOrgAndAssetSlim(
   const modules: LocalSlimSeedSummary['modules'] = {};
 
   const typeIds = await ensureSystemLocationTypes(db, organizationId);
-  const locationIds = await seedSlimLocations(db, organizationId, typeIds, modules);
+  const locationIds = await seedSlimLocations(
+    db,
+    organizationId,
+    typeIds,
+    modules,
+  );
   await seedSlimEmployees(db, organizationId, locationIds, modules);
   const supplierIds = await seedSlimSuppliers(db, organizationId, modules);
   const primaryClientId = await seedSlimClients(db, organizationId, modules);

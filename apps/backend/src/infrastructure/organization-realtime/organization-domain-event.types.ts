@@ -25,7 +25,7 @@ export type OrganizationDomainEventIds = Record<
 >;
 
 export type OrganizationDomainEventPayload = {
-  type: OrganizationDomainEventTypeValue | string;
+  type: OrganizationDomainEventTypeValue;
   organizationId: string;
   resource: string;
   ids: OrganizationDomainEventIds;

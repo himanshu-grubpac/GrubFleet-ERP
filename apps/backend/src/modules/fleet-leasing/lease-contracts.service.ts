@@ -603,11 +603,7 @@ export class LeaseContractsService {
       out.set(
         id,
         excludeContractId
-          ? computeEffectivePoolAvailableNow(
-              physical,
-              reserved,
-              ownAllocated,
-            )
+          ? computeEffectivePoolAvailableNow(physical, reserved, ownAllocated)
           : computePoolAvailableNow(physical, reserved),
       );
     }

@@ -880,7 +880,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
     expect(detailBody.availableActions.deactivate?.allowed).toBe(true);
 
     const { assetClassName: secondClass } =
-      await seedAssetRegisterClassWithVehicle(`Lease05Suv${unique}`, unique + 1);
+      await seedAssetRegisterClassWithVehicle(
+        `Lease05Suv${unique}`,
+        unique + 1,
+      );
 
     await request(app.getHttpServer())
       .put(`/api/v1/fleet-leasing/lease-contracts/${draftBody.id}/asset-lines`)

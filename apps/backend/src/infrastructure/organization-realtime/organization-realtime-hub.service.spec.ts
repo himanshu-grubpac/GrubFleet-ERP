@@ -7,7 +7,8 @@ describe('OrganizationRealtimeHubService connection limits', () => {
     const config = {
       get: (key: string) => {
         if (key === 'REDIS_URL') return 'redis://127.0.0.1:6379';
-        if (key === 'ORG_REALTIME_SSE_MAX_CONNECTIONS_PER_ORG') return maxPerOrg;
+        if (key === 'ORG_REALTIME_SSE_MAX_CONNECTIONS_PER_ORG')
+          return maxPerOrg;
         return undefined;
       },
     } as unknown as ConfigService;

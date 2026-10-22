@@ -25,9 +25,7 @@ import {
   maskDatabaseUrl,
   resolveDevOrganizationId,
 } from './organisation-dev-data-guards';
-import {
-  assertLocalSlimOrgAssetSeedAllowed,
-} from './staging-demo-guards';
+import { assertLocalSlimOrgAssetSeedAllowed } from './staging-demo-guards';
 import {
   countSlimSeedScopeRows,
   seedLocalOrgAndAssetSlim,

@@ -34,7 +34,9 @@ export class ListAssignableLeaseContractsForVehicleQueryDto extends PaginationQu
   @Max(ASSIGNABLE_LEASE_CONTRACTS_MAX_PAGE_SIZE)
   override pageSize?: number = 20;
 
-  @ApiPropertyOptional({ description: 'Filter by organisation client register id' })
+  @ApiPropertyOptional({
+    description: 'Filter by organisation client register id',
+  })
   @IsOptional()
   @IsUUID()
   organisationClientId?: string;

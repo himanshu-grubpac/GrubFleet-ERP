@@ -148,7 +148,11 @@ export function assertLocalSlimOrgAssetSeedAllowed(
   connectionString: string,
 ): void {
   const appEnv = process.env.APP_ENV?.trim();
-  if (appEnv === 'production' || appEnv === 'staging' || appEnv === 'pre-production') {
+  if (
+    appEnv === 'production' ||
+    appEnv === 'staging' ||
+    appEnv === 'pre-production'
+  ) {
     throw new Error(
       `Refusing local slim seed when APP_ENV=${appEnv ?? '(unset)'}.`,
     );
@@ -215,8 +219,10 @@ export function assertStagingDemoPurgeAllowed(): void {
 function assertPreprodDatabaseUrl(connectionString: string): void {
   let dbName: string | undefined;
   try {
-    dbName = new URL(connectionString.replace(/^postgresql:/, 'postgres:'))
-      .pathname.replace(/^\//, '')
+    dbName = new URL(
+      connectionString.replace(/^postgresql:/, 'postgres:'),
+    ).pathname
+      .replace(/^\//, '')
       .split('?')[0];
   } catch {
     throw new Error('DATABASE_URL is not a valid URL.');

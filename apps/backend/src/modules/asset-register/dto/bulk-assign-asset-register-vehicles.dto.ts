@@ -45,14 +45,16 @@ export class BulkAssignAssetRegisterVehiclesDto {
   vehicleIds!: string[];
 
   @ApiPropertyOptional({
-    description: 'Handover calendar date (ISO YYYY-MM-DD); defaults to assignment time UTC',
+    description:
+      'Handover calendar date (ISO YYYY-MM-DD); defaults to assignment time UTC',
   })
   @IsOptional()
   @IsDateString()
   handoverDate?: string;
 
   @ApiPropertyOptional({
-    description: 'Odometer reading at handover; updates fleet register vehicle when set',
+    description:
+      'Odometer reading at handover; updates fleet register vehicle when set',
   })
   @IsOptional()
   @IsInt()

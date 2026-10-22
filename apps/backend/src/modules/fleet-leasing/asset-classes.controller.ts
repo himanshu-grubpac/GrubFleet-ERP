@@ -104,11 +104,11 @@ export class AssetClassesController {
           excludeId,
         );
       const ownAllocated = excludeId
-        ? (
+        ? ((
             await this.fleetRepo.countAllocatedRegisterVehiclesByAssetClassIds(
               excludeId,
             )
-          ).get(assetClassId.trim()) ?? 0
+          ).get(assetClassId.trim()) ?? 0)
         : 0;
       const availableNow = excludeId
         ? computeEffectivePoolAvailableNow(
@@ -152,11 +152,11 @@ export class AssetClassesController {
       : new Map<string, number>();
     const ownAllocated =
       excludeId && ref.id
-        ? (
+        ? ((
             await this.fleetRepo.countAllocatedRegisterVehiclesByAssetClassIds(
               excludeId,
             )
-          ).get(ref.id) ?? 0
+          ).get(ref.id) ?? 0)
         : 0;
     const availableNow =
       ref.id && excludeId
@@ -223,22 +223,14 @@ export class AssetClassesController {
         : new Map<string, number>();
     const lines = dto.lines.map((line, index) => {
       const resolved = resolvedLines[index];
-      const physical = resolved.id
-        ? (physicalById.get(resolved.id) ?? 0)
-        : 0;
-      const reserved = resolved.id
-        ? (reservedById.get(resolved.id) ?? 0)
-        : 0;
+      const physical = resolved.id ? (physicalById.get(resolved.id) ?? 0) : 0;
+      const reserved = resolved.id ? (reservedById.get(resolved.id) ?? 0) : 0;
       const ownAllocated = resolved.id
         ? (ownAllocatedById.get(resolved.id) ?? 0)
         : 0;
       const availableNow = resolved.id
         ? excludeId
-          ? computeEffectivePoolAvailableNow(
-              physical,
-              reserved,
-              ownAllocated,
-            )
+          ? computeEffectivePoolAvailableNow(physical, reserved, ownAllocated)
           : computePoolAvailableNow(physical, reserved)
         : 0;
       const inbound = 0;

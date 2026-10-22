@@ -724,9 +724,7 @@ export class AssetRegisterRepository {
     } else if (options.demandFilter === 'no_demand') {
       const ids = options.assetClassIdsWithOpenDemand ?? [];
       if (ids.length > 0) {
-        conditions.push(
-          notInArray(assetRegisterVehicles.assetClassId, ids),
-        );
+        conditions.push(notInArray(assetRegisterVehicles.assetClassId, ids));
       }
     }
     const where = and(...conditions);

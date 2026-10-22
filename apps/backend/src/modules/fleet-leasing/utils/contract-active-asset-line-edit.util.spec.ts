@@ -2,9 +2,7 @@ import { BadRequestException } from '@nestjs/common';
 import { assertActiveContractAssetLineChangesAllowed } from './contract-active-asset-line-edit.util';
 
 describe('assertActiveContractAssetLineChangesAllowed', () => {
-  const existing = [
-    { assetClass: 'sedan_a', committedQuantity: 3 },
-  ];
+  const existing = [{ assetClass: 'sedan_a', committedQuantity: 3 }];
 
   it('allows adding a new asset-class line', () => {
     expect(() =>

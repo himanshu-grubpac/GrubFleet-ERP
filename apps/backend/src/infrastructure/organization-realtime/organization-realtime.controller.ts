@@ -21,8 +21,7 @@ import type { OrganizationDomainEventPayload } from './organization-domain-event
 import { OrganizationRealtimeHubService } from './organization-realtime-hub.service';
 
 type SseMessage =
-  | { data: OrganizationDomainEventPayload }
-  | { data: { ping: true } };
+  { data: OrganizationDomainEventPayload } | { data: { ping: true } };
 
 @Controller('events')
 export class OrganizationRealtimeController {

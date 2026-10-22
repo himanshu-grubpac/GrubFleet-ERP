@@ -21,8 +21,10 @@ const ALLOWED_DB = new Set([
 function assertAllowedDatabase(connectionString: string): string {
   let dbName: string;
   try {
-    dbName = new URL(connectionString.replace(/^postgresql:/, 'postgres:'))
-      .pathname.replace(/^\//, '')
+    dbName = new URL(
+      connectionString.replace(/^postgresql:/, 'postgres:'),
+    ).pathname
+      .replace(/^\//, '')
       .split('?')[0];
   } catch {
     throw new Error('Invalid DATABASE_URL');

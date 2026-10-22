@@ -30,8 +30,12 @@ export function buildBulkAssignVehicleValidationRow(input: {
   assignmentConflictLabel: string | null;
   assetClassAllowed: boolean;
 }): BulkAssignVehicleValidationRow {
-  const { vehicle, hasActiveAssignment, assignmentConflictLabel, assetClassAllowed } =
-    input;
+  const {
+    vehicle,
+    hasActiveAssignment,
+    assignmentConflictLabel,
+    assetClassAllowed,
+  } = input;
 
   if (!vehicle.isActive) {
     return {

@@ -9,8 +9,9 @@ describe('OrganizationDomainEventsService', () => {
       incr: jest.fn().mockResolvedValue(42),
       publish: jest.fn().mockResolvedValue(1),
     };
+    const publishLocal = jest.fn();
     const hub = {
-      publishLocal: jest.fn(),
+      publishLocal,
     } as unknown as OrganizationRealtimeHubService;
     const logger = {
       warn: jest.fn(),
@@ -29,8 +30,10 @@ describe('OrganizationDomainEventsService', () => {
       ids: { leaseContractId: 'contract-1', vehicleIds: ['v1'] },
     });
 
-    expect(redis.incr).toHaveBeenCalledWith('grubfleet:org-event-revision:org-1');
-    expect(hub.publishLocal).toHaveBeenCalledWith(
+    expect(redis.incr).toHaveBeenCalledWith(
+      'grubfleet:org-event-revision:org-1',
+    );
+    expect(publishLocal).toHaveBeenCalledWith(
       expect.objectContaining({
         type: OrganizationDomainEventType.ASSET_REGISTER_ASSIGNMENT_CHANGED,
         organizationId: 'org-1',

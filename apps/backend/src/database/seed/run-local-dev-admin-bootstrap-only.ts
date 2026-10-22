@@ -32,7 +32,11 @@ function assertLocalTarget(connectionString: string): void {
       `Refusing admin bootstrap: expected database ${LOCAL_DB_NAME}, got ${dbName}`,
     );
   }
-  if (host !== 'localhost' && host !== '127.0.0.1' && host !== 'host.docker.internal') {
+  if (
+    host !== 'localhost' &&
+    host !== '127.0.0.1' &&
+    host !== 'host.docker.internal'
+  ) {
     throw new Error(
       `Refusing admin bootstrap: expected localhost target, got host ${host}`,
     );
