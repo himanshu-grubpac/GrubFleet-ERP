@@ -556,14 +556,41 @@ export default function NewPurchaseInvoicePage() {
             <label className="mb-1 block text-sm font-medium text-slate-700">
               Invoice date *
             </label>
+
             <input
               type="date"
+              min="0001-01-01"
+              max="9999-12-31"
               className={fieldClassName(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
-              onChange={(e) => setInvoiceDate(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+
+                if (!value) {
+                  setInvoiceDate("");
+                  return;
+                }
+
+                // Accept only valid ISO dates with a four-digit year.
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+
+                const date = new Date(`${value}T00:00:00`);
+
+                if (
+                  Number.isNaN(date.getTime()) ||
+                  date.toISOString().slice(0, 10) !== value
+                ) {
+                  return;
+                }
+
+                setInvoiceDate(value);
+              }}
               aria-invalid={hasAttemptedSubmit && !invoiceDate}
             />
-            {hasAttemptedSubmit && renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
+            {hasAttemptedSubmit &&
+              renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
+
+
           </div>
 
           <div>
@@ -754,16 +781,20 @@ export default function NewPurchaseInvoicePage() {
             </p>
           ) : null}
 
+
+
+
           <Button
             type="button"
-            variant="secondary"
             onClick={() =>
               setVehicleLines((prev) => [...prev, createEmptyVehicleLine()])
             }
             disabled={createMutation.isPending}
+            className="h-9 rounded-md !border-0 !bg-transparent px-3 py-1.5 text-sm font-medium !text-[#FE5720] shadow-none disabled:cursor-not-allowed disabled:opacity-50"
           >
-            Add more assets
+            + Add more assets
           </Button>
+
 
           <div className="space-y-4 rounded-md border border-slate-200 bg-slate-50 px-4 py-4">
             <h3 className="text-sm font-semibold text-slate-900">
@@ -966,12 +997,38 @@ export default function NewPurchaseInvoicePage() {
             </label>
             <input
               type="date"
+              min="0001-01-01"
+              max="9999-12-31"
               className={fieldClassName(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
-              onChange={(e) => setInvoiceDate(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value;
+
+                if (!value) {
+                  setInvoiceDate("");
+                  return;
+                }
+
+                // Accept only valid ISO dates with a four-digit year.
+                if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return;
+
+                const date = new Date(`${value}T00:00:00`);
+
+                if (
+                  Number.isNaN(date.getTime()) ||
+                  date.toISOString().slice(0, 10) !== value
+                ) {
+                  return;
+                }
+
+                setInvoiceDate(value);
+              }}
               aria-invalid={hasAttemptedSubmit && !invoiceDate}
             />
-            {hasAttemptedSubmit && renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
+
+            {hasAttemptedSubmit &&
+              renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
+
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">

@@ -2,6 +2,7 @@ import type { PaginatedResponse } from "@grubpac/shared-types";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
+import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 
 export type WorkshopAmcTierListItem = {
   id: string;
@@ -286,7 +287,7 @@ export async function updateWorkshopMaintenanceScheduleApi(
       method: "PATCH",
       token,
       headers: orgHeaders(payload.organizationId),
-      body: JSON.stringify(payload),
+      body: serializeOrgScopedPatchBody(payload),
     },
   );
 }
@@ -308,7 +309,7 @@ export async function updateWorkshopAmcTierApi(
       method: "PATCH",
       token,
       headers: orgHeaders(payload.organizationId),
-      body: JSON.stringify(payload),
+      body: serializeOrgScopedPatchBody(payload),
     },
   );
 }

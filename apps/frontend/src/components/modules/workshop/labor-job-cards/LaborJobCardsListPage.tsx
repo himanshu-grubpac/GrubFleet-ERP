@@ -181,8 +181,8 @@ export default function LaborJobCardsListPage() {
 
   return (
     <DashboardLayout
-      title="Labour rate cards"
-      description="Labor job cards with parts and labor charges for work orders."
+      title="Service Packages"
+      description="Service Package cards with parts and labor charges for work orders."
       action={
         canCreate ? (
           <Button
@@ -197,12 +197,12 @@ export default function LaborJobCardsListPage() {
       pagination={
         total > PAGE_SIZE
           ? {
-              currentPage: page,
-              totalPages,
-              totalItems: total,
-              pageSize: PAGE_SIZE,
-              onPageChange: setPage,
-            }
+            currentPage: page,
+            totalPages,
+            totalItems: total,
+            pageSize: PAGE_SIZE,
+            onPageChange: setPage,
+          }
           : undefined
       }
     >
@@ -264,6 +264,12 @@ export default function LaborJobCardsListPage() {
               status={row.status}
               locationId={row.id}
               viewHref={workshopLabourRateCardDetailHref(row.id)}
+              copyText={[
+                `Service Package ID: ${row.id}`,
+                `Name: ${row.name}`,
+                `Labor Charge: ${formatInrFromMinor(row.laborChargeMinor)}`,
+                `Status: ${row.status === "active" ? "Active" : "Inactive"}`,
+              ].join("\n")}
               onEdit={
                 canUpdate && row.status === "active"
                   ? () => router.push(workshopLabourRateCardEditHref(row.id))
@@ -272,9 +278,9 @@ export default function LaborJobCardsListPage() {
               onToggleStatus={
                 canUpdate
                   ? () =>
-                      row.status === "active"
-                        ? setDeactivateTarget(row)
-                        : setActivateTarget(row)
+                    row.status === "active"
+                      ? setDeactivateTarget(row)
+                      : setActivateTarget(row)
                   : undefined
               }
             />

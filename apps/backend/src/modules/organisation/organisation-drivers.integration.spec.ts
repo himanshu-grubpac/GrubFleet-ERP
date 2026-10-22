@@ -103,7 +103,7 @@ describe('Organisation drivers (integration)', () => {
         name: `Driver Staffing ${unique}`,
         supplierType: 'driver',
         contactPerson: 'Staffing Contact',
-        contactPhone: '+919888877771',
+        contactPhone: `+9198${String(unique).slice(-8)}`,
         contactEmail: `driver.supplier.${unique}@grubpac.local`,
         addressLine1: 'Line 1',
         addressCountry: 'IN',
@@ -127,7 +127,7 @@ describe('Organisation drivers (integration)', () => {
       organizationId,
       name: `Lattice Driver ${unique}`,
       cprNo: String(unique).slice(-9).padStart(9, '0'),
-      phone: '+919888877772',
+      phone: `+9197${String(unique).slice(-8)}`,
       email: `driver.${unique}@grubpac.local`,
       licenseNumber: `DL-${unique}`,
       licenseExpiry: '2028-12-31',
@@ -335,6 +335,37 @@ describe('Organisation drivers (integration)', () => {
       expect((dup.body as { code: string }).code).not.toBe('INTERNAL_ERROR');
     });
 
+    it('returns 409 when driver email duplicates another driver in the same org', async () => {
+      const unique = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+      const duplicateEmail = `driver.email.dup.${unique}@grubpac.local`;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildDriverCreatePayload({
+            email: duplicateEmail,
+            phone: `+9195${String(unique).replace(/\D/g, '').slice(-8)}`,
+          }),
+        )
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildDriverCreatePayload({
+            email: duplicateEmail,
+            phone: `+9194${String(unique).replace(/\D/g, '').slice(-8)}`,
+            cprNo: String(Date.now() + 3)
+              .slice(-9)
+              .padStart(9, '0'),
+          }),
+        )
+        .expect(409);
+    });
+
     it('returns 400 for invalid driver phone on create', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/organisation/drivers')
@@ -364,7 +395,7 @@ describe('Organisation drivers (integration)', () => {
           name: `Spare Parts ${unique}`,
           supplierType: 'spare_parts',
           contactPerson: 'Contact',
-          contactPhone: '+919876543211',
+          contactPhone: `+9190${String(unique).slice(-8)}`,
           contactEmail: `spare.${unique}@grubpac.local`,
           addressLine1: 'Line 1',
           addressCountry: 'IN',

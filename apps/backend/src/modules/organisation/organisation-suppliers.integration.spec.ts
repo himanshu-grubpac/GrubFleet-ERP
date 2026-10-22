@@ -65,7 +65,7 @@ describe('Organisation suppliers (integration)', () => {
       name: `Lattice Supplier ${unique}`,
       supplierType: 'spare_parts',
       contactPerson: 'Integration Contact',
-      contactPhone: '+919888877770',
+      contactPhone: `+9198${String(unique).slice(-8)}`,
       contactEmail: `supplier.${unique}@grubpac.local`,
       agreementReference: `AGR-${unique}`,
       addressLine1: 'Line 1',
@@ -289,7 +289,7 @@ describe('Organisation suppliers (integration)', () => {
         .expect(400);
     });
 
-    it('returns 400 for invalid US postal code on create', async () => {
+    it('returns 400 for invalid postal characters on create', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/organisation/suppliers')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -299,7 +299,7 @@ describe('Organisation suppliers (integration)', () => {
             addressCountry: 'US',
             addressState: 'California',
             addressDistrict: 'Los Angeles',
-            addressPincode: 'not-a-zip',
+            addressPincode: '@invalid',
           }),
         )
         .expect(400);
@@ -316,6 +316,28 @@ describe('Organisation suppliers (integration)', () => {
           }),
         )
         .expect(400);
+    });
+
+    it('returns 409 when supplier contact email duplicates another in the org', async () => {
+      const duplicateEmail = `supplier.dup.${Date.now()}@grubpac.local`;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/suppliers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildSupplierCreatePayload({ contactEmail: duplicateEmail }))
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/suppliers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildSupplierCreatePayload({
+            contactEmail: duplicateEmail,
+            contactPhone: '+919555544443',
+          }),
+        )
+        .expect(409);
     });
 
     it('returns 401 without JWT on supplier types catalog', async () => {
@@ -437,7 +459,7 @@ describe('Organisation suppliers (integration)', () => {
           organizationId,
           name: `Linked Driver ${unique}`,
           cprNo: String(unique).slice(-9).padStart(9, '0'),
-          phone: '+919888877773',
+          phone: `+9193${String(unique).slice(-8)}`,
           email: `linked.driver.${unique}@grubpac.local`,
           licenseNumber: `DL-LINK-${unique}`,
           licenseExpiry: '2028-12-31',

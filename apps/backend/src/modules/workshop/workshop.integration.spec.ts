@@ -514,7 +514,7 @@ describe('Workshop module (integration)', () => {
         registrationEndDate: '2029-01-01',
         insuranceStartDate: '2024-01-01',
         insuranceEndDate: '2030-01-01',
-        insurancePremium: '10000.00',
+        insurancePremium: 10000,
         warrantyStartDate: '2024-01-01',
         warrantyEndDate: '2027-01-01',
       })

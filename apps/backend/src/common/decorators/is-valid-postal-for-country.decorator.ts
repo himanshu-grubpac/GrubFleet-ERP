@@ -34,7 +34,7 @@ export class IsValidPostalForCountryConstraint implements ValidatorConstraintInt
         return result.message;
       }
     }
-    return 'addressPincode format is invalid for this country';
+    return 'addressPincode format is invalid';
   }
 }
 

@@ -137,7 +137,7 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       registrationEndDate: '2029-01-01',
       insuranceStartDate: '2024-01-01',
       insuranceEndDate: '2025-01-01',
-      insurancePremium: '12000.00',
+      insurancePremium: 12000,
       warrantyStartDate: '2024-01-01',
       warrantyEndDate: '2027-01-01',
       ...overrides,
@@ -477,13 +477,13 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
         .expect(400);
     });
 
-    it('returns 400 for invalid insurancePremium decimal string on create', async () => {
+    it('returns 400 for invalid insurancePremium amount on create', async () => {
       const classId = await createAssetClass();
       await request(app.getHttpServer())
         .post('/api/v1/asset-register/vehicles')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send(buildVehiclePayload(classId, { insurancePremium: 'not-money' }))
+        .send(buildVehiclePayload(classId, { insurancePremium: -1 }))
         .expect(400);
     });
 

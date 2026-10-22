@@ -1,6 +1,7 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { apiFetch } from "../client";
+import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import type { AssetRegisterClassStatus } from "./asset-classes";
@@ -185,7 +186,7 @@ export async function updateAssetRegisterVehicleApi(params: {
       method: "PATCH",
       token: params.token,
       headers: orgHeaders(params.organizationId),
-      body: JSON.stringify(params.body),
+      body: serializeOrgScopedPatchBody(params.body),
     },
   );
 }

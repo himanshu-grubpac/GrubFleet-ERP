@@ -10,6 +10,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
+import DashboardPagination from "@/components/dashboard/DashboardPagination";
 import { DashboardRowActionsMenuItem } from "@/components/dashboard/DashboardRowActionsMenu";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import { ApiClientError } from "@/lib/api/client";
@@ -104,6 +105,7 @@ function apiStatusClass(status: WorkshopWorkOrderStatus): string {
 export default function WorkshopDashboardPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
+
   const {
     token,
     organizationId,
@@ -118,7 +120,6 @@ export default function WorkshopDashboardPage() {
   const [search, setSearch] = useState("");
   const [cancelTarget, setCancelTarget] =
     useState<WorkshopWorkOrderListItem | null>(null);
-  const debouncedSearch = useDebouncedValue(search, 300);
   const [activeFilter, setActiveFilter] =
     useState<WorkOrderFilter>("all");
   const [page, setPage] = useState(1);
@@ -130,6 +131,9 @@ export default function WorkshopDashboardPage() {
     serverSorted,
   } = useDashboardTableListSort(WORKSHOP_WORK_ORDER_COLUMN_SORT);
 
+  const debouncedSearch = useDebouncedValue(search, 300);
+
+  // Reset pagination when search, status filter, or sorting changes.
   useEffect(() => {
     setPage(1);
   }, [debouncedSearch, activeFilter, tableSort]);
@@ -148,6 +152,7 @@ export default function WorkshopDashboardPage() {
       if (!token || !organizationId) {
         throw new Error("Missing auth context");
       }
+
       return fetchWorkshopWorkOrdersApi(token, {
         organizationId,
         page,
@@ -166,6 +171,7 @@ export default function WorkshopDashboardPage() {
       if (!token || !organizationId) {
         throw new Error("Missing auth context");
       }
+
       return updateWorkshopWorkOrderStatusApi(token, workOrderId, {
         organizationId,
         action: "cancel",
@@ -175,8 +181,11 @@ export default function WorkshopDashboardPage() {
       void queryClient.invalidateQueries({
         queryKey: ["workshop", "work-orders", organizationId],
       });
+
       setCancelTarget(null);
-      showSuccessToast(`Work order ${detail.workOrderNumber} was cancelled`);
+      showSuccessToast(
+        `Work order ${detail.workOrderNumber} was cancelled`,
+      );
     },
     onError: (error: Error) => {
       showErrorToast(
@@ -189,6 +198,8 @@ export default function WorkshopDashboardPage() {
 
   const items = listQuery.data?.items ?? [];
   const total = listQuery.data?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
   const isInitialLoading =
     isAuthLoading || (listQuery.isLoading && !listQuery.data);
 
@@ -303,6 +314,7 @@ export default function WorkshopDashboardPage() {
             className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
             strokeWidth={1.8}
           />
+
           <input
             type="text"
             value={search}
@@ -315,6 +327,7 @@ export default function WorkshopDashboardPage() {
         <div className="flex shrink-0 items-center gap-1.5">
           {WORK_ORDER_FILTERS.map((filter) => {
             const isActive = activeFilter === filter.value;
+
             return (
               <button
                 key={filter.value}
@@ -338,7 +351,9 @@ export default function WorkshopDashboardPage() {
         <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white text-sm text-gray-500">
           Loading work orders…
         </div>
-      ) : total === 0 && !debouncedSearch && activeFilter === "all" ? (
+      ) : total === 0 &&
+        !debouncedSearch.trim() &&
+        activeFilter === "all" ? (
         <DashboardEmptyState
           icon={<ClipboardList className="h-7 w-7" strokeWidth={1.4} />}
           title="No work orders yet"
@@ -352,12 +367,15 @@ export default function WorkshopDashboardPage() {
             className="mb-3 h-7 w-7 text-gray-400"
             strokeWidth={1.4}
           />
+
           <h3 className="text-sm font-semibold text-gray-900">
             No work orders found
           </h3>
+
           <p className="mt-1 text-xs text-gray-500">
             Try changing your search or filters.
           </p>
+
           <button
             type="button"
             onClick={handleClearFilters}
@@ -367,50 +385,72 @@ export default function WorkshopDashboardPage() {
           </button>
         </div>
       ) : (
-        <DashboardTable
-          columns={workOrderColumns}
-          data={items}
-          getRowKey={(workOrder) => workOrder.id}
-          sortState={tableSort}
-          onSortChange={onSortChange}
-          serverSorted={serverSorted}
-          renderActions={(workOrder) => {
-            const isTerminal =
-              workOrder.status === "closed" ||
-              workOrder.status === "cancelled";
-            const canCancel =
-              canUpdate &&
-              (workOrder.status === "open" ||
-                workOrder.status === "in_progress");
+        <>
+          <DashboardTable
+            columns={workOrderColumns}
+            data={items}
+            getRowKey={(workOrder) => workOrder.id}
+            sortState={tableSort}
+            onSortChange={onSortChange}
+            serverSorted={serverSorted}
+            renderActions={(workOrder) => {
+              const isTerminal =
+                workOrder.status === "closed" ||
+                workOrder.status === "cancelled";
 
-            return (
-              <DashboardTableActions
-                status={isTerminal ? "inactive" : "active"}
-                locationId={workOrder.id}
-                viewHref={workshopWorkOrderDetailHref(workOrder.id)}
-                overflowMenuDisabled={isTerminal}
-                alwaysShowOverflowMenu={canCancel}
-                onEdit={
-                  !isTerminal
-                    ? () =>
+              const canCancel =
+                canUpdate &&
+                (workOrder.status === "open" ||
+                  workOrder.status === "in_progress");
+
+              return (
+                <DashboardTableActions
+                  status={isTerminal ? "inactive" : "active"}
+                  locationId={workOrder.id}
+                  viewHref={workshopWorkOrderDetailHref(workOrder.id)}
+                  copyText={[
+                    `Work Order ID: ${workOrder.id}`,
+                    `Work Order Number: ${workOrder.workOrderNumber}`,
+                    `Vehicle Fleet Code: ${workOrder.vehicleFleetCode ?? "—"}`,
+                    `Asset Class: ${workOrder.vehicleAssetClassName ?? "—"}`,
+                    "Type: General",
+                    "Source: Manual",
+                    `Technician: ${workOrder.technicianName ?? "—"}`,
+                    `Status: ${apiStatusLabel(workOrder.status)}`,
+                  ].join("\n")}
+                  overflowMenuDisabled={isTerminal}
+                  alwaysShowOverflowMenu={canCancel}
+                  onEdit={
+                    !isTerminal
+                      ? () =>
                         router.push(
                           workshopWorkOrderEditHref(workOrder.id),
                         )
-                    : undefined
-                }
-                renderAdditionalMenuItems={() =>
-                  canCancel ? (
-                    <DashboardRowActionsMenuItem
-                      label="Cancel work order"
-                      className="text-red-600"
-                      onSelect={() => setCancelTarget(workOrder)}
-                    />
-                  ) : null
-                }
-              />
-            );
-          }}
-        />
+                      : undefined
+                  }
+                  renderAdditionalMenuItems={() =>
+                    canCancel ? (
+                      <DashboardRowActionsMenuItem
+                        label="Cancel work order"
+                        className="text-red-600"
+                        onSelect={() => setCancelTarget(workOrder)}
+                      />
+                    ) : null
+                  }
+                />
+              );
+            }}
+          />
+
+          <DashboardPagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalItems={total}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            disabled={listQuery.isFetching}
+          />
+        </>
       )}
 
       <ConfirmDialog

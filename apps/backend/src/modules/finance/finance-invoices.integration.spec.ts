@@ -11,6 +11,7 @@ import {
   type IntegrationAuthContext,
 } from '../../../test/helpers/integration-auth';
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
+import { uniqueIntegrationPhone } from '../../../test/helpers/unique-integration-contact';
 import { computePurchaseVehicleLineTax } from './utils/purchase-vehicle-line-tax.util';
 
 type VehiclePurchaseLineInput = {
@@ -122,7 +123,7 @@ describe('Finance invoices (integration)', () => {
         name: `Finance Vendor ${unique}`,
         supplierType: 'spare_parts',
         contactPerson: 'Finance Contact',
-        contactPhone: '+919888877771',
+        contactPhone: uniqueIntegrationPhone(unique),
         contactEmail: `finance.vendor.${unique}@grubpac.local`,
         agreementReference: `FIN-${unique}`,
         addressLine1: 'Line 1',

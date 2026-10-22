@@ -92,7 +92,7 @@ export default function LaborJobCardViewPage() {
   if (detailQuery.isLoading || isAuthLoading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Loading labour rate card…
+        Loading Service Package…
       </div>
     );
   }
@@ -100,7 +100,7 @@ export default function LaborJobCardViewPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-gray-500">
-        <p>Could not load this labour rate card.</p>
+        <p>Could not load this Service Pacakge.</p>
         <Button
           type="button"
           variant="secondary"
@@ -117,13 +117,7 @@ export default function LaborJobCardViewPage() {
 
   return (
     <div className="min-h-full bg-gray-50 px-5 py-4">
-      <button
-        type="button"
-        className="mb-4 text-sm text-[#FE5720] hover:underline"
-        onClick={() => router.push(workshopLabourRateCardListHref)}
-      >
-        Back to labour rate cards
-      </button>
+
 
       <div className="mb-4 flex items-start justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
@@ -143,7 +137,7 @@ export default function LaborJobCardViewPage() {
             {isActive ? (
               <Button
                 type="button"
-                variant="secondary"
+                variant="outline"
                 onClick={() =>
                   router.push(workshopLabourRateCardEditHref(cardId))
                 }
@@ -192,13 +186,13 @@ export default function LaborJobCardViewPage() {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-gray-500">No parts on this labour job card.</p>
+          <p className="mt-3 text-gray-500">No parts on this Service Package</p>
         )}
       </div>
 
       <ConfirmDialog
         open={activateOpen}
-        title="Activate labour rate card?"
+        title="Activate Service Package?"
         message={`${detail.name} will be available for work orders.`}
         confirmLabel="Activate"
         isConfirmPending={statusMutation.isPending}
@@ -208,7 +202,7 @@ export default function LaborJobCardViewPage() {
 
       <ReasonRequiredDialog
         open={deactivateOpen}
-        title="Deactivate labour rate card?"
+        title="Deactivate Service Package?"
         description={`${detail.name} will no longer be selectable on new work orders.`}
         confirmLabel="Deactivate"
         isPending={statusMutation.isPending}

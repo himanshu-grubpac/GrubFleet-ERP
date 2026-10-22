@@ -58,7 +58,7 @@ describe('Organisation locations (integration)', () => {
       locationId: employeeFixtureLocationId,
       employmentType: 'full_time',
       dateOfJoining: '2024-01-15',
-      phone: '+919888877770',
+      phone: `+9198${String(unique).slice(-8)}`,
       email: `employee.${unique}@grubpac.local`,
       ...overrides,
     };
@@ -395,6 +395,112 @@ describe('Organisation locations (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 for non-ISO dateOfJoining on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildEmployeeCreatePayload({ dateOfJoining: '14-Jun-2022' }))
+        .expect(400);
+    });
+
+    it('returns 400 for future dateOfJoining on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildEmployeeCreatePayload({ dateOfJoining: '2099-06-14' }))
+        .expect(400);
+    });
+
+    it('returns 409 when employee email duplicates another in the org', async () => {
+      const duplicateEmail = `dup.employee.${Date.now()}@grubpac.local`;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildEmployeeCreatePayload({ email: duplicateEmail }))
+        .expect(201);
+
+      const conflict = await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildEmployeeCreatePayload({
+            email: duplicateEmail,
+            phone: '+919777766661',
+          }),
+        )
+        .expect(409);
+      expect((conflict.body as { message?: string }).message).toContain(
+        'email',
+      );
+    });
+
+    it('returns 409 when employee mobile duplicates another in the org', async () => {
+      const duplicatePhone = `+9196${String(Date.now()).slice(-8)}`;
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildEmployeeCreatePayload({ phone: duplicatePhone }))
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildEmployeeCreatePayload({
+            phone: duplicatePhone,
+            email: `other.${Date.now()}@grubpac.local`,
+          }),
+        )
+        .expect(409);
+    });
+
+    it('allows employee update with same email and rejects duplicate on another row', async () => {
+      const sharedEmail = `employee.shared.${Date.now()}@grubpac.local`;
+      const firstId = (
+        await request(app.getHttpServer())
+          .post('/api/v1/organisation/employees')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .set('x-organization-id', organizationId)
+          .send(buildEmployeeCreatePayload({ email: sharedEmail }))
+          .expect(201)
+      ).body as { id: string };
+
+      const secondId = (
+        await request(app.getHttpServer())
+          .post('/api/v1/organisation/employees')
+          .set('Authorization', `Bearer ${accessToken}`)
+          .set('x-organization-id', organizationId)
+          .send(
+            buildEmployeeCreatePayload({
+              email: `employee.other.${Date.now()}@grubpac.local`,
+            }),
+          )
+          .expect(201)
+      ).body as { id: string };
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${firstId.id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ email: sharedEmail })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${secondId.id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ email: sharedEmail })
+        .expect(409);
+    });
+
     it('writes an audit row on deactivate', async () => {
       const id = await createEmployeeAsAdmin();
       await request(app.getHttpServer())
@@ -491,20 +597,20 @@ describe('Organisation locations (integration)', () => {
       .expect(400);
   });
 
-  it('rejects location create with invalid US postal code', async () => {
+  it('rejects location create with invalid postal characters', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/organisation/locations')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
-        name: 'Bad US ZIP Location',
+        name: 'Bad Postal Location',
         locationTypeId: officeTypeId,
         addressLine1: '100 Main St',
         addressCountry: 'US',
         addressState: 'California',
         addressDistrict: 'Los Angeles',
-        addressPincode: 'not-a-zip',
+        addressPincode: '@invalid',
       })
       .expect(400);
   });
@@ -540,22 +646,6 @@ describe('Organisation locations (integration)', () => {
         addressLine1: 'Line 1',
       })
       .expect(400);
-
-    await request(app.getHttpServer())
-      .post('/api/v1/organisation/locations')
-      .set('Authorization', `Bearer ${accessToken}`)
-      .set('x-organization-id', organizationId)
-      .send({
-        organizationId,
-        name: 'Bad Pincode',
-        locationTypeId: officeTypeId,
-        addressLine1: 'Line 1',
-        addressCountry: 'IN',
-        addressState: 'Maharashtra',
-        addressDistrict: 'Mumbai',
-        addressPincode: '40006',
-      })
-      .expect(400);
   });
 
   it('creates location and enforces tenant isolation on get', async () => {
@@ -573,8 +663,8 @@ describe('Organisation locations (integration)', () => {
         addressState: 'Maharashtra',
         addressDistrict: 'Mumbai Suburban',
         addressPincode: '400069',
-        siteContactEmail: 'hub@example.com',
-        siteContactPhone: '+919999999999',
+        siteContactEmail: `hub.${Date.now()}@example.com`,
+        siteContactPhone: `+9199${String(Date.now()).slice(-8)}`,
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
 
@@ -874,8 +964,7 @@ describe('Organisation locations (integration)', () => {
       .send(
         buildEmployeeCreatePayload({
           fullName: 'Integration Responsible Person',
-          phone: '+919888877776',
-          email: 'responsible.integration@grubpac.local',
+          email: `responsible.integration.${Date.now()}@grubpac.local`,
         }),
       )
       .expect((res) => expect([200, 201]).toContain(res.status));
@@ -926,7 +1015,7 @@ describe('Organisation locations (integration)', () => {
       .send(
         buildEmployeeCreatePayload({
           fullName: `${marker} Older`,
-          phone: '+919888877771',
+          phone: `+9191${String(unique).slice(-8)}`,
           email: `sort.older.${unique}@grubpac.local`,
         }),
       )
@@ -940,7 +1029,7 @@ describe('Organisation locations (integration)', () => {
       .send(
         buildEmployeeCreatePayload({
           fullName: `${marker} Newer`,
-          phone: '+919888877772',
+          phone: `+9192${String(unique + 1).slice(-8)}`,
           email: `sort.newer.${unique}@grubpac.local`,
         }),
       )
@@ -969,7 +1058,6 @@ describe('Organisation locations (integration)', () => {
         buildEmployeeCreatePayload({
           fullName: 'Integration Custom Department Employee',
           department: customDepartment,
-          phone: '+919888877775',
           email: `custom.dept.${Date.now()}@grubpac.local`,
         }),
       )
@@ -1007,7 +1095,6 @@ describe('Organisation locations (integration)', () => {
         buildEmployeeCreatePayload({
           fullName: 'Lifecycle Integration Employee',
           department: `Lifecycle Dept ${unique}`,
-          phone: '+919888877774',
           email: `lifecycle.employee.${unique}@grubpac.local`,
         }),
       )

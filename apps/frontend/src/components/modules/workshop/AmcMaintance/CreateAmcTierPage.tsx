@@ -1,11 +1,17 @@
 "use client";
 
+import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
-import Button from "@/components/ui/GrubpacButton";
+import FormActions from "@/components/common/FormActions";
+import {
+  validateRequired,
+  validateStringLength,
+  hasValidationErrors,
+  type ValidationErrors,
+} from "@/components/common/Commonvalidation";
 import {
   FormFieldInlineError,
   mergeFormControlBorderClass,
@@ -30,6 +36,7 @@ const inputClass =
 export default function CreateAmcTierPage() {
   const router = useRouter();
   const { token, organizationId, permissions } = useAuth();
+
   const canCreate =
     permissions.has("workshop.create") ||
     permissions.has("workshop.manage");
@@ -37,21 +44,69 @@ export default function CreateAmcTierPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [priceDisplayLabel, setPriceDisplayLabel] = useState("");
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const isSubmittingRef = useRef(false);
+
+  const validationErrors: ValidationErrors = useMemo(() => {
+    const errors: ValidationErrors = {};
+
+    const nameError = validateRequired(name, "Tier name");
+    if (nameError) {
+      errors.name = nameError;
+    } else {
+      const lengthError = validateStringLength(name, {
+        label: "Tier name",
+        required: true,
+        maxLength: WORKSHOP_INPUT_LIMITS.amcTierName,
+      });
+      if (lengthError) errors.name = lengthError;
+    }
+
+    const descriptionError = validateStringLength(description, {
+      label: "Plan details",
+      required: false,
+      maxLength: WORKSHOP_INPUT_LIMITS.amcTierDescription,
+    });
+    if (descriptionError) errors.description = descriptionError;
+
+    const priceLabelError = validateStringLength(priceDisplayLabel, {
+      label: "Price label",
+      required: false,
+      maxLength: WORKSHOP_INPUT_LIMITS.amcTierPriceLabel,
+    });
+    if (priceLabelError) errors.priceDisplayLabel = priceLabelError;
+
+    return errors;
+  }, [name, description, priceDisplayLabel]);
+
+  const validationSummary = useMemo(
+    () => Object.values(validationErrors).filter(Boolean) as string[],
+    [validationErrors],
+  );
+
+  const getFieldError = (field: string) =>
+    hasAttemptedSubmit ? validationErrors[field] : undefined;
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      createWorkshopAmcTierApi(token!, {
-        organizationId: organizationId!,
+    mutationFn: () => {
+      if (!token || !organizationId) {
+        throw new Error("Missing authentication or organization context.");
+      }
+
+      return createWorkshopAmcTierApi(token, {
+        organizationId,
         name: name.trim(),
         description: description.trim() || undefined,
         priceDisplayLabel: priceDisplayLabel.trim() || undefined,
-      }),
+      });
+    },
     onSuccess: (data) => {
+      isSubmittingRef.current = false;
       showSuccessToast(`${data.name} was created`);
       router.push(workshopAmcTierDetailHref(data.id));
     },
     onError: (error: Error) => {
+      isSubmittingRef.current = false;
       const message =
         error instanceof ApiClientError
           ? error.message
@@ -60,33 +115,52 @@ export default function CreateAmcTierPage() {
     },
   });
 
-  const canSubmit =
-    canCreate && !!name.trim() && !createMutation.isPending;
+  const handleSave = () => {
+    setHasAttemptedSubmit(true);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const nextErrors: Record<string, string> = {};
-    if (!name.trim()) nextErrors.name = "Tier name is required.";
-    setErrors(nextErrors);
-    if (Object.keys(nextErrors).length > 0) return;
+    if (hasValidationErrors(validationErrors)) return;
+    if (isSubmittingRef.current || createMutation.isPending) return;
+
     if (!token || !organizationId || !canCreate) {
       showErrorToast("You do not have permission to create AMC tiers.");
       return;
     }
+
+    isSubmittingRef.current = true;
     createMutation.mutate();
   };
+
+  const handleCancel = () => {
+    router.push(workshopAmcMaintenanceListHref);
+  };
+
+  const formActions = (
+    <FormActions
+      hasAttemptedSubmit={hasAttemptedSubmit}
+      validationSummary={validationSummary}
+      isSaving={createMutation.isPending}
+      canSubmit={canCreate && !createMutation.isPending}
+      onCancel={handleCancel}
+      onSave={handleSave}
+      saveLabel="Save tier"
+      savingLabel="Saving..."
+    />
+  );
 
   return (
     <OrganizationFormLayout
       title="Create AMC tier"
       description="Define a maintenance contract plan for fleet vehicles."
-      backLink={{
-        label: "Back to AMC & Maintenance",
-        href: workshopAmcMaintenanceListHref,
-      }}
       contentVariant="plain"
+      actions={formActions}
     >
-      <form onSubmit={handleSubmit} className="w-full">
+      <form
+        className="w-full"
+        onSubmit={(event) => {
+          event.preventDefault();
+          handleSave();
+        }}
+      >
         <section className="overflow-hidden rounded-lg border border-gray-200 bg-white p-4">
           <div className="space-y-4">
             <div>
@@ -96,19 +170,17 @@ export default function CreateAmcTierPage() {
               <RestrictedInput
                 restrictedKind="name"
                 value={name}
-                onChange={(value) => {
-                  setName(value);
-                  setErrors((prev) => ({ ...prev, name: "" }));
-                }}
+                onChange={setName}
                 maxLength={WORKSHOP_INPUT_LIMITS.amcTierName}
                 placeholder="e.g. Gold AMC"
                 className={mergeFormControlBorderClass(
-                  !!errors.name,
+                  !!getFieldError("name"),
                   inputClass,
                 )}
               />
-              <FormFieldInlineError message={errors.name} />
+              <FormFieldInlineError message={getFieldError("name")} />
             </div>
+
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-700">
                 Plan details
@@ -116,12 +188,17 @@ export default function CreateAmcTierPage() {
               <RestrictedInput
                 restrictedKind="text"
                 value={description}
-                onChange={(value) => setDescription(value)}
+                onChange={setDescription}
                 maxLength={WORKSHOP_INPUT_LIMITS.amcTierDescription}
                 placeholder="Coverage summary (optional)"
-                className={inputClass}
+                className={mergeFormControlBorderClass(
+                  !!getFieldError("description"),
+                  inputClass,
+                )}
               />
+              <FormFieldInlineError message={getFieldError("description")} />
             </div>
+
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-700">
                 Price label
@@ -129,27 +206,20 @@ export default function CreateAmcTierPage() {
               <RestrictedInput
                 restrictedKind="text"
                 value={priceDisplayLabel}
-                onChange={(value) => setPriceDisplayLabel(value)}
+                onChange={setPriceDisplayLabel}
                 maxLength={WORKSHOP_INPUT_LIMITS.amcTierPriceLabel}
                 placeholder="e.g. ₹12,000 / year (optional)"
-                className={inputClass}
+                className={mergeFormControlBorderClass(
+                  !!getFieldError("priceDisplayLabel"),
+                  inputClass,
+                )}
+              />
+              <FormFieldInlineError
+                message={getFieldError("priceDisplayLabel")}
               />
             </div>
           </div>
         </section>
-
-        <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => router.push(workshopAmcMaintenanceListHref)}
-          >
-            Cancel
-          </Button>
-          <Button type="submit" disabled={!canSubmit}>
-            {createMutation.isPending ? "Saving…" : "Save tier"}
-          </Button>
-        </div>
       </form>
     </OrganizationFormLayout>
   );

@@ -1,13 +1,11 @@
-import {
-  postcodeValidator,
-  postcodeValidatorExistsForCountry,
-} from 'postcode-validator';
-
 import { isValidIso31661Alpha2Country, normalizeCountryCode } from './country';
 
 const GENERIC_POSTAL = /^[A-Za-z0-9][A-Za-z0-9\s-]{0,19}$/;
 
 export const ADDRESS_POSTAL_MAX_LENGTH = 20;
+
+export const ADDRESS_POSTAL_INVALID_FORMAT_MESSAGE =
+  'addressPincode format is invalid';
 
 export type PostalValidationResult =
   | { ok: true }
@@ -36,22 +34,12 @@ export function validatePostalForCountry(
     };
   }
 
-  if (postcodeValidatorExistsForCountry(normalizedCountry)) {
-    if (postcodeValidator(trimmed, normalizedCountry)) {
-      return { ok: true };
-    }
-    return {
-      ok: false,
-      message: 'addressPincode format is invalid for this country',
-    };
-  }
-
   if (GENERIC_POSTAL.test(trimmed)) {
     return { ok: true };
   }
 
   return {
     ok: false,
-    message: 'addressPincode format is invalid for this country',
+    message: ADDRESS_POSTAL_INVALID_FORMAT_MESSAGE,
   };
 }

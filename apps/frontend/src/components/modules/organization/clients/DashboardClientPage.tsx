@@ -385,11 +385,20 @@ export default function ClientDashboardPage() {
           onSortChange={onSortChange}
           serverSorted={serverSorted}
           getRowKey={(client) => client.id}
+
           renderActions={(client) => (
             <DashboardTableActions
               status={client.status}
               locationId={client.id}
               viewHref={organisationClientDetailHref(client.id)}
+              copyText={[
+                `Company: ${client.clientName}`,
+                `Primary POC: ${client.primaryPoc}`,
+                `Phone: ${client.phone ?? "N/A"}`,
+                `Email: ${client.email ?? "N/A"}`,
+                `Contracts: ${client.contracts}`,
+                `Status: ${client.status}`,
+              ].join("\n")}
               onEdit={
                 canUpdate && client.status === "active"
                   ? () => handleEdit(client)
@@ -405,6 +414,7 @@ export default function ClientDashboardPage() {
               }
             />
           )}
+
         />
       )}
 

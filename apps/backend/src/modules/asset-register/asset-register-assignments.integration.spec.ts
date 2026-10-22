@@ -13,6 +13,7 @@ import {
 import { expectAuditLog } from '../../../test/helpers/audit-assert';
 import { fleetClientStructuredAddressIn } from '../../../test/helpers/fleet-client-address.fixture';
 import { createDraftLeaseContract } from '../../../test/helpers/fleet-leasing-test.util';
+import { uniqueIntegrationPhone } from '../../../test/helpers/unique-integration-contact';
 import { eq } from 'drizzle-orm';
 import { fleetClients } from '../../database/schema/fleet-leasing.schema';
 
@@ -106,7 +107,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
         registrationEndDate: '2029-01-01',
         insuranceStartDate: '2024-01-01',
         insuranceEndDate: '2030-01-01',
-        insurancePremium: '10000.00',
+        insurancePremium: 10000,
         warrantyStartDate: '2024-01-01',
         warrantyEndDate: '2027-01-01',
       })
@@ -133,7 +134,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
         pointsOfContact: [
           {
             name: 'Org POC',
-            contactNumber: '+919888877771',
+            contactNumber: uniqueIntegrationPhone(`org-${unique}`),
             email: `org-client-${unique}@grubpac.local`,
             isPrimary: true,
           },
@@ -167,7 +168,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
         pointsOfContact: [
           {
             name: 'POC',
-            contactNumber: '+919999999991',
+            contactNumber: uniqueIntegrationPhone(`fleet-${unique}`),
             email: `assign-${unique}@example.com`,
             isPrimary: true,
           },

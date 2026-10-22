@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
@@ -113,7 +114,7 @@ export async function updateSparePartApi(
     `/inventory/stock-register/${partId}?${query.toString()}`,
     {
       method: "PATCH",
-      body: JSON.stringify(payload),
+      body: serializeOrgScopedPatchBody(payload),
       ...orgHeaders(organizationId, token),
     },
   );

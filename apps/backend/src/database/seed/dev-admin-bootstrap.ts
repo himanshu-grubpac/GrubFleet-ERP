@@ -24,13 +24,27 @@ export const DEV_SYSTEM_ADMIN_ROLE_NAME = 'System Administrator';
 
 type AppDb = NodePgDatabase<typeof schema>;
 
-export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
-  const passwordHash = await bcrypt.hash(DEV_ADMIN_PASSWORD, 12);
+export type SeedOrganizationAdminUserInput = {
+  email: string;
+  password: string;
+  fullName: string;
+  orgSlug?: string;
+  orgName?: string;
+};
+
+/** Org admin + system admin roles; no finance/inventory/demo catalog. */
+export async function seedOrganizationAdminUser(
+  db: AppDb,
+  input: SeedOrganizationAdminUserInput,
+): Promise<void> {
+  const orgSlug = input.orgSlug ?? DEV_ORG_SLUG;
+  const orgName = input.orgName ?? DEV_ORG_NAME;
+  const passwordHash = await bcrypt.hash(input.password, 12);
 
   const orgRows = await db
     .select({ id: organizations.id })
     .from(organizations)
-    .where(eq(organizations.slug, DEV_ORG_SLUG))
+    .where(eq(organizations.slug, orgSlug))
     .limit(1);
 
   let organizationId = orgRows[0]?.id;
@@ -38,8 +52,8 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
     await db
       .insert(organizations)
       .values({
-        name: DEV_ORG_NAME,
-        slug: DEV_ORG_SLUG,
+        name: orgName,
+        slug: orgSlug,
         isActive: true,
       })
       .onConflictDoNothing({ target: organizations.slug });
@@ -47,21 +61,23 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
     const resolvedOrg = await db
       .select({ id: organizations.id })
       .from(organizations)
-      .where(eq(organizations.slug, DEV_ORG_SLUG))
+      .where(eq(organizations.slug, orgSlug))
       .limit(1);
     organizationId = resolvedOrg[0]?.id;
   }
 
   if (!organizationId) {
-    throw new Error('Failed to resolve dev organization id');
+    throw new Error('Failed to resolve organization id');
   }
+
+  const normalizedEmail = input.email.trim().toLowerCase();
 
   await db
     .insert(users)
     .values({
-      email: DEV_ADMIN_EMAIL,
+      email: normalizedEmail,
       passwordHash,
-      fullName: 'Dev Admin',
+      fullName: input.fullName,
       isActive: true,
       emailVerifiedAt: new Date(),
     })
@@ -69,7 +85,7 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
       target: users.email,
       set: {
         passwordHash,
-        fullName: 'Dev Admin',
+        fullName: input.fullName,
         isActive: true,
         emailVerifiedAt: new Date(),
       },
@@ -78,11 +94,11 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
   const userRows = await db
     .select({ id: users.id })
     .from(users)
-    .where(eq(users.email, DEV_ADMIN_EMAIL))
+    .where(eq(users.email, normalizedEmail))
     .limit(1);
   const userId = userRows[0]?.id;
   if (!userId) {
-    throw new Error('Failed to resolve dev admin user id');
+    throw new Error('Failed to resolve user id');
   }
 
   await db
@@ -149,28 +165,6 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
     })
     .where(eq(roles.id, roleId));
 
-  const catalog = buildPhase1PermissionCatalog();
-  for (const item of catalog) {
-    await db
-      .insert(permissions)
-      .values({
-        key: item.key,
-        module: item.module,
-        action: item.action,
-        kind: item.kind,
-        description: item.description,
-      })
-      .onConflictDoUpdate({
-        target: permissions.key,
-        set: {
-          module: item.module,
-          action: item.action,
-          kind: item.kind,
-          description: item.description,
-        },
-      });
-  }
-
   const permissionRows = await db
     .select({ id: permissions.id, key: permissions.key })
     .from(permissions);
@@ -236,9 +230,6 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
     systemRoleId = resolvedSystemRole[0]?.id;
   }
 
-  await seedFinanceDevCatalogParts(db);
-  await seedInventoryDevData(db);
-
   if (systemRoleId) {
     for (const perm of permissionRows) {
       await db
@@ -260,4 +251,37 @@ export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
         target: [userRoles.userId, userRoles.roleId, userRoles.organizationId],
       });
   }
+}
+
+export async function seedDevAdminBootstrap(db: AppDb): Promise<void> {
+  const catalog = buildPhase1PermissionCatalog();
+  for (const item of catalog) {
+    await db
+      .insert(permissions)
+      .values({
+        key: item.key,
+        module: item.module,
+        action: item.action,
+        kind: item.kind,
+        description: item.description,
+      })
+      .onConflictDoUpdate({
+        target: permissions.key,
+        set: {
+          module: item.module,
+          action: item.action,
+          kind: item.kind,
+          description: item.description,
+        },
+      });
+  }
+
+  await seedOrganizationAdminUser(db, {
+    email: DEV_ADMIN_EMAIL,
+    password: DEV_ADMIN_PASSWORD,
+    fullName: 'Dev Admin',
+  });
+
+  await seedFinanceDevCatalogParts(db);
+  await seedInventoryDevData(db);
 }

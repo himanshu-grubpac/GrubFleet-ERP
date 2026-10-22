@@ -4,7 +4,7 @@
 @source "../../../../node_modules/@grubpac/ui-kit/dist";
 
 :root {
-  --background: #f8fafc;
+  --background: #F8F8F8;
   --foreground: #0f172a;
   --primary: #2563eb;
   --primary-foreground: #ffffff;
