@@ -66,7 +66,7 @@ export const workshopAmcScheduleCreateHref =
 export const workshopAmcTierCreateHref =
   "/workshop/amc-maintenance/tier/create/";
 
-const LABOUR_RATE_CARD_BASE = "/workshop/labour-rate-cards";
+const LABOUR_RATE_CARD_BASE = "/workshop/service-packages";
 
 export const workshopLabourRateCardListHref = `${LABOUR_RATE_CARD_BASE}/`;
 export const workshopLabourRateCardCreateHref = `${LABOUR_RATE_CARD_BASE}/create/`;

@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import FormActions from "@/components/common/FormActions";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { FLEET_LEASE_TERMS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
@@ -436,27 +435,54 @@ export default function TermsStep({
             </div>
 
             <div className="mt-5">
-                <FormActions
-                    hasAttemptedSubmit={hasAttemptedSubmit}
-                    validationSummary={validationSummary}
-                    isSaving={isContinuing}
-                    onCancel={onBack}
-                    onSave={handleContinue}
-                    cancelLabel="Back"
-                    saveLabel="Continue"
-                    savingLabel="Saving..."
-                    secondaryAction={
-                        showSaveDraft && onSaveDraft
-                            ? {
-                                  label: "Save draft",
-                                  pendingLabel: "Saving…",
-                                  isPending: isSaveDraftPending,
-                                  disabled: isContinuing || isSaveDraftPending,
-                                  onClick: handleSaveDraft,
-                              }
-                            : undefined
-                    }
-                />
+                {hasAttemptedSubmit && validationSummary.length > 0 && (
+                    <div
+                        className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                        role="alert"
+                    >
+                        <p className="mb-1 font-semibold">
+                            Please fix the following before continuing:
+                        </p>
+                        <ul className="list-disc space-y-1 pl-5">
+                            {validationSummary.map((message, index) => (
+                                <li key={`${message}-${index}`}>{message}</li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                <div className="flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <button
+                        type="button"
+                        onClick={onBack}
+                        disabled={isContinuing || isSaveDraftPending}
+                        className="inline-flex h-10 w-full items-center justify-center rounded-md border border-gray-300 bg-white px-6 text-sm font-semibold text-gray-700 transition hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                    >
+                        Back
+                    </button>
+
+                    <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center">
+                        {showSaveDraft && onSaveDraft && (
+                            <button
+                                type="button"
+                                onClick={handleSaveDraft}
+                                disabled={isContinuing || isSaveDraftPending}
+                                className="inline-flex h-10 w-full items-center justify-center rounded-md bg-slate-700 px-6 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                            >
+                                {isSaveDraftPending ? "Saving…" : "Save draft"}
+                            </button>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={handleContinue}
+                            disabled={isContinuing}
+                            className="inline-flex h-10 w-full items-center justify-center rounded-md bg-[#FE5720] px-6 text-sm font-semibold text-white transition hover:bg-[#e94b18] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+                        >
+                            {isContinuing ? "Saving..." : "Continue"}
+                        </button>
+                    </div>
+                </div>
             </div>
         </>
     );

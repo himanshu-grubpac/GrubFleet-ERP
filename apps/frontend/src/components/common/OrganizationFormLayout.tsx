@@ -43,7 +43,7 @@ export default function OrganizationFormLayout({
     const backLinkClassName = "mb-3";
 
     return (
-        <div className="w-full">
+        <div className="w-full bg-[#f8f8f8]">
             {backLink ? (
                 <div className="px-4 pt-4 sm:px-6">
                     {backLink.href ? (

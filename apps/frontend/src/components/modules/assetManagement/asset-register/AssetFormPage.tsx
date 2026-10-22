@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, X } from "lucide-react";
-
+import { Check, ChevronDown, X, Plus } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import {
@@ -27,6 +26,7 @@ import {
   validateAssetClassFormFields,
   validateAssetClassFormForSubmit,
 } from "@/lib/api/asset-register/mappers";
+
 
 export type AssetClassFormData = {
   name: string;
@@ -129,6 +129,9 @@ export default function CreateAssetClassForm({
   const [form, setForm] = useState<AssetClassFormData>(() =>
     mergeInitialAssetClassForm(initialData),
   );
+  const handleAddCustom = () => {
+    setIntakeCustomAddOpen(true);
+  };
 
   const [error, setError] = useState("");
   const [validationErrors, setValidationErrors] =
@@ -808,20 +811,6 @@ export default function CreateAssetClassForm({
                     : "Select checklist"}
               </span>
             </button>
-            {form.intakeChecklistItems.length > 0 ? (
-              <button
-                type="button"
-                aria-label="Clear selected checklist items"
-                title="Clear selected items"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  updateForm("intakeChecklistItems", []);
-                }}
-                className="absolute right-9 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : null}
             <ChevronDown
               className={`pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 transition-transform ${intakePanelExpanded ? "rotate-180" : ""}`}
               strokeWidth={1.7}
@@ -856,8 +845,8 @@ export default function CreateAssetClassForm({
                           <span
                             aria-hidden="true"
                             className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isSelected
-                                ? "border-[#FE5720] bg-[#FE5720] text-white"
-                                : "border-gray-300 bg-white"
+                              ? "border-[#FE5720] bg-[#FE5720] text-white"
+                              : "border-gray-300 bg-white"
                               }`}
                           >
                             {isSelected ? <Check className="h-3 w-3" strokeWidth={2.5} /> : null}
@@ -911,16 +900,20 @@ export default function CreateAssetClassForm({
                     </button>
                   </form>
                 ) : (
-                  <div className="flex justify-end">
-                    <Button
+                  <div className="flex justify-start">
+                    <button
                       type="button"
-                      variant="secondary"
-                      disabled={isSaving}
-                      onClick={() => setIntakeCustomAddOpen(true)}
-                      className="h-9 bg-slate-700 px-4 text-sm font-semibold text-white hover:bg-slate-800"
+                      onClick={handleAddCustom}
+                      className="inline-flex items-center gap-1.5 border-0
+                        bg-transparent p-0 text-sm font-semibold
+                        text-[#FE5720] transition-colors
+                        hover:text-[#d94412] hover:underline
+                        focus-visible:outline-none focus-visible:ring-2
+                        focus-visible:ring-[#FE5720]/30 focus-visible:ring-offset-2"
                     >
+                      <Plus className="h-4 w-4" />
                       Add custom
-                    </Button>
+                    </button>
                   </div>
                 )}
               </div>
@@ -929,7 +922,7 @@ export default function CreateAssetClassForm({
         </div>
         <FormFieldInlineError message={displayedErrors.intakeChecklistItems} />
 
-        {form.intakeChecklistItems.length > 0 ? (
+        {!intakePanelExpanded && form.intakeChecklistItems.length > 0 ? (
           <div className="mt-2 flex flex-wrap gap-2">
             {form.intakeChecklistItems.map((item) => (
               <span

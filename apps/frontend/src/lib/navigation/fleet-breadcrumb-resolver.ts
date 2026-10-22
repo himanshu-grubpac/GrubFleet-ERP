@@ -85,6 +85,91 @@ function findNavigationMatch(
 }
 
 
+export function resolveWorkshopBreadcrumbs(
+    pathname: string,
+): BreadcrumbItem[] {
+    const path = normalizePath(pathname);
+
+    const workshopRoot = "/workshop";
+    const workOrdersPath = `${workshopRoot}/work-orders`;
+    const servicePackagesPath = `${workshopRoot}/service-packages`;
+
+    // Workshop landing page
+    if (path === workshopRoot) {
+        return [{ label: "Workshop" }];
+    }
+
+    // Work Orders listing and dynamic detail pages
+    if (path === workOrdersPath) {
+        return [
+            { label: "Workshop", href: `${workshopRoot}/` },
+            { label: "Work Orders" },
+        ];
+    }
+
+    if (path.startsWith(`${workOrdersPath}/`)) {
+        const remainingPath = path
+            .slice(workOrdersPath.length)
+            .split("/")
+            .filter(Boolean);
+
+        const isCreateRoute = remainingPath[0] === "create"
+            || remainingPath[0] === "new";
+
+        if (isCreateRoute) {
+            return [
+                { label: "Workshop", href: `${workshopRoot}/` },
+                { label: "Work Orders", href: `${workOrdersPath}/` },
+                { label: "New" },
+            ];
+        }
+
+        return [
+            { label: "Workshop", href: `${workshopRoot}/` },
+            { label: "Work Orders", href: `${workOrdersPath}/` },
+            { label: "View Details" },
+        ];
+    }
+
+    // Service Packages listing
+    if (path === servicePackagesPath) {
+        return [
+            { label: "Workshop", href: `${workshopRoot}/` },
+            { label: "Service Packages" },
+        ];
+    }
+
+    // Service Packages create, edit and dynamic detail routes
+    if (path.startsWith(`${servicePackagesPath}/`)) {
+        const remainingPath = path
+            .slice(servicePackagesPath.length)
+            .split("/")
+            .filter(Boolean);
+
+        const lastSegment = remainingPath[remainingPath.length - 1];
+
+        let currentLabel = "View Details";
+
+        if (lastSegment === "create" || lastSegment === "new") {
+            currentLabel = "Create";
+        } else if (lastSegment === "edit") {
+            currentLabel = "Edit";
+        }
+
+        return [
+            { label: "Workshop", href: `${workshopRoot}/` },
+            {
+                label: "Service Packages",
+                href: `${servicePackagesPath}/`,
+            },
+            { label: currentLabel },
+        ];
+    }
+
+    return [];
+}
+
+
 function getFleetNavigationBreadcrumbs(path: string): BreadcrumbItem[] {
     const fleetItem = mainNavItems.find(
         (item) => normalizePath(item.href) === "/fleet-leasing",

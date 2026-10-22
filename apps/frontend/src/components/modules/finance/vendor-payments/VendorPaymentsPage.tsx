@@ -235,18 +235,6 @@ export default function VendorPaymentsPage() {
               description="Record a payment against an open purchase invoice to update paid totals."
             />
 
-            {canRecord && (
-              <div className="mt-4 flex justify-center">
-                <Button
-                  type="button"
-                  onClick={() =>
-                    router.push(financeVendorPaymentRecordHref)
-                  }
-                >
-                  + Record Payment
-                </Button>
-              </div>
-            )}
           </div>
         ) : items.length === 0 ? (
           /* No search results */
@@ -327,15 +315,15 @@ export default function VendorPaymentsPage() {
               ]}
               renderActions={(row) => {
                 const copyText = [
-                  row.paymentNumber,
-                  row.paymentDate,
-                  row.purchaseInvoiceNumber,
-                  row.vendorName,
-                  formatInrFromMinor(row.amountMinor),
-                  row.paymentMethodLabel ?? row.paymentMethod ?? "",
-                  row.paymentReference ?? "",
-                ].join("\t");
-
+                  `Payment ID: ${row.paymentNumber}`,
+                  `Date: ${row.paymentDate}`,
+                  `Purchase invoice: ${row.purchaseInvoiceNumber}`,
+                  `Vendor: ${row.vendorName}`,
+                  `Amount: ${formatInrFromMinor(row.amountMinor)}`,
+                  `Payment method: ${row.paymentMethodLabel ?? row.paymentMethod ?? "—"
+                  }`,
+                  `Reference: ${row.paymentReference ?? "—"}`,
+                ].join("\n");
                 return (
                   <DashboardTableActions
                     status="active"

@@ -1050,46 +1050,32 @@ export default function CreateSupplierForm({
                             </span>
                         </label>
 
+
                         <input
                             type="tel"
-                            value={
-                                form.phone
-                            }
-                            onChange={(
-                                event
-                            ) => {
-                                updateForm(
-                                    "phone",
-                                    event.target
-                                        .value
-                                );
+                            value={form.phone}
+                            onChange={(event) => {
+                                const phone = event.target.value.replace(/[^0-9+\s()-]/g, "");
+
+                                updateForm("phone", phone);
 
                                 setError("");
 
-                                setValidationErrors(
-                                    (
-                                        previous
-                                    ) => {
-                                        const next =
-                                        {
-                                            ...previous,
-                                        };
-
-                                        delete next.phone;
-
-                                        return next;
-                                    }
-                                );
+                                setValidationErrors((previous) => {
+                                    const next = { ...previous };
+                                    delete next.phone;
+                                    return next;
+                                });
                             }}
                             placeholder="+91 98XXXXXXXX"
                             className={[
                                 "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
-
                                 validationErrors.phone
                                     ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
                                     : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
                             ].join(" ")}
                         />
+
 
                         {validationErrors.phone && (
                             <p className="mt-1 text-xs text-red-500">

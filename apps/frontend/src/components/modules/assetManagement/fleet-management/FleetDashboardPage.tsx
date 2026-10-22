@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CarFront, Search } from "lucide-react";
+import { CarFront, Search, Check, Copy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -141,6 +141,22 @@ const getStatusClass = (status: FleetStatus) => {
 
 export default function FleetDashboardPage() {
     const router = useRouter();
+    const [copiedAssetClass, setCopiedAssetClass] = useState<string | null>(null);
+
+    const handleCopyAssetClass = async (name: string) => {
+        try {
+            await navigator.clipboard.writeText(name);
+            setCopiedAssetClass(name);
+
+            window.setTimeout(() => {
+                setCopiedAssetClass((current) =>
+                    current === name ? null : current,
+                );
+            }, 1500);
+        } catch {
+            // Clipboard access may be unavailable in an insecure context.
+        }
+    };
 
     const {
         token,
@@ -309,20 +325,70 @@ export default function FleetDashboardPage() {
         {
             key: "fleetCode",
             label: "FLEET CODE",
+            width: "20%",
         },
         {
             key: "assetClass",
             label: "ASSET CLASS",
             sortable: false,
+            className: "w-[180px] max-w-[180px]",
+            render: (vehicle: FleetVehicle) => (
+                <div className="group/asset relative w-[180px] max-w-full">
+                    <span className="block truncate">
+                        {vehicle.assetClass || "—"}
+                    </span>
+
+                    {vehicle.assetClass && (
+                        <div
+                            className="
+                                invisible pointer-events-none
+                                absolute left-0 top-full z-50
+                                w-max min-w-[260px] max-w-[360px]
+                                rounded-md border border-gray-200
+                                bg-white p-3 shadow-lg
+                                opacity-0 transition-opacity duration-150
+                                group-hover/asset:visible
+                                group-hover/asset:pointer-events-auto
+                                group-hover/asset:opacity-100
+                                group-focus-within/asset:visible
+                                group-focus-within/asset:pointer-events-auto
+                                group-focus-within/asset:opacity-100
+                            "
+                        >
+                            <div className="flex items-start gap-1">
+                                <span className="min-w-0 flex-1 whitespace-normal break-words text-xs text-gray-800">
+                                    {vehicle.assetClass}
+                                </span>
+
+                                <button
+                                    type="button"
+                                    onClick={() => void handleCopyAssetClass(vehicle.assetClass)}
+                                    className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                                    title="Copy full asset class name"
+                                    aria-label="Copy full asset class name"
+                                >
+                                    {copiedAssetClass === vehicle.assetClass ? (
+                                        <Check className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                        <Copy className="h-4 w-4" />
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            ),
         },
         {
             key: "registrationNumber",
             label: "REGISTRATION NO.",
+            width: "20%",
         },
         {
             key: "odometer",
             label: "ODOMETER",
             sortable: false,
+            width: "20%",
             render: (vehicle: FleetVehicle) => (
                 <span className="text-gray-700">
                     {formatOdometer(vehicle.odometer)}
@@ -332,6 +398,7 @@ export default function FleetDashboardPage() {
         {
             key: "status",
             label: "STATUS",
+            width: "20%",
             render: (vehicle: FleetVehicle) => (
                 <span
                     className={[
@@ -477,6 +544,7 @@ export default function FleetDashboardPage() {
                     onSortChange={onSortChange}
                     serverSorted={serverSorted}
                     getRowKey={(vehicle) => vehicle.id}
+
                     renderActions={(vehicle) => (
                         <DashboardTableActions
                             status={
@@ -486,6 +554,14 @@ export default function FleetDashboardPage() {
                             }
                             locationId={vehicle.id}
                             viewHref={assetRegisterFleetDetailHref(vehicle.id)}
+                            copyText={[
+                                `Vehicle ID: ${vehicle.id}`,
+                                `Fleet Code: ${vehicle.fleetCode}`,
+                                `Asset Class: ${vehicle.assetClass}`,
+                                `Registration Number: ${vehicle.registrationNumber}`,
+                                `Odometer: ${formatOdometer(vehicle.odometer)}`,
+                                `Status: ${getStatusLabel(vehicle.status)}`,
+                            ].join("\n")}
                             onEdit={() => handleEdit(vehicle)}
                             onToggleStatus={() => {
                                 console.log(
