@@ -31,8 +31,7 @@ export class StockRegisterService {
 
   private formatCompatibleLabel(classes: string[]): string {
     if (classes.length === 0) return '—';
-    if (classes.length >= 2) return 'Both classes';
-    return classes[0];
+    return classes.join(', ');
   }
 
   private toListItem(

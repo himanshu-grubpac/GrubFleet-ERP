@@ -16,7 +16,7 @@ import {
   leaseContracts,
 } from '../schema';
 import {
-  assertDevOnly,
+  assertDevOnlyForLegacyOrgSeed,
   maskDatabaseUrl,
   resolveDevDatabaseUrl,
   resolveDevOrganizationId,
@@ -39,7 +39,7 @@ const VEHICLE_FIXTURES = [
 
 async function main(): Promise<void> {
   const connectionString = resolveDevDatabaseUrl();
-  assertDevOnly(connectionString);
+  assertDevOnlyForLegacyOrgSeed(connectionString);
 
   const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });

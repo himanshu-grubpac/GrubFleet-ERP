@@ -9,6 +9,7 @@ import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import SelectClientStep from "@/components/modules/fleet-leasing/NewContract/SelectClientStep";
 import AssetLinesStep, {
     type AssetLine,
+    type AssetLineEditConstraints,
 } from "@/components/modules/fleet-leasing/NewContract/AssetLinesStep";
 import TermsStep, {
     type LeaseTerms,
@@ -44,7 +45,9 @@ import {
     showSuccessToast,
 } from "@/lib/toast/show-toast";
 import {
+    buildCompleteTermsApiPayload,
     buildPartialTermsPatch,
+    computeLeaseEndDateIso,
     inferDraftWizardResumeScreen,
     mapDetailToWizardAssetLines,
     termsAreComplete,
@@ -90,9 +93,16 @@ function isEditAllowed(
 }
 
 function mapDetailToTerms(detail: LeaseContractDetail): LeaseTerms {
+    const startDate = detail.startDate ?? "";
+    const termMonths = detail.termMonths ?? "";
+    const endDate =
+        detail.endDate?.trim() ||
+        computeLeaseEndDateIso(startDate, termMonths);
+
     return {
-        startDate: detail.startDate ?? "",
-        termMonths: detail.termMonths ?? "",
+        startDate,
+        endDate,
+        termMonths,
         securityDeposit:
             detail.securityDeposit != null
                 ? String(detail.securityDeposit)
@@ -175,6 +185,22 @@ export default function EditLeaseContractPage({
     const contract = contractQuery.data;
     const isDraft = contract?.rawStatus === "draft";
 
+    const activeEditLineConstraints = useMemo(() => {
+        if (isDraft || !contract) {
+            return undefined;
+        }
+        const map: Record<string, AssetLineEditConstraints> = {};
+        for (const line of contract.assetLines) {
+            const allocated = line.allocatedCount ?? 0;
+            map[line.id] = {
+                lockAssetClass: true,
+                lockRemove: true,
+                minCommittedQuantity: Math.max(1, allocated),
+            };
+        }
+        return map;
+    }, [contract, isDraft]);
+
     const [initialized, setInitialized] = useState(false);
     const [screen, setScreen] = useState<Screen>("asset-lines");
     const [selectedClientId, setSelectedClientId] = useState("");
@@ -189,6 +215,7 @@ export default function EditLeaseContractPage({
     const [assetLines, setAssetLines] = useState<AssetLine[]>([]);
     const [terms, setTerms] = useState<LeaseTerms>({
         startDate: "",
+        endDate: "",
         termMonths: "",
         securityDeposit: "",
         billingFrequency: "monthly",
@@ -341,19 +368,17 @@ export default function EditLeaseContractPage({
             }
 
             if (termsAreComplete(options.nextTerms)) {
-                await updateLeaseContractTerms(
-                    token,
-                    organizationId,
-                    leaseId,
-                    {
-                        startDate: options.nextTerms.startDate,
-                        termMonths: Number(options.nextTerms.termMonths),
-                        securityDeposit: String(
-                            options.nextTerms.securityDeposit,
-                        ),
-                        billingFrequency: options.nextTerms.billingFrequency,
-                    },
+                const termsPayload = buildCompleteTermsApiPayload(
+                    options.nextTerms,
                 );
+                if (termsPayload) {
+                    await updateLeaseContractTerms(
+                        token,
+                        organizationId,
+                        leaseId,
+                        termsPayload,
+                    );
+                }
             }
 
             await invalidateContract();
@@ -449,6 +474,12 @@ export default function EditLeaseContractPage({
 
     const handleClientSelected = async (client: FleetClientListItem) => {
         setWizardError(null);
+        if (isDraft) {
+            setSelectedClientId(String(client.id));
+            setSelectedClientName(client.companyName ?? "");
+            setScreen("asset-lines");
+            return;
+        }
         setIsPersistingStep(true);
         try {
             await persistClient(String(client.id));
@@ -472,6 +503,13 @@ export default function EditLeaseContractPage({
             throw new Error("Created client is missing an id.");
         }
         setWizardError(null);
+        if (isDraft) {
+            setSelectedClientId(String(customer.id));
+            setSelectedClientName(customer.companyName ?? "");
+            setRegisterClientDraftName("");
+            setScreen("asset-lines");
+            return;
+        }
         setIsPersistingStep(true);
         try {
             await persistClient(String(customer.id));
@@ -623,20 +661,28 @@ export default function EditLeaseContractPage({
                 clientName={selectedClientName}
                 initialAssetLines={assetLines}
                 availabilityRefreshKey={assetLinesAvailabilityRefreshKey}
+                draftContractId={leaseId}
+                lineConstraintsById={activeEditLineConstraints}
+                shortfallProceedMode={isDraft ? "block" : "confirm"}
                 showSaveDraft={saveDraftFooterProps.showSaveDraft}
                 isSaveDraftPending={saveDraftFooterProps.isSaveDraftPending}
                 onSaveDraft={(lines) => {
                     void handleSaveDraft(lines);
                 }}
                 onBack={() => setScreen("select-client")}
-                onContinue={async (lines) => {
+                onContinue={async (lines, continueOptions) => {
+                    setWizardError(null);
+                    setAssetLines(lines);
+                    if (isDraft) {
+                        setScreen("terms");
+                        return;
+                    }
                     if (!token || !organizationId) {
                         setWizardError(
                             "Authentication or organization information is missing.",
                         );
                         return;
                     }
-                    setWizardError(null);
                     setIsPersistingStep(true);
                     try {
                         await updateLeaseContractAssetLines(
@@ -653,9 +699,11 @@ export default function EditLeaseContractPage({
                                         line.ratePerVehicleMonth || "0",
                                     ),
                                 })),
+                                ...(continueOptions?.confirmShortfall
+                                    ? { confirmShortfall: true }
+                                    : {}),
                             },
                         );
-                        setAssetLines(lines);
                         setScreen("terms");
                     } catch (err) {
                         showErrorToast(
@@ -686,13 +734,19 @@ export default function EditLeaseContractPage({
                 }}
                 onBack={() => setScreen("asset-lines")}
                 onContinue={async (nextTerms, linesWithRates) => {
+                    setWizardError(null);
+                    setTerms(nextTerms);
+                    setAssetLines(linesWithRates);
+                    if (isDraft) {
+                        setScreen("review");
+                        return;
+                    }
                     if (!token || !organizationId) {
                         setWizardError(
                             "Authentication or organization information is missing.",
                         );
                         return;
                     }
-                    setWizardError(null);
                     setIsPersistingStep(true);
                     try {
                         await updateLeaseContractAssetLines(
@@ -711,35 +765,27 @@ export default function EditLeaseContractPage({
                                 })),
                             },
                         );
-                        await updateLeaseContractTerms(
+                        await updateLeaseContract(
                             token,
                             organizationId,
                             leaseId,
                             {
                                 startDate: nextTerms.startDate,
+                                endDate:
+                                    nextTerms.endDate.trim() ||
+                                    computeLeaseEndDateIso(
+                                        nextTerms.startDate,
+                                        nextTerms.termMonths,
+                                    ),
                                 termMonths: Number(nextTerms.termMonths),
                                 securityDeposit: String(
                                     nextTerms.securityDeposit,
                                 ),
-                                billingFrequency:
-                                    nextTerms.billingFrequency,
+                                billingFrequency: nextTerms.billingFrequency,
+                                editClassification: "material",
                             },
                         );
-                        if (!isDraft) {
-                            await updateLeaseContract(
-                                token,
-                                organizationId,
-                                leaseId,
-                                { editClassification: "material" },
-                            );
-                        }
-                        setTerms(nextTerms);
-                        setAssetLines(linesWithRates);
-                        if (isDraft) {
-                            setScreen("review");
-                        } else {
-                            await finishNonDraftSave();
-                        }
+                        await finishNonDraftSave();
                     } catch (err) {
                         showErrorToast(
                             err instanceof Error

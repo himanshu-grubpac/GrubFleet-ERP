@@ -8,7 +8,7 @@ export type AssetClassAvailabilitySnapshot = {
   inbound: number;
   totalCover: number;
   shortfallCount: number;
-  /** Figma LEASE-03 MVP — lease only against units available today (no inbound/awaiting). */
+  /** True when committed qty is covered by register units available today (pool-aware). */
   mvpAvailableNowCovers: boolean;
   mvpShortByCount: number;
   status: AssetLineAvailabilityStatus;

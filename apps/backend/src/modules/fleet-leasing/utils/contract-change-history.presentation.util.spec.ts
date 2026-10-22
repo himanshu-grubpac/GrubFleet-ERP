@@ -87,6 +87,29 @@ describe('contract-change-history.presentation.util', () => {
     expect(ids.vehicleIds).toEqual([vehicleId]);
   });
 
+  it('accepts legacy fromValue/toValue keys on stored changedFields', () => {
+    const rows = flattenEditLogsToChangeHistoryRows(
+      [
+        {
+          id: 'log-legacy',
+          actorUserId: null,
+          changedFields: [
+            {
+              field: 'termMonths',
+              fromValue: 12,
+              toValue: 24,
+            },
+          ],
+          createdAt: new Date('2026-01-18T00:00:00.000Z'),
+        },
+      ],
+      new Map(),
+    );
+
+    expect(rows[0]?.fromValue).toBe('12');
+    expect(rows[0]?.toValue).toBe('24');
+  });
+
   it('formats billing frequency and security deposit for display', () => {
     const rows = flattenEditLogsToChangeHistoryRows(
       [

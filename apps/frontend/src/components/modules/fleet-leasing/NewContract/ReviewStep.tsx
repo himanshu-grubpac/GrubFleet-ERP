@@ -22,6 +22,7 @@ import {
 } from "@/lib/toast/show-toast";
 import type { AssetLine } from "./AssetLinesStep";
 import type { LeaseTerms } from "./TermsStep";
+import { computeLeaseEndDateIso } from "@/lib/lease-contract/lease-contract-wizard.util";
 
 interface ReviewStepProps {
     clientName: string;
@@ -108,6 +109,10 @@ export default function ReviewStep({
     });
 
     const canSubmitReview = reviewQuery.data?.canSubmit === true;
+
+    const displayEndDate =
+        terms.endDate.trim() ||
+        computeLeaseEndDateIso(terms.startDate, terms.termMonths);
 
     const displayLines =
         reviewQuery.data?.assetLines ??
@@ -221,6 +226,14 @@ export default function ReviewStep({
                     <ReviewRow
                         label="Start date"
                         value={formatCalendarDateEnIn(terms.startDate)}
+                    />
+                    <ReviewRow
+                        label="End date"
+                        value={
+                            displayEndDate
+                                ? formatCalendarDateEnIn(displayEndDate)
+                                : undefined
+                        }
                     />
                     <ReviewRow
                         label="Term"

@@ -1,35 +1,84 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Search, PackageSearch } from "lucide-react";
+import { PackageSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
-import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import { useAuth } from "@/providers/auth-provider";
-import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { assetAssignmentListQueryOptions } from "@/lib/query/asset-assignment-query-options";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
-import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
+import { isDashboardCatalogEmptyState } from "@/lib/hooks/dashboard-list-search-ui";
+import {
+    fetchAssetRegisterVehiclesApi,
+    type AssetRegisterVehicleDemandFilter,
+} from "@/lib/api/asset-register/vehicles";
+import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
 import { assetRegisterAssetAssignDetailHref } from "@/lib/navigation/asset-register-static-routes";
+import { formatCalendarDateEnIn } from "@/lib/format/date-format";
+
+const FLEET_REGISTER_LIST_HREF = "/asset-register/fleetregister/";
+const FLEET_REGISTER_CREATE_HREF = "/asset-register/fleetregister/create/";
+const BULK_ASSIGN_HREF = "/asset-register/asset-assign/bulk/";
 
 type AssetAssignmentVehicle = {
     id: string;
     fleetCode: string;
     assetClass: string;
     registrationNumber: string;
+    chassisNumber: string;
     odometer: number;
-    availableSince: string;
+    addedToRegisterDate: string;
+    openDemandUnitsToAssign: number;
+    openDemandContractCount: number;
 };
+
+function formatOpenDemandRowLabel(
+    units: number,
+    contracts: number,
+): string | null {
+    if (units <= 0 || contracts <= 0) {
+        return null;
+    }
+    const contractLabel =
+        contracts === 1 ? "1 contract" : `${contracts} contracts`;
+    return `${units} to assign · ${contractLabel}`;
+}
 
 const formatOdometer = (value: number) => {
     return `${value.toLocaleString("en-IN")} km`;
 };
 
-// Keep this consistent with the shared pagination pattern.
 const PAGE_SIZE = 10;
+
+const DEMAND_FILTER_OPTIONS: {
+    label: string;
+    value: AssetRegisterVehicleDemandFilter;
+}[] = [
+    { label: "Any demand", value: "any" },
+    { label: "In demand", value: "in_demand" },
+    { label: "No open demand", value: "no_demand" },
+];
+
+function formatOpenDemandSummaryLine(
+    openDemandUnits: number,
+    openDemandContractCount: number,
+): string | undefined {
+    if (openDemandUnits <= 0 || openDemandContractCount <= 0) {
+        return undefined;
+    }
+    const unitLabel =
+        openDemandUnits === 1 ? "1 unit" : `${openDemandUnits} units`;
+    const contractLabel =
+        openDemandContractCount === 1
+            ? "1 active contract"
+            : `${openDemandContractCount} active contracts`;
+    return `${unitLabel} still needed across ${contractLabel} with open allocation demand.`;
+}
 
 export default function AssetAssignmentDashboardPage() {
     const router = useRouter();
@@ -45,16 +94,64 @@ export default function AssetAssignmentDashboardPage() {
         permissions.has("asset_register.update") ||
         permissions.has("asset_register.manage");
 
+    const canCreateVehicle =
+        permissions.has("asset_register.create") ||
+        permissions.has("asset_register.manage");
+
     const [search, setSearch] = useState("");
     const debouncedSearch = useDebouncedValue(search, 300);
 
-    // Pagination state
     const [page, setPage] = useState(1);
+    const [filterValues, setFilterValues] = useState<Record<string, string>>({
+        assetClassId: "",
+        demandFilter: "any",
+    });
 
-    // Reset to the first page when the search changes.
+    const demandFilter = (filterValues.demandFilter ||
+        "any") as AssetRegisterVehicleDemandFilter;
+    const assetClassIdFilter = filterValues.assetClassId || undefined;
+
     useEffect(() => {
         setPage(1);
-    }, [debouncedSearch]);
+    }, [debouncedSearch, demandFilter, assetClassIdFilter]);
+
+    const assetClassCatalogQuery = useQuery({
+        queryKey: ["asset-register", "asset-classes", "catalog", organizationId],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchAssetRegisterAssetClassesApi({
+                token,
+                organizationId,
+                page: 1,
+                pageSize: 50,
+                status: "active",
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        staleTime: 60_000,
+    });
+
+    const assetClassFilterOptions = useMemo(() => {
+        const items = assetClassCatalogQuery.data?.items ?? [];
+        return [
+            { label: "All asset classes", value: "" },
+            ...items.map((row) => ({
+                label: row.name,
+                value: row.id,
+            })),
+        ];
+    }, [assetClassCatalogQuery.data?.items]);
+
+    const selectedAssetClassLabel = useMemo(() => {
+        if (!assetClassIdFilter) {
+            return undefined;
+        }
+        return assetClassFilterOptions.find(
+            (opt) => opt.value === assetClassIdFilter,
+        )?.label;
+    }, [assetClassFilterOptions, assetClassIdFilter]);
 
     const listQuery = useQuery({
         queryKey: [
@@ -64,6 +161,8 @@ export default function AssetAssignmentDashboardPage() {
             organizationId,
             debouncedSearch,
             page,
+            demandFilter,
+            assetClassIdFilter,
         ],
         queryFn: () => {
             if (!token || !organizationId) {
@@ -78,10 +177,13 @@ export default function AssetAssignmentDashboardPage() {
                 search: debouncedSearch.trim() || undefined,
                 operationalStatus: "available",
                 status: "active",
+                assetClassId: assetClassIdFilter,
+                demandFilter,
+                includeAssignmentSummary: true,
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
-        ...dashboardListQueryOptions,
+        ...assetAssignmentListQueryOptions,
     });
 
     const vehicles = useMemo((): AssetAssignmentVehicle[] => {
@@ -90,36 +192,98 @@ export default function AssetAssignmentDashboardPage() {
             fleetCode: row.fleetCode,
             assetClass: row.assetClassName,
             registrationNumber: row.registrationNumber,
+            chassisNumber: row.chassisNumber,
             odometer: row.odometer,
-            availableSince: "—",
+            addedToRegisterDate: row.addedToRegisterDate,
+            openDemandUnitsToAssign: row.openDemandUnitsToAssign,
+            openDemandContractCount: row.openDemandContractCount,
         }));
     }, [listQuery.data?.items]);
 
-    // Pagination metadata from the API response.
     const totalItems = listQuery.data?.total ?? 0;
 
-    const totalPages = Math.max(
-        1,
-        Math.ceil(totalItems / PAGE_SIZE),
-    );
+    const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
 
     const handleAssign = (vehicle: AssetAssignmentVehicle) => {
         router.push(assetRegisterAssetAssignDetailHref(vehicle.id));
     };
 
+    const handleBulkAssign = () => {
+        router.push(BULK_ASSIGN_HREF);
+    };
+
     const isInitialLoading =
         isAuthLoading || (listQuery.isLoading && !listQuery.data);
 
-    const isEmpty =
-        !isInitialLoading &&
-        !listQuery.isError &&
-        totalItems === 0 &&
-        !debouncedSearch.trim();
+    const hasActiveFilters =
+        !!debouncedSearch.trim() ||
+        demandFilter !== "any" ||
+        !!assetClassIdFilter;
+
+    const isGlobalEmpty = isDashboardCatalogEmptyState({
+        total: totalItems,
+        searchInput: search,
+        debouncedSearch,
+        hasActiveFilters,
+        isFetching: listQuery.isFetching,
+    });
+
+    const assignmentSummary = listQuery.data?.assignmentSummary;
+    const openDemandSummaryLine =
+        assignmentSummary &&
+        formatOpenDemandSummaryLine(
+            assignmentSummary.openDemandUnits,
+            assignmentSummary.openDemandContractCount,
+        );
+
+    const globalEmptyDescription = [
+        "Vehicles appear here after they are added in Fleet Register, marked active, and set to Available operational status.",
+        openDemandSummaryLine,
+    ]
+        .filter(Boolean)
+        .join(" ");
+
+    const handleClearSearch = () => {
+        setSearch("");
+        setPage(1);
+    };
+
+    const handleSearchAllAssetClasses = () => {
+        setFilterValues((prev) => ({
+            ...prev,
+            assetClassId: "",
+        }));
+        setPage(1);
+    };
+
+    const filteredEmptySubtext = useMemo(() => {
+        const parts: string[] = [];
+        if (selectedAssetClassLabel) {
+            parts.push(
+                `Asset class filter: ${selectedAssetClassLabel}.`,
+            );
+        }
+        if (demandFilter !== "any") {
+            const demandLabel =
+                DEMAND_FILTER_OPTIONS.find((opt) => opt.value === demandFilter)
+                    ?.label ?? "Demand filter";
+            parts.push(`${demandLabel} is applied.`);
+        }
+        parts.push(
+            "Check the registration number or search across all asset classes.",
+        );
+        return parts.join(" ");
+    }, [demandFilter, selectedAssetClassLabel]);
+
+    const filteredEmptyTitle = debouncedSearch.trim()
+        ? `No vehicles match '${debouncedSearch.trim()}'`
+        : "No vehicles match your filters";
 
     const assignmentColumns = [
         { key: "fleetCode", label: "FLEET CODE" },
+        { key: "registrationNumber", label: "REGISTRATION" },
         { key: "assetClass", label: "ASSET CLASS" },
-        { key: "registrationNumber", label: "REGISTRATION NO." },
+        { key: "chassisNumber", label: "CHASSIS NO." },
         {
             key: "odometer",
             label: "ODOMETER",
@@ -127,8 +291,30 @@ export default function AssetAssignmentDashboardPage() {
                 formatOdometer(vehicle.odometer),
         },
         {
-            key: "availableSince",
-            label: "AVAILABLE SINCE",
+            key: "addedToRegisterDate",
+            label: "ADDED",
+            render: (vehicle: AssetAssignmentVehicle) =>
+                formatCalendarDateEnIn(vehicle.addedToRegisterDate),
+        },
+        {
+            key: "openDemandUnitsToAssign",
+            label: "OPEN DEMAND",
+            render: (vehicle: AssetAssignmentVehicle) => {
+                const label = formatOpenDemandRowLabel(
+                    vehicle.openDemandUnitsToAssign,
+                    vehicle.openDemandContractCount,
+                );
+                if (label) {
+                    return (
+                        <span className="text-xs font-medium text-gray-800">
+                            {label}
+                        </span>
+                    );
+                }
+                return (
+                    <span className="text-xs text-slate-500">No open demand</span>
+                );
+            },
         },
     ];
 
@@ -139,32 +325,56 @@ export default function AssetAssignmentDashboardPage() {
             pagination={
                 totalItems > 0
                     ? {
-                        currentPage: page,
-                        totalPages,
-                        totalItems,
-                        pageSize: PAGE_SIZE,
-                        onPageChange: setPage,
-                    }
+                          currentPage: page,
+                          totalPages,
+                          totalItems,
+                          pageSize: PAGE_SIZE,
+                          onPageChange: setPage,
+                      }
                     : undefined
             }
         >
-            <div className="mb-4 flex items-center gap-3">
-                <div className="relative min-w-0 flex-1">
-                    <Search
-                        className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400"
-                        strokeWidth={1.8}
-                    />
-
-                    <input
-                        type="text"
-                        value={search}
-                        onChange={(event) =>
-                            setSearch(event.target.value)
-                        }
-                        placeholder="Search by fleet code, registration or asset class"
-                        className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0 flex-1">
+                    <DashboardFilters
+                        searchValue={search}
+                        searchPlaceholder="Search by fleet code, registration or asset class"
+                        onSearchChange={setSearch}
+                        selectFilters={[
+                            {
+                                key: "assetClassId",
+                                label: "Asset class",
+                                options: assetClassFilterOptions,
+                            },
+                            {
+                                key: "demandFilter",
+                                label: "Demand",
+                                options: DEMAND_FILTER_OPTIONS.map((opt) => ({
+                                    label: opt.label,
+                                    value: opt.value,
+                                })),
+                            },
+                        ]}
+                        filterValues={filterValues}
+                        onFilterChange={(key, value) => {
+                            setFilterValues((prev) => ({
+                                ...prev,
+                                [key]: value,
+                            }));
+                        }}
                     />
                 </div>
+                {canAssign ? (
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={isInitialLoading}
+                        className="h-9 shrink-0 rounded-md border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        onClick={handleBulkAssign}
+                    >
+                        Bulk assign
+                    </Button>
+                ) : null}
             </div>
 
             {listQuery.isError ? (
@@ -182,31 +392,98 @@ export default function AssetAssignmentDashboardPage() {
                 <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
                     Loading available vehicles…
                 </div>
-            ) : isEmpty ? (
-                <DashboardEmptyState
-                    icon={
-                        <PackageSearch
-                            className="h-7 w-7"
-                            strokeWidth={1.4}
-                        />
-                    }
-                    title="No vehicles available for assignment"
-                    description="Vehicles must be active and in Available status to appear here."
-                />
+            ) : isGlobalEmpty ? (
+                <div className="w-full rounded-lg border border-gray-200 bg-white">
+                    <div className="flex min-h-[180px] flex-col items-center justify-center px-6 py-8 text-center">
+                        <div className="mb-3 flex h-10 w-10 items-center justify-center text-gray-400">
+                            <PackageSearch
+                                className="h-7 w-7"
+                                strokeWidth={1.4}
+                            />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                            No vehicles available for assignment
+                        </h3>
+                        <p className="mt-1 max-w-lg text-xs text-gray-500">
+                            {globalEmptyDescription}
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="h-9 rounded-md border-gray-300 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                onClick={() =>
+                                    router.push(FLEET_REGISTER_LIST_HREF)
+                                }
+                            >
+                                Open Fleet Register
+                            </Button>
+                            {canCreateVehicle ? (
+                                <Button
+                                    type="button"
+                                    className="h-9 rounded-md px-4 text-sm font-medium"
+                                    onClick={() =>
+                                        router.push(FLEET_REGISTER_CREATE_HREF)
+                                    }
+                                >
+                                    Add vehicle
+                                </Button>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
             ) : vehicles.length === 0 ? (
-                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-gray-200 bg-white text-center">
-                    <PackageSearch
-                        className="mb-3 h-7 w-7 text-gray-400"
-                        strokeWidth={1.4}
-                    />
-
-                    <h3 className="text-sm font-semibold text-gray-900">
-                        No vehicles found
-                    </h3>
-
-                    <p className="mt-1 text-xs text-gray-500">
-                        Try changing your search.
-                    </p>
+                <div className="w-full rounded-lg border border-gray-200 bg-white">
+                    <div className="flex min-h-[180px] flex-col items-center justify-center px-6 py-8 text-center">
+                        <div className="mb-3 flex h-10 w-10 items-center justify-center text-gray-400">
+                            <PackageSearch
+                                className="h-7 w-7"
+                                strokeWidth={1.4}
+                            />
+                        </div>
+                        <h3 className="text-sm font-semibold text-gray-900">
+                            {filteredEmptyTitle}
+                        </h3>
+                        <p className="mt-1 max-w-lg text-xs text-gray-500">
+                            {filteredEmptySubtext}
+                        </p>
+                        <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                            {search.trim() ? (
+                                <button
+                                    type="button"
+                                    onClick={handleClearSearch}
+                                    className="text-xs font-medium text-[#FE5720] hover:underline"
+                                >
+                                    Clear search
+                                </button>
+                            ) : null}
+                            {assetClassIdFilter ? (
+                                <button
+                                    type="button"
+                                    onClick={handleSearchAllAssetClasses}
+                                    className="text-xs font-medium text-[#FE5720] hover:underline"
+                                >
+                                    Search all asset classes
+                                </button>
+                            ) : null}
+                            {!search.trim() && !assetClassIdFilter ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFilterValues({
+                                            assetClassId: "",
+                                            demandFilter: "any",
+                                        });
+                                        setSearch("");
+                                        setPage(1);
+                                    }}
+                                    className="text-xs font-medium text-[#FE5720] hover:underline"
+                                >
+                                    Clear filters
+                                </button>
+                            ) : null}
+                        </div>
+                    </div>
                 </div>
             ) : (
                 <DashboardTable

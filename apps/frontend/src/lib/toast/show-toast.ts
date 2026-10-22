@@ -19,6 +19,11 @@ export function showErrorToast(message: string): void {
   });
 }
 
+export function showInfoToast(message: string): void {
+  const trimmed = message.trim();
+  toast(trimmed || "Notice", { duration: DEFAULT_SUCCESS_DURATION_MS });
+}
+
 /** Prefer API envelope message when error came from apiFetch. */
 export function getApiErrorMessage(error: unknown, fallback?: string): string {
   if (error instanceof ApiClientError) {
@@ -290,9 +295,85 @@ export function showComplianceRenewalSavedToast(): void {
 }
 
 export const VEHICLE_ASSIGN_ERROR = "Could not assign vehicle. Try again.";
+export const VEHICLE_UNASSIGN_ERROR = "Could not undo assignment. Try again.";
 
-export function showVehicleAssignedToLeaseToast(): void {
-  showSuccessToast("Vehicle assigned to lease contract");
+export type VehicleAssignedToLeaseToastInput = {
+  fleetCode: string;
+  clientName: string;
+  contractNumber: string;
+  remainingToAssignOnLine: number;
+  onUndo?: () => void | Promise<void>;
+  onViewContract?: () => void;
+};
+
+export function showVehicleAssignedToLeaseToast(
+  input: VehicleAssignedToLeaseToastInput,
+): void {
+  const remainingLabel =
+    input.remainingToAssignOnLine === 1
+      ? "1 still to assign on this line"
+      : `${input.remainingToAssignOnLine} still to assign on this line`;
+
+  toast.success(`${input.fleetCode} assigned to ${input.clientName}`, {
+    description: `${input.contractNumber} · ${remainingLabel}`,
+    duration: DEFAULT_SUCCESS_DURATION_MS,
+    closeButton: true,
+    action: input.onUndo
+      ? {
+          label: "Undo",
+          onClick: () => {
+            void input.onUndo?.();
+          },
+        }
+      : undefined,
+    cancel: input.onViewContract
+      ? {
+          label: "View contract",
+          onClick: () => {
+            input.onViewContract?.();
+          },
+        }
+      : undefined,
+  });
+}
+
+export function showVehicleUnassignedFromLeaseToast(fleetCode: string): void {
+  showSuccessToast(`${fleetCode} was unassigned`);
+}
+
+export type BulkVehiclesAssignedToLeaseToastInput = {
+  assignedCount: number;
+  clientName: string;
+  contractNumber: string;
+  remainingToAssignOnLine: number;
+  onViewContract?: () => void;
+};
+
+export function showBulkVehiclesAssignedToLeaseToast(
+  input: BulkVehiclesAssignedToLeaseToastInput,
+): void {
+  const countLabel =
+    input.assignedCount === 1
+      ? "1 vehicle assigned"
+      : `${input.assignedCount} vehicles assigned`;
+  const remainingLabel =
+    input.remainingToAssignOnLine === 1
+      ? "1 still to assign on this line"
+      : `${input.remainingToAssignOnLine} still to assign on this line`;
+
+  toast.success(`${countLabel} to ${input.clientName}`, {
+    description: `${input.contractNumber} · ${remainingLabel}`,
+    duration: DEFAULT_SUCCESS_DURATION_MS,
+    closeButton: true,
+    cancel: input.onViewContract
+      ? {
+          label: "View contract",
+          onClick: () => {
+            input.onViewContract?.();
+          },
+        }
+      : undefined,
+  });
 }
 
 export const COPY_TO_CLIPBOARD_ERROR = "Could not copy to clipboard.";

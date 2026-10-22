@@ -254,6 +254,20 @@ export const breadcrumbConfig: Record<
         },
     ],
 
+    "/asset-register/asset-assign/bulk": [
+        {
+            label: "Asset Management",
+            href: "/asset-register",
+        },
+        {
+            label: "Asset Assignment",
+            href: "/asset-register/asset-assign/",
+        },
+        {
+            label: "Bulk assign",
+        },
+    ],
+
     // ----------------------------
     // Compliance & Renewals
     // ----------------------------

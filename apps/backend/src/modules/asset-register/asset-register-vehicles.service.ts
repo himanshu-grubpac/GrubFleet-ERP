@@ -7,6 +7,7 @@ import {
   forwardRef,
 } from '@nestjs/common';
 import { LeaseContractsService } from '../fleet-leasing/lease-contracts.service';
+import { FleetLeasingRepository } from '../fleet-leasing/repositories/fleet-leasing.repository';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -27,18 +28,25 @@ import {
   AssetRegisterRepository,
   type AssetRegisterVehicleWithRelations,
 } from './repositories/asset-register.repository';
+import { OrganisationRepository } from '../organisation/repositories/organisation.repository';
+import { buildAssetClassSpecLabel } from './utils/asset-class-name.util';
 import {
   ASSET_REGISTER_REGISTRATION_DUPLICATE_MESSAGE,
   normalizeAssetRegisterRegistrationNumber,
 } from './utils/registration-number.util';
+import { OrganizationDomainEventsService } from '../../infrastructure/organization-realtime/organization-domain-events.service';
+import { OrganizationDomainEventType } from '../../infrastructure/organization-realtime/organization-domain-event.types';
 
 @Injectable()
 export class AssetRegisterVehiclesService {
   constructor(
     private readonly repo: AssetRegisterRepository,
+    private readonly orgRepo: OrganisationRepository,
     private readonly audit: AuditService,
     @Inject(forwardRef(() => LeaseContractsService))
     private readonly leaseContracts: LeaseContractsService,
+    private readonly fleetLeasingRepo: FleetLeasingRepository,
+    private readonly domainEvents: OrganizationDomainEventsService,
   ) {}
 
   async list(query: ListAssetRegisterVehiclesQueryDto) {
@@ -55,6 +63,14 @@ export class AssetRegisterVehiclesService {
       { sortBy: query.sortBy, sortOrder: query.sortOrder },
       ASSET_REGISTER_VEHICLE_LIST_DEFAULT_SORT,
     );
+    const demandFilter = query.demandFilter ?? 'any';
+    let assetClassIdsWithOpenDemand: string[] | undefined;
+    if (demandFilter === 'in_demand' || demandFilter === 'no_demand') {
+      assetClassIdsWithOpenDemand =
+        await this.fleetLeasingRepo.listAssetClassIdsWithOpenContractDemand(
+          query.organizationId,
+        );
+    }
     const { rows, total } = await this.repo.listVehicles(
       query.organizationId,
       page,
@@ -64,11 +80,41 @@ export class AssetRegisterVehiclesService {
         isActive,
         assetClassId: query.assetClassId,
         operationalStatus: query.operationalStatus,
+        demandFilter,
+        assetClassIdsWithOpenDemand,
         sort,
       },
     );
-    const items = rows.map((row) => this.toListItem(row));
-    return toPaginatedResult(items, page, pageSize, total);
+    const classIds = [...new Set(rows.map((row) => row.assetClassId))];
+    const [openDemandContractCountByClass, openDemandUnitsByClass] =
+      classIds.length > 0
+        ? await Promise.all([
+            this.fleetLeasingRepo.countContractsWithUnallocatedDemandByAssetClassIds(
+              query.organizationId,
+              classIds,
+            ),
+            this.fleetLeasingRepo.sumUnallocatedCommitmentsByAssetClassIds(
+              query.organizationId,
+              classIds,
+            ),
+          ])
+        : [new Map<string, number>(), new Map<string, number>()];
+    const items = rows.map((row) =>
+      this.toListItem(
+        row,
+        openDemandUnitsByClass.get(row.assetClassId) ?? 0,
+        openDemandContractCountByClass.get(row.assetClassId) ?? 0,
+      ),
+    );
+    const paginated = toPaginatedResult(items, page, pageSize, total);
+    if (!query.includeAssignmentSummary) {
+      return paginated;
+    }
+    const assignmentSummary =
+      await this.fleetLeasingRepo.summarizeOpenAssignmentDemandForOrg(
+        query.organizationId,
+      );
+    return { ...paginated, assignmentSummary };
   }
 
   async getById(organizationId: string, id: string) {
@@ -77,11 +123,21 @@ export class AssetRegisterVehiclesService {
       id,
     );
     if (!row) throw new NotFoundException('Asset register vehicle not found');
-    return this.toDetail(row);
+    const insuranceSupplierName = await this.resolveInsuranceSupplierName(
+      organizationId,
+      row.insuranceSupplierId,
+    );
+    return this.toDetail(row, insuranceSupplierName);
   }
 
   async create(dto: CreateAssetRegisterVehicleDto) {
     await this.assertActiveClass(dto.organizationId, dto.assetClassId);
+    if (dto.insuranceSupplierId) {
+      await this.assertInsuranceSupplierInOrg(
+        dto.organizationId,
+        dto.insuranceSupplierId,
+      );
+    }
     this.assertDateRanges({
       registrationStartDate: dto.registrationStartDate,
       registrationEndDate: dto.registrationEndDate,
@@ -121,6 +177,7 @@ export class AssetRegisterVehiclesService {
         warrantyEndDate: dto.warrantyEndDate,
         specialNotes: dto.specialNotes?.trim() ?? null,
         purchaseInvoiceId: dto.purchaseInvoiceId ?? null,
+        insuranceSupplierId: dto.insuranceSupplierId ?? null,
       });
       return this.getById(dto.organizationId, inserted.id);
     } catch (error) {
@@ -193,6 +250,13 @@ export class AssetRegisterVehiclesService {
       );
     }
 
+    if (dto.insuranceSupplierId !== undefined && dto.insuranceSupplierId) {
+      await this.assertInsuranceSupplierInOrg(
+        organizationId,
+        dto.insuranceSupplierId,
+      );
+    }
+
     try {
       await this.repo.updateVehicle(organizationId, id, {
         ...(dto.assetClassId !== undefined
@@ -240,6 +304,9 @@ export class AssetRegisterVehiclesService {
           : {}),
         ...(dto.purchaseInvoiceId !== undefined
           ? { purchaseInvoiceId: dto.purchaseInvoiceId }
+          : {}),
+        ...(dto.insuranceSupplierId !== undefined
+          ? { insuranceSupplierId: dto.insuranceSupplierId }
           : {}),
       });
     } catch (error) {
@@ -310,6 +377,14 @@ export class AssetRegisterVehiclesService {
         metadata: reason ? { reason } : null,
       });
     }
+
+    await this.domainEvents.emit({
+      type: OrganizationDomainEventType.ASSET_REGISTER_VEHICLE_POOL_CHANGED,
+      organizationId,
+      resource: 'asset_register_vehicle',
+      ids: { vehicleId: id },
+    });
+
     return this.getById(organizationId, id);
   }
 
@@ -452,22 +527,45 @@ export class AssetRegisterVehiclesService {
     return 'Active';
   }
 
-  private toListItem(row: AssetRegisterVehicleWithRelations) {
+  private toListItem(
+    row: AssetRegisterVehicleWithRelations,
+    openDemandUnitsToAssign = 0,
+    openDemandContractCount = 0,
+  ) {
     return {
       id: row.id,
       fleetCode: row.fleetCode,
       registrationNumber: row.registrationNumber,
       assetClassId: row.assetClassId,
       assetClassName: row.assetClass.name,
+      chassisNumber: row.chassisNumber,
+      modelYear: row.modelYear,
       odometer: row.odometer,
+      addedToRegisterDate: row.createdAt.toISOString().slice(0, 10),
+      openDemandUnitsToAssign,
+      openDemandContractCount,
       operationalStatus: row.operationalStatus,
       status: row.isActive ? ('active' as const) : ('inactive' as const),
     };
   }
 
-  private toDetail(row: AssetRegisterVehicleWithRelations) {
+  private toDetail(
+    row: AssetRegisterVehicleWithRelations,
+    insuranceSupplierName: string | null,
+  ) {
+    const assetClassSpecLabel = buildAssetClassSpecLabel({
+      brand: row.assetClass.brand,
+      modelName: row.assetClass.modelName,
+      manufacturingYear: row.assetClass.manufacturingYear,
+      engineDisplacementCc: row.assetClass.engineDisplacementCc,
+      fuelType: row.assetClass.fuelType,
+      fuelSystem: row.assetClass.fuelSystem,
+      color: row.assetClass.color,
+      colorCode: row.assetClass.colorCode,
+    });
     return {
       ...this.toListItem(row),
+      assetClassSpecLabel,
       chassisNumber: row.chassisNumber,
       modelYear: row.modelYear,
       registrationStartDate: row.registrationStartDate,
@@ -475,6 +573,8 @@ export class AssetRegisterVehiclesService {
       insuranceStartDate: row.insuranceStartDate,
       insuranceEndDate: row.insuranceEndDate,
       insurancePremium: row.insurancePremium,
+      insuranceSupplierId: row.insuranceSupplierId,
+      insuranceSupplierName,
       warrantyStartDate: row.warrantyStartDate,
       warrantyEndDate: row.warrantyEndDate,
       specialNotes: row.specialNotes ?? '',
@@ -485,5 +585,35 @@ export class AssetRegisterVehiclesService {
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };
+  }
+
+  private async resolveInsuranceSupplierName(
+    organizationId: string,
+    supplierId: string | null,
+  ): Promise<string | null> {
+    if (!supplierId) return null;
+    const supplier = await this.orgRepo.getSupplierInOrg(
+      organizationId,
+      supplierId,
+    );
+    return supplier?.name?.trim() || null;
+  }
+
+  private async assertInsuranceSupplierInOrg(
+    organizationId: string,
+    supplierId: string,
+  ): Promise<void> {
+    const supplier = await this.orgRepo.getSupplierInOrg(
+      organizationId,
+      supplierId,
+    );
+    if (!supplier) {
+      throw new BadRequestException('Insurance supplier not found');
+    }
+    if (!supplier.isActive) {
+      throw new BadRequestException(
+        'Insurance supplier must be active to assign to a vehicle',
+      );
+    }
   }
 }

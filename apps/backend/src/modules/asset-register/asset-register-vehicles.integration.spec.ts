@@ -34,6 +34,7 @@ type VehicleDetail = {
   registrationNumber: string;
   assetClassId: string;
   assetClassName: string;
+  assetClassSpecLabel: string;
   operationalStatus: string;
   isActive: boolean;
   status: string;
@@ -525,6 +526,8 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       const body = detail.body as VehicleDetail;
       expect(body.assetClassName).toBeTruthy();
       expect(body.assetClassId).toBe(classId);
+      expect(body.assetClassSpecLabel).toContain('DetailBrand');
+      expect(body.assetClassSpecLabel).not.toBe(body.assetClassName);
     });
 
     it('filters list by assetClassId and operationalStatus', async () => {

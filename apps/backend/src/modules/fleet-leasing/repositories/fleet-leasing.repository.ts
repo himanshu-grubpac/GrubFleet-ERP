@@ -8,7 +8,9 @@ import {
   ilike,
   inArray,
   ne,
+  notExists,
   notInArray,
+  isNull,
   or,
   sql,
   type AnyColumn,
@@ -31,8 +33,15 @@ import {
   leaseContracts,
   leaseContractVehicles,
   users,
+  assetRegisterAssetClasses,
+  assetRegisterVehicleAssignments,
+  assetRegisterVehicles,
 } from '../../../database/schema';
-import type { LeaseContractStatus } from '../constants/lease-contract-status';
+import {
+  ALLOCATION_ELIGIBLE_CONTRACT_STATUSES,
+  ASSET_POOL_COMMITMENT_CONTRACT_STATUSES,
+  type LeaseContractStatus,
+} from '../constants/lease-contract-status';
 import {
   FLEET_RETURN_LIST_DEFAULT_SORT,
   type FleetReturnListSortField,
@@ -342,27 +351,504 @@ export class FleetLeasingRepository {
       .filter((assetClass) => assetClass.length > 0);
   }
 
-  /** Allocated vehicles on contract, grouped by fleet vehicle asset class. */
+  /** Active register assignments on contract, grouped by asset class id. */
+  async countAllocatedRegisterVehiclesByAssetClassIds(
+    contractId: string,
+  ): Promise<Map<string, number>> {
+    const rows = await this.db
+      .select({
+        assetClassId: assetRegisterAssetClasses.id,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        assetRegisterVehicles,
+        eq(assetRegisterVehicleAssignments.vehicleId, assetRegisterVehicles.id),
+      )
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.leaseContractId, contractId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+        ),
+      )
+      .groupBy(assetRegisterAssetClasses.id);
+    const out = new Map<string, number>();
+    for (const row of rows) {
+      if (row.assetClassId) {
+        out.set(row.assetClassId, row.count ?? 0);
+      }
+    }
+    return out;
+  }
+
+  /** Active asset-register assignments on contract, grouped by asset class name. */
   async countAllocatedVehiclesByAssetClass(
     contractId: string,
   ): Promise<Record<string, number>> {
     const rows = await this.db
       .select({
-        assetClass: fleetVehicles.assetClass,
+        assetClass: assetRegisterAssetClasses.name,
         count: sql<number>`count(*)::int`,
       })
-      .from(leaseContractVehicles)
+      .from(assetRegisterVehicleAssignments)
       .innerJoin(
-        fleetVehicles,
-        eq(leaseContractVehicles.vehicleId, fleetVehicles.id),
+        assetRegisterVehicles,
+        eq(assetRegisterVehicleAssignments.vehicleId, assetRegisterVehicles.id),
       )
-      .where(eq(leaseContractVehicles.contractId, contractId))
-      .groupBy(fleetVehicles.assetClass);
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(
+        and(
+          eq(assetRegisterVehicleAssignments.leaseContractId, contractId),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+        ),
+      )
+      .groupBy(assetRegisterAssetClasses.name);
     const out: Record<string, number> = {};
     for (const row of rows) {
-      out[row.assetClass] = row.count;
+      out[row.assetClass.trim()] = row.count;
     }
     return out;
+  }
+
+  /**
+   * Per contract + asset class name — active register assignment counts (for pool math).
+   * Map key: `${contractId}::${trimmedClassName}`.
+   */
+  async countRegisterAssignmentsByContractsGroupedByClassName(
+    contractIds: string[],
+  ): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    if (contractIds.length === 0) {
+      return out;
+    }
+    const rows = await this.db
+      .select({
+        contractId: assetRegisterVehicleAssignments.leaseContractId,
+        className: assetRegisterAssetClasses.name,
+        count: sql<number>`count(*)::int`,
+      })
+      .from(assetRegisterVehicleAssignments)
+      .innerJoin(
+        assetRegisterVehicles,
+        eq(assetRegisterVehicleAssignments.vehicleId, assetRegisterVehicles.id),
+      )
+      .innerJoin(
+        assetRegisterAssetClasses,
+        eq(assetRegisterVehicles.assetClassId, assetRegisterAssetClasses.id),
+      )
+      .where(
+        and(
+          inArray(assetRegisterVehicleAssignments.leaseContractId, contractIds),
+          isNull(assetRegisterVehicleAssignments.unassignedAt),
+        ),
+      )
+      .groupBy(
+        assetRegisterVehicleAssignments.leaseContractId,
+        assetRegisterAssetClasses.name,
+      );
+    for (const row of rows) {
+      const key = `${row.contractId}::${row.className.trim()}`;
+      out.set(key, row.count ?? 0);
+    }
+    return out;
+  }
+
+  /**
+   * Sum of (committed − allocated) per asset class on other in-flight contracts.
+   * Reserves pool capacity not yet tied to register vehicles.
+   */
+  async sumUnallocatedCommitmentsByAssetClassIds(
+    organizationId: string,
+    assetClassIds: string[],
+    excludeContractId?: string | null,
+  ): Promise<Map<string, number>> {
+    const result = new Map<string, number>();
+    const uniqueIds = [...new Set(assetClassIds.filter(Boolean))];
+    for (const id of uniqueIds) {
+      result.set(id, 0);
+    }
+    if (uniqueIds.length === 0) {
+      return result;
+    }
+
+    const lines = await this.db
+      .select({
+        contractId: leaseContracts.id,
+        assetClassId: leaseContractAssetLines.assetClassId,
+        assetClass: leaseContractAssetLines.assetClass,
+        committedQuantity: leaseContractAssetLines.committedQuantity,
+      })
+      .from(leaseContractAssetLines)
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractAssetLines.contractId, leaseContracts.id),
+      )
+      .where(
+        and(
+          eq(leaseContracts.organizationId, organizationId),
+          inArray(
+            leaseContracts.status,
+            ASSET_POOL_COMMITMENT_CONTRACT_STATUSES,
+          ),
+          inArray(leaseContractAssetLines.assetClassId, uniqueIds),
+          excludeContractId
+            ? ne(leaseContracts.id, excludeContractId)
+            : undefined,
+        ),
+      );
+
+    if (lines.length === 0) {
+      return result;
+    }
+
+    const contractIds = [...new Set(lines.map((l) => l.contractId))];
+    const allocatedByContractClass =
+      await this.countRegisterAssignmentsByContractsGroupedByClassName(
+        contractIds,
+      );
+
+    for (const line of lines) {
+      const classId = line.assetClassId;
+      if (!classId) {
+        continue;
+      }
+      const allocKey = `${line.contractId}::${line.assetClass.trim()}`;
+      const allocated = allocatedByContractClass.get(allocKey) ?? 0;
+      const unallocated = Math.max(0, line.committedQuantity - allocated);
+      result.set(classId, (result.get(classId) ?? 0) + unallocated);
+    }
+
+    return result;
+  }
+
+  /**
+   * Distinct in-flight contracts per asset class with unallocated line quantity
+   * (committed − register assignments on that contract/class).
+   */
+  async countContractsWithUnallocatedDemandByAssetClassIds(
+    organizationId: string,
+    assetClassIds: string[],
+  ): Promise<Map<string, number>> {
+    const contractSets = await this.collectOpenDemandContractsByAssetClassId(
+      organizationId,
+      assetClassIds,
+    );
+    const result = new Map<string, number>();
+    for (const id of assetClassIds) {
+      result.set(id, contractSets.get(id)?.size ?? 0);
+    }
+    return result;
+  }
+
+  /** Asset class ids with at least one in-flight contract line needing vehicles. */
+  async listAssetClassIdsWithOpenContractDemand(
+    organizationId: string,
+  ): Promise<string[]> {
+    const contractSets =
+      await this.collectOpenDemandContractsByAssetClassId(organizationId);
+    return [...contractSets.keys()];
+  }
+
+  /** Org-wide open lease demand (same rules as assignment list demand badges). */
+  async summarizeOpenAssignmentDemandForOrg(organizationId: string): Promise<{
+    openDemandUnits: number;
+    openDemandContractCount: number;
+  }> {
+    const contractSets =
+      await this.collectOpenDemandContractsByAssetClassId(organizationId);
+    const contractIds = new Set<string>();
+    for (const set of contractSets.values()) {
+      for (const id of set) {
+        contractIds.add(id);
+      }
+    }
+    const assetClassIds = [...contractSets.keys()];
+    const unitsByClass = await this.sumUnallocatedCommitmentsByAssetClassIds(
+      organizationId,
+      assetClassIds,
+    );
+    let openDemandUnits = 0;
+    for (const units of unitsByClass.values()) {
+      openDemandUnits += units;
+    }
+    return {
+      openDemandUnits,
+      openDemandContractCount: contractIds.size,
+    };
+  }
+
+  private async collectOpenDemandContractsByAssetClassId(
+    organizationId: string,
+    assetClassIds?: string[],
+  ): Promise<Map<string, Set<string>>> {
+    const result = new Map<string, Set<string>>();
+    const uniqueIds =
+      assetClassIds !== undefined
+        ? [...new Set(assetClassIds.filter(Boolean))]
+        : undefined;
+
+    const lineConditions = [
+      eq(leaseContracts.organizationId, organizationId),
+      inArray(leaseContracts.status, ASSET_POOL_COMMITMENT_CONTRACT_STATUSES),
+    ];
+    if (uniqueIds !== undefined) {
+      if (uniqueIds.length === 0) {
+        return result;
+      }
+      lineConditions.push(
+        inArray(leaseContractAssetLines.assetClassId, uniqueIds),
+      );
+    }
+
+    const lines = await this.db
+      .select({
+        contractId: leaseContracts.id,
+        assetClassId: leaseContractAssetLines.assetClassId,
+        assetClass: leaseContractAssetLines.assetClass,
+        committedQuantity: leaseContractAssetLines.committedQuantity,
+      })
+      .from(leaseContractAssetLines)
+      .innerJoin(
+        leaseContracts,
+        eq(leaseContractAssetLines.contractId, leaseContracts.id),
+      )
+      .where(and(...lineConditions));
+
+    if (lines.length === 0) {
+      return result;
+    }
+
+    const contractIds = [...new Set(lines.map((l) => l.contractId))];
+    const allocatedByContractClass =
+      await this.countRegisterAssignmentsByContractsGroupedByClassName(
+        contractIds,
+      );
+
+    for (const line of lines) {
+      const classId = line.assetClassId;
+      if (!classId) {
+        continue;
+      }
+      const allocKey = `${line.contractId}::${line.assetClass.trim()}`;
+      const allocated = allocatedByContractClass.get(allocKey) ?? 0;
+      const unallocated = Math.max(0, line.committedQuantity - allocated);
+      if (unallocated <= 0) {
+        continue;
+      }
+      let set = result.get(classId);
+      if (!set) {
+        set = new Set<string>();
+        result.set(classId, set);
+      }
+      set.add(line.contractId);
+    }
+
+    return result;
+  }
+
+  /** Active lease contracts in org without an asset line for the given register class. */
+  async countActiveContractsWithoutAssetClassLine(
+    organizationId: string,
+    assetClassId: string,
+  ): Promise<number> {
+    const [row] = await this.db
+      .select({ count: sql<number>`count(*)::int` })
+      .from(leaseContracts)
+      .where(
+        and(
+          eq(leaseContracts.organizationId, organizationId),
+          eq(leaseContracts.status, 'active'),
+          notExists(
+            this.db
+              .select({ one: sql<number>`1` })
+              .from(leaseContractAssetLines)
+              .where(
+                and(
+                  eq(leaseContractAssetLines.contractId, leaseContracts.id),
+                  eq(leaseContractAssetLines.assetClassId, assetClassId),
+                ),
+              ),
+          ),
+        ),
+      );
+    return row?.count ?? 0;
+  }
+
+  async listLeaseContractsForVehicleAssignment(params: {
+    organizationId: string;
+    assetClassId: string;
+    page: number;
+    pageSize: number;
+    search?: string;
+    organisationClientId?: string;
+  }): Promise<{
+    rows: Array<{
+      contractId: string;
+      contractNumber: string;
+      status: LeaseContractStatus;
+      startDate: Date | null;
+      endDate: Date | null;
+      clientName: string | null;
+      organisationClientId: string | null;
+      fleetClientId: string | null;
+      assetClassName: string;
+      committedQuantity: number;
+    }>;
+    total: number;
+  }> {
+    const {
+      organizationId,
+      assetClassId,
+      page,
+      pageSize,
+      search,
+      organisationClientId,
+    } = params;
+    const offset = (page - 1) * pageSize;
+    const conditions = [
+      eq(leaseContracts.organizationId, organizationId),
+      inArray(leaseContracts.status, ALLOCATION_ELIGIBLE_CONTRACT_STATUSES),
+      eq(leaseContractAssetLines.assetClassId, assetClassId),
+    ];
+    if (search?.trim()) {
+      const q = `%${search.trim()}%`;
+      conditions.push(ilike(leaseContracts.contractNumber, q));
+    }
+    if (organisationClientId) {
+      conditions.push(
+        eq(fleetClients.organisationClientId, organisationClientId),
+      );
+    }
+    const where = and(...conditions);
+    const [lineRows, countRows] = await Promise.all([
+      this.db
+        .select({
+          contractId: leaseContracts.id,
+          contractNumber: leaseContracts.contractNumber,
+          status: leaseContracts.status,
+          startDate: leaseContracts.startDate,
+          endDate: leaseContracts.endDate,
+          clientName: sql<
+            string | null
+          >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+          organisationClientId: fleetClients.organisationClientId,
+          fleetClientId: leaseContracts.clientId,
+          assetClassName: leaseContractAssetLines.assetClass,
+          committedQuantity: leaseContractAssetLines.committedQuantity,
+        })
+        .from(leaseContractAssetLines)
+        .innerJoin(
+          leaseContracts,
+          eq(leaseContractAssetLines.contractId, leaseContracts.id),
+        )
+        .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+        .leftJoin(
+          organisationClients,
+          eq(fleetClients.organisationClientId, organisationClients.id),
+        )
+        .where(where)
+        .orderBy(desc(leaseContracts.contractNumber))
+        .limit(pageSize)
+        .offset(offset),
+      this.db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(leaseContractAssetLines)
+        .innerJoin(
+          leaseContracts,
+          eq(leaseContractAssetLines.contractId, leaseContracts.id),
+        )
+        .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+        .where(where),
+    ]);
+    return {
+      rows: lineRows.map((row) => ({
+        contractId: row.contractId,
+        contractNumber: row.contractNumber,
+        status: row.status,
+        startDate: row.startDate,
+        endDate: row.endDate,
+        clientName: row.clientName,
+        organisationClientId: row.organisationClientId,
+        fleetClientId: row.fleetClientId,
+        assetClassName: row.assetClassName,
+        committedQuantity: row.committedQuantity,
+      })),
+      total: countRows[0]?.count ?? 0,
+    };
+  }
+
+  /** Active lease contracts for bulk-assign catalog (org client optional filter). */
+  async listActiveLeaseContractsForBulkAssignCatalog(params: {
+    organizationId: string;
+    organisationClientId?: string;
+    limit?: number;
+  }): Promise<
+    Array<{
+      contractId: string;
+      contractNumber: string;
+      status: LeaseContractStatus;
+      startDate: Date | null;
+      endDate: Date | null;
+      location: string | null;
+      clientName: string | null;
+      organisationClientId: string | null;
+      fleetClientId: string | null;
+    }>
+  > {
+    const { organizationId, organisationClientId } = params;
+    const limit = Math.min(params.limit ?? 50, 50);
+    const conditions = [
+      eq(leaseContracts.organizationId, organizationId),
+      eq(leaseContracts.status, 'active'),
+    ];
+    if (organisationClientId) {
+      conditions.push(
+        eq(fleetClients.organisationClientId, organisationClientId),
+      );
+    } else {
+      conditions.push(sql`${fleetClients.organisationClientId} IS NOT NULL`);
+    }
+    const rows = await this.db
+      .select({
+        contractId: leaseContracts.id,
+        contractNumber: leaseContracts.contractNumber,
+        status: leaseContracts.status,
+        startDate: leaseContracts.startDate,
+        endDate: leaseContracts.endDate,
+        location: sql<string | null>`null`,
+        clientName: sql<
+          string | null
+        >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+        organisationClientId: fleetClients.organisationClientId,
+        fleetClientId: leaseContracts.clientId,
+      })
+      .from(leaseContracts)
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(and(...conditions))
+      .orderBy(desc(leaseContracts.contractNumber))
+      .limit(limit);
+    return rows.map((row) => ({
+      contractId: row.contractId,
+      contractNumber: row.contractNumber,
+      status: row.status,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      location: row.location,
+      clientName: row.clientName,
+      organisationClientId: row.organisationClientId,
+      fleetClientId: row.fleetClientId,
+    }));
   }
 
   async listEvents(contractId: string, limit = 50) {

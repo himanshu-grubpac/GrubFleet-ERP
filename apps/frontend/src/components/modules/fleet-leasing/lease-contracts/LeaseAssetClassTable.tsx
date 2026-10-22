@@ -15,7 +15,7 @@ export interface LeaseAssetClass {
 
 interface LeaseAssetClassTableProps {
     assetClasses: LeaseAssetClass[];
-    /** Figma LEASE-06 active detail — qty + allocation status only */
+    /** Active contract detail — qty + allocation status only */
     variant?: "default" | "allocation";
 }
 

@@ -12,11 +12,15 @@ import {
     hasValidationErrors,
     type ValidationErrors,
 } from "@/components/common/Commonvalidation";
-import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import {
+    dashboardCatalogQueryOptions,
+    dashboardListQueryOptions,
+} from "@/lib/query/dashboard-list-query-options";
 import {
     fetchAssetRegisterAssetClassApi,
     fetchAssetRegisterAssetClassesApi,
 } from "@/lib/api/asset-register/asset-classes";
+import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
 import {
     formatMileageRangeFromSpec,
     formatRatedLoadRange,
@@ -46,6 +50,7 @@ export type FleetVehicleFormData = {
     registrationStartDate: string;
     registrationEndDate: string;
 
+    insuranceSupplierId: string;
     insurancePremium: string;
     insuranceStartDate: string;
     insuranceEndDate: string;
@@ -58,7 +63,8 @@ export type FleetVehicleFormData = {
 
 type AssetClass = {
     id: string;
-    name: string;
+    className: string;
+    specLabel: string;
 
     vehicleType: string;
     fuelType: string;
@@ -121,10 +127,34 @@ export default function CreateFleetVehicleForm({
         ...dashboardListQueryOptions,
     });
 
+    const insuranceSuppliersQuery = useQuery({
+        queryKey: [
+            "organization",
+            "suppliers",
+            organizationId,
+            "compliance-catalog",
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchOrganisationSuppliersApi(token, {
+                organizationId,
+                page: 1,
+                pageSize: 50,
+                supplierType: "compliance",
+                status: "active",
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardCatalogQueryOptions,
+    });
+
     const assetClassOptions = useMemo((): AssetClass[] => {
         return (classesQuery.data?.items ?? []).map((row) => ({
             id: row.id,
-            name: row.specLabel || row.name,
+            className: row.name,
+            specLabel: row.specLabel || row.name,
             vehicleType: row.vehicleType === "2W" ? "2-Wheeler" : row.vehicleType === "3W" ? "3-Wheeler" : "4-Wheeler",
             fuelType: row.fuelType,
             mileageFrom: "",
@@ -165,6 +195,9 @@ export default function CreateFleetVehicleForm({
         registrationEndDate:
             initialData?.registrationEndDate ?? "",
 
+        insuranceSupplierId:
+            initialData?.insuranceSupplierId ?? "",
+
         insurancePremium:
             initialData?.insurancePremium ?? "",
 
@@ -193,6 +226,18 @@ export default function CreateFleetVehicleForm({
     const selectedAssetClass = assetClassOptions.find(
         (item) => item.id === form.assetClassId,
     );
+
+    const insuranceSupplierOptions = useMemo(() => {
+        const items = insuranceSuppliersQuery.data?.items ?? [];
+        const selectedId = form.insuranceSupplierId.trim();
+        if (selectedId && !items.some((item) => item.id === selectedId)) {
+            return [
+                { id: selectedId, name: selectedId },
+                ...items.map((item) => ({ id: item.id, name: item.name })),
+            ];
+        }
+        return items.map((item) => ({ id: item.id, name: item.name }));
+    }, [insuranceSuppliersQuery.data?.items, form.insuranceSupplierId]);
 
     const classDetailQuery = useQuery({
         queryKey: [
@@ -348,6 +393,7 @@ export default function CreateFleetVehicleForm({
                 odometerReading: form.odometerReading.trim(),
                 registrationStartDate: form.registrationStartDate,
                 registrationEndDate: form.registrationEndDate,
+                insuranceSupplierId: form.insuranceSupplierId.trim(),
                 insurancePremium: form.insurancePremium.trim(),
                 insuranceStartDate: form.insuranceStartDate,
                 insuranceEndDate: form.insuranceEndDate,
@@ -426,7 +472,7 @@ export default function CreateFleetVehicleForm({
                         setForm((previous) => ({
                             ...previous,
                             assetClassId,
-                            vehicleName: selected?.name ?? "",
+                            vehicleName: selected?.specLabel ?? "",
                         }));
                         setError("");
                     }}
@@ -435,7 +481,7 @@ export default function CreateFleetVehicleForm({
                     <option value="">Select asset class</option>
                     {assetClassOptions.map((assetClass) => (
                         <option key={assetClass.id} value={assetClass.id}>
-                            {assetClass.name}
+                            {assetClass.className} — {assetClass.specLabel}
                         </option>
                     ))}
                 </select>
@@ -730,10 +776,41 @@ export default function CreateFleetVehicleForm({
             </div>
 
             {/* ============================================================ */}
-            {/* INSURANCE PREMIUM                                            */}
+            {/* INSURANCE SUPPLIER + PREMIUM                                 */}
             {/* ============================================================ */}
 
-            <div className="mt-4">
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+
+                <div>
+                    <label
+                        htmlFor="insurance-supplier"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Insurance supplier
+                        <span className="ml-1 font-normal text-gray-500">
+                            (optional)
+                        </span>
+                    </label>
+
+                    <select
+                        id="insurance-supplier"
+                        value={form.insuranceSupplierId}
+                        onChange={(event) =>
+                            updateForm(
+                                "insuranceSupplierId",
+                                event.target.value,
+                            )
+                        }
+                        className={selectClassName}
+                    >
+                        <option value="">Select supplier</option>
+                        {insuranceSupplierOptions.map((supplier) => (
+                            <option key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
 
                 <div>
                     <label

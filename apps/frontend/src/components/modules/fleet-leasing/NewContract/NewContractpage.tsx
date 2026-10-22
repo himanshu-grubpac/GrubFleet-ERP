@@ -49,7 +49,9 @@ import {
 import LeaseContractStepper from "./LeaseContractStepper";
 
 import {
+    buildCompleteTermsApiPayload,
     buildPartialTermsPatch,
+    computeLeaseEndDateIso,
     termsAreComplete,
 } from "@/lib/lease-contract/lease-contract-wizard.util";
 
@@ -153,6 +155,7 @@ export default function NewLeaseContractPage() {
     const [terms, setTerms] =
         useState<LeaseTerms>({
             startDate: "",
+            endDate: "",
             termMonths: "",
             securityDeposit: "",
             billingFrequency: "monthly",
@@ -190,6 +193,12 @@ export default function NewLeaseContractPage() {
             if (termsAreComplete(nextTerms)) {
                 payload.startDate = nextTerms.startDate;
                 payload.termMonths = Number(nextTerms.termMonths);
+                payload.endDate =
+                    nextTerms.endDate.trim() ||
+                    computeLeaseEndDateIso(
+                        nextTerms.startDate,
+                        nextTerms.termMonths,
+                    );
                 payload.securityDeposit = String(nextTerms.securityDeposit);
                 payload.billingFrequency = nextTerms.billingFrequency;
             }
@@ -311,19 +320,17 @@ export default function NewLeaseContractPage() {
             }
 
             if (termsAreComplete(options.nextTerms)) {
-                await updateLeaseContractTerms(
-                    token,
-                    organizationId,
-                    contractId,
-                    {
-                        startDate: options.nextTerms.startDate,
-                        termMonths: Number(options.nextTerms.termMonths),
-                        securityDeposit: String(
-                            options.nextTerms.securityDeposit,
-                        ),
-                        billingFrequency: options.nextTerms.billingFrequency,
-                    },
+                const termsPayload = buildCompleteTermsApiPayload(
+                    options.nextTerms,
                 );
+                if (termsPayload) {
+                    await updateLeaseContractTerms(
+                        token,
+                        organizationId,
+                        contractId,
+                        termsPayload,
+                    );
+                }
             }
 
             await invalidateLeaseQueries(contractId);

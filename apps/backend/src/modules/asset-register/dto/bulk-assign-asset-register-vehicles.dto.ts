@@ -3,10 +3,19 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
+  IsDateString,
+  IsInt,
   IsOptional,
+  IsString,
   IsUUID,
+  MaxLength,
+  Min,
 } from 'class-validator';
-import { ASSET_REGISTER_BULK_ASSIGN_MAX_VEHICLES } from '../constants/asset-register-assignment.constants';
+import {
+  ASSET_REGISTER_ASSIGNMENT_HANDOVER_LOCATION_MAX_LENGTH,
+  ASSET_REGISTER_ASSIGNMENT_NOTES_MAX_LENGTH,
+  ASSET_REGISTER_BULK_ASSIGN_MAX_VEHICLES,
+} from '../constants/asset-register-assignment.constants';
 
 export class BulkAssignAssetRegisterVehiclesDto {
   @ApiProperty()
@@ -34,4 +43,39 @@ export class BulkAssignAssetRegisterVehiclesDto {
   @ArrayMaxSize(ASSET_REGISTER_BULK_ASSIGN_MAX_VEHICLES)
   @IsUUID('4', { each: true })
   vehicleIds!: string[];
+
+  @ApiPropertyOptional({
+    description:
+      'Handover calendar date (ISO YYYY-MM-DD); defaults to assignment time UTC',
+  })
+  @IsOptional()
+  @IsDateString()
+  handoverDate?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Odometer reading at handover; updates fleet register vehicle when set',
+  })
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  odometerAtHandover?: number;
+
+  @ApiPropertyOptional({
+    description: 'Handover depot or location label for this batch',
+    maxLength: ASSET_REGISTER_ASSIGNMENT_HANDOVER_LOCATION_MAX_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(ASSET_REGISTER_ASSIGNMENT_HANDOVER_LOCATION_MAX_LENGTH)
+  handoverLocation?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional notes stored on each assignment in the batch',
+    maxLength: ASSET_REGISTER_ASSIGNMENT_NOTES_MAX_LENGTH,
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(ASSET_REGISTER_ASSIGNMENT_NOTES_MAX_LENGTH)
+  notes?: string;
 }

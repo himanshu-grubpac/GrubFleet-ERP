@@ -3,13 +3,13 @@
 import { useMemo, useState } from "react";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { FLEET_LEASE_TERMS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
-import Button from "@/components/ui/GrubpacButton";
 import {
     validateDate,
     validateNumber,
     validateRequired,
 } from "@/components/common/Commonvalidation";
 import FormActions from "@/components/common/FormActions";
+import { computeLeaseEndDateIso } from "@/lib/lease-contract/lease-contract-wizard.util";
 import type { AssetLine } from "./AssetLinesStep";
 
 const BILLING_FREQUENCIES = [
@@ -38,8 +38,12 @@ const FIELD_LABEL_CLASS =
 
 const FIELD_ERROR_CLASS = "mt-1 text-xs text-red-600";
 
+const READONLY_DATE_CLASS =
+    "h-10 w-full cursor-default rounded-md border border-gray-200 bg-slate-50 px-3 text-sm text-gray-700 outline-none";
+
 export interface LeaseTerms {
     startDate: string;
+    endDate: string;
     termMonths: number | "";
     securityDeposit: string;
     billingFrequency: "monthly" | "quarterly" | "annual";
@@ -84,7 +88,7 @@ function MoneyField({
     error?: string;
     showError: boolean;
 }) {
-    const errorId = `${id} -error`;
+    const errorId = `${id}-error`;
 
     return (
         <div>
@@ -159,9 +163,12 @@ export default function TermsStep({
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
     const [isContinuing, setIsContinuing] = useState(false);
 
-    const primaryLine = assetLines[0];
-    const additionalLines = assetLines.slice(1);
     const fallbackAssetClass = "Petrol Scooter";
+
+    const computedEndDate = useMemo(
+        () => computeLeaseEndDateIso(startDate, termMonths),
+        [startDate, termMonths],
+    );
 
     const fieldErrors = useMemo(() => {
         const errors: Record<string, string | undefined> = {};
@@ -184,7 +191,7 @@ export default function TermsStep({
         });
 
         for (const line of assetLines) {
-            errors[`rate - ${line.id} `] = validateNumber(
+            errors[`rate-${line.id}`] = validateNumber(
                 lineRates[line.id] ?? "",
                 {
                     label: `Monthly rate for ${line.assetClass || "the asset class"}`,
@@ -196,6 +203,7 @@ export default function TermsStep({
         return errors;
     }, [
         assetLines,
+        computedEndDate,
         lineRates,
         securityDeposit,
         startDate,
@@ -219,6 +227,7 @@ export default function TermsStep({
     const buildTermsSnapshot = (): TermsDraftSnapshot => ({
         terms: {
             startDate,
+            endDate: computedEndDate,
             termMonths,
             securityDeposit,
             billingFrequency,
@@ -248,21 +257,18 @@ export default function TermsStep({
         }
     };
 
-
     const handleSaveDraft = () => {
         if (!onSaveDraft || isSaveDraftPending || isContinuing) {
             return;
         }
 
-        // The parent handles persistence, errors, and redirect after a successful save.
         void onSaveDraft(buildTermsSnapshot());
     };
-
 
     const renderRateField = (line: AssetLine) => (
         <MoneyField
             key={line.id}
-            id={`lease - rate - ${line.id} `}
+            id={`lease-rate-${line.id}`}
             label={rateFieldLabel(line.assetClass || fallbackAssetClass)}
             value={lineRates[line.id] ?? ""}
             onChange={(value) =>
@@ -272,7 +278,7 @@ export default function TermsStep({
                 }))
             }
             placeholder="e.g. 3200"
-            error={fieldErrors[`rate - ${line.id} `]}
+            error={fieldErrors[`rate-${line.id}`]}
             showError={hasAttemptedSubmit}
         />
     );
@@ -280,41 +286,54 @@ export default function TermsStep({
     return (
         <>
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
-                <div className="grid grid-cols-1 gap-4 px-4 py-4 sm:px-5 sm:py-5 md:grid-cols-2">
-                    <div>
-                        <label
-                            htmlFor="lease-billing-frequency"
-                            className={FIELD_LABEL_CLASS}
-                        >
-                            Billing frequency
-                        </label>
+                <div className="flex flex-col gap-6 px-4 py-4 sm:px-5 sm:py-5">
+                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        <div>
+                            <label
+                                htmlFor="lease-billing-frequency"
+                                className={FIELD_LABEL_CLASS}
+                            >
+                                Billing frequency
+                            </label>
 
-                        <select
-                            id="lease-billing-frequency"
-                            value={billingFrequency}
-                            onChange={(event) =>
-                                setBillingFrequency(
-                                    event.target.value as typeof billingFrequency,
-                                )
-                            }
-                            className={FIELD_INPUT_CLASS}
-                        >
-                            {BILLING_FREQUENCIES.map((frequency) => (
-                                <option key={frequency} value={frequency}>
-                                    {BILLING_FREQUENCY_LABELS[frequency]}
-                                </option>
-                            ))}
-                        </select>
+                            <select
+                                id="lease-billing-frequency"
+                                value={billingFrequency}
+                                onChange={(event) =>
+                                    setBillingFrequency(
+                                        event.target.value as typeof billingFrequency,
+                                    )
+                                }
+                                className={FIELD_INPUT_CLASS}
+                            >
+                                {BILLING_FREQUENCIES.map((frequency) => (
+                                    <option key={frequency} value={frequency}>
+                                        {BILLING_FREQUENCY_LABELS[frequency]}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        <MoneyField
+                            id="lease-security-deposit"
+                            label="Security deposit"
+                            value={securityDeposit}
+                            onChange={setSecurityDeposit}
+                            placeholder="e.g. 45000"
+                            error={fieldErrors.securityDeposit}
+                            showError={hasAttemptedSubmit}
+                        />
                     </div>
 
-                    {primaryLine ? (
-                        renderRateField(primaryLine)
+                    {assetLines.length > 0 ? (
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                            {assetLines.map((line) => renderRateField(line))}
+                        </div>
                     ) : (
                         <div>
                             <p className={FIELD_LABEL_CLASS}>
                                 {rateFieldLabel(fallbackAssetClass)}
                             </p>
-
                             <p className="text-sm text-gray-500">
                                 Add asset-class lines on the previous step to
                                 set rates.
@@ -322,123 +341,130 @@ export default function TermsStep({
                         </div>
                     )}
 
-                    <MoneyField
-                        id="lease-security-deposit"
-                        label="Security deposit"
-                        value={securityDeposit}
-                        onChange={setSecurityDeposit}
-                        placeholder="e.g. 45000"
-                        error={fieldErrors.securityDeposit}
-                        showError={hasAttemptedSubmit}
-                    />
-
-                    <div>
-                        <label
-                            htmlFor="lease-term-months"
-                            className={FIELD_LABEL_CLASS}
-                        >
-                            Term (months)
-                        </label>
-
-                        <RestrictedInput
-                            id="lease-term-months"
-                            restrictedKind="digits"
-                            maxLength={
-                                FLEET_LEASE_TERMS_INPUT_LIMITS.termMonthsMaxDigits
-                            }
-                            value={
-                                termMonths === ""
-                                    ? ""
-                                    : String(termMonths)
-                            }
-                            onChange={(value) =>
-                                setTermMonths(
-                                    value === "" ? "" : Number(value),
-                                )
-                            }
-                            placeholder="24"
-                            className={FIELD_INPUT_CLASS}
-                            aria-invalid={
-                                hasAttemptedSubmit &&
-                                Boolean(fieldErrors.termMonths)
-                            }
-                            aria-describedby={
-                                hasAttemptedSubmit && fieldErrors.termMonths
-                                    ? "lease-term-months-error"
-                                    : undefined
-                            }
-                        />
-
-                        {hasAttemptedSubmit && fieldErrors.termMonths && (
-                            <p
-                                id="lease-term-months-error"
-                                className={FIELD_ERROR_CLASS}
-                                role="alert"
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                        <div>
+                            <label
+                                htmlFor="lease-start-date"
+                                className={FIELD_LABEL_CLASS}
                             >
-                                {fieldErrors.termMonths}
-                            </p>
-                        )}
-                    </div>
+                                Start date
+                            </label>
 
-                    <div>
-                        <label
-                            htmlFor="lease-start-date"
-                            className={FIELD_LABEL_CLASS}
-                        >
-                            Start date
-                        </label>
+                            <input
+                                id="lease-start-date"
+                                type="date"
+                                value={startDate}
+                                onChange={(event) =>
+                                    setStartDate(event.target.value)
+                                }
+                                className={FIELD_INPUT_CLASS}
+                                aria-invalid={
+                                    hasAttemptedSubmit &&
+                                    Boolean(fieldErrors.startDate)
+                                }
+                                aria-describedby={
+                                    hasAttemptedSubmit &&
+                                    fieldErrors.startDate
+                                        ? "lease-start-date-error"
+                                        : "lease-start-date-hint"
+                                }
+                            />
 
-                        <input
-                            id="lease-start-date"
-                            type="date"
-                            value={startDate}
-                            onChange={(event) =>
-                                setStartDate(event.target.value)
-                            }
-                            className={FIELD_INPUT_CLASS}
-                            aria-invalid={
-                                hasAttemptedSubmit &&
-                                Boolean(fieldErrors.startDate)
-                            }
-                            aria-describedby={
-                                hasAttemptedSubmit && fieldErrors.startDate
-                                    ? "lease-start-date-error"
-                                    : "lease-start-date-hint"
-                            }
-                        />
+                            {hasAttemptedSubmit && fieldErrors.startDate && (
+                                <p
+                                    id="lease-start-date-error"
+                                    className={FIELD_ERROR_CLASS}
+                                    role="alert"
+                                >
+                                    {fieldErrors.startDate}
+                                </p>
+                            )}
 
-                        {hasAttemptedSubmit && fieldErrors.startDate && (
                             <p
-                                id="lease-start-date-error"
-                                className={FIELD_ERROR_CLASS}
-                                role="alert"
+                                id="lease-start-date-hint"
+                                className="mt-1 text-xs text-gray-400"
                             >
-                                {fieldErrors.startDate}
+                                DD-MM-YYYY
                             </p>
-                        )}
-
-                        <p
-                            id="lease-start-date-hint"
-                            className="mt-1 text-xs text-gray-400"
-                        >
-                            DD-MM-YYYY
-                        </p>
-                    </div>
-
-                    {additionalLines.map((line) => (
-                        <div key={line.id} className="md:col-span-2">
-                            <div className="md:grid md:grid-cols-2 md:gap-4">
-                                <div
-                                    className="hidden md:block"
-                                    aria-hidden="true"
-                                />
-                                {renderRateField(line)}
-                            </div>
                         </div>
-                    ))}
+
+                        <div>
+                            <label
+                                htmlFor="lease-end-date"
+                                className={FIELD_LABEL_CLASS}
+                            >
+                                End date
+                            </label>
+
+                            <input
+                                id="lease-end-date"
+                                type="date"
+                                value={computedEndDate}
+                                readOnly
+                                tabIndex={-1}
+                                className={READONLY_DATE_CLASS}
+                                aria-describedby="lease-end-date-hint"
+                            />
+
+                            <p
+                                id="lease-end-date-hint"
+                                className="mt-1 text-xs text-gray-400"
+                            >
+                                From start date + term
+                            </p>
+                        </div>
+
+                        <div>
+                            <label
+                                htmlFor="lease-term-months"
+                                className={FIELD_LABEL_CLASS}
+                            >
+                                Term (months)
+                            </label>
+
+                            <RestrictedInput
+                                id="lease-term-months"
+                                restrictedKind="digits"
+                                maxLength={
+                                    FLEET_LEASE_TERMS_INPUT_LIMITS.termMonthsMaxDigits
+                                }
+                                value={
+                                    termMonths === ""
+                                        ? ""
+                                        : String(termMonths)
+                                }
+                                onChange={(value) =>
+                                    setTermMonths(
+                                        value === "" ? "" : Number(value),
+                                    )
+                                }
+                                placeholder="24"
+                                className={FIELD_INPUT_CLASS}
+                                aria-invalid={
+                                    hasAttemptedSubmit &&
+                                    Boolean(fieldErrors.termMonths)
+                                }
+                                aria-describedby={
+                                    hasAttemptedSubmit &&
+                                    fieldErrors.termMonths
+                                        ? "lease-term-months-error"
+                                        : undefined
+                                }
+                            />
+
+                            {hasAttemptedSubmit && fieldErrors.termMonths && (
+                                <p
+                                    id="lease-term-months-error"
+                                    className={FIELD_ERROR_CLASS}
+                                    role="alert"
+                                >
+                                    {fieldErrors.termMonths}
+                                </p>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
-
 
             <div className="mt-5">
                 <FormActions
@@ -454,18 +480,16 @@ export default function TermsStep({
                     secondaryAction={
                         showSaveDraft && onSaveDraft
                             ? {
-                                label: "Save draft",
-                                onClick: handleSaveDraft,
-                                disabled: isSaveDraftPending,
-                                isPending: isSaveDraftPending,
-                                pendingLabel: "Saving...",
-                            }
+                                  label: "Save draft",
+                                  onClick: handleSaveDraft,
+                                  disabled: isSaveDraftPending,
+                                  isPending: isSaveDraftPending,
+                                  pendingLabel: "Saving...",
+                              }
                             : undefined
                     }
                 />
             </div>
-
-
         </>
     );
 }

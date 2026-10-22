@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsIn,
   IsInt,
   IsOptional,
@@ -18,6 +19,15 @@ import {
 import { ASSET_REGISTER_VEHICLE_OPERATIONAL_STATUSES } from '../constants/asset-register-vehicle.constants';
 
 export const ASSET_REGISTER_VEHICLE_LIST_MAX_PAGE_SIZE = 50;
+
+export const ASSET_REGISTER_VEHICLE_DEMAND_FILTERS = [
+  'any',
+  'in_demand',
+  'no_demand',
+] as const;
+
+export type AssetRegisterVehicleDemandFilter =
+  (typeof ASSET_REGISTER_VEHICLE_DEMAND_FILTERS)[number];
 
 export class ListAssetRegisterVehiclesQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional()
@@ -55,12 +65,32 @@ export class ListAssetRegisterVehiclesQueryDto extends PaginationQueryDto {
   status?: 'active' | 'inactive';
 
   @ApiPropertyOptional({
-    description: 'Search fleet code or registration number (partial match)',
+    description:
+      'Search fleet code, registration number, or asset class name (partial match)',
   })
   @IsOptional()
   @IsString()
   search?: string;
 
+  @ApiPropertyOptional({
+    enum: ASSET_REGISTER_VEHICLE_DEMAND_FILTERS,
+    description:
+      'Filter by lease open demand on the vehicle asset class (assignment list)',
+  })
+  @IsOptional()
+  @IsIn([...ASSET_REGISTER_VEHICLE_DEMAND_FILTERS])
+  demandFilter?: AssetRegisterVehicleDemandFilter;
+
   @SortByQuery(ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS)
   sortBy?: AssetRegisterVehicleListSortField;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    description:
+      'When true, include org-wide open lease demand summary for assignment empty states',
+  })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  includeAssignmentSummary?: boolean;
 }

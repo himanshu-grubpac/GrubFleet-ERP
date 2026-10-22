@@ -383,7 +383,8 @@ export function vehicleDetailToFleetFormData(
 ): FleetVehicleFormData {
   return {
     assetClassId: detail.assetClassId,
-    vehicleName: detail.assetClassName,
+    vehicleName: detail.assetClassSpecLabel || detail.assetClassName,
+    insuranceSupplierId: detail.insuranceSupplierId ?? "",
     purchaseInvoiceId: detail.purchaseInvoiceId ?? "",
     registrationNumber: detail.registrationNumber,
     chassisNumber: detail.chassisNumber,
@@ -420,6 +421,9 @@ export function fleetFormToCreateVehiclePayload(
     warrantyEndDate: form.warrantyEndDate,
     specialNotes: form.notes.trim() || undefined,
     purchaseInvoiceId: form.purchaseInvoiceId.trim() || undefined,
+    ...(form.insuranceSupplierId.trim()
+      ? { insuranceSupplierId: form.insuranceSupplierId.trim() }
+      : {}),
   };
 }
 
@@ -438,6 +442,9 @@ export function fleetFormToUpdateVehiclePayload(form: FleetVehicleFormData) {
     warrantyEndDate: form.warrantyEndDate,
     specialNotes: form.notes.trim() || undefined,
     purchaseInvoiceId: form.purchaseInvoiceId.trim() || undefined,
+    insuranceSupplierId: form.insuranceSupplierId.trim()
+      ? form.insuranceSupplierId.trim()
+      : null,
   };
 }
 

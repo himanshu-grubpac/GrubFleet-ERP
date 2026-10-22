@@ -1,6 +1,7 @@
 'use client';
 
 import { AppShell } from '@/components/layout/app-shell';
+import { useOrganizationRealtimeSync } from '@/lib/realtime/use-organization-realtime-sync';
 import { ProtectedRoute } from '@/providers/auth-provider';
 
 /**
@@ -8,6 +9,11 @@ import { ProtectedRoute } from '@/providers/auth-provider';
  * `(dashboard)/layout.tsx` so the route segment layout stays a Server Component
  * and AppShell state survives client navigations within the dashboard tree.
  */
+function DashboardRealtimeSync() {
+  useOrganizationRealtimeSync();
+  return null;
+}
+
 export function DashboardChrome({
   children,
 }: {
@@ -15,6 +21,7 @@ export function DashboardChrome({
 }) {
   return (
     <ProtectedRoute>
+      <DashboardRealtimeSync />
       <AppShell>{children}</AppShell>
     </ProtectedRoute>
   );

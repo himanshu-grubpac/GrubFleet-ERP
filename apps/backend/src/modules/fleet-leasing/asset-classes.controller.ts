@@ -27,6 +27,11 @@ import { AssetRegisterCatalogService } from '../asset-register/asset-register-ca
 import { ListFleetAssetClassesQueryDto } from './dto/list-fleet-asset-classes-query.dto';
 import { PreviewAssetAvailabilityBatchDto } from './dto/preview-asset-availability.dto';
 import { computeAssetLineAvailability } from './utils/asset-class-availability.util';
+import {
+  computeEffectivePoolAvailableNow,
+  computePoolAvailableNow,
+} from './utils/asset-class-pool.util';
+import { FleetLeasingRepository } from './repositories/fleet-leasing.repository';
 
 @ApiTags('fleet-leasing')
 @ApiBearerAuth()
@@ -34,6 +39,7 @@ import { computeAssetLineAvailability } from './utils/asset-class-availability.u
 export class AssetClassesController {
   constructor(
     private readonly assetRegisterCatalog: AssetRegisterCatalogService,
+    private readonly fleetRepo: FleetLeasingRepository,
   ) {}
 
   @Get()
@@ -79,6 +85,7 @@ export class AssetClassesController {
     @Query('assetClass') assetClass: string | undefined,
     @Query('assetClassId') assetClassId: string | undefined,
     @Query('committedQuantity') committedQuantityRaw: string,
+    @Query('excludeContractId') excludeContractId?: string,
   ) {
     const committedQuantity = Number(committedQuantityRaw);
     let className: string;
@@ -89,10 +96,34 @@ export class AssetClassesController {
           assetClassId.trim(),
         );
       className = inv.name;
+      const excludeId = excludeContractId?.trim() || null;
+      const reserved =
+        await this.fleetRepo.sumUnallocatedCommitmentsByAssetClassIds(
+          organizationId,
+          [assetClassId.trim()],
+          excludeId,
+        );
+      const ownAllocated = excludeId
+        ? ((
+            await this.fleetRepo.countAllocatedRegisterVehiclesByAssetClassIds(
+              excludeId,
+            )
+          ).get(assetClassId.trim()) ?? 0)
+        : 0;
+      const availableNow = excludeId
+        ? computeEffectivePoolAvailableNow(
+            inv.availableNow,
+            reserved.get(assetClassId.trim()) ?? 0,
+            ownAllocated,
+          )
+        : computePoolAvailableNow(
+            inv.availableNow,
+            reserved.get(assetClassId.trim()) ?? 0,
+          );
       return computeAssetLineAvailability(
         className,
         committedQuantity,
-        inv.availableNow,
+        availableNow,
         inv.inbound,
         false,
       );
@@ -101,11 +132,42 @@ export class AssetClassesController {
       throw new BadRequestException('assetClass or assetClassId is required');
     }
     className = assetClass.trim();
-    const { availableNow, inbound } =
+    const ref =
+      await this.assetRegisterCatalog.resolveActiveAssetClassReference(
+        organizationId,
+        { assetClass: className },
+      );
+    const { availableNow: physical, inbound } =
       await this.assetRegisterCatalog.getAssetClassInventory(
         organizationId,
         className,
       );
+    const excludeId = excludeContractId?.trim() || null;
+    const reserved = ref.id
+      ? await this.fleetRepo.sumUnallocatedCommitmentsByAssetClassIds(
+          organizationId,
+          [ref.id],
+          excludeId,
+        )
+      : new Map<string, number>();
+    const ownAllocated =
+      excludeId && ref.id
+        ? ((
+            await this.fleetRepo.countAllocatedRegisterVehiclesByAssetClassIds(
+              excludeId,
+            )
+          ).get(ref.id) ?? 0)
+        : 0;
+    const availableNow =
+      ref.id && excludeId
+        ? computeEffectivePoolAvailableNow(
+            physical,
+            reserved.get(ref.id) ?? 0,
+            ownAllocated,
+          )
+        : ref.id
+          ? computePoolAvailableNow(physical, reserved.get(ref.id) ?? 0)
+          : physical;
     return computeAssetLineAvailability(
       className,
       committedQuantity,
@@ -120,7 +182,7 @@ export class AssetClassesController {
   @RequireOrganizationContext()
   @RequirePermissions(FleetLeasingPermissionKeys.VIEW)
   @ApiOperation({
-    summary: 'Batch availability preview for wizard step 2 (LEASE-03 table)',
+    summary: 'Batch availability preview for lease wizard asset lines',
   })
   async previewBatch(@Body() dto: PreviewAssetAvailabilityBatchDto) {
     const resolvedLines = await Promise.all(
@@ -137,17 +199,39 @@ export class AssetClassesController {
     const classIds = resolvedLines
       .map((row) => row.id)
       .filter((id): id is string => Boolean(id));
-    const inventoryById =
+    const physicalById =
       classIds.length > 0
         ? await this.assetRegisterCatalog.getAssetClassInventoryBatchByIds(
             dto.organizationId,
             classIds,
           )
         : new Map<string, number>();
+    const excludeId = dto.excludeContractId?.trim() || null;
+    const reservedById =
+      classIds.length > 0
+        ? await this.fleetRepo.sumUnallocatedCommitmentsByAssetClassIds(
+            dto.organizationId,
+            classIds,
+            excludeId,
+          )
+        : new Map<string, number>();
+    const ownAllocatedById =
+      excludeId && classIds.length > 0
+        ? await this.fleetRepo.countAllocatedRegisterVehiclesByAssetClassIds(
+            excludeId,
+          )
+        : new Map<string, number>();
     const lines = dto.lines.map((line, index) => {
       const resolved = resolvedLines[index];
+      const physical = resolved.id ? (physicalById.get(resolved.id) ?? 0) : 0;
+      const reserved = resolved.id ? (reservedById.get(resolved.id) ?? 0) : 0;
+      const ownAllocated = resolved.id
+        ? (ownAllocatedById.get(resolved.id) ?? 0)
+        : 0;
       const availableNow = resolved.id
-        ? (inventoryById.get(resolved.id) ?? 0)
+        ? excludeId
+          ? computeEffectivePoolAvailableNow(physical, reserved, ownAllocated)
+          : computePoolAvailableNow(physical, reserved)
         : 0;
       const inbound = 0;
       return computeAssetLineAvailability(
