@@ -78,6 +78,37 @@ export const validateRequired = (
     return undefined;
 };
 
+/**
+ * Sanitize values in controlled input onChange handlers so invalid characters
+ * are not stored while typing.
+ */
+export const sanitizePhoneInput = (
+    value: string,
+    options: { allowInternationalPrefix?: boolean; maxDigits?: number } = {},
+): string => {
+    const { allowInternationalPrefix = false, maxDigits = 15 } = options;
+    const digits = value.replace(/\D/g, "").slice(0, maxDigits);
+
+    return allowInternationalPrefix && value.trimStart().startsWith("+")
+        ? `+${digits}`
+        : digits;
+};
+
+/**
+ * Formats manually entered dates as DD-MM-YYYY and limits the year to
+ * four digits. Use this only for fields whose displayed format is DD-MM-YYYY.
+ */
+export const sanitizeDDMMYYYYInput = (value: string): string => {
+    const digits = value.replace(/\D/g, "").slice(0, 8);
+    const day = digits.slice(0, 2);
+    const month = digits.slice(2, 4);
+    const year = digits.slice(4, 8);
+
+    if (digits.length <= 2) return day;
+    if (digits.length <= 4) return `${day}-${month}`;
+    return `${day}-${month}-${year}`;
+};
+
 /* -------------------------------------------------------------------------- */
 /* Email                                                                      */
 /* -------------------------------------------------------------------------- */
@@ -122,30 +153,41 @@ export const validateEmail = (
  * Use country-specific phone validation when the application requires
  * international phone-number support.
  */
+export type PhoneValidationOptions = ValidationOptions & {
+    minDigits?: number;
+    maxDigits?: number;
+    allowInternationalPrefix?: boolean;
+};
+
 export const validatePhone = (
     value: string | null | undefined,
     label = "Phone",
-    options: ValidationOptions = {},
+    options: PhoneValidationOptions = {},
 ): string | undefined => {
-    const required = options.required ?? true;
+    const {
+        required = true,
+        minDigits = 10,
+        maxDigits = 15,
+        allowInternationalPrefix = true,
+    } = options;
 
     if (isEmpty(value)) {
-        return required
-            ? `${label} is required.`
-            : undefined;
+        return required ? `${label} is required.` : undefined;
     }
 
     const phone = value!.trim();
+    const allowedPattern = allowInternationalPrefix
+        ? /^\+?[\d\s().-]+$/
+        : /^[\d\s().-]+$/;
 
-    // Permit common visual separators, but reject other characters.
-    if (!/^\+?[\d\s().-]+$/.test(phone)) {
+    if (!allowedPattern.test(phone)) {
         return `Enter a valid ${label.toLowerCase()}.`;
     }
 
     const digits = phone.replace(/\D/g, "");
 
-    if (digits.length < 10 || digits.length > 15) {
-        return `${label} must contain between 10 and 15 digits.`;
+    if (digits.length < minDigits || digits.length > maxDigits) {
+        return `${label} must contain between ${minDigits} and ${maxDigits} digits.`;
     }
 
     return undefined;
@@ -275,6 +317,10 @@ const isValidISODate = (value: string): boolean => {
     }
 
     const [year, month, day] = value.split("-").map(Number);
+
+    // Accept only four-digit years from 0001 through 9999.
+    if (year < 1 || year > 9999) return false;
+
     const date = new Date(Date.UTC(year, month - 1, day));
 
     return (

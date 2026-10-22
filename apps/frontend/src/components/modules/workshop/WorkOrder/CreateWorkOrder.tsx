@@ -1,12 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Plus, Minus } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation"
+import { Plus, Minus, Trash2, X } from "lucide-react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import FormActions from "@/components/common/FormActions";
+import {
+  validateRequired,
+  validateNumber,
+  validateDate,
+  hasValidationErrors,
+  type ValidationErrors,
+} from "@/components/common/Commonvalidation";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { WORKSHOP_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { fetchAllActiveAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
@@ -59,6 +67,23 @@ function stockOnHand(item: StockBalanceListItem): number {
   return item.locations.reduce((sum, row) => sum + row.quantity, 0);
 }
 
+/** Keep native date inputs limited to real YYYY-MM-DD dates. */
+function normalizeDateInput(value: string | null | undefined): string {
+  if (!value) return "";
+  const candidate = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(candidate)) return "";
+  const [year, month, day] = candidate.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return "";
+  }
+  return candidate;
+}
+
 export default function WorkForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -89,6 +114,9 @@ export default function WorkForm() {
   const [issueDescription, setIssueDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const [additionalParts, setAdditionalParts] = useState<AdditionalPartRow[]>(
     [],
@@ -117,7 +145,7 @@ export default function WorkForm() {
     setVehicleId(detail.vehicle?.id ?? "");
     setLaborJobCardId(detail.laborJobCardId ?? "");
     setTechnicianEmployeeId(detail.technicianEmployeeId ?? "");
-    setExpectedCompletionDate(detail.expectedCompletionDate ?? "");
+    setExpectedCompletionDate(normalizeDateInput(detail.expectedCompletionDate));
     setReportedBy(detail.reportedBy ?? "");
     setOdometerReading(
       detail.odometerReading != null ? String(detail.odometerReading) : "",
@@ -218,6 +246,96 @@ export default function WorkForm() {
     (part) => !additionalParts.some((row) => row.partId === part.id),
   );
 
+  const validationErrors: ValidationErrors = useMemo(() => {
+    const errors: ValidationErrors = {};
+
+    if (!isEditMode) {
+      const vehicleError = validateRequired(vehicleId, "Fleet vehicle");
+      if (vehicleError) errors.vehicleId = vehicleError;
+    }
+
+    if (reportedBy.trim()) {
+      const reportedByError = validateRequired(reportedBy, "Reported by name");
+      if (reportedByError) errors.reportedBy = reportedByError;
+      if (reportedBy.trim().length > WORKSHOP_INPUT_LIMITS.workOrderReportedBy) {
+        errors.reportedBy = `Reported by name must not exceed ${WORKSHOP_INPUT_LIMITS.workOrderReportedBy} characters.`;
+      }
+    }
+
+    if (odometerReading.trim()) {
+      const odometerError = validateNumber(odometerReading, {
+        label: "Odometer reading",
+        required: false,
+        min: 0,
+        integer: true,
+      });
+      if (odometerError) errors.odometerReading = odometerError;
+    }
+
+    if (expectedCompletionDate) {
+      const dateError = validateDate(expectedCompletionDate, {
+        label: "Expected completion date",
+        required: false,
+      });
+      if (dateError) errors.expectedCompletionDate = dateError;
+    }
+
+    if (isAddingPart) {
+      const partError = validateRequired(selectedPartId, "Inventory part");
+      if (partError) errors.selectedPartId = partError;
+    }
+
+    if (isAddingLabor) {
+      const descriptionError = validateRequired(newLaborDescription, "Labor description");
+      if (descriptionError) errors.newLaborDescription = descriptionError;
+
+      const amountError = validateRequired(newLaborAmount, "Labor amount");
+      if (amountError) {
+        errors.newLaborAmount = amountError;
+      } else {
+        const amountMinor = parseRupeeInputToMinor(newLaborAmount);
+        if (amountMinor == null || amountMinor < 0) {
+          errors.newLaborAmount = "Enter a valid labor amount greater than or equal to zero.";
+        }
+      }
+    }
+
+    return errors;
+  }, [
+    isEditMode,
+    vehicleId,
+    reportedBy,
+    odometerReading,
+    expectedCompletionDate,
+    isAddingPart,
+    selectedPartId,
+    isAddingLabor,
+    newLaborDescription,
+    newLaborAmount,
+  ]);
+
+  const validationSummary = useMemo(
+    () => Object.values(validationErrors).filter(Boolean) as string[],
+    [validationErrors],
+  );
+
+  const getFieldError = (field: string) =>
+    hasAttemptedSubmit ? validationErrors[field] : undefined;
+
+  const handleSave = () => {
+    // Block rapid repeated clicks before React has time to re-render.
+    if (isSubmittingRef.current || saveMutation.isPending) return;
+
+    setHasAttemptedSubmit(true);
+    setSubmitError(null);
+
+    if (hasValidationErrors(validationErrors)) return;
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    saveMutation.mutate();
+  };
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!token || !organizationId) {
@@ -238,9 +356,9 @@ export default function WorkForm() {
             };
           })
           .filter(Boolean) as Array<{
-          description: string;
-          amountMinor: number;
-        }>;
+            description: string;
+            amountMinor: number;
+          }>;
 
         return updateWorkshopWorkOrderApi(token, editWorkOrderId, {
           organizationId,
@@ -255,11 +373,11 @@ export default function WorkForm() {
           notes: notes.trim() || null,
           ...(additionalParts.length > 0
             ? {
-                additionalParts: additionalParts.map((line) => ({
-                  partId: line.partId,
-                  quantity: line.quantity,
-                })),
-              }
+              additionalParts: additionalParts.map((line) => ({
+                partId: line.partId,
+                quantity: line.quantity,
+              })),
+            }
             : {}),
           ...(additionalLaborPayload.length > 0
             ? { additionalLabor: additionalLaborPayload }
@@ -298,9 +416,9 @@ export default function WorkForm() {
             };
           })
           .filter(Boolean) as Array<{
-          description: string;
-          amountMinor: number;
-        }>,
+            description: string;
+            amountMinor: number;
+          }>,
       });
     },
     onSuccess: (detail) => {
@@ -319,16 +437,12 @@ export default function WorkForm() {
       setSubmitError(message);
       showErrorToast(message);
     },
+    onSettled: () => {
+      // Re-enable the button after either success or failure.
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    },
   });
-
-  const canSubmit =
-    canSave &&
-    (isEditMode || !!vehicleId) &&
-    !isAuthLoading &&
-    !saveMutation.isPending &&
-    (!isEditMode
-      ? !vehiclesQuery.isLoading && !laborJobCardsQuery.isLoading
-      : !existingQuery.isLoading);
 
   const inputClassName =
     "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
@@ -383,10 +497,7 @@ export default function WorkForm() {
     return (
       <OrganizationFormLayout
         title="Edit work order"
-        backLink={{
-          label: "Back to work orders",
-          href: workshopWorkOrderListHref,
-        }}
+
       >
         <p className="text-sm text-gray-500">Loading work order…</p>
       </OrganizationFormLayout>
@@ -397,34 +508,30 @@ export default function WorkForm() {
     <OrganizationFormLayout
       title={isEditMode ? "Edit work order" : "Log Work Order"}
       description="Creates a General work order. PM, Service, and Return Inspection work orders are generated automatically by Maintenance Schedules and Asset Register."
-      backLink={{
-        label: "Back to work orders",
-        href: workshopWorkOrderListHref,
-      }}
     >
       {(vehiclesQuery.isError ||
         laborJobCardsQuery.isError ||
         techniciansQuery.isError ||
         partsCatalogQuery.isError) && (
-        <div
-          className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-          role="alert"
-        >
-          Could not load catalog data.{" "}
-          <button
-            type="button"
-            className="font-medium underline"
-            onClick={() => {
-              void vehiclesQuery.refetch();
-              void laborJobCardsQuery.refetch();
-              void techniciansQuery.refetch();
-              void partsCatalogQuery.refetch();
-            }}
+          <div
+            className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            role="alert"
           >
-            Retry
-          </button>
-        </div>
-      )}
+            Could not load catalog data.{" "}
+            <button
+              type="button"
+              className="font-medium underline"
+              onClick={() => {
+                void vehiclesQuery.refetch();
+                void laborJobCardsQuery.refetch();
+                void techniciansQuery.refetch();
+                void partsCatalogQuery.refetch();
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
       {submitError && (
         <div
@@ -449,7 +556,7 @@ export default function WorkForm() {
                 id="fleet-vehicle"
                 value={vehicleId}
                 onChange={(event) => setVehicleId(event.target.value)}
-                className={inputClassName}
+                className={`${inputClassName} ${getFieldError("vehicleId") ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
                 disabled={vehiclesQuery.isLoading || vehicles.length === 0}
               >
                 <option value="">
@@ -471,6 +578,9 @@ export default function WorkForm() {
                   ? `${selectedVehicle.fleetCode} — ${selectedVehicle.assetClassName ?? selectedVehicle.registrationNumber}`
                   : "—"}
               </p>
+            )}
+            {getFieldError("vehicleId") && (
+              <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("vehicleId")}</p>
             )}
             {selectedVehicle && (
               <p className="mt-1 text-xs text-gray-500">
@@ -514,12 +624,12 @@ export default function WorkForm() {
             {!techniciansQuery.isLoading &&
               !techniciansQuery.isError &&
               technicians.length === 0 && (
-              <p className="mt-1 text-xs text-gray-500">
-                No active workshop technicians yet. In Organisation → Employees,
-                edit an active employee and enable &quot;Workshop technician&quot;
-                (inactive employees are not listed).
-              </p>
-            )}
+                <p className="mt-1 text-xs text-gray-500">
+                  No active workshop technicians yet. In Organisation → Employees,
+                  edit an active employee and enable &quot;Workshop technician&quot;
+                  (inactive employees are not listed).
+                </p>
+              )}
           </div>
 
           <div>
@@ -527,17 +637,26 @@ export default function WorkForm() {
               htmlFor="expected-completion"
               className="mb-1 block text-xs font-semibold text-gray-700"
             >
-              Expected completion
+              Expected completion date <span className="font-normal text-gray-400">(optional)</span>
             </label>
             <input
               id="expected-completion"
               type="date"
+              min="0001-01-01"
+              max="9999-12-31"
               value={expectedCompletionDate}
-              onChange={(event) =>
-                setExpectedCompletionDate(event.target.value)
-              }
-              className={inputClassName}
+              onChange={(event) => {
+                const value = event.target.value;
+                // Keep the native date value in YYYY-MM-DD format with a four-digit year.
+                if (!value || /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                  setExpectedCompletionDate(value);
+                }
+              }}
+              className={`${inputClassName} ${getFieldError("expectedCompletionDate") ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
             />
+            {getFieldError("expectedCompletionDate") && (
+              <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("expectedCompletionDate")}</p>
+            )}
           </div>
 
           <div>
@@ -545,7 +664,7 @@ export default function WorkForm() {
               htmlFor="reported-by"
               className="mb-1 block text-xs font-semibold text-gray-700"
             >
-              Reported by
+              Reported by <span className="font-normal text-gray-400">(optional)</span>
             </label>
             <RestrictedInput
               id="reported-by"
@@ -553,8 +672,11 @@ export default function WorkForm() {
               maxLength={WORKSHOP_INPUT_LIMITS.workOrderReportedBy}
               value={reportedBy}
               onChange={(value) => setReportedBy(value)}
-              className={inputClassName}
+              className={`${inputClassName} ${getFieldError("reportedBy") ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
             />
+            {getFieldError("reportedBy") && (
+              <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("reportedBy")}</p>
+            )}
           </div>
 
           <div>
@@ -562,15 +684,19 @@ export default function WorkForm() {
               htmlFor="odometer-reading"
               className="mb-1 block text-xs font-semibold text-gray-700"
             >
-              Odometer reading (km)
+              Odometer reading (km) <span className="font-normal text-gray-400">(optional)</span>
             </label>
             <RestrictedInput
               id="odometer-reading"
               restrictedKind="digits"
               value={odometerReading}
               onChange={(value) => setOdometerReading(value)}
-              className={inputClassName}
+              placeholder="e.g. 45000"
+              className={`${inputClassName} ${getFieldError("odometerReading") ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
             />
+            {getFieldError("odometerReading") && (
+              <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("odometerReading")}</p>
+            )}
           </div>
         </div>
 
@@ -579,7 +705,7 @@ export default function WorkForm() {
             htmlFor="issue-description"
             className="mb-1 block text-xs font-semibold text-gray-700"
           >
-            Issue description
+            Issue description <span className="font-normal text-gray-400">(optional)</span>
           </label>
           <RestrictedInput
             id="issue-description"
@@ -614,17 +740,17 @@ export default function WorkForm() {
               htmlFor="labor-job-card"
               className="mb-1 block text-xs font-semibold text-gray-700"
             >
-              Labour rate card{" "}
+              Service package{" "}
               <span className="font-normal text-gray-400">(optional)</span>
             </label>
             <select
               id="labor-job-card"
               value={laborJobCardId}
               onChange={(event) => setLaborJobCardId(event.target.value)}
-              className={inputClassName}
-              disabled={laborJobCardsQuery.isLoading}
+              className={`${inputClassName} focus:border-[#FE5720] focus:ring-[#FE5720]/20`}
+              disabled={laborJobCardsQuery.isLoading || laborJobCards.length === 0}
             >
-              <option value="">No active labour card</option>
+              <option value="">{laborJobCards.length === 0 ? "No active service packages available" : "Select service package (optional)"}</option>
               {laborJobCards.map((card) => (
                 <option key={card.id} value={card.id}>
                   {card.name} — {formatInrFromMinor(card.laborChargeMinor)}
@@ -642,7 +768,7 @@ export default function WorkForm() {
                 ))}
                 {templateLaborMinor > 0 && (
                   <li>
-                    Labour card labor: {formatInrFromMinor(templateLaborMinor)}
+                    Service package labour: {formatInrFromMinor(templateLaborMinor)}
                   </li>
                 )}
               </ul>
@@ -752,6 +878,9 @@ export default function WorkForm() {
                 </Button>
               </div>
             )}
+            {getFieldError("selectedPartId") && (
+              <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("selectedPartId")}</p>
+            )}
             <button
               type="button"
               onClick={() => setIsAddingPart(true)}
@@ -769,42 +898,80 @@ export default function WorkForm() {
             {additionalLabor.map((line) => (
               <div
                 key={line.key}
-                className="flex justify-between border-b border-gray-100 py-2 text-sm"
+                className="flex items-center justify-between gap-3 border-b border-gray-100 py-2 text-sm"
               >
-                <span>{line.description}</span>
-                <span>{line.amountInput || "—"}</span>
+                <span className="min-w-0 flex-1 break-words">{line.description}</span>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span>{line.amountInput || "—"}</span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setAdditionalLabor((previous) =>
+                        previous.filter((item) => item.key !== line.key),
+                      )
+                    }
+                    aria-label={`Remove additional labor: ${line.description}`}
+                    title="Remove labor line"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-white text-red-500 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
+                  >
+                    <Trash2 className="h-4 w-4" strokeWidth={1.75} />
+                  </button>
+                </div>
               </div>
             ))}
             {isAddingLabor && (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <RestrictedInput
-                  restrictedKind="text"
-                  maxLength={WORKSHOP_INPUT_LIMITS.laborLineDescription}
-                  value={newLaborDescription}
-                  onChange={(value) => setNewLaborDescription(value)}
-                  placeholder="Description"
-                  className={inputClassName}
-                />
-                <RestrictedInput
-                  restrictedKind="inrRupee"
-                  value={newLaborAmount}
-                  onChange={(value) =>
-                    setNewLaborAmount(formatRupeeInputDisplay(value))
-                  }
-                  placeholder="Amount (INR)"
-                  className={inputClassName}
-                />
-                <div className="flex gap-2 sm:col-span-2">
-                  <Button type="button" onClick={handleAddLaborRow}>
-                    Add
-                  </Button>
+              <div className="mt-3">
+                <div className="flex w-full items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <RestrictedInput
+                      restrictedKind="text"
+                      maxLength={WORKSHOP_INPUT_LIMITS.laborLineDescription}
+                      value={newLaborDescription}
+                      onChange={(value) => setNewLaborDescription(value)}
+                      placeholder="Description"
+                      className={`${inputClassName} ${getFieldError("newLaborDescription") ? "border-red-500" : ""}`}
+                    />
+                    {getFieldError("newLaborDescription") && (
+                      <p className="mt-1 text-xs text-red-600" role="alert">
+                        {getFieldError("newLaborDescription")}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <RestrictedInput
+                      restrictedKind="inrRupee"
+                      value={newLaborAmount}
+                      onChange={(value) =>
+                        setNewLaborAmount(formatRupeeInputDisplay(value))
+                      }
+                      placeholder="Amount (INR)"
+                      className={`${inputClassName} ${getFieldError("newLaborAmount") ? "border-red-500" : ""}`}
+                    />
+                    {getFieldError("newLaborAmount") && (
+                      <p className="mt-1 text-xs text-red-600" role="alert">
+                        {getFieldError("newLaborAmount")}
+                      </p>
+                    )}
+                  </div>
+
                   <Button
                     type="button"
-                    variant="secondary"
-                    onClick={() => setIsAddingLabor(false)}
+                    onClick={handleAddLaborRow}
+                    className="shrink-0"
                   >
-                    Cancel
+                    Add
                   </Button>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingLabor(false)}
+                    aria-label="Cancel adding labor"
+                    title="Cancel"
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-500 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FE5720]/30"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
             )}
@@ -826,27 +993,28 @@ export default function WorkForm() {
         <p className="text-xs leading-5 text-gray-600">
           {isEditMode
             ? `New lines add to the work order total (${formatInrFromMinor(estimatedMinor)} for lines above).`
-            : `Estimated net total: ${formatInrFromMinor(estimatedMinor)} (labour card + additional lines). Recorded when created.`}
+            : `Estimated net total: ${formatInrFromMinor(estimatedMinor)} (service package + additional lines). Recorded when created.`}
         </p>
       </div>
 
-      <div className="mt-4 flex justify-end">
-        <Button
-          type="button"
-          onClick={() => {
-            setSubmitError(null);
-            saveMutation.mutate();
-          }}
-          disabled={!canSubmit}
-          className="h-10 px-5"
-        >
-          {saveMutation.isPending
-            ? "Saving…"
-            : isEditMode
-              ? "Save changes"
-              : "Log work order"}
-        </Button>
-      </div>
+      <FormActions
+        hasAttemptedSubmit={hasAttemptedSubmit}
+        validationSummary={validationSummary}
+        isSaving={isSubmitting || saveMutation.isPending}
+        canSubmit={
+          canSave &&
+          !isAuthLoading &&
+          !isSubmitting &&
+          !saveMutation.isPending &&
+          (!isEditMode
+            ? !vehiclesQuery.isLoading && !laborJobCardsQuery.isLoading
+            : !existingQuery.isLoading)
+        }
+        onCancel={() => router.push(workshopWorkOrderListHref)}
+        onSave={handleSave}
+        saveLabel={isEditMode ? "Save changes" : "Log work order"}
+        savingLabel={isEditMode ? "Saving..." : "Creating..."}
+      />
     </OrganizationFormLayout>
   );
 }

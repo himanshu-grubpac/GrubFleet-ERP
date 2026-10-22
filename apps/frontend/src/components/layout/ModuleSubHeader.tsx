@@ -1,3 +1,4 @@
+
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
@@ -9,6 +10,7 @@ import { resolveOrganizationBreadcrumbs } from "@/lib/navigation/organization-br
 import { resolveInventoryBreadcrumbs } from "@/lib/navigation/inventory-breadcrumb-resolver";
 import { resolveFinanceBreadcrumbs } from "@/lib/navigation/finance-breadcrumb-resolver";
 import { resolveAdministrationBreadcrumbs } from "@/lib/navigation/fleet-breadcrumb-resolver";
+import { resolveWorkshopBreadcrumbs } from "@/lib/navigation/fleet-breadcrumb-resolver";
 
 export default function ModuleSubHeader() {
     const pathname = usePathname();
@@ -24,7 +26,13 @@ export default function ModuleSubHeader() {
                     ? resolveFinanceBreadcrumbs(pathname, searchParams)
                     : pathname.startsWith("/administration")
                         ? resolveAdministrationBreadcrumbs(pathname)
-                        : resolveBreadcrumbs(pathname, searchParams);
+                        : pathname.startsWith("/workshop")
+                            ? (
+                                resolveWorkshopBreadcrumbs(pathname).length > 0
+                                    ? resolveWorkshopBreadcrumbs(pathname)
+                                    : resolveBreadcrumbs(pathname, searchParams)
+                            )
+                            : resolveBreadcrumbs(pathname, searchParams);
 
     return (
         <div className="flex min-h-12 min-w-0 items-center px-4 py-3 md:px-6 bg-[#f8f8f8]">

@@ -741,13 +741,15 @@ export default function CreateFleetVehicleForm({
                         className="mb-1 block text-xs font-semibold text-gray-700"
                     >
                         Insurance premium
-                        <span className="ml-1 text-red-500">
-                            *
-                        </span>
+                        <span className="ml-1 text-red-500">*</span>
                     </label>
 
-                    <div className="flex h-10 w-full overflow-hidden rounded-md border border-gray-300 bg-white focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20">
-
+                    <div
+                        className={`flex h-10 w-full overflow-hidden rounded-md border bg-white transition focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20 ${displayedErrors.insurancePremium
+                                ? "border-red-500"
+                                : "border-gray-300"
+                            }`}
+                    >
                         <span className="flex w-10 shrink-0 items-center justify-center border-r border-gray-200 text-xs text-gray-500">
                             ₹
                         </span>
@@ -759,21 +761,18 @@ export default function CreateFleetVehicleForm({
                             step="0.01"
                             value={form.insurancePremium}
                             onChange={(event) =>
-                                updateForm(
-                                    "insurancePremium",
-                                    event.target.value,
-                                )
+                                updateForm("insurancePremium", event.target.value)
                             }
                             placeholder="e.g. 3200"
                             className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-gray-900 outline-none"
                         />
-                        {displayedErrors.insurancePremium && (
-                            <p className="mt-1 text-xs text-red-600" role="alert">
-                                {displayedErrors.insurancePremium}
-                            </p>
-                        )}
-
                     </div>
+
+                    {displayedErrors.insurancePremium && (
+                        <p className="mt-1 text-xs text-red-600" role="alert">
+                            {displayedErrors.insurancePremium}
+                        </p>
+                    )}
                 </div>
 
             </div>

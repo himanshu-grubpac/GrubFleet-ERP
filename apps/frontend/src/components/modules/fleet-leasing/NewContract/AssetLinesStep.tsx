@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import InlineAddField from "@/components/ui/inline-add-field";
@@ -10,7 +10,6 @@ import {
     AlertCircle,
     Minus,
     Loader2,
-    Info,
 } from "lucide-react";
 
 import { useGrubpacAuth } from "@/lib/auth-context";
@@ -21,13 +20,13 @@ import {
     type AssetClassAvailabilitySnapshot,
 } from "@/lib/api/lease-contracts";
 import { DRIVER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
     ASSET_CLASS_SAVE_ERROR,
     showAssetClassCreatedToast,
     showErrorToast,
 } from "@/lib/toast/show-toast";
 
-/** Wizard inline create — full class details can be edited later in Asset Register. */
 const WIZARD_QUICK_ASSET_CLASS_DEFAULTS: Omit<
     import("@/lib/api/asset-register/asset-classes").CreateAssetRegisterAssetClassPayload,
     "organizationId" | "brand" | "modelName"
@@ -59,7 +58,6 @@ interface AssetLinesStepProps {
     clientId: string;
     clientName: string;
     initialAssetLines?: AssetLine[];
-    /** Bump when re-entering this step to refresh availability preview. */
     availabilityRefreshKey?: number;
     onBack: () => void;
     onContinue: (assetLines: AssetLine[]) => void | Promise<void>;
@@ -67,6 +65,13 @@ interface AssetLinesStepProps {
     isSaveDraftPending?: boolean;
     showSaveDraft?: boolean;
 }
+
+const createEmptyAssetLine = (id: string): AssetLine => ({
+    id,
+    assetClass: "",
+    committedQuantity: 1,
+    ratePerVehicleMonth: "",
+});
 
 export default function AssetLinesStep({
     clientId,
@@ -80,6 +85,7 @@ export default function AssetLinesStep({
     showSaveDraft = false,
 }: AssetLinesStepProps) {
     void _clientName;
+
     const { token, organizationId, permissions } = useGrubpacAuth();
     const queryClient = useQueryClient();
 
@@ -88,7 +94,10 @@ export default function AssetLinesStep({
         permissions.has("asset_register.manage");
 
     const [assetLines, setAssetLines] = useState<AssetLine[]>(
-        initialAssetLines?.length ? initialAssetLines : [],
+        () =>
+            initialAssetLines?.length
+                ? initialAssetLines
+                : [createEmptyAssetLine("line-1")],
     );
 
     const [formError, setFormError] = useState<string | null>(null);
@@ -102,6 +111,7 @@ export default function AssetLinesStep({
                     "Authentication or organization information is missing.",
                 );
             }
+
             return fetchFleetAssetClasses(token, organizationId);
         },
         enabled: Boolean(token && organizationId),
@@ -118,6 +128,7 @@ export default function AssetLinesStep({
                     "Authentication or organization information is missing.",
                 );
             }
+
             return createAssetRegisterAssetClassApi({
                 token,
                 body: {
@@ -130,29 +141,22 @@ export default function AssetLinesStep({
         },
         onSuccess: (detail) => {
             showAssetClassCreatedToast(detail.name);
+
             void queryClient.invalidateQueries({
                 queryKey: ["fleet-leasing-asset-classes", organizationId],
             });
+
             setFormError(null);
-            setAssetLines((previous) => {
-                if (previous.length > 0) {
-                    return previous;
-                }
-                return [
-                    {
-                        id: "line-1",
-                        assetClass: detail.name,
-                        committedQuantity: 1,
-                        ratePerVehicleMonth: "",
-                    },
-                ];
-            });
+
+            // Keep the dropdown on its placeholder. The user selects
+            // the newly created class explicitly.
         },
         onError: (error) => {
             const message =
                 error instanceof Error
                     ? error.message
                     : ASSET_CLASS_SAVE_ERROR;
+
             showErrorToast(message);
             setFormError(message);
         },
@@ -162,35 +166,50 @@ export default function AssetLinesStep({
         await createAssetClassMutation.mutateAsync(name);
     };
 
-    useEffect(() => {
-        if (initialAssetLines?.length) {
-            return;
-        }
-        const options = assetClassesQuery.data?.items ?? [];
-        if (!options.length) {
-            return;
-        }
-        setAssetLines((previous) => {
-            if (previous.length > 0) {
-                return previous;
-            }
-            return [
-                {
-                    id: "line-1",
-                    assetClass: options[0],
-                    committedQuantity: 1,
-                    ratePerVehicleMonth: "",
-                },
-            ];
-        });
-    }, [assetClassesQuery.data, initialAssetLines]);
+    /*
+     * Debounce availability requests instead of requesting new availability
+     * on every quantity click. The form stays mounted while the request runs.
+     */
+    const debouncedAvailabilityLines = useDebouncedValue(assetLines, 300);
+
+    const currentLinesKey = useMemo(
+        () =>
+            JSON.stringify(
+                assetLines.map((line) => [
+                    line.id,
+                    line.assetClass,
+                    line.committedQuantity,
+                ]),
+            ),
+        [assetLines],
+    );
+
+    const debouncedLinesKey = useMemo(
+        () =>
+            JSON.stringify(
+                debouncedAvailabilityLines.map((line) => [
+                    line.id,
+                    line.assetClass,
+                    line.committedQuantity,
+                ]),
+            ),
+        [debouncedAvailabilityLines],
+    );
+
+    const availabilityInputIsCurrent = currentLinesKey === debouncedLinesKey;
+
+    const validAvailabilityLines = debouncedAvailabilityLines.every(
+        (line) =>
+            line.assetClass.trim().length > 0 &&
+            line.committedQuantity >= 1,
+    );
 
     const availabilityPreviewQuery = useQuery({
         queryKey: [
             "fleet-leasing-availability-batch",
             organizationId,
             availabilityRefreshKey,
-            assetLines.map(
+            debouncedAvailabilityLines.map(
                 (line) =>
                     `${line.id}:${line.assetClass}:${line.committedQuantity}`,
             ),
@@ -201,10 +220,11 @@ export default function AssetLinesStep({
                     "Authentication or organization information is missing.",
                 );
             }
+
             return previewAssetAvailabilityBatch(
                 token,
                 organizationId,
-                assetLines.map((line) => ({
+                debouncedAvailabilityLines.map((line) => ({
                     assetClass: line.assetClass,
                     committedQuantity: line.committedQuantity,
                 })),
@@ -212,30 +232,26 @@ export default function AssetLinesStep({
         },
         enabled:
             Boolean(token && organizationId) &&
-            assetLines.length > 0 &&
-            assetLines.every(
-                (line) =>
-                    line.assetClass.trim().length > 0 &&
-                    line.committedQuantity >= 1,
-            ),
+            debouncedAvailabilityLines.length > 0 &&
+            validAvailabilityLines,
         staleTime: 10_000,
         refetchOnWindowFocus: false,
     });
 
     const availabilityByIndex = useMemo(() => {
         const map = new Map<number, AssetClassAvailabilitySnapshot>();
+
         availabilityPreviewQuery.data?.lines.forEach((snapshot, index) => {
             map.set(index, snapshot);
         });
+
         return map;
     }, [availabilityPreviewQuery.data?.lines]);
 
     const mvpAllLinesCovered =
         availabilityPreviewQuery.data?.mvpAllLinesCovered ?? false;
 
-    const availabilityReady =
-        !availabilityPreviewQuery.isLoading &&
-        !availabilityPreviewQuery.isError &&
+    const currentLinesAreValid =
         assetLines.length > 0 &&
         assetLines.every(
             (line) =>
@@ -243,20 +259,18 @@ export default function AssetLinesStep({
                 line.committedQuantity >= 1,
         );
 
-    const hasShortfall = availabilityReady && !mvpAllLinesCovered;
+    const availabilityReady =
+        availabilityInputIsCurrent &&
+        !availabilityPreviewQuery.isLoading &&
+        !availabilityPreviewQuery.isError &&
+        currentLinesAreValid &&
+        Boolean(availabilityPreviewQuery.data);
 
-    const firstShortfallLine = useMemo(() => {
-        for (let i = 0; i < assetLines.length; i += 1) {
-            const snapshot = availabilityByIndex.get(i);
-            if (snapshot && !snapshot.mvpAvailableNowCovers) {
-                return { line: assetLines[i], snapshot };
-            }
-        }
-        return null;
-    }, [assetLines, availabilityByIndex]);
+    const hasShortfall = availabilityReady && !mvpAllLinesCovered;
 
     const addAssetLine = () => {
         setFormError(null);
+
         if (!assetClassOptions.length) {
             setFormError(
                 canCreateAssetClass
@@ -265,20 +279,12 @@ export default function AssetLinesStep({
             );
             return;
         }
-        const nextClass =
-            assetClassOptions.find(
-                (option) =>
-                    !assetLines.some((line) => line.assetClass === option),
-            ) ?? assetClassOptions[0];
 
         setAssetLines((previous) => [
             ...previous,
-            {
-                id: `line-${Date.now()}`,
-                assetClass: nextClass,
-                committedQuantity: 1,
-                ratePerVehicleMonth: "",
-            },
+            createEmptyAssetLine(
+                `line-${Date.now()}-${previous.length}`,
+            ),
         ]);
     };
 
@@ -287,7 +293,9 @@ export default function AssetLinesStep({
             setFormError("At least one asset line is required.");
             return;
         }
+
         setFormError(null);
+
         setAssetLines((previous) =>
             previous.filter((line) => line.id !== id),
         );
@@ -298,6 +306,7 @@ export default function AssetLinesStep({
         patch: Partial<Omit<AssetLine, "id">>,
     ) => {
         setFormError(null);
+
         setAssetLines((previous) =>
             previous.map((line) =>
                 line.id === id ? { ...line, ...patch } : line,
@@ -319,18 +328,29 @@ export default function AssetLinesStep({
         }
 
         for (const line of assetLines) {
-            if (!line.assetClass) {
-                setFormError("All asset lines must have an asset class.");
+            if (!line.assetClass.trim()) {
+                setFormError("Please select an asset class for every line.");
                 return;
             }
-            if (!line.committedQuantity || line.committedQuantity < 1) {
+
+            if (!Number.isInteger(line.committedQuantity) ||
+                line.committedQuantity < 1) {
                 setFormError("Requested quantity must be at least 1.");
                 return;
             }
         }
 
-        if (availabilityPreviewQuery.isLoading) {
+        if (!availabilityInputIsCurrent ||
+            availabilityPreviewQuery.isLoading) {
             setFormError("Still checking fleet availability. Please wait.");
+            return;
+        }
+
+        if (availabilityPreviewQuery.isError ||
+            !availabilityPreviewQuery.data) {
+            setFormError(
+                "Could not verify fleet availability. Please try again.",
+            );
             return;
         }
 
@@ -342,39 +362,25 @@ export default function AssetLinesStep({
         }
 
         setIsContinuing(true);
+
         void Promise.resolve(onContinue(assetLines)).finally(() => {
             setIsContinuing(false);
         });
     };
 
-    const linesValidForContinue =
-        assetLines.length > 0 &&
-        assetLines.every((line) => line.assetClass.trim().length > 0);
-
     const canContinue =
         !isContinuing &&
         !isSaveDraftPending &&
         !assetClassesQuery.isLoading &&
-        linesValidForContinue &&
+        currentLinesAreValid &&
         availabilityReady &&
         !hasShortfall;
-
-    const showAvailabilitySubtitle =
-        mvpAllLinesCovered ||
-        Boolean(firstShortfallLine && !mvpAllLinesCovered);
 
     const catalogReady =
         !assetClassesQuery.isLoading && !assetClassesQuery.isError;
 
     return (
         <>
-            {showAvailabilitySubtitle && (
-                <p className="mb-4 text-sm text-gray-500">
-                    {mvpAllLinesCovered
-                        ? "Every requested line covered by available fleet."
-                        : "One line requests more than the fleet currently has available."}
-                </p>
-            )}
 
             {formError && (
                 <div className="mb-4 flex items-start gap-2.5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-700">
@@ -423,19 +429,12 @@ export default function AssetLinesStep({
                     <span />
                 </div>
 
-                {assetLines.length === 0 && catalogReady && (
-                    <div className="border-b border-slate-100 px-4 py-8 text-center text-sm text-slate-600 sm:px-5">
-                        {assetClassOptions.length === 0
-                            ? "No asset classes in the register yet."
-                            : "No asset-class lines yet."}
-                    </div>
-                )}
-
                 {assetLines.map((line, index) => {
                     const snapshot = availabilityByIndex.get(index);
+
                     const availabilityLoading =
-                        availabilityPreviewQuery.isLoading &&
-                        !availabilityPreviewQuery.isError;
+                        !availabilityInputIsCurrent ||
+                        availabilityPreviewQuery.isLoading;
 
                     return (
                         <div
@@ -451,14 +450,17 @@ export default function AssetLinesStep({
                                         })
                                     }
                                     className="h-10 w-full rounded-md border border-slate-300 bg-white px-3 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"
+                                    aria-label="Select an asset class"
                                 >
-                                    {assetClassOptions.length === 0 ? (
-                                        <option value="">
-                                            Select asset class
-                                        </option>
-                                    ) : null}
+                                    <option value="">
+                                        Select an asset class
+                                    </option>
+
                                     {assetClassOptions.map((assetClass) => (
-                                        <option key={assetClass} value={assetClass}>
+                                        <option
+                                            key={assetClass}
+                                            value={assetClass}
+                                        >
                                             {assetClass}
                                         </option>
                                     ))}
@@ -482,6 +484,7 @@ export default function AssetLinesStep({
                                     }
                                     onChange={(value) => {
                                         const numericValue = Number(value);
+
                                         updateAssetLine(line.id, {
                                             committedQuantity:
                                                 Number.isFinite(numericValue) &&
@@ -494,15 +497,24 @@ export default function AssetLinesStep({
 
                                 <AvailabilityCell
                                     loading={availabilityLoading}
-                                    snapshot={snapshot}
-                                    error={availabilityPreviewQuery.isError}
+                                    snapshot={
+                                        availabilityInputIsCurrent
+                                            ? snapshot
+                                            : undefined
+                                    }
+                                    error={
+                                        availabilityInputIsCurrent &&
+                                        availabilityPreviewQuery.isError
+                                    }
                                 />
 
                                 <button
                                     type="button"
                                     onClick={() => removeAssetLine(line.id)}
-                                    className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 sm:justify-self-end"
+                                    disabled={isContinuing || isSaveDraftPending}
+                                    className="flex h-9 w-9 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40 sm:justify-self-end"
                                     title="Remove asset line"
+                                    aria-label="Remove asset line"
                                 >
                                     <Trash2 className="h-4 w-4" />
                                 </button>
@@ -510,24 +522,16 @@ export default function AssetLinesStep({
                         </div>
                     );
                 })}
+
+                {assetLines.length === 0 && catalogReady && (
+                    <div className="border-b border-slate-100 px-4 py-8 text-center text-sm text-slate-600 sm:px-5">
+                        {assetClassOptions.length === 0
+                            ? "No asset classes in the register yet."
+                            : "No asset-class lines yet."}
+                    </div>
+                )}
             </div>
 
-            {hasShortfall && firstShortfallLine && (
-                <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
-                    <div className="flex items-start gap-2.5 text-xs leading-5 text-slate-700">
-                        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[#FE5720]" />
-                        <p>
-                            <span className="font-semibold">
-                                {firstShortfallLine.line.assetClass}
-                            </span>{" "}
-                            requests more than currently available fleet (
-                            {firstShortfallLine.snapshot.availableNow}{" "}
-                            available). Reduce quantities to continue or save
-                            other draft fields without these lines.
-                        </p>
-                    </div>
-                </div>
-            )}
 
             {catalogReady &&
                 assetClassOptions.length === 0 &&
@@ -538,6 +542,7 @@ export default function AssetLinesStep({
                             contract. Defaults can be updated later in Asset
                             Register.
                         </p>
+
                         <InlineAddField
                             placeholder="Asset class name"
                             maxLength={DRIVER_INPUT_LIMITS.assetClass}
@@ -562,7 +567,10 @@ export default function AssetLinesStep({
                 type="button"
                 onClick={addAssetLine}
                 disabled={
-                    assetClassesQuery.isLoading || !assetClassOptions.length
+                    assetClassesQuery.isLoading ||
+                    !assetClassOptions.length ||
+                    isContinuing ||
+                    isSaveDraftPending
                 }
                 className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-[#FE5720] transition hover:text-[#d94412] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -592,6 +600,7 @@ export default function AssetLinesStep({
                             {isSaveDraftPending ? "Saving…" : "Save draft"}
                         </Button>
                     ) : null}
+
                     <Button
                         type="button"
                         variant="primary"
@@ -618,28 +627,27 @@ function AvailabilityCell({
 }) {
     if (loading) {
         return (
-            <span className="text-xs text-slate-400">Checking…</span>
+            <span className="inline-flex h-6 items-center text-xs text-slate-400">
+                Checking…
+            </span>
         );
     }
 
     if (error || !snapshot) {
-        return (
-            <span className="text-xs text-slate-400">—</span>
-        );
+        return <span className="inline-flex h-6 items-center text-xs text-slate-400">—</span>;
     }
 
     if (snapshot.mvpAvailableNowCovers) {
         return (
-            <span className="text-sm font-semibold text-green-700">
+            <span className="inline-flex h-6 items-center text-sm font-semibold text-green-700">
                 {snapshot.availableNow} available
             </span>
         );
     }
 
     return (
-        <span className="text-sm font-semibold text-red-600">
-            {snapshot.availableNow} available — short by{" "}
-            {snapshot.mvpShortByCount}
+        <span className="inline-flex h-6 items-center text-sm font-semibold text-red-600">
+            {snapshot.availableNow} available — short by {snapshot.mvpShortByCount}
         </span>
     );
 }
@@ -670,6 +678,7 @@ function QuantityControl({
             <input
                 type="number"
                 min="1"
+                step="1"
                 value={value}
                 onChange={(event) => onChange(event.target.value)}
                 className="h-10 min-w-0 flex-1 border-y border-slate-300 bg-white px-2 text-center text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10"

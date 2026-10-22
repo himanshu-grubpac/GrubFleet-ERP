@@ -238,7 +238,7 @@ export function DashboardRowActionsMenu({
       ref={menuRef}
       role="menu"
       className={cn(
-        "fixed z-50 w-40 min-w-[160px] rounded-md border border-gray-200 bg-white py-1 shadow-lg",
+        "fixed z-50 w-40 min-w-[160px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg",
         !menuPosition && "pointer-events-none invisible",
       )}
       style={

@@ -34,6 +34,8 @@ export default function LeaseContractsPage() {
                 </section>
 
                 <ModuleHubQuickLinksSection moduleRootHref="/fleet-leasing/" />
+
+
             </div>
         </DashboardLayout>
     );

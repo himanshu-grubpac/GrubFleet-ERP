@@ -12,7 +12,6 @@ import OrganizationDetailCard, {
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchVendorPaymentDetailApi,
@@ -68,7 +67,7 @@ export default function VendorPaymentDetailPage() {
   if (!paymentId) {
     return (
       <OrganizationViewLayout>
-      
+
         <p className="text-sm text-slate-600">Missing payment id.</p>
       </OrganizationViewLayout>
     );
@@ -85,7 +84,7 @@ export default function VendorPaymentDetailPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <OrganizationViewLayout>
-      
+
         <p className="text-sm text-red-700">Vendor payment not found.</p>
       </OrganizationViewLayout>
     );
@@ -95,7 +94,7 @@ export default function VendorPaymentDetailPage() {
 
   return (
     <OrganizationViewLayout>
-    
+
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>

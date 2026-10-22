@@ -128,8 +128,8 @@ export const mainNavItems: NavItem[] = [
         icon: ClipboardList,
       },
       {
-        label: "Labour Rate Cards",
-        href: "/workshop/labour-rate-cards/",
+        label: "Service Packages",
+        href: "/workshop/service-packages/",
         icon: FileText,
       },
       {

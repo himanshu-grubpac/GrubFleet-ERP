@@ -2,14 +2,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
-import Button from "@/components/ui/GrubpacButton";
+import FormActions from "@/components/common/FormActions";
 import {
-  FormFieldInlineError,
-  mergeFormControlBorderClass,
+    validateRequired,
+    validateStringLength,
+    hasValidationErrors,
+    type ValidationErrors,
+} from "@/components/common/Commonvalidation";
+import {
+    FormFieldInlineError,
+    mergeFormControlBorderClass,
 } from "@/components/ui/form-field-inline-error";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
@@ -18,12 +24,12 @@ import { createWorkshopMaintenanceScheduleApi } from "@/lib/api/workshop/amc";
 import { WORKSHOP_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
-  workshopAmcMaintenanceListHref,
-  workshopAmcScheduleDetailHref,
+    workshopAmcMaintenanceListHref,
+    workshopAmcScheduleDetailHref,
 } from "@/lib/navigation/workshop-static-routes";
 import {
-  showErrorToast,
-  showSuccessToast,
+    showErrorToast,
+    showSuccessToast,
 } from "@/lib/toast/show-toast";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -60,19 +66,61 @@ export default function CreateAmcSchedulePage() {
         description: "",
     });
 
-    const [errors, setErrors] = useState<Record<string, string>>({});
+    const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+    const isSubmittingRef = useRef(false);
 
     const updateField = (field: string, value: string) => {
         setForm((prev) => ({ ...prev, [field]: value }));
-        setErrors((prev) => ({ ...prev, [field]: "" }));
     };
 
-    const intervalValueValid = useMemo(() => {
-        const trimmed = form.intervalValue.trim();
-        if (!trimmed) return false;
-        const n = Number(trimmed);
-        return Number.isFinite(n) && n > 0;
-    }, [form.intervalValue]);
+    const validationErrors: ValidationErrors = useMemo(() => {
+        const nextErrors: ValidationErrors = {};
+
+        const nameRequiredError = validateRequired(form.name, "Schedule name");
+        if (nameRequiredError) {
+            nextErrors.name = nameRequiredError;
+        } else {
+            const nameLengthError = validateStringLength(form.name, {
+                label: "Schedule name",
+                required: true,
+                maxLength: WORKSHOP_INPUT_LIMITS.maintenanceScheduleName,
+            });
+            if (nameLengthError) nextErrors.name = nameLengthError;
+        }
+
+        const assetClassError = validateRequired(form.assetClass, "Asset class");
+        if (assetClassError) nextErrors.assetClass = "Select an asset class.";
+
+        const intervalRequiredError = validateRequired(
+            form.intervalValue,
+            "Service interval",
+        );
+        if (intervalRequiredError) {
+            nextErrors.intervalValue = "Enter the service interval.";
+        } else if (
+            !Number.isFinite(Number(form.intervalValue)) ||
+            Number(form.intervalValue) <= 0
+        ) {
+            nextErrors.intervalValue = "Enter a valid positive number.";
+        }
+
+        const descriptionLengthError = validateStringLength(form.description, {
+            label: "Description / Notes",
+            required: false,
+            maxLength: WORKSHOP_INPUT_LIMITS.maintenanceScheduleDescription,
+        });
+        if (descriptionLengthError) nextErrors.description = descriptionLengthError;
+
+        return nextErrors;
+    }, [form]);
+
+    const validationSummary = useMemo(
+        () => Object.values(validationErrors).filter(Boolean) as string[],
+        [validationErrors],
+    );
+
+    const getFieldError = (field: string) =>
+        hasAttemptedSubmit ? validationErrors[field] : undefined;
 
     const createMutation = useMutation({
         mutationFn: (payload: {
@@ -89,10 +137,12 @@ export default function CreateAmcSchedulePage() {
                 ...payload,
             }),
         onSuccess: (data) => {
+            isSubmittingRef.current = false;
             showSuccessToast(`${data.name} was created`);
             router.push(workshopAmcScheduleDetailHref(data.id));
         },
         onError: (error: Error) => {
+            isSubmittingRef.current = false;
             const message =
                 error instanceof ApiClientError
                     ? error.message
@@ -101,32 +151,11 @@ export default function CreateAmcSchedulePage() {
         },
     });
 
-    const canSubmit =
-        canCreate &&
-        !!form.name.trim() &&
-        !!form.assetClass &&
-        intervalValueValid &&
-        !createMutation.isPending;
+    const handleSave = () => {
+        setHasAttemptedSubmit(true);
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-        event.preventDefault();
-
-        const nextErrors: Record<string, string> = {};
-
-        if (!form.name.trim()) nextErrors.name = "Schedule name is required.";
-        if (!form.assetClass) nextErrors.assetClass = "Select an asset class.";
-        if (!form.intervalValue.trim()) {
-            nextErrors.intervalValue = "Enter the service interval.";
-        } else if (
-            !Number.isFinite(Number(form.intervalValue)) ||
-            Number(form.intervalValue) <= 0
-        ) {
-            nextErrors.intervalValue = "Enter a valid positive number.";
-        }
-
-        setErrors(nextErrors);
-
-        if (Object.keys(nextErrors).length > 0) return;
+        if (hasValidationErrors(validationErrors)) return;
+        if (isSubmittingRef.current || createMutation.isPending) return;
 
         if (!token || !organizationId || !canCreate) {
             showErrorToast("You do not have permission to create schedules.");
@@ -135,6 +164,8 @@ export default function CreateAmcSchedulePage() {
 
         const intervalSuffix =
             form.intervalType === "Odometer" ? " km" : " days";
+
+        isSubmittingRef.current = true;
         createMutation.mutate({
             name: form.name.trim(),
             assetClassLabel: form.assetClass.trim(),
@@ -146,17 +177,40 @@ export default function CreateAmcSchedulePage() {
         });
     };
 
+    const handleCancel = () => {
+        router.push(workshopAmcMaintenanceListHref);
+    };
+
+    const formActions = (
+        <FormActions
+            hasAttemptedSubmit={hasAttemptedSubmit}
+            validationSummary={validationSummary}
+            isSaving={createMutation.isPending}
+            // Match the shared form flow: keep Save enabled until submission
+            // starts so clicking it can display validation errors/summary.
+            canSubmit={!createMutation.isPending}
+            onCancel={handleCancel}
+            onSave={handleSave}
+            saveLabel="Save schedule"
+            savingLabel="Saving..."
+        />
+    );
+
     return (
         <OrganizationFormLayout
             title="Create maintenance schedule"
             description="Configure maintenance intervals for applicable vehicle classes."
-            backLink={{
-                label: "Back to AMC & Maintenance",
-                href: workshopAmcMaintenanceListHref,
-            }}
+
             contentVariant="plain"
+            actions={formActions}
         >
-            <form onSubmit={handleSubmit} className="w-full">
+            <form
+                onSubmit={(event) => {
+                    event.preventDefault();
+                    handleSave();
+                }}
+                className="w-full"
+            >
                 <section className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                     <div className="border-b border-gray-100 px-4 py-3">
                         <h2 className="text-[14px] font-semibold">
@@ -168,7 +222,7 @@ export default function CreateAmcSchedulePage() {
                     </div>
 
                     <div className="grid grid-cols-1 gap-x-5 gap-y-4 p-4 sm:grid-cols-2">
-                        <FormField label="Schedule name" required error={errors.name}>
+                        <FormField label="Schedule name" required error={getFieldError("name")}>
                             <RestrictedInput
                                 restrictedKind="name"
                                 maxLength={WORKSHOP_INPUT_LIMITS.maintenanceScheduleName}
@@ -176,7 +230,7 @@ export default function CreateAmcSchedulePage() {
                                 onChange={(value) => updateField("name", value)}
                                 placeholder="e.g. Cargo bed & hitch inspection"
                                 className={mergeFormControlBorderClass(
-                                    !!errors.name,
+                                    !!getFieldError("name"),
                                     inputClass,
                                 )}
                             />
@@ -185,13 +239,13 @@ export default function CreateAmcSchedulePage() {
                         <FormField
                             label="Asset class"
                             required
-                            error={errors.assetClass}
+                            error={getFieldError("assetClass")}
                         >
                             <select
                                 value={form.assetClass}
                                 onChange={(e) => updateField("assetClass", e.target.value)}
                                 className={mergeFormControlBorderClass(
-                                    !!errors.assetClass,
+                                    !!getFieldError("assetClass"),
                                     inputClass,
                                 )}
                                 disabled={assetClassesQuery.isLoading}
@@ -200,8 +254,8 @@ export default function CreateAmcSchedulePage() {
                                     {assetClassesQuery.isLoading
                                         ? "Loading asset classes…"
                                         : assetClasses.length === 0
-                                          ? "No active asset classes"
-                                          : "Select asset class"}
+                                            ? "No active asset classes"
+                                            : "Select asset class"}
                                 </option>
                                 {assetClasses.map((row) => (
                                     <option key={row.id} value={row.specLabel}>
@@ -245,7 +299,7 @@ export default function CreateAmcSchedulePage() {
                                     : "Service interval (days)"
                             }
                             required
-                            error={errors.intervalValue}
+                            error={getFieldError("intervalValue")}
                         >
                             <RestrictedInput
                                 restrictedKind="digits"
@@ -259,7 +313,7 @@ export default function CreateAmcSchedulePage() {
                                         : "e.g. 90"
                                 }
                                 className={mergeFormControlBorderClass(
-                                    !!errors.intervalValue,
+                                    !!getFieldError("intervalValue"),
                                     inputClass,
                                 )}
                             />
@@ -291,26 +345,17 @@ export default function CreateAmcSchedulePage() {
                                         updateField("description", value)
                                     }
                                     placeholder="Add schedule instructions or notes (optional)"
-                                    className={inputClass}
+                                    className={mergeFormControlBorderClass(
+                                        !!getFieldError("description"),
+                                        inputClass,
+                                    )}
                                 />
+                                <FormFieldInlineError message={getFieldError("description")} />
                             </FormField>
                         </div>
                     </div>
                 </section>
 
-                <div className="mt-5 flex flex-wrap items-center justify-end gap-3">
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => router.push(workshopAmcMaintenanceListHref)}
-                    >
-                        Cancel
-                    </Button>
-
-                    <Button type="submit" disabled={!canSubmit}>
-                        {createMutation.isPending ? "Saving…" : "Save Schedule"}
-                    </Button>
-                </div>
             </form>
         </OrganizationFormLayout>
     );
