@@ -20,7 +20,9 @@ const FLEET_BETA_DB_MARKER = 'grubfleet_erp_fleet_beta';
 function assertFleetBetaDatabase(connectionString: string): void {
   let dbName: string;
   try {
-    dbName = new URL(connectionString.replace(/^postgresql:/, 'postgres:')).pathname
+    dbName = new URL(
+      connectionString.replace(/^postgresql:/, 'postgres:'),
+    ).pathname
       .replace(/^\//, '')
       .split('?')[0];
   } catch {
