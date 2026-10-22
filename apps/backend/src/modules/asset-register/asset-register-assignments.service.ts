@@ -56,11 +56,10 @@ export class AssetRegisterAssignmentsService {
           .filter((id): id is string => !!id),
       ),
     ];
-    const availableByClassId =
-      await this.repo.countAvailableVehiclesByClassIds(
-        query.organizationId,
-        assetClassIds,
-      );
+    const availableByClassId = await this.repo.countAvailableVehiclesByClassIds(
+      query.organizationId,
+      assetClassIds,
+    );
 
     type LineRow = {
       lineId: string;
@@ -143,7 +142,9 @@ export class AssetRegisterAssignmentsService {
     }
 
     for (const line of lines) {
-      const header = contractHeaders.find((h) => h.contractId === line.contractId);
+      const header = contractHeaders.find(
+        (h) => h.contractId === line.contractId,
+      );
       const orgClientId = header?.organisationClientId;
       if (!orgClientId) continue;
       const agg = clientAgg.get(orgClientId);
@@ -160,7 +161,11 @@ export class AssetRegisterAssignmentsService {
 
     const clients = [...clientAgg.values()]
       .filter((row) => row.openAssetClassLineCount > 0)
-      .map(({ contractIds: _c, ...rest }) => rest)
+      .map((row) => {
+        const { contractIds: _contractIds, ...rest } = row;
+        void _contractIds;
+        return rest;
+      })
       .sort((a, b) => a.clientName.localeCompare(b.clientName));
 
     if (!query.organisationClientId) {
@@ -314,8 +319,7 @@ export class AssetRegisterAssignmentsService {
       allowedClassNames,
     );
 
-    const assetClassId =
-      dto.assetClassId ?? vehicles[0]?.assetClassId ?? null;
+    const assetClassId = dto.assetClassId ?? vehicles[0]?.assetClassId ?? null;
     let replacementAvailableCount = 0;
     if (assetClassId) {
       replacementAvailableCount =
@@ -531,8 +535,7 @@ export class AssetRegisterAssignmentsService {
     }
 
     const handoverDate =
-      dto.handoverDate?.trim() ||
-      new Date().toISOString().slice(0, 10);
+      dto.handoverDate?.trim() || new Date().toISOString().slice(0, 10);
 
     return {
       leaseContractId: dto.leaseContractId,

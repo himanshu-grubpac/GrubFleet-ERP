@@ -287,9 +287,7 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       .expect(200);
 
     const validateRes = await request(app.getHttpServer())
-      .post(
-        '/api/v1/asset-register/vehicle-assignments/bulk-assign/validate',
-      )
+      .post('/api/v1/asset-register/vehicle-assignments/bulk-assign/validate')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .send({
@@ -637,7 +635,9 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       await createActiveLeaseForClass(assetClass.name, 1, assetClass.id);
 
     const listRes = await request(app.getHttpServer())
-      .get('/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts')
+      .get(
+        '/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts',
+      )
       .query({
         organizationId,
         vehicleId: vehicle.id,
@@ -679,7 +679,9 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       .expect(200);
 
     const afterRes = await request(app.getHttpServer())
-      .get('/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts')
+      .get(
+        '/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts',
+      )
       .query({
         organizationId,
         vehicleId: vehicle.id,
@@ -709,7 +711,9 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     const vehicle = await createVehicle(assetClass.id);
 
     const res = await request(app.getHttpServer())
-      .get('/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts')
+      .get(
+        '/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts',
+      )
       .query({
         organizationId,
         vehicleId: vehicle.id,
@@ -823,7 +827,9 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     );
 
     const res = await request(app.getHttpServer())
-      .get('/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts')
+      .get(
+        '/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts',
+      )
       .query({
         organizationId,
         vehicleId: vehicle.id,
@@ -958,17 +964,21 @@ describe('Asset Register — vehicle assignments (integration)', () => {
       })
       .expect(200);
 
-    expect(emitSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: OrganizationDomainEventType.ASSET_REGISTER_ASSIGNMENT_CHANGED,
-        organizationId,
-        resource: 'asset_register_vehicle_assignment',
-        ids: expect.objectContaining({
-          leaseContractId: contractId,
-          vehicleIds: [vehicle.id],
-        }),
-      }),
+    const assignmentEmitCall = emitSpy.mock.calls.find(
+      (call) =>
+        call[0]?.type ===
+        OrganizationDomainEventType.ASSET_REGISTER_ASSIGNMENT_CHANGED,
     );
+    expect(assignmentEmitCall).toBeDefined();
+    expect(assignmentEmitCall![0]).toMatchObject({
+      type: OrganizationDomainEventType.ASSET_REGISTER_ASSIGNMENT_CHANGED,
+      organizationId,
+      resource: 'asset_register_vehicle_assignment',
+      ids: {
+        leaseContractId: contractId,
+        vehicleIds: [vehicle.id],
+      },
+    });
 
     emitSpy.mockRestore();
   });
