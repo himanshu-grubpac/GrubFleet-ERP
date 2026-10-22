@@ -11,15 +11,14 @@ export default function AdministrationPage() {
         <DashboardLayout
             title="Administration"
             description="Manage roles, permissions, user access, and administrative settings."
-        >
-            <div className="space-y-6">
+        ><div className="space-y-6 overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <section className="rounded-lg border border-gray-200 bg-white p-5">
                     <div className="flex items-center gap-4">
                         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-orange-50 text-[#FE5720]">
                             <ShieldCheck className="h-6 w-6" />
                         </div>
 
-                        <div>
+                        <div className="min-w-0">
                             <h2 className="text-base font-semibold text-gray-900">
                                 Administration Overview
                             </h2>
@@ -33,10 +32,12 @@ export default function AdministrationPage() {
                     </div>
                 </section>
 
-                <ModuleHubQuickLinksSection
-                    moduleRootHref="/administration/"
-                    subtitle="Select an administration section to continue."
-                />
+                <div className="min-w-0 overflow-x-hidden">
+                    <ModuleHubQuickLinksSection
+                        moduleRootHref="/administration/"
+                        subtitle="Select an administration section to continue."
+                    />
+                </div>
             </div>
         </DashboardLayout>
     );

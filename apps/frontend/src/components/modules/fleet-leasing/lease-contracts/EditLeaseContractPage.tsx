@@ -219,8 +219,8 @@ export default function EditLeaseContractPage({
             isDraft
                 ? inferDraftWizardResumeScreen(contract)
                 : clientId
-                  ? "asset-lines"
-                  : "select-client",
+                    ? "asset-lines"
+                    : "select-client",
         );
         setInitialized(true);
     }, [contract, detailHref, initialized, isDraft, router]);
@@ -368,45 +368,60 @@ export default function EditLeaseContractPage({
         ],
     );
 
+
     const handleSaveDraft = async (
         linesOverride?: AssetLine[],
         termsOverride?: LeaseTerms,
     ) => {
-        if (!isDraft) {
-            return;
-        }
+        if (isPersistingStep) return;
+
         setWizardError(null);
         setIsPersistingStep(true);
+
         const draftLines = linesOverride ?? assetLines;
         const draftTerms = termsOverride ?? terms;
+
         try {
             const { lines, skippedDueToShortfall } =
                 await resolveDraftAssetLines(draftLines);
+
+            // Save changes using the existing edit-page API.
             await persistDraftWizardState({
                 lines,
                 nextTerms: draftTerms,
+                requireFullLines: true,
             });
+
             if (lines.length > 0) {
                 setAssetLines(lines);
             }
+
             setTerms(draftTerms);
-            showSuccessToast("Lease contract draft saved");
+
             if (skippedDueToShortfall) {
                 showErrorToast(
                     "Fix asset line quantities before saving lines",
                 );
             }
+
+            showSuccessToast("Lease contract draft saved");
+
+            // Return to the lease contracts dashboard after a successful save.
+            router.replace("/fleet-leasing/lease-contracts");
         } catch (err) {
             const message =
                 err instanceof Error
                     ? err.message
                     : "Could not save draft contract.";
+
             setWizardError(message);
             showErrorToast(message);
         } finally {
             setIsPersistingStep(false);
         }
     };
+
+
 
     const handleSaveDraftFromTerms = async (snapshot: TermsDraftSnapshot) => {
         setTerms(snapshot.terms);
