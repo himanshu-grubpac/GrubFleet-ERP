@@ -194,10 +194,17 @@ export default function StockDashboard() {
               status={row.status}
               locationId={row.id}
               viewHref={inventoryStockReceiptDetailHref(row.id)}
+              copyText={[
+                `Date: ${row.purchaseDate}`,
+                `Part: ${row.partName}`,
+                `Part Number: ${row.partNumber}`,
+                `Quantity: ${row.quantity}`,
+                `Batch: ${row.batchReference}`,
+                `Status: ${row.status}`,
+              ].join("\n")}
               onEdit={
                 row.availableActions.edit
-                  ? () =>
-                      router.push(inventoryStockReceiptEditHref(row.id))
+                  ? () => router.push(inventoryStockReceiptEditHref(row.id))
                   : undefined
               }
             />

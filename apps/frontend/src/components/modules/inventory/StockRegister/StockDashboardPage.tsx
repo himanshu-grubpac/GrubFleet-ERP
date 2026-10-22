@@ -306,10 +306,20 @@ export default function StockDashboardPage() {
                 status={part.status}
                 locationId={part.id}
                 viewHref={inventoryStockRegisterDetailHref(part.id)}
+                copyText={[
+                  `Part: ${part.partName}`,
+                  `Part Number: ${part.partNumber}`,
+                  `Compatible Class: ${part.compatibleClass}`,
+                  `Threshold: ${part.threshold}`,
+                  `Unit: ${part.unit}`,
+                  `Status: ${part.status}`,
+                ].join("\n")}
                 onEdit={
                   part.availableActions.edit
                     ? () =>
-                        router.push(inventoryStockRegisterEditHref(part.id))
+                      router.push(
+                        inventoryStockRegisterEditHref(part.id),
+                      )
                     : undefined
                 }
                 onToggleStatus={() => {
@@ -325,7 +335,6 @@ export default function StockDashboardPage() {
           />
         )}
       </DashboardLayout>
-
       <ConfirmDialog
         open={activateOpen}
         title="Activate part?"

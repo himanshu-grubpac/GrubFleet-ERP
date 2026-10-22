@@ -16,8 +16,8 @@ import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { ORGANISATION_SUPPLIER_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
 import {
-  listSortQueryKeyPart,
-  useDashboardTableListSort,
+    listSortQueryKeyPart,
+    useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
@@ -420,6 +420,14 @@ export default function SuppliersPage() {
                             status={supplier.status}
                             locationId={supplier.id}
                             viewHref={organisationSupplierDetailHref(supplier.id)}
+                            copyText={[
+                                `Company: ${supplier.name}`,
+                                `Supplies: ${supplier.type}`,
+                                `Contact Person: ${supplier.contactPerson}`,
+                                `Phone: ${supplier.phone ?? "N/A"}`,
+                                `Email: ${supplier.email ?? "N/A"}`,
+                                `Status: ${supplier.status}`,
+                            ].join("\n")}
                             onEdit={
                                 canUpdate && supplier.status === "active"
                                     ? () => handleEdit(supplier)

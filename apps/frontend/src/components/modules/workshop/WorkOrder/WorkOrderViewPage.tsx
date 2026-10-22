@@ -252,7 +252,7 @@ export default function WorkOrderViewPage() {
               {(isInProgress || isOpen) && canEditHeader && (
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="outline"
                   onClick={() =>
                     router.push(workshopWorkOrderEditHref(workOrder.id))
                   }
@@ -289,13 +289,12 @@ export default function WorkOrderViewPage() {
 
         {showStatusBanner ? (
           <div
-            className={`mb-3 flex gap-2 rounded-md border px-3 py-2 text-[12px] ${
-              statusBanner.level === "warning"
+            className={`mb-3 flex gap-2 rounded-md border px-3 py-2 text-[12px] ${statusBanner.level === "warning"
                 ? "border-amber-200 bg-amber-50 text-amber-900"
                 : statusBanner.level === "success"
                   ? "border-green-200 bg-green-50 text-green-900"
                   : "border-blue-200 bg-blue-50 text-blue-900"
-            }`}
+              }`}
             role="status"
           >
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />

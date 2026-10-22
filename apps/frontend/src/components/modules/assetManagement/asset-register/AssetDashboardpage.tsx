@@ -446,11 +446,21 @@ export default function AssetClassesPage() {
           onSortChange={onSortChange}
           serverSorted={serverSorted}
           getRowKey={(assetClass) => assetClass.id}
+
           renderActions={(assetClass) => (
             <DashboardTableActions
               status={assetClass.status}
               locationId={assetClass.id}
               viewHref={assetRegisterAssetClassDetailHref(assetClass.id)}
+              copyText={[
+                `Asset Class ID: ${assetClass.id}`,
+                `Class Name: ${assetClass.name}`,
+                `Vehicle Type: ${assetClass.vehicleType}`,
+                `Fuel Type: ${assetClass.fuelType}`,
+                `In Fleet: ${assetClass.inFleet}`,
+                `Available: ${assetClass.available}`,
+                `Status: ${assetClass.status === "active" ? "Active" : "Inactive"}`,
+              ].join("\n")}
               onEdit={
                 canUpdate && assetClass.status === "active"
                   ? () => handleEdit(assetClass)

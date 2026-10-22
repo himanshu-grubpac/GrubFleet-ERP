@@ -474,11 +474,22 @@ export default function DriverRegisterPage() {
             onSortChange={onSortChange}
             serverSorted={serverSorted}
             getRowKey={(driver) => driver.id}
+
             renderActions={(driver) => (
               <DashboardTableActions
                 status={driver.apiStatus}
                 locationId={driver.id}
                 viewHref={organisationDriverDetailHref(driver.id)}
+                copyText={[
+                  `Driver Name: ${driver.name}`,
+                  `License Number: ${driver.licenseNumber}`,
+                  `License Expiry: ${driver.licenseExpiry ?? "N/A"}`,
+                  `Supplier: ${driver.supplier}`,
+                  `Contact Number: ${driver.phone ?? "N/A"}`,
+                  `Email: ${driver.email ?? "N/A"}`,
+                  `Assigned Vehicle: ${driver.assignedVehicle ?? "N/A"}`,
+                  `Status: ${driver.status}`,
+                ].join("\n")}
                 onEdit={
                   canUpdate && driver.apiStatus === "active"
                     ? () => handleEdit(driver)
@@ -494,6 +505,7 @@ export default function DriverRegisterPage() {
                 }
               />
             )}
+
           />
         )}
       </DashboardLayout>

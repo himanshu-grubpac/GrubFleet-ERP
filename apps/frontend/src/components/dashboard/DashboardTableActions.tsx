@@ -133,27 +133,47 @@ export default function DashboardTableActions({
             >
                 View
             </Link>
-
             {/* Copy text and icon */}
-            <button
-                type="button"
-                onClick={handleCopy}
-                disabled={!copyText?.trim() && !locationId}
-                aria-label={copied ? "Copied!" : "Copy row"}
-                title={copied ? "Copied!" : "Copy row"}
-                className="
-                    inline-flex h-8 shrink-0 items-center justify-center gap-1.5
-                    whitespace-nowrap rounded-md px-1.5 text-sm font-medium
-                    text-gray-500 transition-colors
-                    hover:bg-gray-100 hover:text-gray-900
-                    disabled:cursor-not-allowed disabled:opacity-40
-                "
-            >
-                <span>{copied ? "Copied!" : "Copy"}</span>
-                <span className="text-[#FE5720]/40 text-base leading-none">
-                    <FaCopy />
+            <span className="group/copy relative inline-flex shrink-0 items-center">
+                <button
+                    type="button"
+                    onClick={() => void handleCopy()}
+                    disabled={!copyText?.trim() && !locationId}
+                    aria-label="Copy row"
+                    className="
+            inline-flex h-8 shrink-0 items-center justify-center gap-1.5
+            whitespace-nowrap rounded-md px-1.5 text-sm font-medium
+            text-gray-500 transition-colors
+            hover:bg-gray-100 hover:text-gray-900
+            disabled:cursor-not-allowed disabled:opacity-40
+        "
+                >
+                    <span>Copy</span>
+                    <span className="text-[#FE5720]/40 text-base leading-none">
+                        <FaCopy />
+                    </span>
+                </button>
+
+                <span
+                    role="tooltip"
+                    className="
+            pointer-events-none invisible absolute bottom-full left-1/2 z-50 mb-2
+            -translate-x-1/2 whitespace-nowrap rounded-md
+            border border-orange-100 bg-white px-3 py-1.5
+            text-xs font-semibold text-[#FE5720] shadow-md
+            group-hover/copy:visible
+        "
+                >
+                    {copied ? "Copied!" : "Copy"}
+                    <span
+                        className="
+                absolute left-1/2 top-full -translate-x-1/2
+                border-[5px] border-transparent border-t-white
+            "
+                    />
                 </span>
-            </button>
+            </span>
+
 
             {/* Three-dot actions menu */}
             {overflowMenuDisabled ? (
