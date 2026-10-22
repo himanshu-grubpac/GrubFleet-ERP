@@ -11,7 +11,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const tier = process.argv[2];
-const allowed = ['staging', 'preprod', 'production'];
+const allowed = ['staging', 'preprod', 'fleetbeta', 'production'];
 if (!allowed.includes(tier)) {
   console.error(`Usage: node scripts/write-samconfig-from-env.mjs <${allowed.join('|')}>`);
   process.exit(1);
@@ -52,6 +52,15 @@ const TIER = {
     confirmChangeset: false,
     enableWarmupSchedule: 'true',
     // 0 = no reservation (SAM omits ReservedConcurrentExecutions). Account pool too small for 10+ unreserved minimum.
+    reservedConcurrency: 0,
+    appendLocalhost: true,
+  },
+  fleetbeta: {
+    stackName: 'grubfleet-api-fleetbeta',
+    apiFunctionName: 'grubfleet-api-fleetbeta',
+    appEnv: 'fleetbeta',
+    confirmChangeset: false,
+    enableWarmupSchedule: 'true',
     reservedConcurrency: 0,
     appendLocalhost: true,
   },

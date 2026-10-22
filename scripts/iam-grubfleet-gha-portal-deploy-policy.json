@@ -17,7 +17,9 @@
         "arn:aws:s3:::grubfleet-portal-preprod-662252246711",
         "arn:aws:s3:::grubfleet-portal-preprod-662252246711/*",
         "arn:aws:s3:::grubfleet-portal-production-662252246711",
-        "arn:aws:s3:::grubfleet-portal-production-662252246711/*"
+        "arn:aws:s3:::grubfleet-portal-production-662252246711/*",
+        "arn:aws:s3:::grubfleet-portal-fleetbeta-662252246711",
+        "arn:aws:s3:::grubfleet-portal-fleetbeta-662252246711/*"
       ]
     },
     {

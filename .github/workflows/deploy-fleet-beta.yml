@@ -1,0 +1,23 @@
+name: Deploy Fleet + beta
+
+on:
+  push:
+    branches: [fleet-beta]
+
+concurrency:
+  group: deploy-fleet-beta
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  deploy:
+    uses: ./.github/workflows/reusable-container-deploy.yml
+    with:
+      deploy-label: fleetbeta
+      github-environment: fleet-beta
+      branch-ref: fleet-beta
+    secrets: inherit

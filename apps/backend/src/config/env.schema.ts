@@ -5,6 +5,7 @@ export const appEnvSchema = z.enum([
   'development',
   'staging',
   'preprod',
+  'fleetbeta',
   'production',
 ]);
 

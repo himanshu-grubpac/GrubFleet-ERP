@@ -9,11 +9,11 @@ on:
         required: false
     inputs:
       deploy-label:
-        description: Short label for tags and artifacts (staging, preprod, production)
+        description: Short label for tags and artifacts (staging, preprod, fleetbeta, production)
         required: true
         type: string
       github-environment:
-        description: GitHub Environment name (staging, pre-production, production)
+        description: GitHub Environment name (staging, pre-production, fleet-beta, production)
         required: true
         type: string
       branch-ref:
@@ -76,7 +76,7 @@ jobs:
           RDS_SG_ID: ${{ vars.RDS_MIGRATION_SECURITY_GROUP_ID }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
-            echo "Missing GitHub Environment secret DATABASE_URL — required for staging/pre-prod migrate."
+            echo "Missing GitHub Environment secret DATABASE_URL — required for non-production tier migrate."
             exit 1
           fi
           if [ -z "$RDS_SG_ID" ]; then
@@ -208,6 +208,7 @@ jobs:
           case "${{ inputs.deploy-label }}" in
             staging) echo "environment=staging" >> "$GITHUB_OUTPUT" ;;
             preprod) echo "environment=preprod" >> "$GITHUB_OUTPUT" ;;
+            fleetbeta) echo "environment=fleetbeta" >> "$GITHUB_OUTPUT" ;;
             production) echo "environment=production" >> "$GITHUB_OUTPUT" ;;
             *)
               echo "Unknown deploy-label: ${{ inputs.deploy-label }}" >&2

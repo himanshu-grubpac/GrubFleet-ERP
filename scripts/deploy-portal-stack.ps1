@@ -2,7 +2,7 @@
 # Usage: .\scripts\deploy-portal-stack.ps1 -Tier staging
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('staging', 'preprod', 'production')]
+  [ValidateSet('staging', 'preprod', 'fleetbeta', 'production')]
   [string] $Tier,
 
   [string] $Profile = 'grubfleet-erp',
