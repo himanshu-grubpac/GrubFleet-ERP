@@ -33,6 +33,46 @@
       ]
     },
     {
+      "name": "Realtime",
+      "description": "Organization domain events (SSE). EventSource cannot send Authorization — use access_token query. Requires asset_register.view or fleet_leasing.view.",
+      "item": [
+        {
+          "name": "Organization events stream (SSE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/events/stream?organizationId={{organizationId}}&access_token={{accessToken}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "events",
+                "stream"
+              ],
+              "query": [
+                {
+                  "key": "organizationId",
+                  "value": "{{organizationId}}"
+                },
+                {
+                  "key": "access_token",
+                  "value": "{{accessToken}}"
+                }
+              ]
+            },
+            "description": "GET /events/stream — long-lived SSE; heartbeat every 30s. Prefer long-running API (ALB/ECS). Not suitable for API Gateway + Lambda."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
       "name": "Portal",
       "description": "Portal-wide utilities (header global search). Requires Bearer accessToken and organizationId.",
       "item": [
@@ -733,7 +773,7 @@
               }
             ],
             "url": "{{baseUrl}}/asset-register/vehicles?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /asset-register/vehicles — filter assetClassId, operationalStatus, lifecycle status, search."
+            "description": "GET /asset-register/vehicles — filter assetClassId, operationalStatus, lifecycle status, search, demandFilter. List items include openDemandUnitsToAssign and openDemandContractCount per asset class; includeAssignmentSummary=true adds org-wide assignmentSummary."
           },
           "response": []
         },
@@ -838,6 +878,52 @@
           "response": []
         },
         {
+          "name": "List assignable lease contracts for vehicle",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/asset-register/vehicle-assignments/assignable-lease-contracts?organizationId={{organizationId}}&vehicleId={{assetRegisterVehicleId}}&page=1&pageSize=50",
+            "description": "GET assignable lease contracts for a fleet register vehicle (matching asset class line; assignable false when fully allocated)."
+          },
+          "response": []
+        },
+        {
+          "name": "Validate bulk assign selection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"leaseContractId\": \"{{leaseContractId}}\",\n  \"vehicleIds\": [\"{{assetRegisterVehicleId}}\"],\n  \"assetClassId\": \"{{assetClassId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/asset-register/vehicle-assignments/bulk-assign/validate",
+            "description": "POST bulk-assign/validate — per-vehicle availability before Review submit; replacementAvailableCount for auto-replace UX."
+          },
+          "response": []
+        },
+        {
           "name": "Bulk assign vehicles to lease",
           "request": {
             "method": "POST",
@@ -857,10 +943,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"leaseContractId\": \"{{leaseContractId}}\",\n  \"vehicleIds\": [\"{{assetRegisterVehicleId}}\"]\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"leaseContractId\": \"{{leaseContractId}}\",\n  \"vehicleIds\": [\"{{assetRegisterVehicleId}}\"],\n  \"handoverDate\": \"2026-02-01\",\n  \"handoverLocation\": \"Central depot\",\n  \"notes\": \"Optional batch notes\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/vehicle-assignments/bulk-assign",
-            "description": "POST /asset-register/vehicle-assignments/bulk-assign — active lease only; available vehicles; capacity per asset line (class name match)."
+            "description": "POST bulk-assign — active lease only; 409 BULK_ASSIGN_VEHICLE_CONFLICT when selection stale (no partial assign); success includes lineCommitted, lineAllocatedAfter, remainingInPoolForClass, fullyAssignedLine."
           },
           "response": []
         },
@@ -1020,10 +1106,10 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"lines\": [\n    { \"assetClass\": \"Sedan\", \"committedQuantity\": 2 }\n  ]\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"excludeContractId\": \"{{leaseContractId}}\",\n  \"lines\": [\n    { \"assetClass\": \"Sedan\", \"committedQuantity\": 2 }\n  ]\n}"
             },
             "url": "{{baseUrl}}/fleet-leasing/asset-classes/availability/preview",
-            "description": "POST /fleet-leasing/asset-classes/availability/preview — LEASE-03 MVP gate (mvpAllLinesCovered)."
+            "description": "POST /fleet-leasing/asset-classes/availability/preview — pool available per class (register units minus other contracts' unallocated commitments). Optional excludeContractId when editing an existing draft so its own lines are not double-reserved. LEASE-03 MVP gate (mvpAllLinesCovered)."
           },
           "response": []
         },

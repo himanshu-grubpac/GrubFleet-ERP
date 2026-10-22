@@ -573,10 +573,147 @@ describe('Fleet leasing lease contracts (integration)', () => {
     expect(body.lines[0].mvpShortByCount).toBe(2);
   });
 
+  it('LEASE-03: pool availability subtracts unallocated draft commitments', async () => {
+    const unique = Date.now();
+    const { assetClassName: assetClass, assetClassId: classId } =
+      await seedAssetRegisterClassWithVehicle('Pool', unique);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/asset-register/vehicles')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        assetClassId: classId,
+        registrationNumber: `AR-POOL2-${unique}`.slice(0, 32),
+        chassisNumber: `CH-POOL2-${unique}`,
+        modelYear: 2024,
+        odometer: 0,
+        registrationStartDate: '2024-01-01',
+        registrationEndDate: '2029-01-01',
+        insuranceStartDate: '2024-01-01',
+        insuranceEndDate: '2030-01-01',
+        insurancePremium: 10000,
+        warrantyStartDate: '2024-01-01',
+        warrantyEndDate: '2027-01-01',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const clientRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        companyName: `Pool Client ${unique}`,
+        ...fleetClientStructuredAddressIn(),
+        pointsOfContact: [
+          {
+            name: 'POC Pool',
+            contactNumber: uniqueIntegrationPhone(`pool-${unique}`),
+            email: `pool-${unique}@example.com`,
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const clientBody = clientRes.body as FleetClientResponse;
+
+    const draftRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/lease-contracts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({ organizationId, clientId: clientBody.id })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const draftId = (draftRes.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draftId}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '10000.00',
+          },
+        ],
+      })
+      .expect(200);
+
+    const reservedPreview = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/asset-classes/availability/preview')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        lines: [{ assetClass, committedQuantity: 2 }],
+      })
+      .expect(200);
+    const reservedBody = reservedPreview.body as AssetAvailabilityBatchResponse;
+    expect(reservedBody.lines[0].availableNow).toBe(1);
+    expect(reservedBody.lines[0].mvpAvailableNowCovers).toBe(false);
+
+    const selfPreview = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/asset-classes/availability/preview')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        excludeContractId: draftId,
+        lines: [{ assetClass, committedQuantity: 2 }],
+      })
+      .expect(200);
+    const selfBody = selfPreview.body as AssetAvailabilityBatchResponse;
+    expect(selfBody.lines[0].availableNow).toBe(2);
+    expect(selfBody.lines[0].mvpAvailableNowCovers).toBe(true);
+  });
+
+  it('rejects duplicate asset class on PUT asset-lines', async () => {
+    const unique = Date.now();
+    const { assetClassName: assetClass } =
+      await seedAssetRegisterClassWithVehicle('Sedan', unique + 90210);
+
+    const draft = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      ensureClient: true,
+      clientLabel: 'DupAssetLine',
+    });
+    const draftId = draft.id;
+
+    const dupRes = await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draftId}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '10000.00',
+          },
+          {
+            assetClass: assetClass.toUpperCase(),
+            committedQuantity: 2,
+            ratePerVehicleMonth: '10000.00',
+          },
+        ],
+      })
+      .expect(400);
+    const dupBody = dupRes.body as { message?: string };
+    expect(String(dupBody.message)).toContain(
+      'Each asset class may only appear once',
+    );
+  });
+
   async function seedAssetRegisterClassWithVehicle(
     modelName: string,
     unique: number,
-  ): Promise<string> {
+  ): Promise<{ assetClassName: string; assetClassId: string }> {
     const classRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/asset-classes')
       .set('Authorization', `Bearer ${accessToken}`)
@@ -626,12 +763,13 @@ describe('Fleet leasing lease contracts (integration)', () => {
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
 
-    return assetClassName;
+    return { assetClassName, assetClassId: classId };
   }
 
   it('LEASE-05: stepwise draft confirm activates contract (MVP)', async () => {
     const unique = Date.now();
-    const assetClass = await seedAssetRegisterClassWithVehicle('Sedan', unique);
+    const { assetClassName: assetClass } =
+      await seedAssetRegisterClassWithVehicle('Sedan', unique);
 
     await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/vehicles')
@@ -693,7 +831,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       })
       .expect(200);
 
-    await request(app.getHttpServer())
+    const termsRes = await request(app.getHttpServer())
       .put(`/api/v1/fleet-leasing/lease-contracts/${draftBody.id}/terms`)
       .query({ organizationId })
       .set('Authorization', `Bearer ${accessToken}`)
@@ -705,6 +843,10 @@ describe('Fleet leasing lease contracts (integration)', () => {
         billingFrequency: 'monthly',
       })
       .expect(200);
+    const termsBody = termsRes.body as {
+      contract: { endDate?: string | null };
+    };
+    expect(termsBody.contract.endDate).toBe('2028-01-12');
 
     const confirmRes = await request(app.getHttpServer())
       .post(`/api/v1/fleet-leasing/lease-contracts/${draftBody.id}/confirm`)
@@ -736,11 +878,49 @@ describe('Fleet leasing lease contracts (integration)', () => {
     expect(detailBody.subtitle).toMatch(/0 of 1 committed/i);
     expect(detailBody.assetLines[0]?.lineStatusLabel).toBe('Awaiting Assets');
     expect(detailBody.availableActions.deactivate?.allowed).toBe(true);
+
+    const { assetClassName: secondClass } =
+      await seedAssetRegisterClassWithVehicle(`Lease05Suv${unique}`, unique + 1);
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draftBody.id}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '34500.00',
+          },
+          {
+            assetClass: secondClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '36000.00',
+          },
+        ],
+        confirmShortfall: false,
+      })
+      .expect(200);
+
+    const afterEdit = await request(app.getHttpServer())
+      .get(`/api/v1/fleet-leasing/lease-contracts/${draftBody.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const afterEditBody = afterEdit.body as LeaseContractDetailResponse;
+    expect(afterEditBody.rawStatus).toBe('active');
+    expect(afterEditBody.assetLines).toHaveLength(2);
+    expect(afterEditBody.hasFieldChangeHistory).toBe(true);
+    expect(afterEditBody.requiresEditReview).toBe(true);
   });
 
   it('LEASE-05: confirm activates draft with non-standard rates (MVP)', async () => {
     const unique = Date.now();
-    const assetClass = await seedAssetRegisterClassWithVehicle('Sedan', unique);
+    const { assetClassName: assetClass } =
+      await seedAssetRegisterClassWithVehicle('Sedan', unique);
 
     const clientRes = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/clients')
@@ -926,6 +1106,33 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .send({ clientId: historyClientId })
       .expect(200);
 
+    await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/lease-contracts/${draftId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        startDate: '2026-01-01',
+        termMonths: 12,
+        securityDeposit: '10000.00',
+        billingFrequency: 'monthly',
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/lease-contracts/${draftId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        startDate: '2026-02-01',
+        termMonths: 24,
+        securityDeposit: '20000.00',
+        billingFrequency: 'quarterly',
+        editClassification: 'material',
+      })
+      .expect(200);
+
     const detailAfterFirstPatch = await request(app.getHttpServer())
       .get(`/api/v1/fleet-leasing/lease-contracts/${draftId}`)
       .query({ organizationId })
@@ -1014,6 +1221,16 @@ describe('Fleet leasing lease contracts (integration)', () => {
           row.toValue !== historyClientId,
       ),
     ).toBe(true);
+    const termsStartRow = historyBody.items.find(
+      (row) => row.field === 'startDate',
+    );
+    const termsMonthsRow = historyBody.items.find(
+      (row) => row.field === 'termMonths',
+    );
+    expect(termsStartRow?.fromValue).not.toBe('—');
+    expect(termsStartRow?.toValue).not.toBe('—');
+    expect(termsMonthsRow?.fromValue).toBe('12');
+    expect(termsMonthsRow?.toValue).toBe('24');
     expect(historyBody.items[0]?.changedBy).toBeTruthy();
 
     await request(app.getHttpServer())
@@ -1217,7 +1434,8 @@ describe('Fleet leasing lease contracts (integration)', () => {
   });
 
   async function createActiveLeaseContract(unique: number): Promise<string> {
-    const assetClass = await seedAssetRegisterClassWithVehicle('Sedan', unique);
+    const { assetClassName: assetClass } =
+      await seedAssetRegisterClassWithVehicle('Sedan', unique);
 
     const clientRes = await request(app.getHttpServer())
       .post('/api/v1/fleet-leasing/clients')
@@ -1308,6 +1526,19 @@ describe('Fleet leasing lease contracts (integration)', () => {
     ).items.map((row) => row.id);
     expect(eligibleIds).toContain(activeId);
 
+    await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/renewals-extensions')
+      .query({
+        organizationId,
+        page: 1,
+        pageSize: 50,
+        sortBy: 'startDate',
+        sortOrder: 'asc',
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+
     const renewRes = await request(app.getHttpServer())
       .post(`/api/v1/fleet-leasing/lease-contracts/${activeId}/renew`)
       .query({ organizationId })
@@ -1377,10 +1608,11 @@ describe('Fleet leasing lease contracts (integration)', () => {
 
   describe('Support — vehicle replacement', () => {
     async function seedActiveContractWithTwoFleetVehicles(unique: number) {
-      const assetClass = await seedAssetRegisterClassWithVehicle(
-        `SupportReplace-${unique}`,
-        unique,
-      );
+      const { assetClassName: assetClass } =
+        await seedAssetRegisterClassWithVehicle(
+          `SupportReplace-${unique}`,
+          unique,
+        );
       const onLeaseReg = `MH-SUP-ON-${unique}`;
       const replacementReg = `MH-SUP-REP-${unique}`;
       const onLeaseRes = await request(app.getHttpServer())

@@ -13,6 +13,7 @@ const isWin = process.platform === 'win32';
 
 const BACKEND_ENV = join(root, 'apps', 'backend', '.env.development');
 const BACKEND_ENV_TEMPLATE = `# Auto-created by npm run dev — adjust if needed
+# Canonical local data: npm run db:reset:local-professional (not legacy seed:dev:* scripts)
 APP_ENV=development
 NODE_ENV=development
 PORT=4000

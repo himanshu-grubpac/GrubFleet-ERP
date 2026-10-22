@@ -58,6 +58,17 @@ Set `CORS_ORIGIN` in each GitHub Environment to the **exact** web origin (scheme
 
 Local: `http://localhost:3000` (default in `.env.example`).
 
+## Organization realtime (SSE)
+
+Portal subscribers call `GET /api/v1/events/stream` with `organizationId` and JWT (`access_token` query for `EventSource`).
+
+| Concern | Guidance |
+|--------|----------|
+| **Runtime** | Prefer a **long-lived** HTTP server (ALB + ECS/EC2, or local Nest). **API Gateway + Lambda (SAM default)** does not support durable SSE — set `ORG_REALTIME_ENABLED=false` on the API and `NEXT_PUBLIC_ORG_REALTIME_ENABLED=false` on the portal build until a long-running API tier is available. |
+| **Redis** | Required for **multi-instance** fan-out (`REDIS_URL`). If Redis pub/sub is down at boot, the API logs a warning and SSE still works **on a single node**; publishers best-effort publish with the same degradation. |
+| **Limits** | `ORG_REALTIME_SSE_MAX_CONNECTIONS_PER_ORG` (default 50) per API instance; excess clients receive HTTP 429. |
+| **Auth** | Same access JWT as REST; short TTL — portal reconnects on `auth:tokens-refreshed`. |
+
 ## GitHub Environments — secrets and variables
 
 Configure under **Settings → Environments** for `staging`, `pre-production`, and `production`.
@@ -100,6 +111,8 @@ Repository-level: `GITHUB_TOKEN` is used for GHCR push (packages write permissio
 | `CLOUDFRONT_DISTRIBUTION_ID` | e.g. `E2P1321QJMJTG0` | Invalidation target after S3 sync |
 | `AWS_REGION` | `ap-south-1` | Optional; default in workflow |
 | `ACTIVE_SLOT` | `blue` or `green` | Blue-green traffic marker (updated after each deploy) |
+| `ORG_REALTIME_ENABLED` | `true` / `false` | Backend SSE stream; use `false` on Lambda-only API until long-lived HTTP is deployed |
+| `NEXT_PUBLIC_ORG_REALTIME_ENABLED` | `true` / `false` | Portal build — disable SSE client when API tier disables realtime |
 | `CORS_ORIGIN` | `https://staging.example.com` | SAM `ClientOrigin` fallback when `SAM_CLIENT_ORIGIN` unset — match CloudFront `PortalUrl` |
 | `SAM_CLIENT_ORIGIN` | `https://dxxx.cloudfront.net,http://localhost:3000` | Unquoted comma list for SAM `ClientOrigin` (staging/pre-prod); production portal HTTPS only |
 | `VPC_SUBNET_IDS` | `subnet-aaa,subnet-bbb` | Optional; Lambda VPC (staging SAM) — comma-separated, no spaces |

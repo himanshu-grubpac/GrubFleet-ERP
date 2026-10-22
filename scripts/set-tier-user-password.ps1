@@ -21,7 +21,7 @@ if ($content -match 'DatabaseUrl=\\"([^\\"]+)\\"') {
 $env:SET_USER_PASSWORD_EMAIL = $Email
 $env:SET_USER_PASSWORD_PLAIN = $Password
 
-Push-Location $Root
+Push-Location $Root 
 try {
   npm run db:set-tier-user-password -w backend
 } finally {

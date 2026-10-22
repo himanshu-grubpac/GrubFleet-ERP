@@ -108,6 +108,63 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ApiError'
+  /events/stream:
+    get:
+      tags: [realtime]
+      summary: Organization domain events (SSE)
+      description: |
+        Server-Sent Events stream for org-scoped cache invalidation hints.
+        Requires JWT (`Authorization: Bearer` or query `access_token`) and `organizationId` query.
+        Requires `asset_register.view` or `fleet_leasing.view`. Payload `{ type, organizationId, resource, ids, revision }` — no PII.
+        Heartbeat `{ ping: true }` every 30s. Multi-instance fan-out uses Redis pub/sub when `REDIS_URL` is reachable.
+        Disable with env `ORG_REALTIME_ENABLED=false` on deployments without long-lived HTTP (e.g. API Gateway + Lambda).
+      operationId: streamOrganizationDomainEvents
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: organizationId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: access_token
+          in: query
+          required: false
+          description: Optional JWT for EventSource clients that cannot send Authorization header
+          schema:
+            type: string
+      responses:
+        '200':
+          description: SSE stream (`text/event-stream`)
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '401':
+          description: Missing or invalid JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '403':
+          description: Missing org context or permission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '429':
+          description: Per-organization SSE connection limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '503':
+          description: Org realtime disabled on this tier (`ORG_REALTIME_ENABLED=false`)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
   /health:
     get:
       tags: [health]
@@ -1146,6 +1203,10 @@ paths:
                 organizationId:
                   type: string
                   format: uuid
+                excludeContractId:
+                  type: string
+                  format: uuid
+                  description: Omit this draft contract's unallocated commitments from pool reservation (wizard edit).
                 lines:
                   type: array
                   minItems: 1
@@ -4722,9 +4783,30 @@ paths:
           in: query
           schema:
             type: string
+          description: Partial match on fleet code, registration number, or asset class name
+        - name: demandFilter
+          in: query
+          schema:
+            type: string
+            enum: [any, in_demand, no_demand]
+          description: >-
+            Filter by open lease demand on the vehicle asset class (unallocated
+            quantity on in-flight contract lines). Default any.
+        - name: includeAssignmentSummary
+          in: query
+          schema:
+            type: boolean
+          description: >-
+            When true, response includes assignmentSummary with org-wide
+            openDemandUnits and openDemandContractCount (assignment empty state).
       responses:
         '200':
-          description: Paginated fleet register vehicles
+          description: >-
+            Paginated fleet register vehicles. List items include chassisNumber,
+            addedToRegisterDate (ISO date), openDemandUnitsToAssign and
+            openDemandContractCount (per vehicle asset class, same value for all
+            vehicles sharing a class). Optional assignmentSummary when
+            includeAssignmentSummary=true.
         '401':
           description: Unauthorized
         '403':
@@ -4852,6 +4934,196 @@ paths:
           description: Status updated
         '400':
           description: Missing deactivate reason or invalid transition
+  /asset-register/vehicle-assignments/assignable-lease-contracts:
+    get:
+      tags: [asset-register]
+      summary: List lease contracts assignable to a fleet register vehicle (by asset class line)
+      operationId: listAssignableLeaseContractsForVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: vehicleId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: organisationClientId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            Paginated contracts with matching asset class lines; assignable false when fully allocated or not active.
+            hiddenOtherActiveCount counts active contracts without this asset class line.
+        '404':
+          description: Vehicle not found in organization
+  /asset-register/vehicle-assignments/assignable-lease-contracts:
+    get:
+      tags: [asset-register]
+      summary: List lease contracts for vehicle assignment (by asset class line)
+      operationId: listAssignableLeaseContractsForVehicle
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: vehicleId
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 64
+        - name: organisationClientId
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: >-
+            Paginated contracts with lines for the vehicle asset class;
+            hasMatchingContractLine false when no contract includes the class;
+            hiddenOtherActiveCount counts active contracts without this class.
+        '404':
+          description: Vehicle not found
+  /asset-register/vehicle-assignments/bulk-assign/catalog:
+    get:
+      tags: [asset-register]
+      summary: Bulk assign wizard catalog — clients with open asset-class lines; contracts when organisationClientId is set
+      operationId: getBulkAssignCatalog
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: organisationClientId
+          in: query
+          schema:
+            type: string
+            format: uuid
+          description: When set, includes active contracts and per-line capacity for the client
+      responses:
+        '200':
+          description: Client summaries; optional contracts with asset lines, allocation, and available register counts
+  /asset-register/vehicle-assignments/bulk-assign/validate:
+    post:
+      tags: [asset-register]
+      summary: Pre-submit validation for bulk assign selection
+      operationId: validateBulkAssignAssetRegisterVehicles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [organizationId, leaseContractId, vehicleIds]
+              properties:
+                organizationId:
+                  type: string
+                  format: uuid
+                leaseContractId:
+                  type: string
+                  format: uuid
+                vehicleIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 50
+                  items:
+                    type: string
+                    format: uuid
+                assetClassId:
+                  type: string
+                  format: uuid
+                  description: Optional; used for replacement pool count
+      responses:
+        '200':
+          description: Per-vehicle availability and replacement pool hint
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - leaseContractId
+                  - vehicles
+                  - conflictCount
+                  - replacementAvailableCount
+                  - allAvailable
+                properties:
+                  leaseContractId:
+                    type: string
+                    format: uuid
+                  conflictCount:
+                    type: integer
+                    minimum: 0
+                  replacementAvailableCount:
+                    type: integer
+                    minimum: 0
+                  allAvailable:
+                    type: boolean
+                  vehicles:
+                    type: array
+                    items:
+                      type: object
+                      required: [vehicleId, fleetCode, available]
+                      properties:
+                        vehicleId:
+                          type: string
+                          format: uuid
+                        fleetCode:
+                          type: string
+                        available:
+                          type: boolean
+                        reason:
+                          type: string
+                          enum:
+                            - assigned_elsewhere
+                            - in_workshop
+                            - inactive
+                            - not_available
+                            - wrong_asset_class
+                        conflictLabel:
+                          type: string
+                          nullable: true
   /asset-register/vehicle-assignments/bulk-assign:
     post:
       tags: [asset-register]
@@ -4887,14 +5159,116 @@ paths:
                   items:
                     type: string
                     format: uuid
+                handoverDate:
+                  type: string
+                  format: date
+                  description: Handover calendar date; sets assignment assignedAt when provided
+                odometerAtHandover:
+                  type: integer
+                  minimum: 0
+                  description: Updates fleet register vehicle odometer when provided
+                handoverLocation:
+                  type: string
+                  maxLength: 255
+                  description: Handover depot or location label stored on each assignment
+                notes:
+                  type: string
+                  maxLength: 2000
+                  description: Optional batch notes stored on each assignment
       responses:
         '200':
           description: Assignments recorded; vehicles operationalStatus set to leased
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - leaseContractId
+                  - contractId
+                  - contractNumber
+                  - clientName
+                  - assetClassName
+                  - handoverDate
+                  - lineCommitted
+                  - lineAllocatedAfter
+                  - remainingToAssignOnLine
+                  - remainingInPoolForClass
+                  - fullyAssignedLine
+                  - assignedCount
+                  - assignments
+                properties:
+                  leaseContractId:
+                    type: string
+                    format: uuid
+                  contractId:
+                    type: string
+                    format: uuid
+                    description: Same as leaseContractId (portal navigation)
+                  contractNumber:
+                    type: string
+                  clientName:
+                    type: string
+                  assetClassName:
+                    type: string
+                  handoverDate:
+                    type: string
+                    format: date
+                  lineCommitted:
+                    type: integer
+                    minimum: 0
+                  lineAllocatedAfter:
+                    type: integer
+                    minimum: 0
+                  remainingInPoolForClass:
+                    type: integer
+                    minimum: 0
+                  fullyAssignedLine:
+                    type: boolean
+                  remainingToAssignOnLine:
+                    type: integer
+                    minimum: 0
+                    description: Unallocated units on the primary asset line after this assign
+                  fleetCode:
+                    type: string
+                    nullable: true
+                    description: Set when exactly one vehicle was assigned
+                  assignedCount:
+                    type: integer
+                    minimum: 0
+                  assignments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        vehicleId:
+                          type: string
+                          format: uuid
+                        leaseContractId:
+                          type: string
+                          format: uuid
+                        fleetClientId:
+                          type: string
+                          format: uuid
+                          nullable: true
+                        organisationClientId:
+                          type: string
+                          format: uuid
+                          nullable: true
+                        assignedAt:
+                          type: string
+                          format: date-time
         '400':
           description: >-
-            NO_ACTIVE_LEASE_CONTRACT, LEASE_CAPACITY_SHORTFALL, VEHICLE_NOT_ASSIGNABLE,
+            NO_ACTIVE_LEASE_CONTRACT, LEASE_CAPACITY_SHORTFALL,
             ORGANISATION_CLIENT_MISMATCH, ORGANISATION_CLIENT_NOT_FOUND,
             FLEET_CLIENT_ORGANISATION_LINK_MISSING, or LEASE_FLEET_CLIENT_NOT_FOUND
+        '409':
+          description: >-
+            BULK_ASSIGN_VEHICLE_CONFLICT — one or more vehicles no longer assignable;
+            details.vehicles lists per-vehicle reason (no partial assign)
   /asset-register/vehicle-assignments/{vehicleId}/unassign:
     patch:
       tags: [asset-register]
@@ -5683,6 +6057,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        insuranceSupplierId:
+          type: string
+          format: uuid
+          description: Organisation supplier used for vehicle insurance (compliance type).
       additionalProperties: false
       description: >-
         fleetCode is server-generated (VH-1001 sequence per org). operationalStatus defaults to available.
@@ -5731,6 +6109,11 @@ components:
           type: string
           format: uuid
           nullable: true
+        insuranceSupplierId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Organisation supplier used for vehicle insurance (compliance type).
       additionalProperties: false
       description: operationalStatus is not client-writable in v1 (system/assignment modules later).
     CreateOrganisationSupplierRequest:

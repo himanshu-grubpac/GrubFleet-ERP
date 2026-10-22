@@ -137,6 +137,33 @@ function assertLocalDevelopmentDatabaseUrl(connectionString: string): void {
 export const LOCAL_ASSET_REGISTER_DEMO_SEED_SOURCE =
   'local-asset-register-demo-v1';
 
+/** Slim local org + asset seed (2–3 rows per submodule). */
+export const LOCAL_SLIM_ORG_ASSET_SEED_SOURCE = 'local-slim-org-asset-v1';
+
+/**
+ * Local Docker Postgres — slim professional dev data for org + asset modules.
+ * Invoked via `npm run db:seed:local-slim -w backend` (APP_ENV=development).
+ */
+export function assertLocalSlimOrgAssetSeedAllowed(
+  connectionString: string,
+): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (appEnv === 'production' || appEnv === 'staging' || appEnv === 'pre-production') {
+    throw new Error(
+      `Refusing local slim seed when APP_ENV=${appEnv ?? '(unset)'}.`,
+    );
+  }
+  if (appEnv !== 'development') {
+    throw new Error(
+      `Refusing local slim seed: set APP_ENV=development (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertLocalDevelopmentDatabaseUrl(connectionString);
+  if (/rds\.amazonaws\.com/i.test(connectionString)) {
+    throw new Error('Refusing local slim seed against RDS.');
+  }
+}
+
 /**
  * Local Docker Postgres only — full Asset Register demo rows for dev org.
  * Requires SEED_LOCAL_ASSET_REGISTER_DEMO=1 and APP_ENV=development.

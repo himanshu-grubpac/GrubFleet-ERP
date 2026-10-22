@@ -103,12 +103,27 @@ export function parseRupeeInputToMinor(value: string): number | null {
   return minor;
 }
 
+/** Parse API / DB decimal strings or numbers to major rupee units for display. */
+export function coerceInrMajorUnits(
+  value: string | number | null | undefined,
+): number | null {
+  if (value == null) return null;
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : null;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 /** Lease / legacy label — major units with Rs. prefix (en-IN commas). */
 export function formatIndianRupeeLabel(
-  value: number | null | undefined,
+  value: string | number | null | undefined,
 ): string {
-  if (value == null || !Number.isFinite(value)) return "—";
-  return `Rs. ${formatInrMajorUnits(value, { maximumFractionDigits: 0 })}`;
+  const major = coerceInrMajorUnits(value);
+  if (major == null) return "—";
+  return `Rs. ${formatInrMajorUnits(major, { maximumFractionDigits: 0 })}`;
 }
 
 export const INR_RUPEE_INPUT_PLACEHOLDER = "e.g. 50,000";

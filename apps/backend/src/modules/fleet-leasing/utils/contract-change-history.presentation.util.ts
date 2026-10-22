@@ -23,6 +23,27 @@ const EMPTY_LOOKUPS: ChangeHistoryDisplayLookups = {
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+function coerceContractFieldChange(raw: unknown): ContractFieldChange | null {
+  if (!raw || typeof raw !== 'object') {
+    return null;
+  }
+  const record = raw as Record<string, unknown>;
+  if (typeof record.field !== 'string') {
+    return null;
+  }
+  const previousValue =
+    record.previousValue !== undefined
+      ? record.previousValue
+      : record.fromValue;
+  const newValue =
+    record.newValue !== undefined ? record.newValue : record.toValue;
+  return {
+    field: record.field,
+    previousValue,
+    newValue,
+  };
+}
+
 const FIELD_LABELS: Record<string, string> = {
   clientId: 'Client',
   startDate: 'Start date',
@@ -195,10 +216,11 @@ export function collectChangeHistoryReferenceIds(
   const vehicleIds = new Set<string>();
 
   for (const log of editLogs) {
-    const changes = log.changedFields as ContractFieldChange[];
-    if (!Array.isArray(changes)) continue;
+    if (!Array.isArray(log.changedFields)) continue;
 
-    for (const change of changes) {
+    for (const rawChange of log.changedFields) {
+      const change = coerceContractFieldChange(rawChange);
+      if (!change) continue;
       if (change.field === 'clientId') {
         for (const raw of [change.previousValue, change.newValue]) {
           if (typeof raw === 'string' && UUID_RE.test(raw)) {
@@ -238,15 +260,16 @@ export function flattenEditLogsToChangeHistoryRows(
   const rows: LeaseContractChangeHistoryRow[] = [];
 
   for (const log of editLogs) {
-    const changes = log.changedFields as ContractFieldChange[];
-    if (!Array.isArray(changes)) continue;
+    if (!Array.isArray(log.changedFields)) continue;
 
     const changedBy =
       (log.actorUserId && labelsByUserId.get(log.actorUserId)) ||
       'Unknown user';
     const changedAt = log.createdAt.toISOString();
 
-    for (const change of changes) {
+    for (const rawChange of log.changedFields) {
+      const change = coerceContractFieldChange(rawChange);
+      if (!change) continue;
       rows.push({
         id: `${log.id}:${change.field}`,
         field: change.field,

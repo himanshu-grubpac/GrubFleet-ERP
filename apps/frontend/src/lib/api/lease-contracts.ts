@@ -62,6 +62,7 @@ export interface AssetLine {
     inboundCount: number;
     shortfallCount: number;
     awaitingAssetsLine: boolean;
+    allocatedCount?: number;
     lineAllocationStatus?: 'allocated' | 'partially_allocated' | 'awaiting_assets';
     lineStatusLabel?: string;
 }
@@ -82,7 +83,7 @@ export interface LeaseContractDetail {
     startDate: string | null;
     endDate: string | null;
     termMonths: number | null;
-    securityDeposit: number | null;
+    securityDeposit: string | number | null;
     billingFrequency: string;
     additionalTerms: string | null;
     amcTier: string | null;
@@ -224,6 +225,7 @@ export interface LeaseContractReviewResponse {
         securityDeposit: string | number | null;
         billingFrequency: string;
         startDate: string | null;
+        endDate?: string | null;
     };
     client: {
         companyName: string;
@@ -380,6 +382,7 @@ export type AssetAvailabilityResponse =
 
 export interface FleetAssetClassListResponse {
     items: string[];
+    catalog?: Array<{ id: string; name: string; specLabel?: string }>;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -424,6 +427,7 @@ export interface UpdateContractAssetLinesPayload {
 
 export interface UpdateContractTermsPayload {
     startDate: string;
+    endDate?: string;
     termMonths: number;
     securityDeposit: string;
     billingFrequency: 'monthly' | 'quarterly' | 'annual';
@@ -1058,6 +1062,7 @@ export async function previewAssetAvailabilityBatch(
     token: string,
     organizationId: string,
     lines: Array<{ assetClass: string; committedQuantity: number }>,
+    options?: { excludeContractId?: string | null },
 ): Promise<AssetAvailabilityBatchPreviewResponse> {
     return apiFetch<AssetAvailabilityBatchPreviewResponse>(
         `/fleet-leasing/asset-classes/availability/preview`,
@@ -1070,6 +1075,9 @@ export async function previewAssetAvailabilityBatch(
             body: JSON.stringify({
                 organizationId,
                 lines,
+                ...(options?.excludeContractId
+                    ? { excludeContractId: options.excludeContractId }
+                    : {}),
             }),
         },
     );

@@ -12,6 +12,7 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+import { organisationSuppliers } from './organisation.schema';
 export const assetRegisterVehicleTypeEnum = pgEnum(
   'asset_register_vehicle_type',
   ['2W', '3W', '4W'],
@@ -167,6 +168,10 @@ export const assetRegisterVehicles = pgTable(
       precision: 14,
       scale: 2,
     }).notNull(),
+    insuranceSupplierId: uuid('insurance_supplier_id').references(
+      () => organisationSuppliers.id,
+      { onDelete: 'set null' },
+    ),
     warrantyStartDate: date('warranty_start_date').notNull(),
     warrantyEndDate: date('warranty_end_date').notNull(),
     specialNotes: text('special_notes'),
@@ -203,6 +208,9 @@ export const assetRegisterVehicles = pgTable(
       t.organizationId,
       t.operationalStatus,
     ),
+    index('asset_register_vehicles_insurance_supplier_id_idx').on(
+      t.insuranceSupplierId,
+    ),
   ],
 );
 
@@ -223,6 +231,8 @@ export const assetRegisterVehicleAssignments = pgTable(
       .notNull()
       .defaultNow(),
     unassignedAt: timestamp('unassigned_at', { withTimezone: true }),
+    handoverLocation: varchar('handover_location', { length: 255 }),
+    notes: varchar('notes', { length: 2000 }),
   },
   (t) => [
     index('asset_register_vehicle_assignments_organization_id_idx').on(

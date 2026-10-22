@@ -13,18 +13,34 @@ export type AssetRegisterVehicleOperationalStatus =
   | "sold"
   | "retired";
 
+export type AssetRegisterVehicleDemandFilter =
+  | "any"
+  | "in_demand"
+  | "no_demand";
+
+export type AssetRegisterVehicleAssignmentSummary = {
+  openDemandUnits: number;
+  openDemandContractCount: number;
+};
+
 export type AssetRegisterVehicleListItem = {
   id: string;
   fleetCode: string;
   registrationNumber: string;
   assetClassId: string;
   assetClassName: string;
+  chassisNumber: string;
+  modelYear: number;
   odometer: number;
+  addedToRegisterDate: string;
+  openDemandUnitsToAssign: number;
+  openDemandContractCount: number;
   operationalStatus: AssetRegisterVehicleOperationalStatus;
   status: AssetRegisterClassStatus;
 };
 
 export type AssetRegisterVehicleDetail = AssetRegisterVehicleListItem & {
+  assetClassSpecLabel: string;
   chassisNumber: string;
   modelYear: number;
   registrationStartDate: string;
@@ -32,6 +48,8 @@ export type AssetRegisterVehicleDetail = AssetRegisterVehicleListItem & {
   insuranceStartDate: string;
   insuranceEndDate: string;
   insurancePremium: string;
+  insuranceSupplierId: string | null;
+  insuranceSupplierName: string | null;
   warrantyStartDate: string;
   warrantyEndDate: string;
   specialNotes: string | null;
@@ -57,8 +75,14 @@ export async function fetchAssetRegisterVehiclesApi(
     assetClassId?: string;
     operationalStatus?: AssetRegisterVehicleOperationalStatus;
     status?: AssetRegisterClassStatus;
+    demandFilter?: AssetRegisterVehicleDemandFilter;
+    includeAssignmentSummary?: boolean;
   },
-): Promise<PaginatedResponse<AssetRegisterVehicleListItem>> {
+): Promise<
+  PaginatedResponse<AssetRegisterVehicleListItem> & {
+    assignmentSummary?: AssetRegisterVehicleAssignmentSummary;
+  }
+> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
     page: String(params.page ?? 1),
@@ -69,9 +93,19 @@ export async function fetchAssetRegisterVehiclesApi(
   if (params.operationalStatus)
     q.set("operationalStatus", params.operationalStatus);
   if (params.status) q.set("status", params.status);
+  if (params.demandFilter && params.demandFilter !== "any") {
+    q.set("demandFilter", params.demandFilter);
+  }
+  if (params.includeAssignmentSummary) {
+    q.set("includeAssignmentSummary", "true");
+  }
   appendListSortSearchParams(q, params);
 
-  return apiFetch<PaginatedResponse<AssetRegisterVehicleListItem>>(
+  return apiFetch<
+    PaginatedResponse<AssetRegisterVehicleListItem> & {
+      assignmentSummary?: AssetRegisterVehicleAssignmentSummary;
+    }
+  >(
     `/asset-register/vehicles?${q.toString()}`,
     {
       token: params.token,
@@ -81,6 +115,35 @@ export async function fetchAssetRegisterVehiclesApi(
 }
 
 const ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE = 50;
+
+/** Loads available vehicles for one asset class (oldest register date first). */
+export async function fetchAllAssetRegisterVehiclesForClassApi(params: {
+  organizationId: string;
+  token: string;
+  assetClassId: string;
+  operationalStatus?: AssetRegisterVehicleOperationalStatus;
+  status?: AssetRegisterClassStatus;
+  sortBy?: "createdAt";
+  sortOrder?: "asc" | "desc";
+  maxItems?: number;
+}): Promise<AssetRegisterVehicleListItem[]> {
+  const maxItems = Math.min(
+    params.maxItems ?? ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE,
+    ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE,
+  );
+  const response = await fetchAssetRegisterVehiclesApi({
+    organizationId: params.organizationId,
+    token: params.token,
+    page: 1,
+    pageSize: maxItems,
+    assetClassId: params.assetClassId,
+    operationalStatus: params.operationalStatus ?? "available",
+    status: params.status ?? "active",
+    sortBy: params.sortBy ?? "createdAt",
+    sortOrder: params.sortOrder ?? "asc",
+  });
+  return (response.items ?? []).slice(0, maxItems);
+}
 
 /** Loads every page of active fleet vehicles for workshop dropdowns. */
 export async function fetchAllActiveAssetRegisterVehiclesApi(params: {

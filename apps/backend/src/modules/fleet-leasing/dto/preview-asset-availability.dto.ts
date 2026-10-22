@@ -42,4 +42,13 @@ export class PreviewAssetAvailabilityBatchDto {
   @ValidateNested({ each: true })
   @Type(() => PreviewAssetAvailabilityLineDto)
   lines!: PreviewAssetAvailabilityLineDto[];
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'When editing a draft contract, exclude its line commitments from pool reservation.',
+  })
+  @IsOptional()
+  @IsUUID()
+  excludeContractId?: string;
 }

@@ -15,7 +15,7 @@ if ($content -match 'DatabaseUrl=\\"([^\\"]+)\\"') {
 }
 Push-Location $Root
 try {
-  npm run db:seed -w backend
+  npm run db:seed:permissions-bootstrap -w backend
 } finally {
   Pop-Location
   Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue

@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
 import { FleetLeasingModule } from '../fleet-leasing/fleet-leasing.module';
+import { OrganisationModule } from '../organisation/organisation.module';
 import { AssetRegisterCatalogService } from './asset-register-catalog.service';
 import { AssetRegisterAssignmentsController } from './asset-register-assignments.controller';
 import { AssetRegisterAssignmentsService } from './asset-register-assignments.service';
@@ -14,7 +15,11 @@ import { AssetRegisterVehiclesService } from './asset-register-vehicles.service'
 import { AssetRegisterRepository } from './repositories/asset-register.repository';
 
 @Module({
-  imports: [AuditModule, forwardRef(() => FleetLeasingModule)],
+  imports: [
+    AuditModule,
+    OrganisationModule,
+    forwardRef(() => FleetLeasingModule),
+  ],
   controllers: [
     AssetClassesController,
     AssetRegisterVehiclesController,

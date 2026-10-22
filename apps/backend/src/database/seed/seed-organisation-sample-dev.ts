@@ -19,7 +19,7 @@ import {
 } from '../schema';
 import { SYSTEM_LOCATION_TYPE_PRESETS } from '../../modules/organisation/constants/system-location-type-presets';
 import {
-  assertDevOnly,
+  assertDevOnlyForLegacyOrgSeed,
   cleanDevOrganisationEmployeesAndLocations,
   cleanDevRbacTestArtifacts,
   maskDatabaseUrl,
@@ -67,7 +67,7 @@ async function ensureSystemLocationTypes(
 
 async function main(): Promise<void> {
   const connectionString = resolveDevDatabaseUrl();
-  assertDevOnly(connectionString);
+  assertDevOnlyForLegacyOrgSeed(connectionString);
 
   const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });

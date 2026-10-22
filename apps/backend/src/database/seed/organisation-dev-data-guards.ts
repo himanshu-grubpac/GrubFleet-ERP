@@ -26,6 +26,44 @@ dotenv.config({ path: path.resolve(__dirname, '../../../.env') });
 export const LOCAL_DEFAULT_DATABASE_URL =
   'postgresql://grubpac:grubpac_dev@localhost:5432/grubpac_erp';
 
+/** Docker Compose local DB — use slim seed only unless explicitly overridden. */
+const CANONICAL_LOCAL_DB_NAMES = new Set(['grubpac_erp', 'grubfleet_erp_dev']);
+
+export function isCanonicalLocalDevDatabase(connectionString: string): boolean {
+  try {
+    const dbName = new URL(
+      connectionString.replace(/^postgresql:/, 'postgres:'),
+    ).pathname
+      .replace(/^\//, '')
+      .split('?')[0];
+    return CANONICAL_LOCAL_DB_NAMES.has(dbName);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Blocks legacy sample/demo org seeds on grubpac_erp (canonical local path is db:seed:local-slim).
+ */
+export function assertLegacyOrgDemoSeedBlocked(connectionString: string): void {
+  if (process.env.ALLOW_LEGACY_ORG_DEMO_SEED === '1') {
+    return;
+  }
+  if (!isCanonicalLocalDevDatabase(connectionString)) {
+    return;
+  }
+  throw new Error(
+    'Refusing legacy org/demo seed on canonical local Docker DB (grubpac_erp). ' +
+      'Use npm run db:reset:local-professional or npm run db:seed:local-slim -w backend. ' +
+      'Set ALLOW_LEGACY_ORG_DEMO_SEED=1 only when intentionally testing old sample scripts.',
+  );
+}
+
+export function assertDevOnlyForLegacyOrgSeed(connectionString: string): void {
+  assertDevOnly(connectionString);
+  assertLegacyOrgDemoSeedBlocked(connectionString);
+}
+
 export function resolveDevDatabaseUrl(): string {
   return process.env.DATABASE_URL ?? LOCAL_DEFAULT_DATABASE_URL;
 }

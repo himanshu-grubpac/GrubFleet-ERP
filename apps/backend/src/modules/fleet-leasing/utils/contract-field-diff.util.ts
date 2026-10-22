@@ -27,6 +27,19 @@ function dateIso(d: Date | null | undefined): string | null {
   return d.toISOString().slice(0, 10);
 }
 
+function normalizeMoneyForSnapshot(
+  value: string | number | null | undefined,
+): string | null {
+  if (value === null || value === undefined || value === '') {
+    return null;
+  }
+  const numeric = Number.parseFloat(String(value));
+  if (!Number.isFinite(numeric)) {
+    return String(value);
+  }
+  return numeric.toFixed(2);
+}
+
 export function contractRowToSnapshot(input: {
   clientId: string | null;
   startDate: Date | null;
@@ -49,12 +62,17 @@ export function contractRowToSnapshot(input: {
     startDate: dateIso(input.startDate),
     endDate: dateIso(input.endDate),
     termMonths: input.termMonths,
-    securityDeposit: input.securityDeposit,
-    billingFrequency: input.billingFrequency,
+    securityDeposit: normalizeMoneyForSnapshot(input.securityDeposit),
+    billingFrequency: input.billingFrequency ?? 'monthly',
     additionalTerms: input.additionalTerms,
     amcTier: input.amcTier,
     description: input.description,
-    assetLines: input.assetLines.map((l) => ({ ...l })),
+    assetLines: input.assetLines.map((l) => ({
+      assetClass: l.assetClass,
+      committedQuantity: l.committedQuantity,
+      ratePerVehicleMonth:
+        normalizeMoneyForSnapshot(l.ratePerVehicleMonth) ?? '0.00',
+    })),
     vehicleIds: [...input.vehicleIds].sort(),
   };
 }

@@ -10,14 +10,13 @@ export type LeaseContractStatus =
   | 'closed'
   | 'concluded';
 
-/** Figma list filter chips → DB statuses. */
+/** List filter chips → DB statuses. */
 export const LIST_STATUS_FILTER = {
   all: null,
   active: ['active'] as LeaseContractStatus[],
   awaiting_assets: ['awaiting_assets'] as LeaseContractStatus[],
   pending_approval: ['pending_approval'] as LeaseContractStatus[],
   draft: ['draft'] as LeaseContractStatus[],
-  /** Figma "Completed". */
   completed: ['closed', 'concluded'] as LeaseContractStatus[],
   deactivated: ['deactivated'] as LeaseContractStatus[],
   billing_paused: ['billing_paused'] as LeaseContractStatus[],
@@ -26,6 +25,15 @@ export const LIST_STATUS_FILTER = {
 
 /** Flow 02 — allocate vehicles while contract is live or pre-active. */
 export const ALLOCATION_ELIGIBLE_CONTRACT_STATUSES: LeaseContractStatus[] = [
+  'approved',
+  'active',
+  'awaiting_assets',
+];
+
+/** Contracts whose unallocated line qty reserves fleet register pool (availability preview). */
+export const ASSET_POOL_COMMITMENT_CONTRACT_STATUSES: LeaseContractStatus[] = [
+  'draft',
+  'pending_approval',
   'approved',
   'active',
   'awaiting_assets',

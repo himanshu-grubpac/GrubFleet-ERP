@@ -5,6 +5,7 @@ import { StructuredLoggerService } from './common/logger/structured-logger.servi
 import { DatabaseModule } from './database/database.module';
 import { HealthModule } from './infrastructure/health/health.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { OrganizationRealtimeModule } from './infrastructure/organization-realtime/organization-realtime.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
@@ -24,6 +25,7 @@ import { PortalSearchModule } from './modules/portal-search/portal-search.module
     AppConfigModule,
     DatabaseModule,
     RedisModule,
+    OrganizationRealtimeModule,
     HealthModule,
     AuthModule,
     UsersModule,

@@ -19,6 +19,17 @@ export const envSchema = z
     API_PREFIX: z.string().default('api/v1'),
     DATABASE_URL: z.string().min(1),
     REDIS_URL: z.string().default('redis://localhost:6379'),
+    /** Org SSE domain events (`GET /events/stream`). Disable on tiers without long-lived HTTP. */
+    ORG_REALTIME_ENABLED: z
+      .enum(['true', 'false'])
+      .default('true')
+      .transform((v) => v === 'true'),
+    /** Max concurrent SSE connections per organization on this API instance. */
+    ORG_REALTIME_SSE_MAX_CONNECTIONS_PER_ORG: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(50),
     JWT_ACCESS_SECRET: z.string().min(32).optional(),
     JWT_REFRESH_SECRET: z.string().min(32).optional(),
     JWT_ACCESS_TTL: z.string().default('15m'),

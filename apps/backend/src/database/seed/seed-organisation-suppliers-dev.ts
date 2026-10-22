@@ -17,7 +17,7 @@ import * as schema from '../schema';
 import { organisationSuppliers } from '../schema';
 import type { OrganisationSupplierType } from '../../modules/organisation/constants/supplier-type.constants';
 import {
-  assertDevOnly,
+  assertDevOnlyForLegacyOrgSeed,
   maskDatabaseUrl,
   resolveDevDatabaseUrl,
   resolveDevOrganizationId,
@@ -153,7 +153,7 @@ export const DEV_SEED_SUPPLIER_EXPECTED_COUNT = SUPPLIER_SEEDS.length;
 
 async function main(): Promise<void> {
   const connectionString = resolveDevDatabaseUrl();
-  assertDevOnly(connectionString);
+  assertDevOnlyForLegacyOrgSeed(connectionString);
 
   const pool = new Pool(pgPoolOptions(connectionString));
   const db = drizzle(pool, { schema });

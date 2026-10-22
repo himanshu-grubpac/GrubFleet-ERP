@@ -59,6 +59,9 @@ export const FLEET_ASSET_CLASS_LIST_DEFAULT_SORT: ResolvedListSort<FleetAssetCla
 export const RENEWALS_EXTENSION_LIST_SORT_FIELDS = [
   'createdAt',
   'contractNumber',
+  'startDate',
+  'endDate',
+  'status',
 ] as const;
 export type RenewalsExtensionListSortField =
   (typeof RENEWALS_EXTENSION_LIST_SORT_FIELDS)[number];

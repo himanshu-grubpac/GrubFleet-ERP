@@ -100,4 +100,12 @@ export class CreateAssetRegisterVehicleDto {
   @IsOptional()
   @IsUUID()
   purchaseInvoiceId?: string | null;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Organisation supplier (compliance / insurance).',
+  })
+  @IsOptional()
+  @IsUUID()
+  insuranceSupplierId?: string;
 }

@@ -323,6 +323,20 @@
       "when": 1794700000000,
       "tag": "0045_asset_class_six_digit_id",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1794800000000,
+      "tag": "0046_asset_register_vehicle_insurance_supplier",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1794900000000,
+      "tag": "0047_asset_register_assignment_handover_fields",
+      "breakpoints": true
     }
   ]
 }
