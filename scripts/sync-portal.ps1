@@ -51,6 +51,7 @@ try {
     Write-Host "Building frontend static export (NEXT_PUBLIC_API_BASE_URL=$ApiBaseUrl)..."
     $env:NEXT_STATIC_EXPORT = 'true'
     $env:NEXT_PUBLIC_API_BASE_URL = $ApiBaseUrl
+    $env:NEXT_PUBLIC_PORTAL_TIER = $Tier
     npm run build -w frontend
     if ($LASTEXITCODE -ne 0) { throw 'Frontend build failed' }
   }

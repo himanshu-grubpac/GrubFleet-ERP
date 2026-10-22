@@ -79,6 +79,7 @@ export function assertStagingDemoSeedAllowed(): void {
 }
 
 const STAGING_NONPROD_DB_NAME = 'grubfleet_erp_nonprod';
+const PREPROD_DB_NAME = 'grubfleet_erp_preprod';
 
 function assertStagingNonprodDatabaseUrl(connectionString: string): void {
   let dbName: string | undefined;
@@ -182,6 +183,49 @@ export function assertStagingDemoPurgeAllowed(): void {
     );
   }
   assertStagingNonprodDatabaseUrl(resolveStagingDatabaseUrl());
+}
+
+function assertPreprodDatabaseUrl(connectionString: string): void {
+  let dbName: string | undefined;
+  try {
+    dbName = new URL(connectionString.replace(/^postgresql:/, 'postgres:'))
+      .pathname.replace(/^\//, '')
+      .split('?')[0];
+  } catch {
+    throw new Error('DATABASE_URL is not a valid URL.');
+  }
+  if (dbName !== PREPROD_DB_NAME) {
+    throw new Error(
+      `Refusing pre-prod business purge: expected database "${PREPROD_DB_NAME}", got "${dbName ?? '(unknown)'}".`,
+    );
+  }
+  if (/grubfleet_erp_production/i.test(connectionString)) {
+    throw new Error('Refusing pre-prod purge against production database.');
+  }
+}
+
+/**
+ * Purge pre-prod org business + demo rows; keeps users, password hashes, memberships, roles, org shell.
+ * Requires PURGE_PREPROD_BUSINESS=1 and APP_ENV=preprod.
+ */
+export function assertPreprodBusinessPurgeAllowed(): void {
+  const appEnv = process.env.APP_ENV?.trim();
+  if (appEnv === 'production' || appEnv === 'pre-production') {
+    throw new Error(
+      `Refusing pre-prod business purge when APP_ENV=${appEnv ?? '(unset)'} (use preprod).`,
+    );
+  }
+  if (process.env.PURGE_PREPROD_BUSINESS !== '1') {
+    throw new Error(
+      'Refusing pre-prod business purge: set PURGE_PREPROD_BUSINESS=1 explicitly.',
+    );
+  }
+  if (appEnv !== 'preprod') {
+    throw new Error(
+      `Refusing pre-prod business purge: APP_ENV must be preprod (got ${appEnv ?? '(unset)'}).`,
+    );
+  }
+  assertPreprodDatabaseUrl(resolveStagingDatabaseUrl());
 }
 
 export function assertStagingAssetRegisterCleanAllowed(): void {
