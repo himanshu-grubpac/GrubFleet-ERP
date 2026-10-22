@@ -3,23 +3,32 @@
 import { ArrowRight } from "lucide-react";
 
 import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
-import { getModuleHubQuickLinks } from "@/lib/navigation/module-hub-quick-links";
+import {
+  getModuleHubQuickLinks,
+  type ModuleHubQuickLink,
+} from "@/lib/navigation/module-hub-quick-links";
 
 type ModuleHubQuickLinksSectionProps = {
-  moduleRootHref: string;
+  moduleRootHref?: string;
+  links?: ModuleHubQuickLink[];
+  sectionTitle?: string;
   subtitle?: string;
 };
 
 export function ModuleHubQuickLinksSection({
   moduleRootHref,
+  links: linksOverride,
+  sectionTitle = "Quick Links",
   subtitle = "Select a section to continue.",
 }: ModuleHubQuickLinksSectionProps) {
-  const links = getModuleHubQuickLinks(moduleRootHref);
+  const links =
+    linksOverride ??
+    (moduleRootHref ? getModuleHubQuickLinks(moduleRootHref) : []);
 
   return (
     <section>
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-gray-900">Quick Links</h2>
+        <h2 className="text-base font-semibold text-gray-900">{sectionTitle}</h2>
         <p className="mt-1 text-sm text-gray-500">{subtitle}</p>
       </div>
 

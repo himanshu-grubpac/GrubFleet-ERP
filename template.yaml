@@ -35,6 +35,7 @@ Parameters:
     AllowedValues:
       - staging
       - preprod
+      - fleetbeta
       - production
     Description: APP_ENV for Nest config (JWT secrets required when production)
   ClientOrigin:

@@ -4,7 +4,7 @@
 #   .\scripts\update-sam-client-origin.ps1 -Tier staging -PortalOrigin https://dxxx.cloudfront.net
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('staging', 'preprod', 'production')]
+  [ValidateSet('staging', 'preprod', 'fleetbeta', 'production')]
   [string] $Tier,
 
   [string] $PortalOrigin = '',

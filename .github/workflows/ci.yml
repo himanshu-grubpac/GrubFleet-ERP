@@ -6,9 +6,9 @@ name: CI
 
 on:
   push:
-    branches: [develop, staging, pre-prod, main]
+    branches: [develop, staging, pre-prod, fleet-beta, main]
   pull_request:
-    branches: [develop, staging, pre-prod, main]
+    branches: [develop, staging, pre-prod, fleet-beta, main]
     types: [opened, synchronize, reopened, ready_for_review]
 
 jobs:

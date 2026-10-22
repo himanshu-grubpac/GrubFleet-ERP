@@ -7,6 +7,7 @@ Parameters:
     AllowedValues:
       - staging
       - preprod
+      - fleetbeta
       - production
   NetworkStackName:
     Type: String
@@ -60,6 +61,13 @@ Mappings:
       MultiAZ: false
       BackupDays: 7
       RedisNode: cache.t4g.micro
+    fleetbeta:
+      DbClass: db.t3.small
+      StorageGiB: 50
+      MaxStorageGiB: 256
+      MultiAZ: false
+      BackupDays: 7
+      RedisNode: cache.t4g.micro
     production:
       DbClass: db.t3.medium
       StorageGiB: 100
@@ -79,6 +87,9 @@ Conditions:
   IsProductionTier: !Equals [!Ref Tier, production]
   HasStorageAutoscale: !Not
     - !Equals [!FindInMap [TierSizing, !Ref Tier, MaxStorageGiB], 0]
+  # Fleet + beta uses shared grubpac-v2; this stack provisions Redis only.
+  UseSharedErpRds: !Equals [!Ref Tier, fleetbeta]
+  CreateDedicatedRds: !Not [!Condition UseSharedErpRds]
 
 Resources:
   MigrationRdsIngress:
@@ -94,6 +105,7 @@ Resources:
 
   DbSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
+    Condition: CreateDedicatedRds
     Properties:
       DBSubnetGroupDescription: !Sub 'GrubFleet ${Tier} RDS subnets'
       SubnetIds: !If
@@ -108,6 +120,7 @@ Resources:
 
   PostgresInstance:
     Type: AWS::RDS::DBInstance
+    Condition: CreateDedicatedRds
     DeletionPolicy: Snapshot
     UpdateReplacePolicy: Snapshot
     Properties:
@@ -178,12 +191,22 @@ Resources:
 
 Outputs:
   RdsEndpointAddress:
+    Condition: CreateDedicatedRds
     Description: RDS hostname (no credentials)
     Value: !GetAtt PostgresInstance.Endpoint.Address
   RdsEndpointPort:
+    Condition: CreateDedicatedRds
     Value: !GetAtt PostgresInstance.Endpoint.Port
   RdsDatabaseName:
+    Condition: CreateDedicatedRds
     Value: !Sub 'grubfleet_${Tier}'
+  SharedErpRdsHost:
+    Condition: UseSharedErpRds
+    Description: Shared ERP Postgres host (grubpac-v2)
+    Value: grubpac-v2.c3e2ke8yg11n.ap-south-1.rds.amazonaws.com
+  SharedErpDatabaseName:
+    Condition: UseSharedErpRds
+    Value: grubfleet_erp_fleet_beta
   RedisEndpointAddress:
     Description: Redis primary endpoint hostname
     Value: !GetAtt RedisCluster.RedisEndpoint.Address

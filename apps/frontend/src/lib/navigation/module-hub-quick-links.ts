@@ -33,7 +33,7 @@ const MODULE_HUB_LINK_DESCRIPTIONS: Record<string, string> = {
 
   [normalizeNavPath("/workshop/work-order/")]:
     "Create, view, and manage workshop work orders and repair activities.",
-  [normalizeNavPath("/workshop/labour-rate-cards/")]:
+  [normalizeNavPath("/workshop/service-packages/")]:
     "Manage labour categories, service rates, and workshop labour pricing.",
   [normalizeNavPath("/workshop/amc-maintenance/")]:
     "Manage annual maintenance contracts and scheduled maintenance activities.",
@@ -69,6 +69,26 @@ const MODULE_HUB_LINK_DESCRIPTIONS: Record<string, string> = {
     "Create and manage roles, assign permissions, and control access across application modules.",
 };
 
+/** Portal home — top-level module hubs (labels/icons from filtered `mainNavItems`). */
+const PORTAL_MAIN_MODULE_DESCRIPTIONS: Record<string, string> = {
+  [normalizeNavPath("/fleet-leasing/")]:
+    "Manage lease contracts, renewals, returns, inspections, and fleet leasing support.",
+  [normalizeNavPath("/asset-register/")]:
+    "Manage asset classes, fleet register, assignments, and compliance renewals.",
+  [normalizeNavPath("/workshop/")]:
+    "Manage work orders, service packages, and AMC maintenance schedules.",
+  [normalizeNavPath("/inventory/")]:
+    "Manage stock register, balances, receipts, and parts requests.",
+  [normalizeNavPath("/organization/")]:
+    "Manage locations, suppliers, employees, drivers, and clients.",
+  [normalizeNavPath("/finance/")]:
+    "Manage invoices, client statements, and vendor payments.",
+  [normalizeNavPath("/administration/")]:
+    "Manage roles, permissions, and access across the portal.",
+};
+
+const DASHBOARD_HOME_HREF = normalizeNavPath("/dashboard/");
+
 function findModuleNavItem(moduleRootHref: string): NavItem | undefined {
   const normalizedRoot = normalizeNavPath(moduleRootHref);
   return mainNavItems.find(
@@ -80,6 +100,32 @@ function findModuleNavItem(moduleRootHref: string): NavItem | undefined {
  * Top-level submodule quick links for a module hub — same children as sidebar nav
  * (nested nav items such as Support → Vehicle Replacement are not duplicated here).
  */
+/**
+ * Top-level module cards for the portal home — same entries as sidebar roots
+ * (excluding Dashboard). Pass RBAC-filtered nav items from `filterNavByPermissions`.
+ */
+export function getPortalMainModuleQuickLinks(
+  navItems: NavItem[],
+): ModuleHubQuickLink[] {
+  return navItems
+    .filter(
+      (item) => normalizeNavPath(item.href) !== DASHBOARD_HOME_HREF,
+    )
+    .map((item) => {
+      const normalizedHref = normalizeNavPath(item.href);
+      const description =
+        PORTAL_MAIN_MODULE_DESCRIPTIONS[normalizedHref] ??
+        `Open ${item.label} to continue.`;
+
+      return {
+        title: item.label,
+        href: item.href,
+        icon: item.icon ?? LayoutDashboard,
+        description,
+      };
+    });
+}
+
 export function getModuleHubQuickLinks(
   moduleRootHref: string,
 ): ModuleHubQuickLink[] {

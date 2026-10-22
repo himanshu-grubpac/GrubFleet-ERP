@@ -1,6 +1,6 @@
 param(
   [Parameter(Mandatory = $true)]
-  [ValidateSet('staging', 'preprod', 'production')]
+  [ValidateSet('staging', 'preprod', 'fleetbeta', 'production')]
   [string]$Tier
 )
 

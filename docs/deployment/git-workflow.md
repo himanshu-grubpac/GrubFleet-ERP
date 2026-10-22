@@ -29,17 +29,17 @@ Do not skip tiers unless an approved hotfix process says otherwise.
 ```text
 feature/fix/chore  →  PR  →  develop
 develop            →  PR  →  staging      →  deploy-staging.yml
-staging            →  PR  →  pre-prod     →  deploy-preprod.yml
+staging            →  PR  →  pre-prod     →  deploy-preprod.yml + sync fleet-beta → deploy-fleet-beta.yml
 pre-prod           →  PR  →  main         →  deploy-production.yml
 ```
 
-After a promotion PR merges, GitHub Actions deploys the target environment (see [environments.md](./environments.md) and [blue-green.md](./blue-green.md)). Merges to `staging`, `pre-prod`, and `main` should be done by someone with permission to promote; still use PRs, not direct pushes.
+After a promotion PR merges, GitHub Actions deploys the target environment (see [environments.md](./environments.md) and [blue-green.md](./blue-green.md)). **`fleet-beta`** is updated automatically when **`pre-prod`** is promoted (same commit). Merges to `staging`, `pre-prod`, and `main` should be done by someone with permission to promote; still use PRs, not direct pushes.
 
 ## CI
 
 Workflow [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml) runs on:
 
-- **Pull requests** targeting `develop`, `staging`, `pre-prod`, or `main`
+- **Pull requests** targeting `develop`, `staging`, `pre-prod`, `fleet-beta`, or `main`
 - **Pushes** to those same long-lived branches (typically after a PR merge)
 
 Opening a PR from `feature/…` into `develop` runs CI before merge.

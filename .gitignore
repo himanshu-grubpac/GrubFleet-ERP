@@ -39,6 +39,7 @@ lambda-package/
 .aws-sam/
 samconfig.staging.toml
 samconfig.preprod.toml
+samconfig.fleetbeta.toml
 samconfig.production.toml
 .aws-deploy-meta.local.json
 
