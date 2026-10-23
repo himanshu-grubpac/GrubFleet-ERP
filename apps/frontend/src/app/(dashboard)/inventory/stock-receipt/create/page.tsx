@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import StockReciptForm, {
+  STOCK_RECEIPT_MANUAL_INVOICE,
   type StockFormData,
 } from "@/components/modules/inventory/StockReceipt/StockReciptForm";
+import { fetchFinanceInvoicesApi } from "@/lib/api/finance/invoices";
 import { useAuth } from "@/providers/auth-provider";
 import { fetchStockRegisterListApi } from "@/lib/api/inventory/stock-register";
 import { createStockReceiptApi } from "@/lib/api/inventory/stock-receipts";
@@ -15,6 +17,7 @@ import {
   showApiErrorToast,
   showStockReceiptCreatedToast,
 } from "@/lib/toast/show-toast";
+import { parseRupeeInputToMinor } from "@/lib/format/money-format";
 
 export default function CreateStockPage() {
   const router = useRouter();
@@ -28,9 +31,21 @@ export default function CreateStockPage() {
     queryKey: ["inventory", "stock-register", "catalog", organizationId],
     queryFn: () =>
       fetchStockRegisterListApi(
-        { organizationId: organizationId!, page: 1, pageSize: 50, status: "active" },
+        { organizationId: organizationId!, page: 1, pageSize: 200, status: "active" },
         token!,
       ),
+    enabled: !!token && !!organizationId,
+  });
+
+  const purchaseInvoicesQuery = useQuery({
+    queryKey: ["finance", "invoices", "purchase-catalog", organizationId],
+    queryFn: () =>
+      fetchFinanceInvoicesApi(token!, {
+        organizationId: organizationId!,
+        page: 1,
+        pageSize: 200,
+        invoiceType: "purchase",
+      }),
     enabled: !!token && !!organizationId,
   });
 
@@ -40,24 +55,35 @@ export default function CreateStockPage() {
       fetchOrganisationLocationsApi(token!, {
         organizationId: organizationId!,
         page: 1,
-        pageSize: 50,
+        pageSize: 200,
       }),
     enabled: !!token && !!organizationId,
   });
 
   const createMutation = useMutation({
     mutationFn: (data: StockFormData) => {
-      const unitCost = Number(data.unitCost);
+      const unitCostMinor = parseRupeeInputToMinor(data.unitCost);
+      if (unitCostMinor === null) {
+        throw new Error("Unit cost must be a valid amount.");
+      }
       const qty = Number(data.quantityReceived);
+      const invoiceSelection = data.purchaseInvoice.trim();
+      const isManual =
+        !invoiceSelection ||
+        invoiceSelection === STOCK_RECEIPT_MANUAL_INVOICE;
       return createStockReceiptApi(
         {
           organizationId: organizationId!,
           partId: data.part,
           locationId: data.destinationLocation,
-          purchaseInvoiceReference: data.purchaseInvoice.trim(),
-          purchaseDate: new Date().toISOString().slice(0, 10),
+          financeInvoiceId: isManual ? undefined : invoiceSelection,
+          purchaseInvoiceReference: isManual
+            ? data.purchaseInvoiceManualRef.trim() || undefined
+            : undefined,
+          purchaseDate: data.purchaseDate.trim(),
+          expiryDate: data.expiryDate.trim() || undefined,
           quantityReceived: qty,
-          quantityUnitCostMinor: Math.round(unitCost * 100),
+          quantityUnitCostMinor: unitCostMinor,
           batchLotReference: data.batchLotReference.trim() || undefined,
           notes: data.notes.trim() || undefined,
         },
@@ -95,15 +121,26 @@ export default function CreateStockPage() {
     })) ?? [];
 
   const isCatalogLoading =
-    partsQuery.isLoading || locationsQuery.isLoading;
+    partsQuery.isLoading ||
+    locationsQuery.isLoading ||
+    purchaseInvoicesQuery.isLoading;
+
+  const purchaseInvoiceOptions = [
+    {
+      value: STOCK_RECEIPT_MANUAL_INVOICE,
+      label: "Manual / unlinked",
+    },
+    ...(purchaseInvoicesQuery.data?.items.map((invoice) => ({
+      value: invoice.id,
+      label: invoice.invoiceNumber?.trim() || invoice.id,
+    })) ?? []),
+  ];
 
   return (
     <StockReciptForm
       partOptions={partOptions}
       locationOptions={locationOptions}
-      purchaseInvoiceOptions={[
-        { value: "Manual / unlinked", label: "Manual / unlinked" },
-      ]}
+      purchaseInvoiceOptions={purchaseInvoiceOptions}
       isCatalogLoading={isCatalogLoading}
       onSaved={async (data) => {
         await createMutation.mutateAsync(data);

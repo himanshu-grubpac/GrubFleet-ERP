@@ -8,6 +8,10 @@ import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+    FormFieldInlineError,
+    mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
 
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -371,21 +375,18 @@ export default function CreateDriverForm({
     };
 
 
-    const canSubmit = !isSaving;
+    const canSubmit =
+        !isSaving && !hasValidationErrors(liveValidationErrors);
 
 
-    /* ---------------------------------------------------------------------- */
-    /* Input Class                                                             */
-    /* ---------------------------------------------------------------------- */
+    const controlBaseClass =
+        "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
-
-    const inputClass = (field: string) =>
-        [
-            "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
-            displayedValidationErrors[field]
-                ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-        ].join(" ");
+    const fieldBorderClass = (field: string) =>
+        mergeFormControlBorderClass(
+            Boolean(displayedValidationErrors[field]),
+            controlBaseClass,
+        );
 
 
     /* ---------------------------------------------------------------------- */
@@ -459,15 +460,11 @@ export default function CreateDriverForm({
                         clearError("name");
                     }}
                     placeholder="Enter driver name"
-                    className={inputClass("name")}
+                    className={fieldBorderClass("name")}
                 />
 
 
-                {displayedValidationErrors.name && (
-                    <p className="mt-1 text-xs text-red-500">
-                        {displayedValidationErrors.name}
-                    </p>
-                )}
+                <FormFieldInlineError message={displayedValidationErrors.name} />
             </div>
 
 
@@ -499,15 +496,11 @@ export default function CreateDriverForm({
                             clearError("cprNo");
                         }}
                         placeholder="e.g. 880417213"
-                        className={inputClass("cprNo")}
+                        className={fieldBorderClass("cprNo")}
                     />
 
 
-                    {displayedValidationErrors.cprNo && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {displayedValidationErrors.cprNo}
-                        </p>
-                    )}
+                    <FormFieldInlineError message={displayedValidationErrors.cprNo} />
                 </div>
 
 
@@ -533,15 +526,11 @@ export default function CreateDriverForm({
                             clearError("mobileNo");
                         }}
                         placeholder={getInternationalPhonePlaceholder()}
-                        className={inputClass("mobileNo")}
+                        className={fieldBorderClass("mobileNo")}
                     />
 
 
-                    {displayedValidationErrors.mobileNo && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {displayedValidationErrors.mobileNo}
-                        </p>
-                    )}
+                    <FormFieldInlineError message={displayedValidationErrors.mobileNo} />
                 </div>
             </div>
 
@@ -577,17 +566,13 @@ export default function CreateDriverForm({
                             clearError("drivingLicenseNo");
                         }}
                         placeholder="e.g. DL-172094"
-                        className={inputClass("drivingLicenseNo")}
+                        className={fieldBorderClass("drivingLicenseNo")}
                     />
 
 
-                    {displayedValidationErrors.drivingLicenseNo && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {
-                                displayedValidationErrors.drivingLicenseNo
-                            }
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={displayedValidationErrors.drivingLicenseNo}
+                    />
                 </div>
 
 
@@ -618,19 +603,15 @@ export default function CreateDriverForm({
                                 "licenseExpiryDate",
                             );
                         }}
-                        className={inputClass(
+                        className={fieldBorderClass(
                             "licenseExpiryDate",
                         )}
                     />
 
 
-                    {displayedValidationErrors.licenseExpiryDate && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {
-                                displayedValidationErrors.licenseExpiryDate
-                            }
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={displayedValidationErrors.licenseExpiryDate}
+                    />
                 </div>
             </div>
 
@@ -663,7 +644,7 @@ export default function CreateDriverForm({
                             );
                             clearError("supplier");
                         }}
-                        className={inputClass(
+                        className={fieldBorderClass(
                             "supplier",
                         )}
                     >
@@ -683,11 +664,7 @@ export default function CreateDriverForm({
                     </select>
 
 
-                    {displayedValidationErrors.supplier && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {displayedValidationErrors.supplier}
-                        </p>
-                    )}
+                    <FormFieldInlineError message={displayedValidationErrors.supplier} />
                 </div>
 
 
@@ -713,15 +690,11 @@ export default function CreateDriverForm({
                             clearError("email");
                         }}
                         placeholder="name@example.com"
-                        className={inputClass("email")}
+                        className={fieldBorderClass("email")}
                     />
 
 
-                    {displayedValidationErrors.email && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {displayedValidationErrors.email}
-                        </p>
-                    )}
+                    <FormFieldInlineError message={displayedValidationErrors.email} />
                 </div>
             </div>
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -64,6 +64,10 @@ import {
   canReactivateLeaseContractListRow,
 } from "@/components/modules/fleet-leasing/lease-contracts/lease-contract-list-row-actions";
 import { leaseStatusPillClass } from "@/lib/lease-contract/lease-contract-status-display";
+import {
+  FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 
 type LeaseListRowAction = "deactivate" | "reactivate";
 
@@ -112,6 +116,17 @@ export default function LeaseContractsTable() {
 
   const { searchInput, setSearchInput, debouncedSearch } =
     useDashboardListSearch();
+
+  const onLeaseListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS.search,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const {
@@ -431,7 +446,7 @@ export default function LeaseContractsTable() {
               <DashboardFilters
                 searchValue={searchInput}
                 searchPlaceholder="Search by contract no. or client…"
-                onSearchChange={setSearchInput}
+                onSearchChange={onLeaseListSearchChange}
                 selectFilters={[
                   {
                     key: "status",

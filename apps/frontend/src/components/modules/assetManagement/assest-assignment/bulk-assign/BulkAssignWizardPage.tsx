@@ -11,6 +11,10 @@ import { useAuth } from "@/providers/auth-provider";
 import { assetAssignmentQueryOptions } from "@/lib/query/asset-assignment-query-options";
 import { invalidateAssetAssignmentCaches } from "@/lib/query/invalidate-asset-assignment-caches";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import {
+    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS,
+    sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { ApiClientError } from "@/lib/api/client";
 import {
     BULK_ASSIGN_DONE_STORAGE_KEY,
@@ -65,6 +69,15 @@ export default function BulkAssignWizardPage() {
     );
     const [vehicleSearch, setVehicleSearch] = useState("");
     const debouncedVehicleSearch = useDebouncedValue(vehicleSearch, 300);
+
+    const onBulkVehicleSearchChange = useCallback((value: string) => {
+        setVehicleSearch(
+            sanitizeRestrictedInputValue("text", value, {
+                maxLength:
+                    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.vehicleListSearch,
+            }),
+        );
+    }, []);
     const [vehiclePage, setVehiclePage] = useState(1);
     const [showSelectedOnly, setShowSelectedOnly] = useState(false);
     const [handoverDate, setHandoverDate] = useState(() => todayIsoDate());
@@ -760,7 +773,7 @@ export default function BulkAssignWizardPage() {
                         fleetRegisterCreateHref={FLEET_REGISTER_CREATE_HREF}
                         onChangeContract={() => setStep(1)}
                         search={vehicleSearch}
-                        onSearchChange={setVehicleSearch}
+                        onSearchChange={onBulkVehicleSearchChange}
                         showSelectedOnly={showSelectedOnly}
                         onShowSelectedOnlyChange={setShowSelectedOnly}
                         vehicles={vehicleRows}

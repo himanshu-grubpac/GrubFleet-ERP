@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -28,7 +28,11 @@ import {
   showSuccessToast,
 } from "@/lib/toast/show-toast";
 import { formatInrFromMinor } from "@/lib/format/money-format";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  WORKSHOP_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { WORKSHOP_LABOR_JOB_CARD_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
 import {
@@ -61,8 +65,19 @@ export default function LaborJobCardsListPage() {
   const [deactivateTarget, setDeactivateTarget] =
     useState<WorkshopLaborJobCardListItem | null>(null);
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch } =
+    useDashboardListSearch();
+
+  const onListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: WORKSHOP_INPUT_LIMITS.laborJobCardListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
   const [page, setPage] = useState(1);
 
   const {
@@ -211,8 +226,8 @@ export default function LaborJobCardsListPage() {
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
           <input
             type="search"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            value={searchInput}
+            onChange={(event) => onListSearchChange(event.target.value)}
             placeholder="Search by name"
             className="h-10 w-full rounded-md border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
           />

@@ -8,6 +8,10 @@ import { Trash2 } from "lucide-react";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
 import { useAuth } from "@/providers/auth-provider";
 import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
 import { fetchInventoryPartsCatalogApi } from "@/lib/api/finance/inventory-parts";
@@ -32,6 +36,7 @@ import {
   FINANCE_INVOICE_SPARE_NOTES_PLACEHOLDER,
   FINANCE_INVOICE_VAT_PERCENT_PLACEHOLDER,
 } from "@/lib/finance/finance-invoice-form-placeholders";
+import { FINANCE_INVOICE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { PURCHASE_INVOICE_NUMBER_FORMAT_HINT } from "@/lib/finance/invoice-filter-options";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
@@ -94,6 +99,10 @@ export default function NewPurchaseInvoicePage() {
   const [batchLot, setBatchLot] = useState("");
   const [spareNotes, setSpareNotes] = useState("");
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
+  const [assetClassPickerLineKey, setAssetClassPickerLineKey] = useState<
+    string | null
+  >(null);
+  const [assetClassPickerFilter, setAssetClassPickerFilter] = useState("");
   const isSubmittingRef = useRef(false);
 
   const catalogEnabled = !!token && !!organizationId && !authLoading;
@@ -104,7 +113,7 @@ export default function NewPurchaseInvoicePage() {
       fetchOrganisationSuppliersApi(token!, {
         organizationId: organizationId!,
         page: 1,
-        pageSize: 50,
+        pageSize: 200,
         status: "active",
       }),
     enabled: catalogEnabled,
@@ -116,7 +125,7 @@ export default function NewPurchaseInvoicePage() {
       fetchFinancePurchaseAssetClassesCatalogApi(token!, {
         organizationId: organizationId!,
         page: 1,
-        pageSize: 50,
+        pageSize: 200,
         status: "active",
       }),
     enabled: catalogEnabled && tab === "vehicle",
@@ -127,7 +136,7 @@ export default function NewPurchaseInvoicePage() {
     queryFn: () =>
       fetchInventoryPartsCatalogApi(token!, organizationId!, {
         page: 1,
-        pageSize: 50,
+        pageSize: 200,
       }),
     enabled: catalogEnabled && tab === "spare_parts",
   });
@@ -368,11 +377,17 @@ export default function NewPurchaseInvoicePage() {
     };
   };
 
-  const fieldClassName = (hasError: boolean) =>
-    `w-full rounded-md border px-3 py-2 text-sm ${hasError ? "border-red-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500" : "border-slate-200"}`;
+  const controlBaseClass =
+    "w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
 
-  const renderFieldError = (message?: string) =>
-    message ? <p className="mt-1 text-xs text-red-600" role="alert">{message}</p> : null;
+  const selectBaseClass =
+    "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
+
+  const fieldBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, controlBaseClass);
+
+  const selectBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, selectBaseClass);
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -442,7 +457,10 @@ export default function NewPurchaseInvoicePage() {
 
   // Keep Save clickable while the form is invalid so the first click can
   // reveal validation messages. Submission itself is blocked by handleSave.
-  const canSubmit = canCreate && !createMutation.isPending;
+  const canSubmit =
+    canCreate &&
+    !createMutation.isPending &&
+    (tab === "vehicle" ? isVehicleValid : isSpareValid);
 
   const handleSave = () => {
     setHasAttemptedSubmit(true);
@@ -460,6 +478,15 @@ export default function NewPurchaseInvoicePage() {
 
   const suppliers = suppliersQuery.data?.items ?? [];
   const assetClasses = assetClassesQuery.data?.items ?? [];
+
+  const filteredAssetClasses = useMemo(() => {
+    const q = assetClassPickerFilter.trim().toLowerCase();
+    if (!q) return assetClasses;
+    return assetClasses.filter((row) => {
+      const label = (row.specLabel || row.name || "").toLowerCase();
+      return label.includes(q);
+    });
+  }, [assetClasses, assetClassPickerFilter]);
   const parts = partsQuery.data?.items ?? [];
 
   const loadingCatalog =
@@ -561,7 +588,7 @@ export default function NewPurchaseInvoicePage() {
               type="date"
               min="0001-01-01"
               max="9999-12-31"
-              className={fieldClassName(hasAttemptedSubmit && !invoiceDate)}
+              className={fieldBorderClass(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
               onChange={(e) => {
                 const value = e.target.value;
@@ -587,10 +614,13 @@ export default function NewPurchaseInvoicePage() {
               }}
               aria-invalid={hasAttemptedSubmit && !invoiceDate}
             />
-            {hasAttemptedSubmit &&
-              renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
-
-
+            <FormFieldInlineError
+              message={
+                hasAttemptedSubmit && !invoiceDate
+                  ? "Select an invoice date."
+                  : undefined
+              }
+            />
           </div>
 
           <div>
@@ -598,7 +628,7 @@ export default function NewPurchaseInvoicePage() {
               Vendor *
             </label>
             <select
-              className={fieldClassName(hasAttemptedSubmit && !supplierId)}
+              className={selectBorderClass(hasAttemptedSubmit && !supplierId)}
               value={supplierId}
               onChange={(e) => setSupplierId(e.target.value)}
               disabled={suppliers.length === 0}
@@ -611,7 +641,13 @@ export default function NewPurchaseInvoicePage() {
                 </option>
               ))}
             </select>
-            {hasAttemptedSubmit && renderFieldError(!supplierId ? "Select a vendor." : "")}
+            <FormFieldInlineError
+              message={
+                hasAttemptedSubmit && !supplierId
+                  ? "Select a vendor."
+                  : undefined
+              }
+            />
             {suppliers.length === 0 ? (
               <p className="mt-1 text-xs text-slate-500">
                 No active suppliers in this organization. Add a supplier under
@@ -634,25 +670,103 @@ export default function NewPurchaseInvoicePage() {
                   <label className="mb-1 block text-sm font-medium text-slate-700">
                     Asset class *
                   </label>
-                  <select
-                    className={fieldClassName(hasAttemptedSubmit && !line.assetClassId)}
-                    value={line.assetClassId}
-                    onChange={(e) =>
-                      updateVehicleLine(line.key, {
-                        assetClassId: e.target.value,
-                      })
+                  <div className="relative">
+                    <div
+                      className={selectBorderClass(
+                        hasAttemptedSubmit && !line.assetClassId,
+                      )}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAssetClassPickerLineKey((previous) =>
+                            previous === line.key ? null : line.key,
+                          );
+                          setAssetClassPickerFilter("");
+                        }}
+                        aria-expanded={assetClassPickerLineKey === line.key}
+                        aria-haspopup="listbox"
+                        disabled={assetClasses.length === 0}
+                        className="flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-900 outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <span
+                          className={
+                            line.assetClassId
+                              ? "text-slate-900"
+                              : "text-slate-400"
+                          }
+                        >
+                          {line.assetClassId
+                            ? assetClasses.find(
+                                (c) => c.id === line.assetClassId,
+                              )?.specLabel ||
+                              assetClasses.find(
+                                (c) => c.id === line.assetClassId,
+                              )?.name ||
+                              "Select asset class"
+                            : "Select asset class"}
+                        </span>
+                      </button>
+                    </div>
+                    {assetClassPickerLineKey === line.key ? (
+                      <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-slate-300 bg-white shadow-lg">
+                        <div className="border-b border-slate-100 p-2">
+                          <RestrictedInput
+                            restrictedKind="text"
+                            maxLength={
+                              FINANCE_INVOICE_INPUT_LIMITS.invoiceListSearch
+                            }
+                            value={assetClassPickerFilter}
+                            onChange={setAssetClassPickerFilter}
+                            placeholder="Search asset classes…"
+                            className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
+                          />
+                        </div>
+                        <div
+                          className="max-h-56 overflow-y-auto py-1"
+                          role="listbox"
+                        >
+                          {assetClassesQuery.isLoading ? (
+                            <p className="px-3 py-2 text-sm text-slate-500">
+                              Loading asset classes…
+                            </p>
+                          ) : filteredAssetClasses.length === 0 ? (
+                            <p className="px-3 py-2 text-sm text-slate-500">
+                              {assetClasses.length === 0
+                                ? "No active asset classes found."
+                                : "No asset classes match your search."}
+                            </p>
+                          ) : (
+                            filteredAssetClasses.map((c) => (
+                              <button
+                                key={c.id}
+                                type="button"
+                                role="option"
+                                aria-selected={line.assetClassId === c.id}
+                                onClick={() => {
+                                  updateVehicleLine(line.key, {
+                                    assetClassId: c.id,
+                                  });
+                                  setAssetClassPickerLineKey(null);
+                                  setAssetClassPickerFilter("");
+                                }}
+                                className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
+                              >
+                                {c.specLabel || c.name}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <FormFieldInlineError
+                    message={
+                      hasAttemptedSubmit
+                        ? getVehicleLineErrors(line).assetClassId
+                        : undefined
                     }
-                    disabled={assetClasses.length === 0}
-                    aria-invalid={hasAttemptedSubmit && !line.assetClassId}
-                  >
-                    <option value="">Select asset class</option>
-                    {assetClasses.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.specLabel || c.name}
-                      </option>
-                    ))}
-                  </select>
-                  {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).assetClassId)}
+                  />
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
@@ -665,9 +779,22 @@ export default function NewPurchaseInvoicePage() {
                       onChange={(value) =>
                         updateVehicleLine(line.key, { quantity: value })
                       }
+                      maxLength={
+                        FINANCE_INVOICE_INPUT_LIMITS.purchaseQuantityMaxDigits
+                      }
                       placeholder={FINANCE_INVOICE_QUANTITY_PLACEHOLDER}
+                      className={fieldBorderClass(
+                        hasAttemptedSubmit &&
+                          Boolean(getVehicleLineErrors(line).quantity),
+                      )}
                     />
-                    {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).quantity)}
+                    <FormFieldInlineError
+                      message={
+                        hasAttemptedSubmit
+                          ? getVehicleLineErrors(line).quantity
+                          : undefined
+                      }
+                    />
                   </div>
                   <div>
                     <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -680,8 +807,18 @@ export default function NewPurchaseInvoicePage() {
                         updateVehicleLine(line.key, { rate: value })
                       }
                       placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
+                      className={fieldBorderClass(
+                        hasAttemptedSubmit &&
+                          Boolean(getVehicleLineErrors(line).rate),
+                      )}
                     />
-                    {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).rate)}
+                    <FormFieldInlineError
+                      message={
+                        hasAttemptedSubmit
+                          ? getVehicleLineErrors(line).rate
+                          : undefined
+                      }
+                    />
                   </div>
                 </div>
                 <fieldset>
@@ -711,7 +848,13 @@ export default function NewPurchaseInvoicePage() {
                       </label>
                     ))}
                   </div>
-                  {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).taxMode)}
+                  <FormFieldInlineError
+                    message={
+                      hasAttemptedSubmit
+                        ? getVehicleLineErrors(line).taxMode
+                        : undefined
+                    }
+                  />
                 </fieldset>
                 {line.taxMode ? (
                   <div className="w-full md:w-1/2">
@@ -724,10 +867,22 @@ export default function NewPurchaseInvoicePage() {
                       onChange={(value) =>
                         updateVehicleLine(line.key, { vatPercent: value })
                       }
-                      maxLength={3}
+                      maxLength={
+                        FINANCE_INVOICE_INPUT_LIMITS.purchaseVatPercentMaxDigits
+                      }
                       placeholder={FINANCE_INVOICE_VAT_PERCENT_PLACEHOLDER}
+                      className={fieldBorderClass(
+                        hasAttemptedSubmit &&
+                          Boolean(getVehicleLineErrors(line).vatPercent),
+                      )}
                     />
-                    {hasAttemptedSubmit && renderFieldError(getVehicleLineErrors(line).vatPercent)}
+                    <FormFieldInlineError
+                      message={
+                        hasAttemptedSubmit
+                          ? getVehicleLineErrors(line).vatPercent
+                          : undefined
+                      }
+                    />
                   </div>
                 ) : null}
                 {breakdown ? (
@@ -898,7 +1053,7 @@ export default function NewPurchaseInvoicePage() {
               Vendor *
             </label>
             <select
-              className={fieldClassName(hasAttemptedSubmit && !supplierId)}
+              className={selectBorderClass(hasAttemptedSubmit && !supplierId)}
               value={supplierId}
               onChange={(e) => setSupplierId(e.target.value)}
               disabled={suppliers.length === 0}
@@ -911,14 +1066,20 @@ export default function NewPurchaseInvoicePage() {
                 </option>
               ))}
             </select>
-            {hasAttemptedSubmit && renderFieldError(!supplierId ? "Select a vendor." : "")}
+            <FormFieldInlineError
+              message={
+                hasAttemptedSubmit && !supplierId
+                  ? "Select a vendor."
+                  : undefined
+              }
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
               Part *
             </label>
             <select
-              className={fieldClassName(hasAttemptedSubmit && !partId)}
+              className={selectBorderClass(hasAttemptedSubmit && !partId)}
               value={partId}
               onChange={(e) => setPartId(e.target.value)}
               disabled={
@@ -936,7 +1097,11 @@ export default function NewPurchaseInvoicePage() {
                 </option>
               ))}
             </select>
-            {hasAttemptedSubmit && renderFieldError(!partId ? "Select a part." : "")}
+            <FormFieldInlineError
+              message={
+                hasAttemptedSubmit && !partId ? "Select a part." : undefined
+              }
+            />
             {partsQuery.isError ? (
               <p className="mt-1 text-xs text-red-600" role="alert">
                 Could not load parts catalog. Check your connection and try
@@ -962,9 +1127,23 @@ export default function NewPurchaseInvoicePage() {
                 restrictedKind="digits"
                 value={quantity}
                 onChange={setQuantity}
+                maxLength={
+                  FINANCE_INVOICE_INPUT_LIMITS.purchaseQuantityMaxDigits
+                }
                 placeholder={FINANCE_INVOICE_QUANTITY_PLACEHOLDER}
               />
-              {hasAttemptedSubmit && renderFieldError(!quantity.trim() ? "Enter a quantity." : !Number.isInteger(Number(quantity)) || Number(quantity) < 1 ? "Quantity must be a whole number of at least 1." : "")}
+              <FormFieldInlineError
+                message={
+                  hasAttemptedSubmit
+                    ? !quantity.trim()
+                      ? "Enter a quantity."
+                      : !Number.isInteger(Number(quantity)) ||
+                          Number(quantity) < 1
+                        ? "Quantity must be a whole number of at least 1."
+                        : undefined
+                    : undefined
+                }
+              />
             </div>
             <div>
               <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -976,7 +1155,18 @@ export default function NewPurchaseInvoicePage() {
                 onChange={setUnitCost}
                 placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
               />
-              {hasAttemptedSubmit && renderFieldError(!unitCost.trim() ? "Enter a unit cost." : parseRupeeInputToMinor(unitCost) == null || parseRupeeInputToMinor(unitCost)! <= 0 ? "Enter a valid unit cost greater than zero." : "")}
+              <FormFieldInlineError
+                message={
+                  hasAttemptedSubmit
+                    ? !unitCost.trim()
+                      ? "Enter a unit cost."
+                      : parseRupeeInputToMinor(unitCost) == null ||
+                          parseRupeeInputToMinor(unitCost)! <= 0
+                        ? "Enter a valid unit cost greater than zero."
+                        : undefined
+                    : undefined
+                }
+              />
             </div>
           </div>
           <div>
@@ -987,7 +1177,7 @@ export default function NewPurchaseInvoicePage() {
               restrictedKind="text"
               value={batchLot}
               onChange={setBatchLot}
-              maxLength={120}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.batchLot}
               placeholder={FINANCE_INVOICE_BATCH_LOT_PLACEHOLDER}
             />
           </div>
@@ -999,7 +1189,7 @@ export default function NewPurchaseInvoicePage() {
               type="date"
               min="0001-01-01"
               max="9999-12-31"
-              className={fieldClassName(hasAttemptedSubmit && !invoiceDate)}
+              className={fieldBorderClass(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
               onChange={(e) => {
                 const value = e.target.value;
@@ -1026,9 +1216,13 @@ export default function NewPurchaseInvoicePage() {
               aria-invalid={hasAttemptedSubmit && !invoiceDate}
             />
 
-            {hasAttemptedSubmit &&
-              renderFieldError(!invoiceDate ? "Select an invoice date." : "")}
-
+            <FormFieldInlineError
+              message={
+                hasAttemptedSubmit && !invoiceDate
+                  ? "Select an invoice date."
+                  : undefined
+              }
+            />
           </div>
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">
@@ -1038,7 +1232,7 @@ export default function NewPurchaseInvoicePage() {
               restrictedKind="text"
               value={spareNotes}
               onChange={setSpareNotes}
-              maxLength={2000}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.invoiceNotes}
               placeholder={FINANCE_INVOICE_SPARE_NOTES_PLACEHOLDER}
             />
           </div>

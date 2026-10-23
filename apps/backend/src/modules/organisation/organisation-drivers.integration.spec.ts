@@ -215,6 +215,34 @@ describe('Organisation drivers (integration)', () => {
         .expect(403);
     });
 
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/organisation/drivers')
+        .query({
+          organizationId,
+          page: 1,
+          pageSize: 10,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
+    it('returns 400 when list sortBy is not whitelisted', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/organisation/drivers')
+        .query({
+          organizationId,
+          page: 1,
+          pageSize: 10,
+          sortBy: 'notARealColumn',
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
     it('returns 403 or 404 on PATCH with another organisation id (IDOR)', async () => {
       const id = await createDriverAsAdmin();
       const fakeOrgId = '00000000-0000-4000-8000-000000000099';

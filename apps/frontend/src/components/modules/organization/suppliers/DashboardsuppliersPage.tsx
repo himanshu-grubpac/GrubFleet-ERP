@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 import {
@@ -19,7 +19,11 @@ import {
     listSortQueryKeyPart,
     useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+    ORGANISATION_SUPPLIER_INPUT_LIMITS,
+    sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
     SUPPLIER_STATUS_UPDATE_ERROR,
     showErrorToast,
@@ -108,8 +112,21 @@ export default function SuppliersPage() {
         permissions.has("organisation.update") ||
         permissions.has("organisation.manage");
 
-    const [search, setSearch] = useState("");
-    const debouncedSearch = useDebouncedValue(search, 300);
+    const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+        useDashboardListSearch();
+
+    const onSupplierListSearchChange = useCallback(
+        (value: string) => {
+            setSearchInput(
+                sanitizeRestrictedInputValue("text", value, {
+                    maxLength:
+                        ORGANISATION_SUPPLIER_INPUT_LIMITS.supplierListSearch,
+                }),
+            );
+        },
+        [setSearchInput],
+    );
+
     const [activeFilter, setActiveFilter] =
         useState<SupplierFilter>("all");
     const [page, setPage] = useState(1);
@@ -223,7 +240,7 @@ export default function SuppliersPage() {
     };
 
     const handleClearFilters = () => {
-        setSearch("");
+        clearSearch();
         setActiveFilter("all");
     };
 
@@ -338,10 +355,10 @@ export default function SuppliersPage() {
             <div className="mb-4 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                     <input
-                        type="text"
-                        value={search}
+                        type="search"
+                        value={searchInput}
                         onChange={(event) =>
-                            setSearch(event.target.value)
+                            onSupplierListSearchChange(event.target.value)
                         }
                         placeholder="Search by supplier or contact person name"
                         className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"

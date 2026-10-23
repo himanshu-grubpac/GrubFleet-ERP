@@ -6,7 +6,27 @@ import type { AssetRegisterComplianceFilterStatus } from "./compliance";
 import type { AssetRegisterVehicleDetail } from "./vehicles";
 import type { AssetClassFormData } from "@/components/modules/assetManagement/asset-register/AssetFormPage";
 import type { FleetVehicleFormData } from "@/components/modules/assetManagement/fleet-management/FleetFormPage";
-import { parseRupeeInputToMajorNumber } from "@/lib/format/money-format";
+import {
+  getChassisVinValidationError,
+  getColorCodeValidationError,
+  getVehicleRegistrationValidationError,
+  isValidDecimalMoneyNumber,
+  normalizeChassisVin,
+  normalizeVehicleRegistrationNumber,
+} from "@grubpac/validation";
+import {
+  parseRupeeInputToMajorNumber,
+  stripRupeeInputGrouping,
+} from "@/lib/format/money-format";
+import {
+  ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS,
+  ASSET_REGISTER_VEHICLE_INPUT_LIMITS,
+} from "@/lib/forms/restricted-input";
+import {
+  hasValidationErrors,
+  validateRequired,
+  type ValidationErrors,
+} from "@/components/common/Commonvalidation";
 
 /** Maps API vehicle type to existing list UI labels (no layout change). */
 export type AssetRegisterVehicleTypeUiLabel =
@@ -119,8 +139,15 @@ export function validateAssetClassOptionalSpecFields(
   const ccStr = form.engineDisplacementCc.trim();
   if (ccStr) {
     const cc = Number(ccStr);
-    if (!Number.isInteger(cc) || cc < 1) {
-      return "CC must be a whole number of at least 1, or leave it empty.";
+    if (!Number.isInteger(cc) || cc < 1 || cc > 99999) {
+      return "CC must be a whole number from 1 to 99999, or leave it empty.";
+    }
+  }
+  const colorCode = form.colorCode.trim();
+  if (colorCode) {
+    const colorCodeError = getColorCodeValidationError(colorCode);
+    if (colorCodeError) {
+      return colorCodeError;
     }
   }
   return null;
@@ -131,6 +158,7 @@ export type AssetClassFormFieldKey =
   | "fuelType"
   | "manufacturingYear"
   | "engineDisplacementCc"
+  | "colorCode"
   | "mileageFrom"
   | "mileageTo"
   | "mileageUnit"
@@ -148,6 +176,7 @@ const ASSET_CLASS_FIELD_ERROR_ORDER: AssetClassFormFieldKey[] = [
   "fuelType",
   "manufacturingYear",
   "engineDisplacementCc",
+  "colorCode",
   "mileageFrom",
   "mileageTo",
   "mileageUnit",
@@ -172,8 +201,13 @@ export function validateAssetClassFormFields(
   if (optionalSpecError) {
     if (optionalSpecError.includes("Manufacturing year")) {
       errors.manufacturingYear = optionalSpecError;
-    } else if (optionalSpecError.includes("CC")) {
+    } else if (
+      optionalSpecError.includes("CC") ||
+      optionalSpecError.includes("displacement")
+    ) {
       errors.engineDisplacementCc = optionalSpecError;
+    } else if (optionalSpecError.toLowerCase().includes("color code")) {
+      errors.colorCode = optionalSpecError;
     }
   }
 
@@ -198,6 +232,10 @@ export function validateAssetClassFormFields(
   }
   if (!trimAssetClassFormField(form.mileageUnit)) {
     errors.mileageUnit = "Mileage unit is required.";
+  } else if (
+    !["km/L", "km/kg", "km/kWh"].includes(form.mileageUnit.trim())
+  ) {
+    errors.mileageUnit = "Mileage unit must be km/L, km/kg, or km/kWh.";
   }
   if (fuelTankCapacity === null) {
     errors.fuelTankCapacity = "Fuel tank capacity is required.";
@@ -357,6 +395,106 @@ export function mapComplianceFilterToApi(
   return undefined;
 }
 
+export type ComplianceRenewalTypeUi = "Insurance" | "Registration" | "Warranty";
+
+export type ComplianceRenewFormData = {
+  renewalType: ComplianceRenewalTypeUi;
+  newExpiryDate: string;
+  premium: string;
+  policyNumber: string;
+  registrationReference: string;
+};
+
+function parseIsoCalendarDate(value: string): string | null {
+  const trimmed = value.trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return null;
+  }
+  if (
+    Number.isNaN(Date.parse(`${trimmed}T00:00:00Z`)) ||
+    new Date(`${trimmed}T00:00:00Z`).toISOString().slice(0, 10) !== trimmed
+  ) {
+    return null;
+  }
+  return trimmed;
+}
+
+export function validateComplianceRenewFormFields(
+  form: ComplianceRenewFormData,
+  context: { credentialStartDate: string | null | undefined },
+): Record<string, string> {
+  const errors: Record<string, string> = {};
+  const endDate = parseIsoCalendarDate(form.newExpiryDate);
+
+  if (!form.newExpiryDate.trim()) {
+    errors.endDate = "New expiry date is required.";
+  } else if (!endDate) {
+    errors.endDate = "Enter a valid date.";
+  }
+
+  const startDate = context.credentialStartDate?.trim();
+  if (!startDate) {
+    errors.startDate = `A valid start date is missing for ${form.renewalType.toLowerCase()}.`;
+  } else if (!parseIsoCalendarDate(startDate)) {
+    errors.startDate = "The existing start date is invalid.";
+  }
+
+  if (form.renewalType === "Insurance") {
+    const premiumRaw = stripRupeeInputGrouping(form.premium);
+    if (!premiumRaw) {
+      const premiumRequired = validateRequired(premiumRaw, "Premium");
+      if (premiumRequired) {
+        errors.premium = premiumRequired;
+      }
+    } else {
+      const premium = parseRupeeInputToMajorNumber(form.premium);
+      if (!isValidDecimalMoneyNumber(premium) || premium < 0) {
+        errors.premium =
+          "Enter a valid, non-negative premium (max 2 decimal places).";
+      }
+    }
+
+    const policyTrimmed = form.policyNumber.trim();
+    if (!policyTrimmed) {
+      errors.policyNumber = "Policy number is required.";
+    } else if (
+      policyTrimmed.length > ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS.policyNumber
+    ) {
+      errors.policyNumber = `Policy number must be at most ${ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS.policyNumber} characters.`;
+    }
+  }
+
+  if (form.renewalType === "Registration") {
+    const refTrimmed = form.registrationReference.trim();
+    if (
+      refTrimmed.length >
+      ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS.registrationReference
+    ) {
+      errors.registrationReference = `Registration reference must be at most ${ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS.registrationReference} characters.`;
+    }
+  }
+
+  return errors;
+}
+
+export function validateComplianceRenewFormForSubmit(
+  form: ComplianceRenewFormData,
+  context: { credentialStartDate: string | null | undefined },
+  options?: { isSaving?: boolean; canRenew?: boolean },
+): { canSubmit: boolean; blockReason: string | null } {
+  if (options?.isSaving || options?.canRenew === false) {
+    return { canSubmit: false, blockReason: null };
+  }
+
+  const fieldErrors = validateComplianceRenewFormFields(form, context);
+  if (hasValidationErrors(fieldErrors as ValidationErrors)) {
+    const first = Object.values(fieldErrors).find(Boolean);
+    return { canSubmit: false, blockReason: first ?? null };
+  }
+
+  return { canSubmit: true, blockReason: null };
+}
+
 export function formatMileageRangeFromSpec(spec: {
   mileageFrom: string | null;
   mileageTo: string | null;
@@ -376,6 +514,148 @@ export function formatRatedLoadRange(from: string | null, to: string | null): st
   if (a && b) return `${a}–${b} kg`;
   if (a) return `${a} kg`;
   return "—";
+}
+
+const FLEET_VEHICLE_MODEL_YEAR_MIN = 1900;
+const FLEET_VEHICLE_MODEL_YEAR_MAX = 2100;
+const FLEET_VEHICLE_ODOMETER_MAX = 9_999_999;
+
+export type FleetVehicleFormFieldErrors = Partial<
+  Record<keyof FleetVehicleFormData, string>
+>;
+
+export function validateFleetVehicleFormFields(
+  form: FleetVehicleFormData,
+  options?: { isSaving?: boolean },
+): FleetVehicleFormFieldErrors {
+  if (options?.isSaving) {
+    return {};
+  }
+
+  const errors: FleetVehicleFormFieldErrors = {};
+
+  if (!form.assetClassId.trim()) {
+    errors.assetClassId = validateRequired(form.assetClassId, "Asset class") ?? undefined;
+  }
+
+  const registrationError = getVehicleRegistrationValidationError(
+    form.registrationNumber,
+  );
+  if (registrationError) {
+    errors.registrationNumber = registrationError;
+  }
+
+  const chassisError = getChassisVinValidationError(form.chassisNumber);
+  if (chassisError) {
+    errors.chassisNumber = chassisError;
+  }
+
+  const yearRaw = form.modelYear.trim();
+  if (!yearRaw) {
+    errors.modelYear =
+      validateRequired(yearRaw, "Model year") ?? undefined;
+  } else if (
+    !/^\d{4}$/.test(yearRaw) ||
+    Number(yearRaw) < FLEET_VEHICLE_MODEL_YEAR_MIN ||
+    Number(yearRaw) > FLEET_VEHICLE_MODEL_YEAR_MAX
+  ) {
+    errors.modelYear = `Enter a valid model year between ${FLEET_VEHICLE_MODEL_YEAR_MIN} and ${FLEET_VEHICLE_MODEL_YEAR_MAX}.`;
+  }
+
+  const odometerRaw = form.odometerReading.trim();
+  if (!odometerRaw) {
+    errors.odometerReading =
+      validateRequired(odometerRaw, "Odometer reading") ?? undefined;
+  } else {
+    const odometer = Number(odometerRaw);
+    if (
+      !/^\d+$/.test(odometerRaw) ||
+      !Number.isFinite(odometer) ||
+      odometer < 0 ||
+      odometer > FLEET_VEHICLE_ODOMETER_MAX
+    ) {
+      errors.odometerReading = `Odometer must be a whole number from 0 to ${FLEET_VEHICLE_ODOMETER_MAX.toLocaleString("en-IN")}.`;
+    }
+  }
+
+  const dateRequired: Array<[keyof FleetVehicleFormData, string]> = [
+    ["registrationStartDate", "Registration start date"],
+    ["registrationEndDate", "Registration end date"],
+    ["insuranceStartDate", "Insurance start date"],
+    ["insuranceEndDate", "Insurance end date"],
+    ["warrantyStartDate", "Warranty start date"],
+    ["warrantyEndDate", "Warranty end date"],
+  ];
+  for (const [field, label] of dateRequired) {
+    const message = validateRequired(String(form[field] ?? ""), label);
+    if (message) errors[field] = message;
+  }
+
+  const premiumRaw = stripRupeeInputGrouping(form.insurancePremium);
+  if (!premiumRaw) {
+    errors.insurancePremium =
+      validateRequired(premiumRaw, "Insurance premium") ?? undefined;
+  } else {
+    const premium = parseRupeeInputToMajorNumber(form.insurancePremium);
+    if (!isValidDecimalMoneyNumber(premium) || premium < 0) {
+      errors.insurancePremium =
+        "Insurance premium must be a valid non-negative amount (max 2 decimal places).";
+    }
+  }
+
+  if (
+    form.registrationStartDate &&
+    form.registrationEndDate &&
+    form.registrationStartDate > form.registrationEndDate
+  ) {
+    errors.registrationEndDate =
+      "Registration end date cannot be before registration start date.";
+  }
+  if (
+    form.insuranceStartDate &&
+    form.insuranceEndDate &&
+    form.insuranceStartDate > form.insuranceEndDate
+  ) {
+    errors.insuranceEndDate =
+      "Insurance end date cannot be before insurance start date.";
+  }
+  if (
+    form.warrantyStartDate &&
+    form.warrantyEndDate &&
+    form.warrantyStartDate > form.warrantyEndDate
+  ) {
+    errors.warrantyEndDate =
+      "Warranty end date cannot be before warranty start date.";
+  }
+
+  if (form.notes.length > ASSET_REGISTER_VEHICLE_INPUT_LIMITS.specialNotes) {
+    errors.notes = `Notes must be at most ${ASSET_REGISTER_VEHICLE_INPUT_LIMITS.specialNotes} characters.`;
+  }
+
+  return errors;
+}
+
+export type FleetVehicleFormSubmitValidation = {
+  canSubmit: boolean;
+  blockReason: string | null;
+};
+
+export function validateFleetVehicleFormForSubmit(
+  form: FleetVehicleFormData,
+  options?: { isSaving?: boolean },
+): FleetVehicleFormSubmitValidation {
+  if (options?.isSaving) {
+    return { canSubmit: false, blockReason: null };
+  }
+
+  const fieldErrors = validateFleetVehicleFormFields(form);
+  const asValidationErrors = fieldErrors as ValidationErrors;
+  if (hasValidationErrors(asValidationErrors)) {
+    const first = Object.values(fieldErrors).find(Boolean);
+    return { canSubmit: false, blockReason: first ?? null };
+  }
+
+  return { canSubmit: true, blockReason: null };
 }
 
 export function vehicleDetailToFleetFormData(
@@ -408,8 +688,10 @@ export function fleetFormToCreateVehiclePayload(
   return {
     organizationId,
     assetClassId: form.assetClassId,
-    registrationNumber: form.registrationNumber.trim(),
-    chassisNumber: form.chassisNumber.trim(),
+    registrationNumber: normalizeVehicleRegistrationNumber(
+      form.registrationNumber,
+    ),
+    chassisNumber: normalizeChassisVin(form.chassisNumber),
     modelYear: Number(form.modelYear),
     odometer: Number(form.odometerReading),
     registrationStartDate: form.registrationStartDate,
@@ -429,8 +711,10 @@ export function fleetFormToCreateVehiclePayload(
 
 export function fleetFormToUpdateVehiclePayload(form: FleetVehicleFormData) {
   return {
-    registrationNumber: form.registrationNumber.trim(),
-    chassisNumber: form.chassisNumber.trim(),
+    registrationNumber: normalizeVehicleRegistrationNumber(
+      form.registrationNumber,
+    ),
+    chassisNumber: normalizeChassisVin(form.chassisNumber),
     modelYear: Number(form.modelYear),
     odometer: Number(form.odometerReading),
     registrationStartDate: form.registrationStartDate,

@@ -28,6 +28,7 @@ export default function StockCreatePage() {
         {
           organizationId: organizationId!,
           name: data.name.trim(),
+          brand: data.brand.trim() || undefined,
           compatibleAssetClasses: data.compatibleAssetClasses,
           unitOfMeasure: data.unitOfMeasure.trim(),
           retailMarkupPercent: Number(data.retailMarkup) || 0,

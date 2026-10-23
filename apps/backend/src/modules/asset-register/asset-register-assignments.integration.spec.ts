@@ -738,6 +738,26 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     expect(typeof body.hiddenOtherActiveCount).toBe('number');
   });
 
+  it('rejects assignable lease contract list search longer than max length', async () => {
+    const assetClass = await createAssetClass(`SearchCap ${Date.now()}`);
+    const vehicle = await createVehicle(assetClass.id);
+
+    await request(app.getHttpServer())
+      .get(
+        '/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts',
+      )
+      .query({
+        organizationId,
+        vehicleId: vehicle.id,
+        page: 1,
+        pageSize: 50,
+        search: 'x'.repeat(65),
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+  });
+
   it('returns 401 without JWT on bulk assign catalog', async () => {
     await request(app.getHttpServer())
       .get('/api/v1/asset-register/vehicle-assignments/bulk-assign/catalog')

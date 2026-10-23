@@ -8,6 +8,10 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchOrganisationClientByIdApi,
@@ -29,6 +33,7 @@ import {
   financeInvoiceNewTypeHref,
   financeInvoicesListHref,
 } from "@/lib/navigation/finance-static-routes";
+import { FINANCE_INVOICE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
   showApiErrorToast,
@@ -264,7 +269,7 @@ export default function NewBillingInvoicePage() {
     canSave &&
     !saveMutation.isPending &&
     !editQuery.isLoading &&
-    (!hasAttemptedSubmit || isFormValid);
+    isFormValid;
 
   const handleSave = () => {
     setHasAttemptedSubmit(true);
@@ -286,20 +291,17 @@ export default function NewBillingInvoicePage() {
     contractsQuery.isLoading ||
     editQuery.isLoading;
 
-  const fieldClassName = (hasError: boolean) =>
-    [
-      "w-full rounded-md border px-3 py-2 text-sm",
-      hasError
-        ? "border-red-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-        : "border-slate-200",
-    ].join(" ");
+  const controlBaseClass =
+    "w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
 
-  const renderFieldError = (message?: string) =>
-    message ? (
-      <p className="mt-1 text-xs text-red-600" role="alert">
-        {message}
-      </p>
-    ) : null;
+  const selectBaseClass =
+    "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
+
+  const fieldBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, controlBaseClass);
+
+  const selectBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, selectBaseClass);
 
   if (!canSave && !authLoading) {
     return (
@@ -388,7 +390,7 @@ export default function NewBillingInvoicePage() {
 
             <select
               id="billing-client"
-              className={fieldClassName(!!displayedErrors.clientId)}
+              className={selectBorderClass(!!displayedErrors.clientId)}
               value={clientId}
               onChange={(event) => {
                 setClientId(event.target.value);
@@ -410,7 +412,7 @@ export default function NewBillingInvoicePage() {
 
             {displayedErrors.clientId && (
               <div id="billing-client-error">
-                {renderFieldError(displayedErrors.clientId)}
+                <FormFieldInlineError message={displayedErrors.clientId} />
               </div>
             )}
           </div>
@@ -425,7 +427,7 @@ export default function NewBillingInvoicePage() {
 
             <select
               id="billing-contract"
-              className={fieldClassName(!!displayedErrors.leaseContractId)}
+              className={selectBorderClass(!!displayedErrors.leaseContractId)}
               value={leaseContractId}
               onChange={(event) => setLeaseContractId(event.target.value)}
               disabled={
@@ -450,7 +452,7 @@ export default function NewBillingInvoicePage() {
 
             {displayedErrors.leaseContractId && (
               <div id="billing-contract-error">
-                {renderFieldError(displayedErrors.leaseContractId)}
+                <FormFieldInlineError message={displayedErrors.leaseContractId} />
               </div>
             )}
 
@@ -476,11 +478,13 @@ export default function NewBillingInvoicePage() {
               restrictedKind="text"
               value={billingPeriod}
               onChange={setBillingPeriod}
-              maxLength={120}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.billingPeriod}
               placeholder="e.g. April 2026"
+              className={fieldBorderClass(!!displayedErrors.billingPeriod)}
+              aria-invalid={!!displayedErrors.billingPeriod}
             />
 
-            {renderFieldError(displayedErrors.billingPeriod)}
+            <FormFieldInlineError message={displayedErrors.billingPeriod} />
           </div>
 
           <div>
@@ -496,9 +500,11 @@ export default function NewBillingInvoicePage() {
               value={amount}
               onChange={setAmount}
               placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
+              className={fieldBorderClass(!!displayedErrors.amount)}
+              aria-invalid={!!displayedErrors.amount}
             />
 
-            {renderFieldError(displayedErrors.amount)}
+            <FormFieldInlineError message={displayedErrors.amount} />
           </div>
 
           <div>
@@ -512,7 +518,7 @@ export default function NewBillingInvoicePage() {
             <input
               id="billing-invoice-date"
               type="date"
-              className={fieldClassName(!!displayedErrors.invoiceDate)}
+              className={fieldBorderClass(!!displayedErrors.invoiceDate)}
               value={invoiceDate}
               onChange={(event) => setInvoiceDate(event.target.value)}
               aria-invalid={!!displayedErrors.invoiceDate}
@@ -525,7 +531,7 @@ export default function NewBillingInvoicePage() {
 
             {displayedErrors.invoiceDate && (
               <div id="billing-invoice-date-error">
-                {renderFieldError(displayedErrors.invoiceDate)}
+                <FormFieldInlineError message={displayedErrors.invoiceDate} />
               </div>
             )}
           </div>
@@ -542,7 +548,7 @@ export default function NewBillingInvoicePage() {
               restrictedKind="text"
               value={notes}
               onChange={setNotes}
-              maxLength={2000}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.invoiceNotes}
             />
           </div>
         </div>

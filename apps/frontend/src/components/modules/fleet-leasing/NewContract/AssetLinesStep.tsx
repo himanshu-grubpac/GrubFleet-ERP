@@ -26,7 +26,11 @@ import {
     previewAssetAvailabilityBatch,
     type AssetClassAvailabilitySnapshot,
 } from "@/lib/api/lease-contracts";
-import { DRIVER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import {
+    DRIVER_INPUT_LIMITS,
+    FLEET_LEASE_ASSET_LINE_INPUT_LIMITS,
+} from "@/lib/forms/restricted-input";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 import {
     ASSET_CLASS_SAVE_ERROR,
@@ -1040,13 +1044,14 @@ function QuantityControl({
                 <Minus className="h-4 w-4" />
             </button>
 
-            <input
-                type="number"
-                min={min}
-                step="1"
-                value={value}
+            <RestrictedInput
+                restrictedKind="digits"
+                maxLength={
+                    FLEET_LEASE_ASSET_LINE_INPUT_LIMITS.committedQuantityMaxDigits
+                }
+                value={String(value)}
                 disabled={disabled}
-                onChange={(event) => onChange(event.target.value)}
+                onChange={onChange}
                 className="h-10 min-w-0 flex-1 border-y border-slate-300 bg-white px-2 text-center text-sm font-semibold text-slate-800 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
                 aria-label="Requested quantity"
             />

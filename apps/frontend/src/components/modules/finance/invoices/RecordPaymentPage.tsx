@@ -13,6 +13,7 @@ import {
   fetchFinancePaymentMethodCatalogApi,
   recordFinanceInvoicePaymentApi,
 } from "@/lib/api/finance/invoices";
+import { FINANCE_INVOICE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
   formatInrFromMinor,
   INR_RUPEE_INPUT_PLACEHOLDER,
@@ -245,7 +246,7 @@ export default function RecordPaymentPage() {
             restrictedKind="text"
             value={paymentReference}
             onChange={setPaymentReference}
-            maxLength={120}
+            maxLength={FINANCE_INVOICE_INPUT_LIMITS.paymentReference}
             placeholder="UTR, cheque number, etc."
           />
         </div>

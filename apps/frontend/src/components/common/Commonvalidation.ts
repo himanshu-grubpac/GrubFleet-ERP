@@ -13,6 +13,15 @@ import {
     postalValidationMessage,
 } from "@/lib/geo/postal";
 
+import {
+    getEmailValidationError,
+    getPhoneValidationError,
+    EMAIL_STORAGE_MAX_LENGTH,
+    PHONE_STORAGE_MAX_LENGTH,
+} from "@grubpac/validation";
+
+import type { CountryCode } from "libphonenumber-js";
+
 
 
 /* -------------------------------------------------------------------------- */
@@ -133,15 +142,21 @@ export const validateEmail = (
     }
 
     const email = value!.trim();
+    const packageError = getEmailValidationError(email);
 
-    // Practical frontend format check; backend validation remains authoritative.
-    const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    if (!emailPattern.test(email)) {
-        return `Enter a valid ${label.toLowerCase()}.`;
+    if (!packageError) {
+        return undefined;
     }
 
-    return undefined;
+    if (packageError === "Email is required") {
+        return required ? `${label} is required.` : undefined;
+    }
+
+    if (packageError.startsWith("Email must be at most")) {
+        return `${label} must be at most ${EMAIL_STORAGE_MAX_LENGTH} characters.`;
+    }
+
+    return `Enter a valid ${label.toLowerCase()}.`;
 };
 
 /* -------------------------------------------------------------------------- */
@@ -156,9 +171,8 @@ export const validateEmail = (
  * international phone-number support.
  */
 export type PhoneValidationOptions = ValidationOptions & {
-    minDigits?: number;
-    maxDigits?: number;
-    allowInternationalPrefix?: boolean;
+    /** Site/office phone only — person phones omit default country (intl). */
+    defaultCountry?: CountryCode;
 };
 
 export const validatePhone = (
@@ -166,33 +180,28 @@ export const validatePhone = (
     label = "Phone",
     options: PhoneValidationOptions = {},
 ): string | undefined => {
-    const {
-        required = true,
-        minDigits = 10,
-        maxDigits = 15,
-        allowInternationalPrefix = true,
-    } = options;
+    const { required = true, defaultCountry } = options;
 
     if (isEmpty(value)) {
         return required ? `${label} is required.` : undefined;
     }
 
     const phone = value!.trim();
-    const allowedPattern = allowInternationalPrefix
-        ? /^\+?[\d\s().-]+$/
-        : /^[\d\s().-]+$/;
+    const packageError = getPhoneValidationError(phone, defaultCountry);
 
-    if (!allowedPattern.test(phone)) {
-        return `Enter a valid ${label.toLowerCase()}.`;
+    if (!packageError) {
+        return undefined;
     }
 
-    const digits = phone.replace(/\D/g, "");
-
-    if (digits.length < minDigits || digits.length > maxDigits) {
-        return `${label} must contain between ${minDigits} and ${maxDigits} digits.`;
+    if (packageError === "Phone is required") {
+        return required ? `${label} is required.` : undefined;
     }
 
-    return undefined;
+    if (packageError.startsWith("Phone must be at most")) {
+        return `${label} must be at most ${PHONE_STORAGE_MAX_LENGTH} characters.`;
+    }
+
+    return `Enter a valid ${label.toLowerCase()}.`;
 };
 
 /* -------------------------------------------------------------------------- */

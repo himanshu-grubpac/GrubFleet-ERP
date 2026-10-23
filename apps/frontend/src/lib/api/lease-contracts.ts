@@ -1,6 +1,7 @@
 import { apiFetch } from './client';
 import type { ListSortParams } from '@/lib/query/list-sort-params';
 import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
+import { normalizeDecimalMoneyForLeaseApi } from '@/lib/format/money-format';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared query helpers
@@ -393,6 +394,42 @@ export interface ContractAssetLineInput {
     assetClass: string;
     committedQuantity: number;
     ratePerVehicleMonth: string;
+}
+
+export function normalizeContractAssetLineForApi(
+    line: ContractAssetLineInput,
+): ContractAssetLineInput {
+    return {
+        ...line,
+        committedQuantity: Number(line.committedQuantity),
+        ratePerVehicleMonth: normalizeDecimalMoneyForLeaseApi(
+            String(line.ratePerVehicleMonth ?? ""),
+        ),
+    };
+}
+
+export function normalizeContractAssetLinesForApi(
+    lines: ContractAssetLineInput[],
+): ContractAssetLineInput[] {
+    return lines.map(normalizeContractAssetLineForApi);
+}
+
+function normalizeLeaseContractWritePayload<
+    T extends {
+        securityDeposit?: string;
+        assetLines?: ContractAssetLineInput[];
+    },
+>(payload: T): T {
+    const next = { ...payload };
+    if (next.securityDeposit !== undefined) {
+        next.securityDeposit = normalizeDecimalMoneyForLeaseApi(
+            String(next.securityDeposit),
+        );
+    }
+    if (next.assetLines) {
+        next.assetLines = normalizeContractAssetLinesForApi(next.assetLines);
+    }
+    return next;
 }
 
 /** Wizard draft — only `organizationId` (+ optional client) required on POST. */
@@ -877,7 +914,12 @@ export async function updateLeaseContractAssetLines(
             headers: {
                 'x-organization-id': organizationId,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({
+                ...payload,
+                assetLines: normalizeContractAssetLinesForApi(
+                    payload.assetLines,
+                ),
+            }),
         },
     );
 }
@@ -898,7 +940,9 @@ export async function updateLeaseContractTerms(
             headers: {
                 'x-organization-id': organizationId,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(
+                normalizeLeaseContractWritePayload(payload),
+            ),
         },
     );
 }
@@ -921,7 +965,7 @@ export async function createLeaseContract(
             },
             body: JSON.stringify({
                 organizationId,
-                ...payload,
+                ...normalizeLeaseContractWritePayload(payload),
             }),
         },
     );
@@ -948,7 +992,9 @@ export async function updateLeaseContract(
                 'x-organization-id':
                     organizationId,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(
+                normalizeLeaseContractWritePayload(payload),
+            ),
         },
     );
 }

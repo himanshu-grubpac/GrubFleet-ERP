@@ -418,6 +418,17 @@ describe('RBAC admin (integration)', () => {
       .expect(400);
   });
 
+  it('returns 400 when roles list search exceeds max length', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/roles')
+      .query({
+        organizationId,
+        search: 'x'.repeat(121),
+      })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(400);
+  });
+
   it('GET /roles/:id returns org-scoped role and 404 for missing id', async () => {
     const createRes = await request(app.getHttpServer())
       .post('/api/v1/roles')
@@ -555,6 +566,64 @@ describe('RBAC admin (integration)', () => {
 
     await request(app.getHttpServer())
       .delete(`/api/v1/roles/${created.id}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+  });
+
+  it('POST/PATCH /roles returns 400 when name or description exceeds max length', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: 'n'.repeat(121),
+        permissionKeys: ['dashboard.view'],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('max-desc'),
+        description: 'd'.repeat(2001),
+        permissionKeys: ['dashboard.view'],
+      })
+      .expect(400);
+
+    const createRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('patch-max'),
+        permissionKeys: ['dashboard.view'],
+      })
+      .expect(201);
+
+    const roleId = (createRes.body as { id: string }).id;
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${roleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ name: 'x'.repeat(121) })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${roleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ description: 'y'.repeat(2001) })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${roleId}`)
       .query({ organizationId })
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);

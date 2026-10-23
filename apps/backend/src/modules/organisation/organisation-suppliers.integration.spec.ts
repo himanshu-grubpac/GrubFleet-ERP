@@ -502,6 +502,18 @@ describe('Organisation suppliers (integration)', () => {
         .expect(403);
     });
 
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/organisation/suppliers')
+        .query({
+          organizationId,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
     it('returns 400 for invalid list sortBy', async () => {
       await request(app.getHttpServer())
         .get('/api/v1/organisation/suppliers')

@@ -8,6 +8,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import FormActions from "@/components/common/FormActions";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
 import { useAuth } from "@/providers/auth-provider";
 
 import {
@@ -35,6 +39,8 @@ import {
   validateDate,
   sanitizeDDMMYYYYInput,
 } from "@/components/common/Commonvalidation";
+
+import { FINANCE_VENDOR_PAYMENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 
 import {
   FINANCE_VENDOR_PAYMENT_SAVE_ERROR,
@@ -276,6 +282,32 @@ export default function RecordVendorPaymentPage() {
     ? validationErrors
     : [];
 
+  const selectBaseClass =
+    "rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
+
+  const selectBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, selectBaseClass);
+
+  const controlBaseClass =
+    "w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
+
+  const dateInputBaseClass = `${controlBaseClass} pr-11`;
+
+  const controlBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, controlBaseClass);
+
+  const dateInputBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, dateInputBaseClass);
+
+  const purchaseInvoiceInvalid = hasAttemptedSubmit && !purchaseInvoiceId;
+  const amountRequiredInvalid = hasAttemptedSubmit && !amount.trim();
+  const amountInvalid =
+    hasAttemptedSubmit && amount.trim() && amountMinor === null;
+  const amountNonPositiveInvalid =
+    hasAttemptedSubmit && amountMinor !== null && amountMinor <= 0;
+  const paymentDateInvalid = hasAttemptedSubmit && !paymentDate;
+  const paymentMethodInvalid = hasAttemptedSubmit && !paymentMethod;
+
   return (
     <OrganizationFormLayout
       title="Record Payment"
@@ -284,7 +316,11 @@ export default function RecordVendorPaymentPage() {
           hasAttemptedSubmit={hasAttemptedSubmit}
           validationSummary={displayedValidationErrors}
           isSaving={recordMutation.isPending}
-          canSubmit={canRecord && !recordMutation.isPending}
+          canSubmit={
+            canRecord &&
+            !recordMutation.isPending &&
+            validationErrors.length === 0
+          }
           onCancel={() => router.push(financeVendorPaymentsListHref)}
           onSave={handleSave}
           saveLabel="Record payment"
@@ -319,10 +355,7 @@ export default function RecordVendorPaymentPage() {
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Purchase invoice *
             <select
-              className={`rounded-md border bg-white px-3 py-2 text-sm text-slate-900 ${hasAttemptedSubmit && !purchaseInvoiceId
-                ? "border-red-500"
-                : "border-slate-200"
-                }`}
+              className={selectBorderClass(purchaseInvoiceInvalid)}
               value={purchaseInvoiceId}
               onChange={(event) => {
                 setPurchaseInvoiceId(event.target.value);
@@ -344,11 +377,13 @@ export default function RecordVendorPaymentPage() {
                 </option>
               ))}
             </select>
-            {hasAttemptedSubmit && !purchaseInvoiceId ? (
-              <span className="text-xs font-normal text-red-600">
-                Purchase invoice is required.
-              </span>
-            ) : null}
+            <FormFieldInlineError
+              message={
+                purchaseInvoiceInvalid
+                  ? "Purchase invoice is required."
+                  : undefined
+              }
+            />
           </label>
 
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
@@ -359,29 +394,36 @@ export default function RecordVendorPaymentPage() {
               onChange={setAmount}
               placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
               disabled={!purchaseInvoiceId || recordMutation.isPending}
+              className={controlBorderClass(
+                amountRequiredInvalid ||
+                  amountInvalid ||
+                  amountNonPositiveInvalid ||
+                  Boolean(
+                    selectedInvoice &&
+                      amountMinor != null &&
+                      amountMinor > maxPaymentMinor,
+                  ),
+              )}
             />
 
             {selectedInvoice &&
-              amountMinor != null &&
-              amountMinor > maxPaymentMinor ? (
-              <span className="text-xs text-red-600">
-                Cannot exceed balance{" "}
-                {formatInrFromMinor(maxPaymentMinor)}
-              </span>
+            amountMinor != null &&
+            amountMinor > maxPaymentMinor ? (
+              <FormFieldInlineError
+                message={`Cannot exceed balance ${formatInrFromMinor(maxPaymentMinor)}`}
+              />
             ) : null}
-            {hasAttemptedSubmit && !amount.trim() ? (
-              <span className="text-xs font-normal text-red-600">
-                Amount is required.
-              </span>
-            ) : hasAttemptedSubmit && amountMinor === null ? (
-              <span className="text-xs font-normal text-red-600">
-                Enter a valid amount.
-              </span>
-            ) : hasAttemptedSubmit && amountMinor !== null && amountMinor <= 0 ? (
-              <span className="text-xs font-normal text-red-600">
-                Amount must be greater than zero.
-              </span>
-            ) : null}
+            <FormFieldInlineError
+              message={
+                amountRequiredInvalid
+                  ? "Amount is required."
+                  : amountInvalid
+                    ? "Enter a valid amount."
+                    : amountNonPositiveInvalid
+                      ? "Amount must be greater than zero."
+                      : undefined
+              }
+            />
           </label>
 
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
@@ -393,10 +435,7 @@ export default function RecordVendorPaymentPage() {
                 autoComplete="off"
                 placeholder="DD-MM-YYYY"
                 maxLength={10}
-                className={`w-full rounded-md border px-3 py-2 pr-11 text-sm ${hasAttemptedSubmit && !paymentDate
-                  ? "border-red-500"
-                  : "border-slate-200"
-                  }`}
+                className={dateInputBorderClass(paymentDateInvalid)}
                 value={paymentDateInput}
                 onChange={(event) => {
                   setPaymentDateInput(
@@ -450,12 +489,14 @@ export default function RecordVendorPaymentPage() {
               </div>
             </div>
 
-            {hasAttemptedSubmit && !paymentDate ? (
-              <span className="text-xs font-normal text-red-600">
-                {paymentDateInput.trim()
-                  ? "Enter a valid payment date in DD-MM-YYYY format."
-                  : "Payment date is required."}
-              </span>
+            {paymentDateInvalid ? (
+              <FormFieldInlineError
+                message={
+                  paymentDateInput.trim()
+                    ? "Enter a valid payment date in DD-MM-YYYY format."
+                    : "Payment date is required."
+                }
+              />
             ) : (
               <span className="text-xs font-normal text-slate-500">
                 Enter the date as DD-MM-YYYY or select it from the calendar.
@@ -466,10 +507,7 @@ export default function RecordVendorPaymentPage() {
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Payment method *
             <select
-              className={`rounded-md border bg-white px-3 py-2 text-sm text-slate-900 ${hasAttemptedSubmit && !paymentMethod
-                ? "border-red-500"
-                : "border-slate-200"
-                }`}
+              className={selectBorderClass(paymentMethodInvalid)}
               value={paymentMethod}
               onChange={(event) => setPaymentMethod(event.target.value)}
               disabled={methodsQuery.isLoading || recordMutation.isPending}
@@ -484,11 +522,13 @@ export default function RecordVendorPaymentPage() {
               ))}
             </select>
 
-            {hasAttemptedSubmit && !paymentMethod ? (
-              <span className="text-xs font-normal text-red-600">
-                Payment method is required.
-              </span>
-            ) : null}
+            <FormFieldInlineError
+              message={
+                paymentMethodInvalid
+                  ? "Payment method is required."
+                  : undefined
+              }
+            />
 
             {methodsQuery.isError ? (
               <span className="text-xs font-normal text-red-600">
@@ -501,7 +541,7 @@ export default function RecordVendorPaymentPage() {
             Reference no. (optional)
             <RestrictedInput
               restrictedKind="text"
-              maxLength={120}
+              maxLength={FINANCE_VENDOR_PAYMENT_INPUT_LIMITS.paymentReference}
               value={paymentReference}
               onChange={setPaymentReference}
               disabled={recordMutation.isPending}

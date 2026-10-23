@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -16,7 +16,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  INVENTORY_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   fetchPartsRequestsListApi,
   type PartsRequestListItem,
@@ -27,8 +31,20 @@ const PAGE_SIZE = 10;
 
 export default function PartsDashboard() {
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: INVENTORY_INPUT_LIMITS.listSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+  const [requestStatus, setRequestStatus] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
 
   const {
@@ -40,7 +56,7 @@ export default function PartsDashboard() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [debouncedSearch, tableSort]);
+  }, [debouncedSearch, requestStatus, tableSort]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -49,6 +65,7 @@ export default function PartsDashboard() {
       organizationId,
       currentPage,
       debouncedSearch,
+      requestStatus,
       ...listSortQueryKeyPart(listSortParams),
     ],
     queryFn: () =>
@@ -58,6 +75,7 @@ export default function PartsDashboard() {
           page: currentPage,
           pageSize: PAGE_SIZE,
           search: debouncedSearch,
+          ...(requestStatus ? { requestStatus } : {}),
           ...listSortParams,
         },
         token!,
@@ -116,14 +134,32 @@ export default function PartsDashboard() {
       }}
     >
       <DashboardFilters
-        searchValue={search}
+        searchValue={searchInput}
         searchPlaceholder="Search requests"
-        onSearchChange={setSearch}
-        selectFilters={[]}
-        filterValues={{}}
-        onFilterChange={() => undefined}
+        onSearchChange={onListSearchChange}
+        selectFilters={[
+          {
+            key: "requestStatus",
+            label: "Status",
+            options: [
+              { value: "", label: "All statuses" },
+              { value: "fulfilled", label: "Fulfilled" },
+              { value: "blocked", label: "Blocked" },
+              { value: "reserved", label: "Reserved" },
+              { value: "cancelled", label: "Cancelled" },
+              { value: "lapsed", label: "Lapsed" },
+            ],
+          },
+        ]}
+        filterValues={{ requestStatus }}
+        onFilterChange={(key, value) => {
+          if (key === "requestStatus") {
+            setRequestStatus(value);
+          }
+        }}
         onClear={() => {
-          setSearch("");
+          clearSearch();
+          setRequestStatus("");
           setCurrentPage(1);
         }}
       />
@@ -138,7 +174,7 @@ export default function PartsDashboard() {
           title="No parts requests"
           description="Requests from Workshop will appear here."
           buttonLabel="Clear search"
-          onButtonClick={() => setSearch("")}
+          onButtonClick={() => clearSearch()}
         />
       ) : (
         <DashboardTable
@@ -153,6 +189,7 @@ export default function PartsDashboard() {
               status="active"
               locationId={row.id}
               viewHref={inventoryPartsRequestDetailHref(row.id)}
+              hideOverflowMenu
             />
           )}
         />

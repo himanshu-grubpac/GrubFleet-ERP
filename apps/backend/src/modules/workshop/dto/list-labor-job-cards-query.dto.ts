@@ -7,8 +7,10 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { WORKSHOP_LIST_SEARCH_MAX_LENGTH } from '../constants/workshop-field.constants';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -49,9 +51,10 @@ export class ListLaborJobCardsQueryDto {
   @Max(WORKSHOP_LIST_MAX_PAGE_SIZE)
   pageSize?: number = DEFAULT_PAGE_SIZE;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: WORKSHOP_LIST_SEARCH_MAX_LENGTH })
   @IsOptional()
   @IsString()
+  @MaxLength(WORKSHOP_LIST_SEARCH_MAX_LENGTH)
   search?: string;
 
   @ApiPropertyOptional({ enum: ['active', 'inactive'] })

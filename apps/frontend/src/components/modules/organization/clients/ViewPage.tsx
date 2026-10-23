@@ -9,6 +9,7 @@ import { Truck } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
@@ -170,17 +171,8 @@ export default function ViewPage() {
       : (client.contracts ?? []);
 
   return (
-    <div className="min-h-screen bg-[#f7f7f7]">
-      {/* =====================================================
-                Main Content
-            ====================================================== */}
-
-      <main className="px-6 py-3">
-        {/* =================================================
-                    Header
-                ================================================== */}
-
-        <div className="mb-3 flex items-center justify-between">
+    <OrganizationViewLayout>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-[15px] font-semibold text-gray-900">
             {client.clientName}
           </h1>
@@ -348,8 +340,6 @@ export default function ViewPage() {
             </div>
           )}
         </section>
-      </main>
-
       <ConfirmDialog
         open={activateOpen}
         title="Activate client?"
@@ -396,6 +386,6 @@ export default function ViewPage() {
           });
         }}
       />
-    </div>
+    </OrganizationViewLayout>
   );
 }

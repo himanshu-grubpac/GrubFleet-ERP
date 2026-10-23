@@ -7,7 +7,9 @@ import Button from "@/components/ui/GrubpacButton";
 import type { DeactivateReasonType, EmployeeRecord } from "./types";
 import { DEACTIVATE_REASON_LABELS } from "./types";
 
-const DEACTIVATE_COMMENT_MAX = 2000;
+import { FormFieldInlineError } from "@/components/ui/form-field-inline-error";
+import { ORGANISATION_DEACTIVATE_REASON_MAX } from "@/lib/validation/organisation-deactivate.constants";
+import { sanitizeTextValue } from "@/lib/forms/restricted-input";
 
 const REASON_OPTIONS: DeactivateReasonType[] = [
   "resignation",
@@ -96,8 +98,8 @@ export default function DeactivateEmployeeModal({
                 <span className="font-medium text-gray-900">
                   {employee.fullName}
                 </span>{" "}
-                will be marked inactive. Select a reason and optionally add a
-                comment ΓÇö the record stays in the register.
+                will be marked inactive. Select a reason type and optionally add
+                a comment — the record stays in the register.
               </p>
 
               <label className="mb-2 mt-4 block text-xs font-semibold uppercase tracking-wide text-gray-700">
@@ -136,19 +138,23 @@ export default function DeactivateEmployeeModal({
                 value={comment}
                 disabled={isPending}
                 onChange={(event) =>
-                  setComment(event.target.value.slice(0, DEACTIVATE_COMMENT_MAX))
+                  setComment(
+                    sanitizeTextValue(
+                      event.target.value,
+                      ORGANISATION_DEACTIVATE_REASON_MAX,
+                    ),
+                  )
                 }
-                maxLength={DEACTIVATE_COMMENT_MAX}
+                maxLength={ORGANISATION_DEACTIVATE_REASON_MAX}
                 rows={3}
                 className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm text-gray-900 outline-none focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
                 placeholder="Additional context for HR or audit"
               />
 
-              {(error || formError) && (
-                <p className="mt-2 text-sm text-red-600" role="alert">
-                  {error ?? formError}
-                </p>
-              )}
+              <FormFieldInlineError
+                message={error ?? formError ?? undefined}
+                className="mt-2 text-sm"
+              />
             </div>
             <div className="flex justify-end gap-2 px-6 py-5">
               <button

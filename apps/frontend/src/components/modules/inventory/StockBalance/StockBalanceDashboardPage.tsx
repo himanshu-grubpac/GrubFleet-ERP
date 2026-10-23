@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -16,7 +15,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  INVENTORY_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
   fetchStockBalanceListApi,
@@ -28,8 +31,19 @@ const PAGE_SIZE = 10;
 
 export default function StockBalanceDashboardPage() {
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: INVENTORY_INPUT_LIMITS.listSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
   const [currentPage, setCurrentPage] = useState(1);
   const {
     sort: tableSort,
@@ -75,12 +89,7 @@ export default function StockBalanceDashboardPage() {
       key: "part",
       label: "PART",
       render: (row: StockBalanceListItem) => (
-        <Link
-          href={inventoryStockBalanceDetailHref(row.id)}
-          className="font-medium text-[#FE5720]"
-        >
-          {row.partName}
-        </Link>
+        <span className="font-medium text-gray-900">{row.partName}</span>
       ),
     },
     {
@@ -123,14 +132,14 @@ export default function StockBalanceDashboardPage() {
       }}
     >
       <DashboardFilters
-        searchValue={search}
+        searchValue={searchInput}
         searchPlaceholder="Search parts"
-        onSearchChange={setSearch}
+        onSearchChange={onListSearchChange}
         selectFilters={[]}
         filterValues={{}}
         onFilterChange={() => undefined}
         onClear={() => {
-          setSearch("");
+          clearSearch();
           setCurrentPage(1);
         }}
       />
@@ -145,7 +154,7 @@ export default function StockBalanceDashboardPage() {
           title="No stock balance data"
           description="Record stock receipts to see on-hand levels."
           buttonLabel="Clear search"
-          onButtonClick={() => setSearch("")}
+          onButtonClick={() => clearSearch()}
         />
       ) : (
 
@@ -158,14 +167,18 @@ export default function StockBalanceDashboardPage() {
           onSortChange={onSortChange}
           serverSorted={serverSorted}
           renderActions={(row) => (
-            <div className="flex w-full items-center justify-center">
-              <Link
-                href={inventoryStockBalanceDetailHref(row.id)}
-                className="inline-flex h-12 min-w-[98px] items-center justify-center rounded-lg bg-white px-5 text-[14px] font-normal leading-none text-[#FE5720] underline transition-colors hover:text-[#E64A19]"
-              >
-                View
-              </Link>
-            </div>
+            <DashboardTableActions
+              status="active"
+              locationId={row.id}
+              viewHref={inventoryStockBalanceDetailHref(row.id)}
+              hideOverflowMenu
+              copyText={[
+                `Part: ${row.partName}`,
+                `Part Number: ${row.partNumber}`,
+                `Status: ${row.stockStatus}`,
+                `On hand: ${row.locations.reduce((sum, loc) => sum + loc.quantity, 0)}`,
+              ].join("\n")}
+            />
           )}
         />
 

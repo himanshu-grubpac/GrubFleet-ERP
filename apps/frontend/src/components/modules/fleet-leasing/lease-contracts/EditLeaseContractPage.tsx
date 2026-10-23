@@ -50,8 +50,10 @@ import {
     computeLeaseEndDateIso,
     inferDraftWizardResumeScreen,
     mapDetailToWizardAssetLines,
+    mapWizardAssetLinesToApi,
     termsAreComplete,
 } from "@/lib/lease-contract/lease-contract-wizard.util";
+import { formatLeaseDecimalMoneyForInput } from "@/lib/format/money-format";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
 
@@ -103,10 +105,9 @@ function mapDetailToTerms(detail: LeaseContractDetail): LeaseTerms {
         startDate,
         endDate,
         termMonths,
-        securityDeposit:
-            detail.securityDeposit != null
-                ? String(detail.securityDeposit)
-                : "",
+        securityDeposit: formatLeaseDecimalMoneyForInput(
+            detail.securityDeposit,
+        ),
         billingFrequency:
             (detail.billingFrequency as LeaseTerms["billingFrequency"]) ??
             "monthly",
@@ -356,13 +357,7 @@ export default function EditLeaseContractPage({
                     organizationId,
                     leaseId,
                     {
-                        assetLines: linesToPersist.map((line) => ({
-                            assetClass: line.assetClass,
-                            committedQuantity: Number(line.committedQuantity),
-                            ratePerVehicleMonth: String(
-                                line.ratePerVehicleMonth || "0",
-                            ),
-                        })),
+                        assetLines: mapWizardAssetLinesToApi(linesToPersist),
                     },
                 );
             }
@@ -690,15 +685,7 @@ export default function EditLeaseContractPage({
                             organizationId,
                             leaseId,
                             {
-                                assetLines: lines.map((line) => ({
-                                    assetClass: line.assetClass,
-                                    committedQuantity: Number(
-                                        line.committedQuantity,
-                                    ),
-                                    ratePerVehicleMonth: String(
-                                        line.ratePerVehicleMonth || "0",
-                                    ),
-                                })),
+                                assetLines: mapWizardAssetLinesToApi(lines),
                                 ...(continueOptions?.confirmShortfall
                                     ? { confirmShortfall: true }
                                     : {}),
@@ -754,15 +741,8 @@ export default function EditLeaseContractPage({
                             organizationId,
                             leaseId,
                             {
-                                assetLines: linesWithRates.map((line) => ({
-                                    assetClass: line.assetClass,
-                                    committedQuantity: Number(
-                                        line.committedQuantity,
-                                    ),
-                                    ratePerVehicleMonth: String(
-                                        line.ratePerVehicleMonth,
-                                    ),
-                                })),
+                                assetLines:
+                                    mapWizardAssetLinesToApi(linesWithRates),
                             },
                         );
                         await updateLeaseContract(

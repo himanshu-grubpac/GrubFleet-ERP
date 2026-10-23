@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
@@ -172,9 +173,8 @@ export default function ViewPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f7f7f7]">
-      <main className="px-6 py-3">
-        <div className="mb-3 flex items-center justify-between">
+    <OrganizationViewLayout>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <h1 className="text-[15px] font-semibold text-gray-900">
               {driver.name}
@@ -329,7 +329,6 @@ export default function ViewPage() {
             </div>
           </div>
         </section>
-      </main>
 
       <ConfirmDialog
         open={activateOpen}
@@ -374,6 +373,6 @@ export default function ViewPage() {
           statusMutation.mutate({ action: "deactivate", reason });
         }}
       />
-    </div>
+    </OrganizationViewLayout>
   );
 }

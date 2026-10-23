@@ -184,7 +184,8 @@ export default function CreateLaborJobCardForm() {
     (isEditMode ? canUpdate : canCreate) &&
     !isAuthLoading &&
     !saveMutation.isPending &&
-    (!isEditMode || !existingQuery.isLoading);
+    (!isEditMode || !existingQuery.isLoading) &&
+    !hasValidationErrors;
 
   const handleSave = () => {
     setHasAttemptedSubmit(true);

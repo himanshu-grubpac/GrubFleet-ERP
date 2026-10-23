@@ -6,8 +6,11 @@ import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { useAuth } from "@/providers/auth-provider";
+import { parseRupeeInputToMajorNumber } from "@/lib/format/money-format";
+import { ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
     COMPLIANCE_RENEWAL_SAVE_ERROR,
@@ -18,21 +21,16 @@ import {
     fetchAssetRegisterComplianceDetailApi,
     renewAssetRegisterComplianceApi,
 } from "@/lib/api/asset-register/compliance";
-import { formatAssetRegisterIsoDate } from "@/lib/api/asset-register/mappers";
+import {
+    formatAssetRegisterIsoDate,
+    validateComplianceRenewFormFields,
+    validateComplianceRenewFormForSubmit,
+    type ComplianceRenewalTypeUi,
+} from "@/lib/api/asset-register/mappers";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
 /* -------------------------------------------------------------------------- */
-
-type RenewalType = "Insurance" | "Registration" | "Warranty";
-
-function parseRenewalEndDate(value: string): string | null {
-    const trimmed = value.trim();
-    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-        return trimmed;
-    }
-    return null;
-}
 
 type ComplianceVehicle = {
     id: string;
@@ -60,7 +58,16 @@ type ComplianceVehicle = {
 export default function RenewCompliancePage() {
     const router = useRouter();
     const queryClient = useQueryClient();
-    const { token, organizationId, isLoading: isAuthLoading } = useAuth();
+    const {
+        token,
+        organizationId,
+        isLoading: isAuthLoading,
+        permissions,
+    } = useAuth();
+
+    const canRenew =
+        permissions.has("asset_register.update") ||
+        permissions.has("asset_register.manage");
 
     const vehicleId = useAssetRegisterEntityId("vehicleId");
 
@@ -158,7 +165,7 @@ export default function RenewCompliancePage() {
     /* ---------------------------------------------------------------------- */
 
     const [renewalType, setRenewalType] =
-        useState<RenewalType>("Insurance");
+        useState<ComplianceRenewalTypeUi>("Insurance");
 
     const [newExpiryDate, setNewExpiryDate] =
         useState("");
@@ -167,6 +174,9 @@ export default function RenewCompliancePage() {
         useState("");
 
     const [policyNumber, setPolicyNumber] =
+        useState("");
+
+    const [registrationReference, setRegistrationReference] =
         useState("");
 
     const [isSaving, setIsSaving] =
@@ -183,77 +193,71 @@ export default function RenewCompliancePage() {
     /* Input Classes                                                          */
     /* ---------------------------------------------------------------------- */
 
-    const inputClassName =
-        "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
-
     const selectClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
-    const validateForm = (): Record<string, string> => {
-        const errors: Record<string, string> = {};
-        const endDate = parseRenewalEndDate(newExpiryDate);
-
-        if (!newExpiryDate.trim()) {
-            errors.endDate = "New expiry date is required.";
-        } else if (
-            !endDate ||
-            Number.isNaN(Date.parse(`${endDate}T00:00:00Z`)) ||
-            new Date(`${endDate}T00:00:00Z`).toISOString().slice(0, 10) !== endDate
-        ) {
-            errors.endDate = "Enter a valid date in YYYY-MM-DD format.";
-        }
-
+    const credentialStartDate = useMemo(() => {
+        if (!detailQuery.data) return undefined;
         if (renewalType === "Insurance") {
-            if (!premium.trim()) {
-                errors.premium = "Premium is required.";
-            } else {
-                const premiumValue = Number(premium.replace(/[^\d.]/g, ""));
-                if (!Number.isFinite(premiumValue) || premiumValue < 0) {
-                    errors.premium = "Enter a valid, non-negative premium.";
-                }
-            }
-
-            if (!policyNumber.trim()) {
-                errors.policyNumber = "Policy number is required.";
-            }
+            return detailQuery.data.insurance?.startDate;
         }
-
-        if (!organizationId) {
-            errors.organizationId = "Organization ID is missing.";
-        } else if (
-            !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(organizationId)
-        ) {
-            errors.organizationId = "Organization ID must be a valid UUID.";
+        if (renewalType === "Registration") {
+            return detailQuery.data.registration?.startDate;
         }
+        return detailQuery.data.warranty?.startDate;
+    }, [detailQuery.data, renewalType]);
 
-        const startDate =
-            renewalType === "Insurance"
-                ? detailQuery.data?.insurance?.startDate
-                : renewalType === "Registration"
-                    ? detailQuery.data?.registration?.startDate
-                    : detailQuery.data?.warranty?.startDate;
+    const liveErrors = useMemo(
+        () =>
+            validateComplianceRenewFormFields(
+                {
+                    renewalType,
+                    newExpiryDate,
+                    premium,
+                    policyNumber,
+                    registrationReference,
+                },
+                { credentialStartDate },
+            ),
+        [
+            newExpiryDate,
+            renewalType,
+            premium,
+            policyNumber,
+            registrationReference,
+            credentialStartDate,
+        ],
+    );
 
-        if (!startDate) {
-            errors.startDate = `A valid start date is missing for ${renewalType.toLowerCase()}.`;
-        } else if (
-            !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
-            Number.isNaN(Date.parse(`${startDate}T00:00:00Z`)) ||
-            new Date(`${startDate}T00:00:00Z`).toISOString().slice(0, 10) !== startDate
-        ) {
-            errors.startDate = "The existing start date is invalid.";
-        }
+    const { canSubmit } = useMemo(
+        () =>
+            validateComplianceRenewFormForSubmit(
+                {
+                    renewalType,
+                    newExpiryDate,
+                    premium,
+                    policyNumber,
+                    registrationReference,
+                },
+                { credentialStartDate },
+                {
+                    isSaving: isSaving || renewMutation.isPending,
+                    canRenew,
+                },
+            ),
+        [
+            renewalType,
+            newExpiryDate,
+            premium,
+            policyNumber,
+            registrationReference,
+            credentialStartDate,
+            isSaving,
+            renewMutation.isPending,
+            canRenew,
+        ],
+    );
 
-        return errors;
-    };
-
-    const liveErrors = useMemo(() => validateForm(), [
-        newExpiryDate,
-        renewalType,
-        premium,
-        policyNumber,
-        organizationId,
-        detailQuery.data,
-    ]);
     const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
     const validationSummary = Object.values(displayedErrors).filter(
         (message): message is string => Boolean(message),
@@ -285,7 +289,16 @@ export default function RenewCompliancePage() {
         setHasAttemptedSubmit(true);
         setError("");
 
-        const errors = validateForm();
+        const errors = validateComplianceRenewFormFields(
+            {
+                renewalType,
+                newExpiryDate,
+                premium,
+                policyNumber,
+                registrationReference,
+            },
+            { credentialStartDate },
+        );
         setValidationErrors(errors);
 
         if (Object.keys(errors).length > 0) {
@@ -293,7 +306,7 @@ export default function RenewCompliancePage() {
             return;
         }
 
-        const endDate = parseRenewalEndDate(newExpiryDate);
+        const endDate = newExpiryDate.trim();
         if (!endDate) {
             isSubmittingRef.current = false;
             return;
@@ -303,7 +316,7 @@ export default function RenewCompliancePage() {
             setIsSaving(true);
             const premiumValue =
                 renewalType === "Insurance"
-                    ? Number(premium.replace(/[^\d.]/g, ""))
+                    ? parseRupeeInputToMajorNumber(premium)
                     : undefined;
 
             await renewMutation.mutateAsync({
@@ -373,7 +386,7 @@ export default function RenewCompliancePage() {
                             <Button
                                 type="button"
                                 onClick={handleSave}
-                                disabled={isSaving}
+                                disabled={!canSubmit}
                                 className="h-10 px-5"
                             >
                                 {isSaving
@@ -482,7 +495,7 @@ export default function RenewCompliancePage() {
                                     value={renewalType}
                                     onChange={(event) => {
                                         setRenewalType(
-                                            event.target.value as RenewalType,
+                                            event.target.value as ComplianceRenewalTypeUi,
                                         );
                                         setError("");
                                         setValidationErrors({});
@@ -515,10 +528,8 @@ export default function RenewCompliancePage() {
 
                                 <input
                                     id="new-expiry-date"
-                                    type="text"
-                                    value={
-                                        newExpiryDate
-                                    }
+                                    type="date"
+                                    value={newExpiryDate}
                                     onChange={(event) => {
                                         setNewExpiryDate(event.target.value);
                                         setValidationErrors((previous) => {
@@ -527,7 +538,6 @@ export default function RenewCompliancePage() {
                                             return next;
                                         });
                                     }}
-                                    placeholder="YYYY-MM-DD"
                                     className={getInputClassName("endDate")}
                                 />
                                 {displayedErrors.endDate && (
@@ -550,12 +560,12 @@ export default function RenewCompliancePage() {
                                                 Premium
                                             </label>
 
-                                            <input
+                                            <RestrictedInput
                                                 id="premium"
-                                                type="text"
+                                                restrictedKind="inrRupee"
                                                 value={premium}
-                                                onChange={(event) => {
-                                                    setPremium(event.target.value);
+                                                onChange={(value) => {
+                                                    setPremium(value);
                                                     setValidationErrors((previous) => {
                                                         const next = { ...previous };
                                                         delete next.premium;
@@ -580,14 +590,15 @@ export default function RenewCompliancePage() {
                                                 Policy number
                                             </label>
 
-                                            <input
+                                            <RestrictedInput
                                                 id="policy-number"
-                                                type="text"
-                                                value={
-                                                    policyNumber
+                                                restrictedKind="text"
+                                                maxLength={
+                                                    ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS.policyNumber
                                                 }
-                                                onChange={(event) => {
-                                                    setPolicyNumber(event.target.value);
+                                                value={policyNumber}
+                                                onChange={(value) => {
+                                                    setPolicyNumber(value);
                                                     setValidationErrors((previous) => {
                                                         const next = { ...previous };
                                                         delete next.policyNumber;
@@ -617,14 +628,31 @@ export default function RenewCompliancePage() {
                                                 Registration reference
                                             </label>
 
-                                            <input
+                                            <RestrictedInput
                                                 id="registration-reference"
-                                                type="text"
-                                                placeholder="Reference number"
-                                                className={
-                                                    inputClassName
+                                                restrictedKind="text"
+                                                maxLength={
+                                                    ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS.registrationReference
                                                 }
+                                                value={registrationReference}
+                                                onChange={(value) => {
+                                                    setRegistrationReference(value);
+                                                    setValidationErrors((previous) => {
+                                                        const next = { ...previous };
+                                                        delete next.registrationReference;
+                                                        return next;
+                                                    });
+                                                }}
+                                                placeholder="Reference number"
+                                                className={getInputClassName(
+                                                    "registrationReference",
+                                                )}
                                             />
+                                            {displayedErrors.registrationReference && (
+                                                <p className="mt-1 text-xs text-red-500">
+                                                    {displayedErrors.registrationReference}
+                                                </p>
+                                            )}
                                         </div>
                                     </>
                                 )}

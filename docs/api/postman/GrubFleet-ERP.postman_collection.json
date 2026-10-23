@@ -404,7 +404,7 @@
               "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Fleet View Only\",\n  \"description\": \"Phase 1 module access example\",\n  \"parentRoleId\": null,\n  \"moduleAccess\": [\n    { \"moduleId\": \"fleet_leasing\", \"accessLevel\": \"VIEW\" },\n    { \"moduleId\": \"administration\", \"accessLevel\": \"NONE\" }\n  ]\n}"
             },
             "url": "{{baseUrl}}/roles?organizationId={{organizationId}}",
-            "description": "POST /roles — create org role. Optional parentRoleId (UUID, same org); omit or null for hierarchy root (requires administration.manage). Without manage, set parentRoleId to a role you manage. 400: ROLE_PARENT_REQUIRED, ROLE_PARENT_NOT_FOUND; 404 ROLE_NOT_FOUND if parent not visible. moduleAccess expands to permission keys."
+            "description": "POST /roles — create org role. Body: name max 120 chars; description max 2000 chars. Optional parentRoleId (UUID, same org); omit or null for hierarchy root (requires administration.manage). Without manage, set parentRoleId to a role you manage. 400: ROLE_PARENT_REQUIRED, ROLE_PARENT_NOT_FOUND; 404 ROLE_NOT_FOUND if parent not visible. moduleAccess expands to permission keys."
           },
           "response": []
         },
@@ -654,7 +654,7 @@
               }
             ],
             "url": "{{baseUrl}}/asset-register/asset-classes?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /asset-register/asset-classes — paginated list; each item includes id (UUID, stable assetClassId), name, specLabel, vehicleType, fuelType, inFleetCount, availableCount, status. Optional search, status."
+            "description": "GET /asset-register/asset-classes — paginated list; each item includes id (UUID, stable assetClassId), name, specLabel, vehicleType, fuelType, inFleetCount, availableCount, status. Optional search (max 120 chars), status."
           },
           "response": []
         },
@@ -773,7 +773,7 @@
               }
             ],
             "url": "{{baseUrl}}/asset-register/vehicles?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /asset-register/vehicles — filter assetClassId, operationalStatus, lifecycle status, search, demandFilter. List items include openDemandUnitsToAssign and openDemandContractCount per asset class; includeAssignmentSummary=true adds org-wide assignmentSummary."
+            "description": "GET /asset-register/vehicles — filter assetClassId, operationalStatus, lifecycle status, search (max 120 chars), demandFilter. List items include openDemandUnitsToAssign and openDemandContractCount per asset class; includeAssignmentSummary=true adds org-wide assignmentSummary."
           },
           "response": []
         },
@@ -1749,7 +1749,7 @@
               }
             ],
             "url": "{{baseUrl}}/organisation/locations?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /organisation/locations — paginated list with optional search, locationTypeId, status. Default sort: createdAt desc (newest first), then id desc."
+            "description": "GET /organisation/locations — paginated list with optional search (max 120 chars), locationTypeId, status. Default sort: createdAt desc (newest first), then id desc."
           },
           "response": []
         },
@@ -1868,7 +1868,7 @@
               }
             ],
             "url": "{{baseUrl}}/organisation/suppliers?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /organisation/suppliers — paginated list with optional search, supplierType, status."
+            "description": "GET /organisation/suppliers — paginated list with optional search (max 120 chars), supplierType, status."
           },
           "response": []
         },
@@ -2006,7 +2006,7 @@
               }
             ],
             "url": "{{baseUrl}}/organisation/clients?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /organisation/clients — paginated list with optional search and status."
+            "description": "GET /organisation/clients — paginated list with optional search (max 120 chars) and status."
           },
           "response": []
         },
@@ -2125,7 +2125,7 @@
               }
             ],
             "url": "{{baseUrl}}/organisation/drivers?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /organisation/drivers — paginated list with optional search and status (active, inactive, license-expired)."
+            "description": "GET /organisation/drivers — paginated list with optional search (max 120 chars) and status (active, inactive, license-expired)."
           },
           "response": []
         },
@@ -2309,7 +2309,7 @@
               }
             ],
             "url": "{{baseUrl}}/organisation/employees?organizationId={{organizationId}}&page=1&pageSize=50&status=active",
-            "description": "GET /organisation/employees — paginated list for employee register and location assignment dropdowns. Default sort: createdAt desc (newest first), then id desc."
+            "description": "GET /organisation/employees — paginated list for employee register and location assignment dropdowns. Optional search (max 120 chars), department, status. Default sort: createdAt desc (newest first), then id desc."
           },
           "response": []
         },
@@ -2886,7 +2886,7 @@
               }
             ],
             "url": "{{baseUrl}}/finance/client-statements?organizationId={{organizationId}}&periodStart=2026-07-01&periodEnd=2026-09-30&page=1&pageSize=10",
-            "description": "GET /finance/client-statements — billing-only aggregates per org client for a period."
+            "description": "GET /finance/client-statements — billing-only aggregates per org client for a period. Optional search (max 120 chars) by client name."
           },
           "response": []
         },
@@ -2981,7 +2981,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Oil filter\",\n  \"compatibleAssetClasses\": [\"Sedan\"],\n  \"unitOfMeasure\": \"pcs\",\n  \"retailMarkupPercent\": 15,\n  \"wholesaleMarkupPercent\": 10,\n  \"thresholdQuantity\": 5\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"name\": \"Oil filter\",\n  \"compatibleAssetClasses\": [\"Sedan\"],\n  \"unitOfMeasure\": \"pcs\",\n  \"retailMarkupPercent\": 15,\n  \"wholesaleMarkupPercent\": 10,\n  \"reorderThreshold\": 5\n}"
             },
             "url": "{{baseUrl}}/inventory/stock-register",
             "description": "POST /inventory/stock-register — creates spare part row."
@@ -3027,7 +3027,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Oil filter (updated)\",\n  \"thresholdQuantity\": 8\n}"
+              "raw": "{\n  \"name\": \"Oil filter (updated)\",\n  \"reorderThreshold\": 8\n}"
             },
             "url": "{{baseUrl}}/inventory/stock-register/{{inventorySparePartId}}?organizationId={{organizationId}}",
             "description": "PATCH /inventory/stock-register/{id} — active parts only."
@@ -3100,7 +3100,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"partId\": \"{{inventorySparePartId}}\",\n  \"quantity\": 10,\n  \"receiptDate\": \"2026-04-01\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"locationId\": \"{{locationId}}\",\n  \"financeInvoiceId\": \"{{financeInvoiceId}}\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"partId\": \"{{inventorySparePartId}}\",\n  \"locationId\": \"{{locationId}}\",\n  \"purchaseDate\": \"2026-04-01\",\n  \"quantityReceived\": 10,\n  \"quantityUnitCostMinor\": 50000,\n  \"batchLotReference\": \"LOT-POSTMAN-1\",\n  \"supplierId\": \"{{supplierId}}\",\n  \"financeInvoiceId\": \"{{financeInvoiceId}}\"\n}"
             },
             "url": "{{baseUrl}}/inventory/stock-receipts",
             "description": "POST /inventory/stock-receipts — optional financeInvoiceId link."
@@ -3179,7 +3179,7 @@
               }
             ],
             "url": "{{baseUrl}}/inventory/parts-requests?organizationId={{organizationId}}&page=1&pageSize=20",
-            "description": "GET /inventory/parts-requests — read-only."
+            "description": "GET /inventory/parts-requests — read-only list. Optional query: search (max 120), sortBy (requestedAt|status|requestNumber), sortOrder, requestStatus (blocked|fulfilled|reserved|cancelled|lapsed)."
           },
           "response": []
         },

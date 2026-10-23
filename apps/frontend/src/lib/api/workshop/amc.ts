@@ -189,14 +189,20 @@ export async function createWorkshopAmcTierApi(
     organizationId: string;
     name: string;
     description?: string;
-    priceDisplayLabel?: string;
+    pricePaise?: number;
   },
 ): Promise<WorkshopAmcTierDetail> {
+  const { organizationId, name, description, pricePaise } = payload;
   return apiFetch<WorkshopAmcTierDetail>("/workshop/amc/tiers", {
     method: "POST",
     token,
-    headers: orgHeaders(payload.organizationId),
-    body: JSON.stringify(payload),
+    headers: orgHeaders(organizationId),
+    body: JSON.stringify({
+      organizationId,
+      name,
+      ...(description !== undefined ? { description } : {}),
+      ...(pricePaise !== undefined ? { pricePaise } : {}),
+    }),
   });
 }
 
@@ -299,17 +305,23 @@ export async function updateWorkshopAmcTierApi(
     organizationId: string;
     name?: string;
     description?: string | null;
-    priceDisplayLabel?: string | null;
+    pricePaise?: number | null;
   },
 ): Promise<WorkshopAmcTierDetail> {
   const query = new URLSearchParams({ organizationId: payload.organizationId });
+  const { organizationId, name, description, pricePaise } = payload;
   return apiFetch<WorkshopAmcTierDetail>(
     `/workshop/amc/tiers/${encodeURIComponent(id)}?${query.toString()}`,
     {
       method: "PATCH",
       token,
-      headers: orgHeaders(payload.organizationId),
-      body: serializeOrgScopedPatchBody(payload),
+      headers: orgHeaders(organizationId),
+      body: serializeOrgScopedPatchBody({
+        organizationId,
+        ...(name !== undefined ? { name } : {}),
+        ...(description !== undefined ? { description } : {}),
+        ...(pricePaise !== undefined ? { pricePaise } : {}),
+      }),
     },
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   useMutation,
@@ -19,7 +19,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  DRIVER_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { ApiClientError } from "@/lib/api/client";
 import {
   fetchOrganisationDriversApi,
@@ -117,8 +121,19 @@ export default function DriverRegisterPage() {
     permissions.has("organisation.update") ||
     permissions.has("organisation.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onDriverListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: DRIVER_INPUT_LIMITS.driverListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
   const [filters, setFilters] = useState<Record<string, string>>({
     status: "",
   });
@@ -238,7 +253,7 @@ export default function DriverRegisterPage() {
   };
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
     setFilters({
       status: "",
     });
@@ -399,9 +414,9 @@ export default function DriverRegisterPage() {
       >
         {(driversTotal > 0 || listHasFilters) && (
           <DashboardFilters
-            searchValue={search}
+            searchValue={searchInput}
             searchPlaceholder="Search by driver name, CPR no., or license no."
-            onSearchChange={setSearch}
+            onSearchChange={onDriverListSearchChange}
             selectFilters={[
               {
                 key: "status",

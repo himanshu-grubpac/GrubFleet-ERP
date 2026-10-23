@@ -24,7 +24,8 @@ import {
   financeInvoiceNewTypeHref,
   financeInvoicesListHref,
 } from "@/lib/navigation/finance-static-routes";
-import { ORG_EMAIL_PATTERN } from "@/lib/validation/org-input-constraints";
+import { FINANCE_INVOICE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { isValidOptionalEmail } from "@/lib/validation/email-validation";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
   showApiErrorToast,
@@ -108,8 +109,7 @@ export default function NewSaleInvoicePage() {
     }));
   }, [vehicles, editInvoiceId, editQuery.data]);
 
-  const emailValid =
-    !buyerEmail.trim() || ORG_EMAIL_PATTERN.test(buyerEmail.trim());
+  const emailValid = isValidOptionalEmail(buyerEmail);
 
   const isFormValid =
     !!vehicleId &&
@@ -249,7 +249,7 @@ export default function NewSaleInvoicePage() {
               restrictedKind="name"
               value={buyerName}
               onChange={setBuyerName}
-              maxLength={255}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.saleBuyerName}
             />
           </div>
 
@@ -261,7 +261,7 @@ export default function NewSaleInvoicePage() {
               restrictedKind="email"
               value={buyerEmail}
               onChange={setBuyerEmail}
-              maxLength={320}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.saleBuyerEmail}
             />
           </div>
 
@@ -308,7 +308,7 @@ export default function NewSaleInvoicePage() {
               restrictedKind="text"
               value={notes}
               onChange={setNotes}
-              maxLength={2000}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.invoiceNotes}
             />
           </div>
         </div>

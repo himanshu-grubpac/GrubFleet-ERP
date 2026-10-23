@@ -530,6 +530,20 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       expect(body.assetClassSpecLabel).not.toBe(body.assetClassName);
     });
 
+    it('rejects list search longer than max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/asset-register/vehicles')
+        .query({
+          organizationId,
+          page: 1,
+          pageSize: 20,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
     it('filters list by assetClassId and operationalStatus', async () => {
       const classA = await createAssetClass();
       const classB = await createAssetClass();

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { FileText } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -21,8 +21,12 @@ import {
   getClientStatementPeriodPresets,
 } from "@/lib/finance/client-statement-periods";
 
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
 import { financeClientStatementDetailHref } from "@/lib/navigation/finance-static-routes";
+import {
+  FINANCE_CLIENT_STATEMENT_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { FINANCE_CLIENT_STATEMENT_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
 import {
@@ -30,10 +34,7 @@ import {
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
 
-import {
-  isDashboardCatalogEmptyState,
-  shouldShowDashboardListFilters,
-} from "@/lib/hooks/dashboard-list-search-ui";
+import { isDashboardCatalogEmptyState } from "@/lib/hooks/dashboard-list-search-ui";
 
 function moneyCell(
   minor: number,
@@ -76,8 +77,25 @@ export default function ClientStatementsPage() {
     defaultPeriod.periodEnd,
   );
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const {
+    searchInput,
+    setSearchInput,
+    debouncedSearch,
+    clearSearch,
+  } = useDashboardListSearch();
+
+  const onClientStatementListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength:
+            FINANCE_CLIENT_STATEMENT_INPUT_LIMITS.clientStatementListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [page, setPage] = useState(1);
 
   const {
@@ -134,25 +152,16 @@ export default function ClientStatementsPage() {
     listQuery.data !== undefined &&
     !hasAnyBillingInvoicesEver;
 
-  const showFilters = shouldShowDashboardListFilters({
-    total,
-    searchInput: search,
-    debouncedSearch,
-    hasActiveSelectFilters: false,
-    isFetchingWithPlaceholder:
-      listQuery.isFetching && listQuery.isPlaceholderData,
-  });
-
   const isEmptyCatalog = isDashboardCatalogEmptyState({
     total,
-    searchInput: search,
+    searchInput,
     debouncedSearch,
     hasActiveFilters: false,
     isFetching: listQuery.isFetching,
   });
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
     setPage(1);
   };
 
@@ -339,9 +348,9 @@ export default function ClientStatementsPage() {
             {/* Search and period selector */}
             <div className="mb-4">
               <DashboardFilters
-                searchValue={search}
+                searchValue={searchInput}
                 searchPlaceholder="Search by client name"
-                onSearchChange={setSearch}
+                onSearchChange={onClientStatementListSearchChange}
                 onClear={handleClearFilters}
                 showClearButton={false}
               >

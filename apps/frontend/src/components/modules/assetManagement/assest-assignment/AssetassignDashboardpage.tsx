@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { PackageSearch } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -11,8 +11,12 @@ import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import { useAuth } from "@/providers/auth-provider";
 import { assetAssignmentListQueryOptions } from "@/lib/query/asset-assignment-query-options";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
 import { isDashboardCatalogEmptyState } from "@/lib/hooks/dashboard-list-search-ui";
+import {
+    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS,
+    sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
     fetchAssetRegisterVehiclesApi,
     type AssetRegisterVehicleDemandFilter,
@@ -98,8 +102,20 @@ export default function AssetAssignmentDashboardPage() {
         permissions.has("asset_register.create") ||
         permissions.has("asset_register.manage");
 
-    const [search, setSearch] = useState("");
-    const debouncedSearch = useDebouncedValue(search, 300);
+    const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+        useDashboardListSearch();
+
+    const onAssignmentListSearchChange = useCallback(
+        (value: string) => {
+            setSearchInput(
+                sanitizeRestrictedInputValue("text", value, {
+                    maxLength:
+                        ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.vehicleListSearch,
+                }),
+            );
+        },
+        [setSearchInput],
+    );
 
     const [page, setPage] = useState(1);
     const [filterValues, setFilterValues] = useState<Record<string, string>>({
@@ -222,7 +238,7 @@ export default function AssetAssignmentDashboardPage() {
 
     const isGlobalEmpty = isDashboardCatalogEmptyState({
         total: totalItems,
-        searchInput: search,
+        searchInput,
         debouncedSearch,
         hasActiveFilters,
         isFetching: listQuery.isFetching,
@@ -244,7 +260,7 @@ export default function AssetAssignmentDashboardPage() {
         .join(" ");
 
     const handleClearSearch = () => {
-        setSearch("");
+        clearSearch();
         setPage(1);
     };
 
@@ -337,9 +353,9 @@ export default function AssetAssignmentDashboardPage() {
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="min-w-0 flex-1">
                     <DashboardFilters
-                        searchValue={search}
+                        searchValue={searchInput}
                         searchPlaceholder="Search by fleet code, registration or asset class"
-                        onSearchChange={setSearch}
+                        onSearchChange={onAssignmentListSearchChange}
                         selectFilters={[
                             {
                                 key: "assetClassId",
@@ -448,7 +464,7 @@ export default function AssetAssignmentDashboardPage() {
                             {filteredEmptySubtext}
                         </p>
                         <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-                            {search.trim() ? (
+                            {searchInput.trim() ? (
                                 <button
                                     type="button"
                                     onClick={handleClearSearch}
@@ -466,7 +482,7 @@ export default function AssetAssignmentDashboardPage() {
                                     Search all asset classes
                                 </button>
                             ) : null}
-                            {!search.trim() && !assetClassIdFilter ? (
+                            {!searchInput.trim() && !assetClassIdFilter ? (
                                 <button
                                     type="button"
                                     onClick={() => {
@@ -474,7 +490,7 @@ export default function AssetAssignmentDashboardPage() {
                                             assetClassId: "",
                                             demandFilter: "any",
                                         });
-                                        setSearch("");
+                                        clearSearch();
                                         setPage(1);
                                     }}
                                     className="text-xs font-medium text-[#FE5720] hover:underline"
