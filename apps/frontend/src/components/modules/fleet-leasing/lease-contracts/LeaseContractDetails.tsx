@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import Link from "next/link";
+import { SecureEntityLink } from "@/components/ui/secure-entity-link";
 import {
     useSearchParams,
     useRouter,
@@ -168,12 +168,13 @@ function ContractVehicleDriverLinks({
                                     {vehicle.registrationNo}
                                 </span>
                                 {linked ? (
-                                    <Link
+                                    <SecureEntityLink
                                         href={organisationDriverDetailHref(linked.id)}
+                                        entityId={linked.id}
                                         className="text-sm font-medium text-[#FE5720] hover:underline"
                                     >
                                         {linked.name}
-                                    </Link>
+                                    </SecureEntityLink>
                                 ) : (
                                     <span className="text-slate-500">
                                         No driver linked

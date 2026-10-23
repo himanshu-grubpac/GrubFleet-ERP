@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -22,6 +23,10 @@ import {
     showApiErrorToast,
     showSupplierUpdatedToast,
 } from "@/lib/toast/show-toast";
+import {
+    DashboardDetailErrorShell,
+    DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 
 import CreateSupplierForm, {
     type SupplierFormData,
@@ -64,7 +69,7 @@ export default function EditSupplierPage() {
             return;
         }
         if (!detail.isActive || detail.status === "inactive") {
-            router.replace(organisationSupplierDetailHref(supplierId));
+            navigateToEntityShell(router, organisationSupplierDetailHref(supplierId), supplierId, 'replace');
         }
     }, [supplierQuery.data, supplierId, router]);
 
@@ -113,7 +118,7 @@ export default function EditSupplierPage() {
             );
             await invalidateSupplierCaches(queryClient);
             showSupplierUpdatedToast(updated.name);
-            router.push(organisationSupplierDetailHref(supplierId));
+            navigateToEntityShell(router, organisationSupplierDetailHref(supplierId), supplierId, 'push');
         } catch (error) {
             showApiErrorToast(error, SUPPLIER_SAVE_ERROR);
             throw error;
@@ -122,8 +127,8 @@ export default function EditSupplierPage() {
 
     if (isAuthLoading || supplierQuery.isLoading) {
         return (
-            <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-                Loading supplier...
+            <div className="px-5 py-4">
+                <DashboardPageLoadingShell label="Loading supplier…" />
             </div>
         );
     }
@@ -138,17 +143,15 @@ export default function EditSupplierPage() {
 
     if (supplierQuery.isError || !supplierQuery.data || !initialData) {
         return (
-            <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
-                <p className="text-sm font-medium text-red-600">
-                    {getApiErrorMessage(supplierQuery.error, "Supplier not found.")}
-                </p>
-                <button
-                    type="button"
-                    onClick={() => void supplierQuery.refetch()}
-                    className="text-sm text-gray-600 underline"
-                >
-                    Try again
-                </button>
+            <div className="px-5 py-4">
+                <DashboardDetailErrorShell
+                    title="Failed to load supplier"
+                    message={getApiErrorMessage(
+                        supplierQuery.error,
+                        "Supplier not found.",
+                    )}
+                    onRetry={() => void supplierQuery.refetch()}
+                />
             </div>
         );
     }

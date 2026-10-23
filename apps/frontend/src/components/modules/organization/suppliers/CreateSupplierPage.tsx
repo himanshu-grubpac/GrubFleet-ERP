@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -60,7 +61,7 @@ export default function CreateSupplierPage() {
             const created = await createOrganisationSupplierApi(token, payload);
             await invalidateSupplierCaches(queryClient);
             showSupplierCreatedToast(created.name);
-            router.push(organisationSupplierDetailHref(created.id));
+            navigateToEntityShell(router, organisationSupplierDetailHref(created.id), created.id, 'push');
         } catch (error) {
             showApiErrorToast(error, SUPPLIER_SAVE_ERROR);
             throw error;

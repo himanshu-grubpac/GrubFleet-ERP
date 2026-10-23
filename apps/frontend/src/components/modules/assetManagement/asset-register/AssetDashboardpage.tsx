@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -278,7 +279,7 @@ export default function AssetClassesPage() {
 
   const handleEdit = (assetClass: AssetClass) => {
     if (!canUpdate || assetClass.status !== "active") return;
-    router.push(assetRegisterAssetClassEditHref(assetClass.id));
+    navigateToEntityShell(router, assetRegisterAssetClassEditHref(assetClass.id), assetClass.id, 'push');
   };
 
   const handleClearFilters = () => {
@@ -468,6 +469,7 @@ export default function AssetClassesPage() {
             <DashboardTableActions
               status={assetClass.status}
               locationId={assetClass.id}
+              navigationEntityId={assetClass.id}
               viewHref={assetRegisterAssetClassDetailHref(assetClass.id)}
               copyText={[
                 `Asset Class ID: ${assetClass.id}`,

@@ -62,6 +62,12 @@ function notifySessionExpired(): void {
   window.dispatchEvent(new Event("auth:session-expired"));
 }
 
+/** Clears stored tokens and notifies the auth provider (password change, revoked refresh, stale JWT). */
+export function invalidateLocalSession(): void {
+  clearStoredTokens();
+  notifySessionExpired();
+}
+
 function clearStoredTokens(): void {
   if (!isBrowser()) return;
 
@@ -269,6 +275,8 @@ export async function apiFetch<T>(
     if (latestToken) {
       // Retry exactly once. A second 401 is returned as an API error.
       response = await sendRequest(path, options, latestToken);
+    } else {
+      invalidateLocalSession();
     }
   }
 

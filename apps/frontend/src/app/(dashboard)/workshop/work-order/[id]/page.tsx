@@ -1,11 +1,13 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect } from "react";
+import { RedirectingState } from "@/components/states/async-states";
 import { useParams, useRouter } from "next/navigation";
 
 import { workshopWorkOrderDetailHref } from "@/lib/navigation/workshop-static-routes";
 
-/** Legacy dynamic segment — redirect to static-export detail shell (?workOrderId=). */
+/** Legacy dynamic segment ? redirect to static-export detail shell (?workOrderId=). */
 export default function WorkshopWorkOrderLegacyDetailRedirectPage() {
   const params = useParams();
   const router = useRouter();
@@ -16,12 +18,8 @@ export default function WorkshopWorkOrderLegacyDetailRedirectPage() {
       router.replace("/workshop/work-order/");
       return;
     }
-    router.replace(workshopWorkOrderDetailHref(workOrderId));
+    navigateToEntityShell(router, workshopWorkOrderDetailHref(workOrderId), workOrderId, 'replace');
   }, [workOrderId, router]);
 
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm font-medium text-slate-500">
-      Redirecting…
-    </div>
-  );
+  return <RedirectingState />;
 }

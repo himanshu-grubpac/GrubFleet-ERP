@@ -1,6 +1,6 @@
 /**
- * Static export (S3 + CloudFront): fixed shells; runtime id in query string.
- * @see docs/deployment/s3-cloudfront-portal.md
+ * Static export (S3 + CloudFront): path-only shells; entity id in secure nav store.
+ * @see lib/navigation/secure-entity-navigation.ts
  */
 
 export type WorkshopEntityQueryKey =
@@ -17,28 +17,18 @@ const AMC_SUBSCRIBER_BASE = "/workshop/amc-maintenance/subscriber";
 
 function detailHref(
   base: string,
-  queryKey: WorkshopEntityQueryKey,
-  id: string,
+  _queryKey: WorkshopEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  const path = `${base}/detail/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return `${base}/detail/`;
 }
 
 function editHref(
   base: string,
-  queryKey: WorkshopEntityQueryKey,
-  id: string,
+  _queryKey: WorkshopEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  const path = `${base}/edit/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return `${base}/edit/`;
 }
 
 export const workshopWorkOrderListHref = `${WORK_ORDER_BASE}/`;
@@ -51,12 +41,8 @@ export const workshopWorkOrderEditHref = (workOrderId: string) =>
   editHref(WORK_ORDER_BASE, "workOrderId", workOrderId);
 
 export const workshopWorkOrderAddHref = (workOrderId: string) => {
-  const trimmed = workOrderId.trim();
-  const path = `${WORK_ORDER_BASE}/add/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?workOrderId=${encodeURIComponent(trimmed)}`;
+  void workOrderId;
+  return `${WORK_ORDER_BASE}/add/`;
 };
 
 export const workshopAmcMaintenanceListHref = "/workshop/amc-maintenance/";

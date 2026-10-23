@@ -1,11 +1,13 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect } from "react";
+import { RedirectingState } from "@/components/states/async-states";
 import { useParams, useRouter } from "next/navigation";
 
 import { inventoryStockReceiptEditHref } from "@/lib/navigation/inventory-static-routes";
 
-/** Legacy dynamic segment — redirect to static-export edit shell (?receiptId=). */
+/** Legacy dynamic segment � redirect to static-export edit shell (?receiptId=). */
 export default function StockReceiptLegacyEditRedirectPage() {
   const params = useParams();
   const router = useRouter();
@@ -16,12 +18,8 @@ export default function StockReceiptLegacyEditRedirectPage() {
       router.replace("/inventory/stock-receipt/");
       return;
     }
-    router.replace(inventoryStockReceiptEditHref(receiptId));
+    navigateToEntityShell(router, inventoryStockReceiptEditHref(receiptId), receiptId, 'replace');
   }, [receiptId, router]);
 
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm font-medium text-slate-500">
-      Redirecting…
-    </div>
-  );
+  return <RedirectingState />;
 }

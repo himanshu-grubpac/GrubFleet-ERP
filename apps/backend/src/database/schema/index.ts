@@ -3,6 +3,7 @@ import {
   boolean,
   foreignKey,
   index,
+  integer,
   jsonb,
   pgEnum,
   pgTable,
@@ -69,6 +70,8 @@ export const users = pgTable(
     fullName: varchar('full_name', { length: 255 }),
     isActive: boolean('is_active').notNull().default(true),
     emailVerifiedAt: timestamp('email_verified_at', { withTimezone: true }),
+    /** Bumped on password change/reset — invalidates outstanding JWT access tokens. */
+    credentialsRevision: integer('credentials_revision').notNull().default(0),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

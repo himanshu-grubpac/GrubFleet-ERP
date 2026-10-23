@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -42,7 +43,7 @@ export default function StockCreatePage() {
     onSuccess: (result) => {
       void invalidateSparePartCaches(queryClient);
       showSparePartCreatedToast(result.partName);
-      router.push(inventoryStockRegisterDetailHref(result.id));
+      navigateToEntityShell(router, inventoryStockRegisterDetailHref(result.id), result.id, 'push');
     },
     onError: (error) => showApiErrorToast(error, "Failed to save part."),
   });

@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -56,7 +57,7 @@ export default function CreateOrganisationClientRoute() {
       const created = await createOrganisationClientApi(token, payload);
       await invalidateClientCaches(queryClient);
       showClientCreatedToast(created.clientName);
-      router.push(organisationClientDetailHref(created.id));
+      navigateToEntityShell(router, organisationClientDetailHref(created.id), created.id, 'push');
     } catch (error) {
       showApiErrorToast(error, CLIENT_SAVE_ERROR);
       throw error;

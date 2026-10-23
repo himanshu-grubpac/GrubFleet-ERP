@@ -16,6 +16,10 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -299,11 +303,14 @@ export default function StockDashboardPage() {
         />
 
         {listQuery.isLoading ? (
-          <p className="text-sm text-gray-500">Loading stock register…</p>
+          <DashboardListLoadingShell label="Loading stock register…" />
         ) : listQuery.isError ? (
-          <p className="text-sm text-red-600">
-            Failed to load stock register.
-          </p>
+          <DashboardDetailErrorShell
+            title="Failed to load stock register"
+            error={listQuery.error}
+            fallbackMessage="Failed to load stock register."
+            onRetry={() => void listQuery.refetch()}
+          />
         ) : filteredItems.length === 0 ? (
           <DashboardEmptyState
             icon={
@@ -343,6 +350,7 @@ export default function StockDashboardPage() {
               <DashboardTableActions
                 status={part.status}
                 locationId={part.id}
+                navigationEntityId={part.id}
                 viewHref={inventoryStockRegisterDetailHref(part.id)}
                 copyText={[
                   `Part: ${part.partName}`,

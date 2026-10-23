@@ -1,6 +1,6 @@
 /**
- * Static export (S3 + CloudFront): fixed shells; runtime id in query string.
- * @see docs/deployment/s3-cloudfront-portal.md
+ * Static export (S3 + CloudFront): path-only shells; entity id in secure nav store.
+ * @see lib/navigation/secure-entity-navigation.ts
  */
 
 export type AssetRegisterEntityQueryKey = "assetClassId" | "vehicleId";
@@ -14,28 +14,18 @@ const MODULE_BASE = {
 
 function detailHref(
   base: string,
-  queryKey: AssetRegisterEntityQueryKey,
-  id: string,
+  _queryKey: AssetRegisterEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  const path = `${base}/detail/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return `${base}/detail/`;
 }
 
 function editHref(
   base: string,
-  queryKey: AssetRegisterEntityQueryKey,
-  id: string,
+  _queryKey: AssetRegisterEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  const path = `${base}/edit/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return `${base}/edit/`;
 }
 
 export const assetRegisterAssetClassDetailHref = (assetClassId: string) =>
@@ -51,12 +41,8 @@ export const assetRegisterFleetEditHref = (vehicleId: string) =>
   editHref(MODULE_BASE.fleetRegister, "vehicleId", vehicleId);
 
 export const assetRegisterFleetLeaseHistoryHref = (vehicleId: string) => {
-  const trimmed = vehicleId.trim();
-  const path = `${MODULE_BASE.fleetRegister}/detail/lease-history/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?vehicleId=${encodeURIComponent(trimmed)}`;
+  void vehicleId;
+  return `${MODULE_BASE.fleetRegister}/detail/lease-history/`;
 };
 
 export const assetRegisterAssetAssignDetailHref = (vehicleId: string) =>

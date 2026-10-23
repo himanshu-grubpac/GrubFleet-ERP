@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { inventoryStockReceiptEditHref } from "@/lib/navigation/inventory-static-routes";
@@ -9,6 +10,10 @@ import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
 import { fetchStockReceiptDetailApi } from "@/lib/api/inventory/stock-receipts";
 import { formatInrFromMinor } from "@/lib/format/money-format";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 
 export default function StockViewPage() {
   const router = useRouter();
@@ -30,7 +35,7 @@ export default function StockViewPage() {
   if (detailQuery.isLoading || isAuthLoading) {
     return (
       <div className="p-6">
-        <p className="text-sm text-gray-500">Loading receipt…</p>
+        <DashboardPageLoadingShell label="Loading receipt…" />
       </div>
     );
   }
@@ -38,7 +43,12 @@ export default function StockViewPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="p-6">
-        <p className="text-sm text-gray-500">Stock receipt not found.</p>
+        <DashboardDetailErrorShell
+          title="Failed to load receipt"
+          error={detailQuery.error}
+          fallbackMessage="Stock receipt not found."
+          onRetry={() => void detailQuery.refetch()}
+        />
       </div>
     );
   }
@@ -59,7 +69,7 @@ export default function StockViewPage() {
             type="button"
             variant="outline"
             onClick={() =>
-              router.push(inventoryStockReceiptEditHref(receiptId))
+              navigateToEntityShell(router, inventoryStockReceiptEditHref(receiptId), receiptId, 'push')
             }
           >
             Edit

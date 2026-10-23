@@ -96,8 +96,6 @@ export type BulkAssignConflictErrorDetails = {
   replacementAvailableCount: number;
 };
 
-export const BULK_ASSIGN_DONE_STORAGE_KEY = "grubfleet.bulkAssignDone.v1";
-
 function orgHeaders(organizationId: string): HeadersInit {
   return { "x-organization-id": organizationId };
 }

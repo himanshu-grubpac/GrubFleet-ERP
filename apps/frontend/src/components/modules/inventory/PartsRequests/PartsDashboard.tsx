@@ -8,6 +8,10 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
@@ -165,9 +169,14 @@ export default function PartsDashboard() {
       />
 
       {listQuery.isLoading ? (
-        <p className="text-sm text-gray-500">Loading parts requests…</p>
+        <DashboardListLoadingShell label="Loading parts requests…" />
       ) : listQuery.isError ? (
-        <p className="text-sm text-red-600">Failed to load parts requests.</p>
+        <DashboardDetailErrorShell
+          title="Failed to load parts requests"
+          error={listQuery.error}
+          fallbackMessage="Failed to load parts requests."
+          onRetry={() => void listQuery.refetch()}
+        />
       ) : items.length === 0 ? (
         <DashboardEmptyState
           icon={<PackageSearch className="h-7 w-7" strokeWidth={1.4} />}
@@ -188,6 +197,7 @@ export default function PartsDashboard() {
             <DashboardTableActions
               status="active"
               locationId={row.id}
+              navigationEntityId={row.id}
               viewHref={inventoryPartsRequestDetailHref(row.id)}
               hideOverflowMenu
             />

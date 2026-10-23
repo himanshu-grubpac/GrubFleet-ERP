@@ -7,6 +7,7 @@ import {
   showCopyToClipboardErrorToast,
 } from "@/lib/toast/show-toast";
 import { dashboardRowCopyButtonClassName } from "./dashboard-row-icon-button";
+import { DashboardPortaledFlyout } from "./dashboard-portaled-flyout";
 
 type DashboardRowCopyButtonProps = {
   text: string;
@@ -62,17 +63,20 @@ export default function DashboardRowCopyButton({
   };
 
   return (
-    <span className="relative inline-flex shrink-0 items-center justify-center">
-      {copied && (
-        <span
-          role="status"
-          className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-orange-100 bg-white px-3 py-1.5 text-xs font-semibold text-[#FE5720] shadow-md"
-        >
+    <DashboardPortaledFlyout
+      forceOpen={copied}
+      role="status"
+      panelClassName="
+        relative whitespace-nowrap rounded-md border border-orange-100
+        bg-white px-3 py-1.5 text-xs font-semibold text-[#FE5720] shadow-md
+      "
+      content={
+        <>
           Copied!
           <span className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-white" />
-        </span>
-      )}
-
+        </>
+      }
+    >
       <button
         type="button"
         onClick={() => void handleCopy()}
@@ -82,6 +86,6 @@ export default function DashboardRowCopyButton({
       >
         <Copy className="h-4 w-4" strokeWidth={1.75} />
       </button>
-    </span>
+    </DashboardPortaledFlyout>
   );
 }

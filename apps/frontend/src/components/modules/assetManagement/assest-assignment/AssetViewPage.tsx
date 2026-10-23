@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -7,6 +8,10 @@ import { FileText, PackageSearch, Plus } from "lucide-react";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import {
+    LoadingState,
+    RedirectingState,
+} from "@/components/states/async-states";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
@@ -132,7 +137,6 @@ export default function AssetAssignmentViewPage() {
     const [handoverLocation, setHandoverLocation] = useState("");
     const [assignNotes, setAssignNotes] = useState("");
     const [confirmOpen, setConfirmOpen] = useState(false);
-    const [isLeavingAssignFlow, setIsLeavingAssignFlow] = useState(false);
     const assignSucceededRef = useRef(false);
 
     const vehicleQuery = useQuery({
@@ -246,7 +250,7 @@ export default function AssetAssignmentViewPage() {
         );
 
     useEffect(() => {
-        if (isLeavingAssignFlow || assignSucceededRef.current) {
+        if (assignSucceededRef.current) {
             return;
         }
         if (vehicleQuery.isError) {
@@ -256,7 +260,7 @@ export default function AssetAssignmentViewPage() {
         if (vehicle && vehicle.operationalStatus !== "available") {
             router.replace(ASSET_ASSIGN_LIST_HREF);
         }
-    }, [vehicle, vehicleQuery.isError, isLeavingAssignFlow, router]);
+    }, [vehicle, vehicleQuery.isError, router]);
 
     useEffect(() => {
         if (showNoDemandEmptyState) {
@@ -322,7 +326,6 @@ export default function AssetAssignmentViewPage() {
         },
         onSuccess: async (result) => {
             assignSucceededRef.current = true;
-            setIsLeavingAssignFlow(true);
             setConfirmOpen(false);
 
             const contractId =
@@ -344,13 +347,6 @@ export default function AssetAssignmentViewPage() {
                 "Contract";
             const remainingToAssignOnLine = result.remainingToAssignOnLine;
 
-            await invalidateAssetAssignmentCaches(
-                queryClient,
-                organizationId,
-                contractId,
-            );
-            router.replace(ASSET_ASSIGN_LIST_HREF);
-
             showVehicleAssignedToLeaseToast({
                 fleetCode,
                 clientName,
@@ -358,7 +354,7 @@ export default function AssetAssignmentViewPage() {
                 remainingToAssignOnLine,
                 onViewContract: contractId
                     ? () => {
-                          router.push(fleetLeaseContractDetailHref(contractId));
+                          navigateToEntityShell(router, fleetLeaseContractDetailHref(contractId), contractId, 'push');
                       }
                     : undefined,
                 onUndo:
@@ -387,6 +383,13 @@ export default function AssetAssignmentViewPage() {
                           }
                         : undefined,
             });
+
+            await invalidateAssetAssignmentCaches(
+                queryClient,
+                organizationId,
+                contractId,
+            );
+            router.replace(ASSET_ASSIGN_LIST_HREF);
         },
         onError: (error: Error) => {
             showErrorToast(getApiErrorMessage(error, VEHICLE_ASSIGN_ERROR));
@@ -394,22 +397,17 @@ export default function AssetAssignmentViewPage() {
         });
 
     if (
-        isLeavingAssignFlow ||
         assignSucceededRef.current ||
         (vehicleQuery.isError && !vehicleQuery.isLoading) ||
         (vehicle && vehicle.operationalStatus !== "available")
     ) {
-        return (
-            <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
-                Returning to assignment list…
-                    </div>
-        );
+        return <RedirectingState />;
     }
 
     if (isAuthLoading || vehicleQuery.isLoading || !vehicle) {
         return (
-            <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
-                Loading vehicle…
+            <div className="min-h-full bg-gray-50 px-5 py-4">
+                <LoadingState label="Loading vehicle…" />
             </div>
         );
     }

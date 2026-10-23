@@ -144,7 +144,7 @@ export class DriversService {
         addressState: dto.addressState.trim(),
         addressDistrict: dto.addressDistrict.trim(),
         addressPincode: dto.addressPincode.trim(),
-        isActive: false,
+        isActive: true,
       });
       return this.getById(dto.organizationId, inserted.id);
     } catch (error) {

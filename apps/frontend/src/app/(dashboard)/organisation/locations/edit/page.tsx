@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { Suspense } from "react";
 import { useRouter } from "next/navigation";
@@ -16,8 +17,8 @@ function EditLocationFormShell() {
   return (
     <AddLocationForm
       locationId={locationId}
-      onCancel={() => router.push(organisationLocationDetailHref(locationId))}
-      onSaved={() => router.push(organisationLocationDetailHref(locationId))}
+      onCancel={() => navigateToEntityShell(router, organisationLocationDetailHref(locationId), locationId, 'push')}
+      onSaved={() => navigateToEntityShell(router, organisationLocationDetailHref(locationId), locationId, 'push')}
     />
   );
 }

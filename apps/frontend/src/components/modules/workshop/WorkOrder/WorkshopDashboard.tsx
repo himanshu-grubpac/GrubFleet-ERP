@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -230,7 +231,7 @@ export default function WorkshopDashboardPage() {
           <button
             type="button"
             onClick={() =>
-              router.push(workshopWorkOrderDetailHref(workOrder.id))
+              navigateToEntityShell(router, workshopWorkOrderDetailHref(workOrder.id), workOrder.id, 'push')
             }
             className="font-medium text-gray-900 hover:text-[#FE5720]"
           >
@@ -424,6 +425,7 @@ export default function WorkshopDashboardPage() {
                 <DashboardTableActions
                   status={isTerminal ? "inactive" : "active"}
                   locationId={workOrder.id}
+                  navigationEntityId={workOrder.id}
                   viewHref={workshopWorkOrderDetailHref(workOrder.id)}
                   copyText={[
                     `Work Order ID: ${workOrder.id}`,

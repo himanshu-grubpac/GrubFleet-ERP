@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -39,6 +40,10 @@ import {
 import { fetchOrganisationLocationTypesApi } from "@/lib/api/organisation/location-types";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
@@ -245,7 +250,7 @@ export default function LocationsPage() {
   ) : undefined;
 
   const handleEdit = (location: Location) => {
-    router.push(organisationLocationEditHref(location.id));
+    navigateToEntityShell(router, organisationLocationEditHref(location.id), location.id, 'push');
   };
 
   /* ------------------------------------------------------------------------ */
@@ -358,11 +363,7 @@ export default function LocationsPage() {
         description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
         action={addLocationAction}
       >
-        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-          <p className="text-sm text-gray-500">
-            Loading locations...
-          </p>
-        </div>
+        <DashboardListLoadingShell label="Loading locations…" />
       </DashboardLayout>
     );
   }
@@ -378,21 +379,11 @@ export default function LocationsPage() {
         description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
         action={addLocationAction}
       >
-        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-          <p className="text-sm font-medium text-red-600">
-            Failed to load locations.
-          </p>
-
-          <button
-            type="button"
-            onClick={() =>
-              locationsQuery.refetch()
-            }
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </div>
+        <DashboardDetailErrorShell
+          title="Failed to load locations"
+          fallbackMessage="Failed to load locations."
+          onRetry={() => void locationsQuery.refetch()}
+        />
       </DashboardLayout>
     );
   }

@@ -7948,6 +7948,11 @@ components:
           type: string
         routePath:
           type: string
+          description: >
+            Static-export detail shell path (trailing slash), e.g.
+            `/organisation/employees/detail/`. Frontend maps moduleKey/entityType
+            to canonical routes; append client-side `?highlight=` after navigation
+            from global search.
         routeQuery:
           type: object
           additionalProperties:

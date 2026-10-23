@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -47,7 +48,7 @@ export default function CreateDriverRoute() {
       );
       await invalidateDriverCaches(queryClient);
       showDriverCreatedToast(created.name);
-      router.push(organisationDriverDetailHref(created.id));
+      navigateToEntityShell(router, organisationDriverDetailHref(created.id), created.id, 'push');
     } catch (error) {
       const message =
         error instanceof ApiClientError

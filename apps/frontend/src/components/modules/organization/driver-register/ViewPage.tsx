@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -19,6 +20,10 @@ import {
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
@@ -27,6 +32,8 @@ import {
   fetchOrganisationDriverByIdApi,
   updateOrganisationDriverStatusApi,
 } from "@/lib/api/organisation/drivers";
+import { formatStructuredAddressMultiline } from "@/lib/format/address-format";
+import { formatPhoneDisplay } from "@/lib/format/phone-format";
 import {
   DRIVER_STATUS_UPDATE_ERROR,
   showDriverActivatedToast,
@@ -107,31 +114,21 @@ export default function ViewPage() {
 
   if (isAuthLoading || driverQuery.isLoading) {
     return (
-      <div className="min-h-screen bg-[#f7f7f7]">
-        <main className="px-6 py-3">
-          <p className="text-sm text-gray-500">Loading driver...</p>
-        </main>
+      <div className="px-5 py-4">
+        <DashboardPageLoadingShell label="Loading driver…" />
       </div>
     );
   }
 
   if (driverQuery.isError || !driverQuery.data) {
     return (
-      <div className="min-h-screen bg-[#f7f7f7]">
-        <main className="px-6 py-3">
-          <p className="text-sm text-red-600">
-            {driverQuery.error instanceof ApiClientError
-              ? driverQuery.error.message
-              : "Driver not found."}
-          </p>
-          <button
-            type="button"
-            onClick={() => void driverQuery.refetch()}
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </main>
+      <div className="px-5 py-4">
+        <DashboardDetailErrorShell
+          title="Failed to load driver"
+          error={driverQuery.error}
+          fallbackMessage="Driver not found."
+          onRetry={() => void driverQuery.refetch()}
+        />
       </div>
     );
   }
@@ -139,23 +136,27 @@ export default function ViewPage() {
   const detail = driverQuery.data;
   const isActive = detail.status === "active";
 
+  const addressDisplay = formatStructuredAddressMultiline(detail);
+  const phoneDisplay = detail.phone
+    ? formatPhoneDisplay(detail.phone)
+    : "—";
+
   const driver = {
     id: detail.id,
     name: detail.name,
     employeeId: detail.cprNo || "—",
-    driverType: detail.supplier || "—",
-    phone: detail.phone || "—",
+    supplier: detail.supplier || "—",
+    phone: phoneDisplay,
     email: detail.email || "—",
     licenseNumber: detail.licenseNumber || "—",
-    licenseType: detail.assignedVehicleAssetClass || "—",
     licenseExpiry: detail.licenseExpiry || "—",
-    address: detail.addressLocality || detail.address || "—",
+    address: addressDisplay,
     status: detail.status,
   };
 
   const handleEdit = () => {
     if (!isActive || !canUpdate) return;
-    router.push(organisationDriverEditHref(driverId));
+    navigateToEntityShell(router, organisationDriverEditHref(driverId), driverId, 'push');
   };
 
   const handleToggleStatus = () => {
@@ -175,10 +176,6 @@ export default function ViewPage() {
             <h1 className="text-[15px] font-semibold text-gray-900">
               {driver.name}
             </h1>
-
-            <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
-              {driver.driverType}
-            </span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -213,10 +210,10 @@ export default function ViewPage() {
 
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                Driver type
+                Supplier
               </p>
               <p className="mt-1 text-xs font-semibold text-gray-900">
-                {driver.driverType}
+                {driver.supplier}
               </p>
             </div>
 
@@ -272,7 +269,9 @@ export default function ViewPage() {
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                     Address
                   </p>
-                  <p className="mt-1 text-xs text-gray-700">{driver.address}</p>
+                  <p className="mt-1 whitespace-pre-line text-xs text-gray-700">
+                    {driver.address}
+                  </p>
                 </div>
               </div>
 
@@ -295,22 +294,13 @@ export default function ViewPage() {
           </h2>
 
           <div className="mt-3 rounded-lg border border-gray-200 bg-white">
-            <div className="grid grid-cols-3 gap-6 px-4 py-4">
+            <div className="grid grid-cols-2 gap-6 px-4 py-4">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
                   Licence number
                 </p>
                 <p className="mt-1 text-xs font-semibold text-gray-900">
                   {driver.licenseNumber}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">
-                  Licence type
-                </p>
-                <p className="mt-1 text-xs font-semibold text-gray-900">
-                  {driver.licenseType}
                 </p>
               </div>
 

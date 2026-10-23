@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import {
@@ -11,6 +12,11 @@ import StockReciptForm, {
   STOCK_RECEIPT_MANUAL_INVOICE,
   type StockFormData,
 } from "@/components/modules/inventory/StockReceipt/StockReciptForm";
+import { RedirectingState } from "@/components/states/async-states";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import { useAuth } from "@/providers/auth-provider";
 import { fetchAllActiveStockRegisterPartsApi } from "@/lib/api/inventory/stock-register";
 import {
@@ -82,16 +88,22 @@ export default function StockEditPage() {
     onSuccess: (result) => {
       void invalidateStockReceiptCaches(queryClient);
       showStockReceiptUpdatedToast(result.receiptNumber);
-      router.push(inventoryStockReceiptDetailHref(receiptId));
+      navigateToEntityShell(router, inventoryStockReceiptDetailHref(receiptId), receiptId, 'push');
     },
     onError: (error) =>
       showApiErrorToast(error, "Failed to update stock receipt."),
   });
 
-  if (detailQuery.isLoading || isAuthLoading) {
+  const isBootstrapping =
+    isAuthLoading ||
+    detailQuery.isLoading ||
+    partsQuery.isLoading ||
+    locationsQuery.isLoading;
+
+  if (isBootstrapping) {
     return (
       <div className="p-6">
-        <p className="text-sm text-gray-500">Loading receipt…</p>
+        <DashboardPageLoadingShell label="Loading receipt…" />
       </div>
     );
   }
@@ -99,15 +111,20 @@ export default function StockEditPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="p-6">
-        <p className="text-sm text-gray-500">Stock receipt not found.</p>
+        <DashboardDetailErrorShell
+          title="Failed to load receipt"
+          error={detailQuery.error}
+          fallbackMessage="Stock receipt not found."
+          onRetry={() => void detailQuery.refetch()}
+        />
       </div>
     );
   }
 
   const receipt = detailQuery.data;
   if (receipt.status === "inactive") {
-    router.replace(inventoryStockReceiptDetailHref(receiptId));
-    return null;
+    navigateToEntityShell(router, inventoryStockReceiptDetailHref(receiptId), receiptId, 'replace');
+    return <RedirectingState />;
   }
 
   const partOptions =
@@ -151,7 +168,7 @@ export default function StockEditPage() {
         batchLotReference: receipt.batchLotReference ?? "",
         notes: receipt.notes ?? "",
       }}
-      onCancel={() => router.push(inventoryStockReceiptDetailHref(receiptId))}
+      onCancel={() => navigateToEntityShell(router, inventoryStockReceiptDetailHref(receiptId), receiptId, 'push')}
       onSaved={async (data) => {
         await updateMutation.mutateAsync(data);
       }}

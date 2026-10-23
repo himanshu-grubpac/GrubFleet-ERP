@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PackageSearch } from "lucide-react";
@@ -218,7 +219,7 @@ export default function AssetAssignmentDashboardPage() {
     const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
 
     const handleAssign = (vehicle: AssetAssignmentVehicle) => {
-        router.push(assetRegisterAssetAssignDetailHref(vehicle.id));
+        navigateToEntityShell(router, assetRegisterAssetAssignDetailHref(vehicle.id), vehicle.id, 'push');
     };
 
     const handleBulkAssign = () => {

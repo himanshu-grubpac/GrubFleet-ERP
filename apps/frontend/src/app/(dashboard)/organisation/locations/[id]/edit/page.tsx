@@ -1,19 +1,29 @@
 "use client";
 
+import { useEffect } from "react";
+import { RedirectingState } from "@/components/states/async-states";
 import { useParams, useRouter } from "next/navigation";
-import AddLocationForm from "@/components/modules/organization/locations/AddLocationForm";
-import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
+import { organisationLocationEditHref } from "@/lib/navigation/organisation-static-routes";
 
-export default function EditLocationPage() {
-  const router = useRouter();
+/** Legacy dynamic segment — redirect to path-only edit shell. */
+export default function LocationLegacyEditRedirectPage() {
   const params = useParams();
-  const locationId = params.id as string;
+  const router = useRouter();
+  const locationId = String(params.id ?? "").trim();
 
-  return (
-    <AddLocationForm
-      locationId={locationId}
-      onCancel={() => router.push(organisationLocationDetailHref(locationId))}
-      onSaved={() => router.push(organisationLocationDetailHref(locationId))}
-    />
-  );
+  useEffect(() => {
+    if (!locationId) {
+      router.replace("/organisation/locations/");
+      return;
+    }
+    navigateToEntityShell(
+      router,
+      organisationLocationEditHref(locationId),
+      locationId,
+      "replace",
+    );
+  }, [locationId, router]);
+
+  return <RedirectingState />;
 }

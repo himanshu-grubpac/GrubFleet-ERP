@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -107,7 +108,7 @@ export default function RecordPaymentPage() {
     onSuccess: (detail) => {
       showFinanceInvoicePaymentRecordedToast(detail.invoiceNumber);
       void invalidateFinancePaymentCaches(queryClient);
-      router.push(financeInvoiceDetailHref(invoiceId!));
+      navigateToEntityShell(router, financeInvoiceDetailHref(invoiceId!), invoiceId!, 'push');
     },
     onError: (error) =>
       showApiErrorToast(error, "Could not record payment. Try again."),
@@ -169,7 +170,7 @@ export default function RecordPaymentPage() {
             variant="secondary"
             disabled={paymentMutation.isPending}
             onClick={() =>
-              router.push(financeInvoiceDetailHref(invoiceId))
+              navigateToEntityShell(router, financeInvoiceDetailHref(invoiceId), invoiceId, 'push')
             }
           >
             Cancel

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
+import { SecureEntityLink } from "@/components/ui/secure-entity-link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateFinancePaymentCaches } from "@/lib/query/invalidate-domain-caches";
@@ -140,12 +140,13 @@ export default function VendorPaymentDetailPage() {
           <DetailField label="Vendor" value={payment.vendorName} />
         </OrganizationDetailFieldGrid>
         <p className="mt-3 text-sm">
-          <Link
+          <SecureEntityLink
             href={financeInvoiceDetailHref(payment.purchaseInvoiceId)}
+            entityId={payment.purchaseInvoiceId}
             className="font-medium text-[#FE5720] hover:underline"
           >
             View purchase invoice
-          </Link>
+          </SecureEntityLink>
         </p>
       </OrganizationDetailCard>
 

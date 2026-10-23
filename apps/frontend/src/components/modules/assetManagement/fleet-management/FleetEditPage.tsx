@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -10,6 +11,10 @@ import { invalidateVehicleCaches } from "@/lib/query/invalidate-domain-caches";
 import CreateFleetVehicleForm, {
   type FleetVehicleFormData,
 } from "@/components/modules/assetManagement/fleet-management/FleetFormPage";
+import {
+  LoadingState,
+  RedirectingState,
+} from "@/components/states/async-states";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
@@ -69,7 +74,7 @@ export default function FleetEditPage() {
     onSuccess: async () => {
       await invalidateVehicleCaches(queryClient);
       showFleetVehicleUpdatedToast();
-      router.push(assetRegisterFleetDetailHref(vehicleId));
+      navigateToEntityShell(router, assetRegisterFleetDetailHref(vehicleId), vehicleId, 'push');
     },
     onError: (error: Error) => {
       showErrorToast(error.message || FLEET_VEHICLE_SAVE_ERROR);
@@ -78,7 +83,7 @@ export default function FleetEditPage() {
 
   useEffect(() => {
     if (detailQuery.data && !detailQuery.data.isActive) {
-      router.replace(assetRegisterFleetDetailHref(vehicleId));
+      navigateToEntityShell(router, assetRegisterFleetDetailHref(vehicleId), vehicleId, 'replace');
     }
   }, [detailQuery.data, vehicleId, router]);
 
@@ -98,12 +103,14 @@ export default function FleetEditPage() {
 
   if (isAuthLoading || detailQuery.isLoading || !detailQuery.data) {
     return (
-      <div className="p-6 text-sm text-gray-500">Loading fleet vehicle…</div>
+      <div className="p-6">
+        <LoadingState label="Loading fleet vehicle…" />
+      </div>
     );
   }
 
   if (!detailQuery.data.isActive) {
-    return <div className="p-6 text-sm text-gray-500">Redirecting…</div>;
+    return <RedirectingState />;
   }
 
   return (
@@ -111,7 +118,7 @@ export default function FleetEditPage() {
       mode="edit"
       initialData={vehicleDetailToFleetFormData(detailQuery.data)}
       onCancel={() => {
-        router.push(assetRegisterFleetDetailHref(vehicleId));
+        navigateToEntityShell(router, assetRegisterFleetDetailHref(vehicleId), vehicleId, 'push');
       }}
       onSaved={async (data) => {
         await updateMutation.mutateAsync(data);

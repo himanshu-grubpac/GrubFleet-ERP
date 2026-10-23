@@ -1,8 +1,10 @@
 
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
@@ -103,8 +105,7 @@ type InvoiceValidationErrors = {
 export default function NewBillingInvoicePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const editInvoiceId = searchParams.get("invoiceId")?.trim() || null;
+  const editInvoiceId = useFinanceEntityId("invoiceId");
 
   const { token, organizationId, isLoading: authLoading, permissions } =
     useAuth();
@@ -285,7 +286,7 @@ export default function NewBillingInvoicePage() {
       void invalidateFinanceInvoiceCaches(queryClient);
       if (editInvoiceId) {
         showFinanceInvoiceUpdatedToast(detail.invoiceNumber);
-        router.push(financeInvoiceDetailHref(detail.id));
+        navigateToEntityShell(router, financeInvoiceDetailHref(detail.id), detail.id, 'push');
       } else {
         showFinanceInvoiceCreatedToast(detail.invoiceNumber);
         router.push(financeInvoicesListHref);

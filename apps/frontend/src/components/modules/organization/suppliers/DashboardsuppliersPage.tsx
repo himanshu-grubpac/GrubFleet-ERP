@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -39,6 +40,10 @@ import {
 } from "@/lib/api/organisation/suppliers";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+    DashboardDetailErrorShell,
+    DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
@@ -235,7 +240,7 @@ export default function SuppliersPage() {
     ) : undefined;
 
     const handleEdit = (supplier: Supplier) => {
-        router.push(organisationSupplierEditHref(supplier.id));
+        navigateToEntityShell(router, organisationSupplierEditHref(supplier.id), supplier.id, 'push');
     };
 
     const handleClearFilters = () => {
@@ -298,11 +303,7 @@ export default function SuppliersPage() {
                 activeTab="/organisation/suppliers"
                 action={addSupplierAction}
             >
-                <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-                    <p className="text-sm text-gray-500">
-                        Loading suppliers...
-                    </p>
-                </div>
+                <DashboardListLoadingShell label="Loading suppliers…" />
             </DashboardLayout>
         );
     }
@@ -316,18 +317,11 @@ export default function SuppliersPage() {
                 activeTab="/organisation/suppliers"
                 action={addSupplierAction}
             >
-                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-                    <p className="text-sm font-medium text-red-600">
-                        Failed to load suppliers.
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => void suppliersQuery.refetch()}
-                        className="mt-2 text-sm text-gray-600 underline"
-                    >
-                        Try again
-                    </button>
-                </div>
+                <DashboardDetailErrorShell
+                    title="Failed to load suppliers"
+                    fallbackMessage="Failed to load suppliers."
+                    onRetry={() => void suppliersQuery.refetch()}
+                />
             </DashboardLayout>
         );
     }
@@ -435,6 +429,7 @@ export default function SuppliersPage() {
                         <DashboardTableActions
                             status={supplier.status}
                             locationId={supplier.id}
+                            navigationEntityId={supplier.id}
                             viewHref={organisationSupplierDetailHref(supplier.id)}
                             copyText={[
                                 `Company: ${supplier.name}`,

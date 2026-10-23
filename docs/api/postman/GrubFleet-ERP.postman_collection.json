@@ -114,7 +114,7 @@
                 }
               ]
             },
-            "description": "GET /portal/search — RBAC-filtered global search; modules included match caller `{module}.view` keys."
+            "description": "GET /portal/search — RBAC-filtered global search; modules included match caller `{module}.view` keys. Each hit includes routePath (static-export shell, e.g. `/organisation/employees/detail/`) and routeQuery (entity id). Portal appends `?highlight=` client-side when opening a result."
           },
           "response": []
         }

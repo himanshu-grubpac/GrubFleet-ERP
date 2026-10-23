@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -40,7 +41,7 @@ export default function FleetCreatePage() {
     onSuccess: (created) => {
       void invalidateVehicleCaches(queryClient);
       showFleetVehicleAddedToast();
-      router.push(assetRegisterFleetDetailHref(created.id));
+      navigateToEntityShell(router, assetRegisterFleetDetailHref(created.id), created.id, 'push');
     },
     onError: (error: Error) => {
       showErrorToast(error.message || FLEET_VEHICLE_ADD_ERROR);

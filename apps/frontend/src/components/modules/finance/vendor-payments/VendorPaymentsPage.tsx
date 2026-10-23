@@ -338,6 +338,7 @@ export default function VendorPaymentsPage() {
                 return (
                   <DashboardTableActions
                     status="active"
+                    navigationEntityId={row.id}
                     viewHref={financeVendorPaymentDetailHref(row.id)}
                     copyText={copyText}
                     alwaysShowOverflowMenu

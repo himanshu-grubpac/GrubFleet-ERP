@@ -20,6 +20,7 @@ export type UserCredentialRow = {
   passwordHash: string | null;
   fullName: string | null;
   isActive: boolean;
+  credentialsRevision: number;
 };
 
 export type RefreshTokenRow = {
@@ -74,6 +75,7 @@ export class AuthRepository {
         passwordHash: users.passwordHash,
         fullName: users.fullName,
         isActive: users.isActive,
+        credentialsRevision: users.credentialsRevision,
       })
       .from(users)
       .where(eq(users.email, email.toLowerCase()))
@@ -89,6 +91,7 @@ export class AuthRepository {
         passwordHash: users.passwordHash,
         fullName: users.fullName,
         isActive: users.isActive,
+        credentialsRevision: users.credentialsRevision,
       })
       .from(users)
       .where(eq(users.id, userId))
@@ -163,9 +166,15 @@ export class AuthRepository {
     userId: string,
     passwordHash: string,
   ): Promise<void> {
+    const existing = await this.findUserById(userId);
+    const nextRevision = (existing?.credentialsRevision ?? 0) + 1;
     await this.db
       .update(users)
-      .set({ passwordHash, updatedAt: new Date() })
+      .set({
+        passwordHash,
+        credentialsRevision: nextRevision,
+        updatedAt: new Date(),
+      })
       .where(eq(users.id, userId));
   }
 

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     invalidateClientCaches,
@@ -175,9 +176,9 @@ export default function EditLeaseContractPage({
     useEffect(() => {
         if (isAuthLoading) return;
         if (!canUpdate) {
-            router.replace(detailHref);
+            navigateToEntityShell(router, detailHref, leaseId, "replace");
         }
-    }, [canUpdate, detailHref, isAuthLoading, router]);
+    }, [canUpdate, detailHref, isAuthLoading, leaseId, router]);
 
     const contractQuery = useQuery({
         queryKey: ["lease-contract", organizationId, leaseId],
@@ -238,7 +239,7 @@ export default function EditLeaseContractPage({
     useEffect(() => {
         if (!contract || initialized) return;
         if (!isEditAllowed(contract)) {
-            router.replace(detailHref);
+            navigateToEntityShell(router, detailHref, leaseId, "replace");
             return;
         }
         const clientId = contract.client?.id ?? "";
@@ -254,7 +255,7 @@ export default function EditLeaseContractPage({
                     : "select-client",
         );
         setInitialized(true);
-    }, [contract, detailHref, initialized, isDraft, router]);
+    }, [contract, detailHref, initialized, isDraft, leaseId, router]);
 
     const persistClient = useCallback(
         async (clientId: string) => {
@@ -282,8 +283,8 @@ export default function EditLeaseContractPage({
     const finishNonDraftSave = useCallback(async () => {
         await invalidateContract();
         showLeaseContractUpdatedToast();
-        router.push(detailHref);
-    }, [detailHref, invalidateContract, router]);
+        navigateToEntityShell(router, detailHref, leaseId);
+    }, [detailHref, invalidateContract, leaseId, router]);
 
     const resolveDraftAssetLines = useCallback(
         async (

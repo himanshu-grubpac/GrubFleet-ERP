@@ -1,6 +1,6 @@
 /**
- * Static export (S3 + CloudFront): fixed shells; runtime id in query string.
- * @see docs/deployment/s3-cloudfront-portal.md
+ * Static export (S3 + CloudFront): path-only shells; entity id in secure nav store.
+ * @see lib/navigation/secure-entity-navigation.ts
  */
 
 export type InventoryEntityQueryKey =
@@ -17,28 +17,18 @@ const MODULE_BASE = {
 
 function detailHref(
   base: string,
-  queryKey: InventoryEntityQueryKey,
-  id: string,
+  _queryKey: InventoryEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  const path = `${base}/detail/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return `${base}/detail/`;
 }
 
 function editHref(
   base: string,
-  queryKey: InventoryEntityQueryKey,
-  id: string,
+  _queryKey: InventoryEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  const path = `${base}/edit/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return `${base}/edit/`;
 }
 
 export const inventoryStockRegisterListHref = `${MODULE_BASE.stockRegister}/`;

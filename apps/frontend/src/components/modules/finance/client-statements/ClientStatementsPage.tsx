@@ -408,6 +408,7 @@ export default function ClientStatementsPage() {
                       status="active"
                       hideEdit
                       alwaysShowOverflowMenu
+                      navigationEntityId={row.clientId}
                       viewHref={financeClientStatementDetailHref(
                         row.clientId,
                         periodStart,

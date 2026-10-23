@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -115,7 +116,7 @@ export default function AmcScheduleDetailsPage() {
     const row = scheduleQuery.data;
     if (!row) return;
     if (isEditRoute && row.status === "inactive") {
-      router.replace(workshopAmcScheduleDetailHref(scheduleId));
+      navigateToEntityShell(router, workshopAmcScheduleDetailHref(scheduleId), scheduleId, 'replace');
       return;
     }
     setName(row.name);
@@ -150,7 +151,7 @@ export default function AmcScheduleDetailsPage() {
     onSuccess: (data) => {
       void invalidateAmcScheduleCaches(queryClient);
       showSuccessToast(`${data.name} was updated`);
-      router.push(workshopAmcScheduleDetailHref(scheduleId));
+      navigateToEntityShell(router, workshopAmcScheduleDetailHref(scheduleId), scheduleId, 'push');
     },
     onError: (error: Error) => {
       const message =
@@ -327,7 +328,7 @@ export default function AmcScheduleDetailsPage() {
             type="button"
             variant="secondary"
             onClick={() =>
-              router.push(workshopAmcScheduleDetailHref(scheduleId))
+              navigateToEntityShell(router, workshopAmcScheduleDetailHref(scheduleId), scheduleId, 'push')
             }
           >
             Cancel
@@ -387,7 +388,7 @@ export default function AmcScheduleDetailsPage() {
               variant="outline"
               className="h-8 text-xs"
               onClick={() =>
-                router.push(workshopAmcScheduleEditHref(scheduleId))
+                navigateToEntityShell(router, workshopAmcScheduleEditHref(scheduleId), scheduleId, 'push')
               }
             >
               Edit schedule
@@ -507,6 +508,12 @@ export default function AmcScheduleDetailsPage() {
                         <td className="py-2">
                           <DashboardTableActions
                             viewHref={viewHref}
+                            navigationEntityId={
+                              row.thresholdStatus === "threshold_reached" &&
+                              row.pmWorkOrderId
+                                ? row.pmWorkOrderId
+                                : row.vehicleId
+                            }
                             status="active"
                             copyText={[
                               row.fleetCode,

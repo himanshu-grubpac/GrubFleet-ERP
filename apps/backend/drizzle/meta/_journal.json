@@ -344,6 +344,13 @@
       "when": 1795000000000,
       "tag": "0048_asset_register_compliance_renew_refs",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795100000000,
+      "tag": "0049_users_credentials_revision",
+      "breakpoints": true
     }
   ]
 }

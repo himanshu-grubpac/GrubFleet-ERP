@@ -1,4 +1,4 @@
-import { apiFetch } from './client';
+import { apiFetch, invalidateLocalSession } from './client';
 
 export interface ChangePasswordPayload {
   currentPassword: string;
@@ -23,11 +23,13 @@ export async function changePasswordApi(
   token: string,
   payload: ChangePasswordPayload,
 ): Promise<{ success: true }> {
-  return apiFetch<{ success: true }>('/auth/change-password', {
+  const result = await apiFetch<{ success: true }>('/auth/change-password', {
     method: 'POST',
     token,
     body: JSON.stringify(payload),
   });
+  invalidateLocalSession();
+  return result;
 }
 
 export async function forgotPasswordApi(
@@ -42,8 +44,10 @@ export async function forgotPasswordApi(
 export async function resetPasswordApi(
   payload: ResetPasswordPayload,
 ): Promise<{ success: true }> {
-  return apiFetch<{ success: true }>('/auth/reset-password', {
+  const result = await apiFetch<{ success: true }>('/auth/reset-password', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+  invalidateLocalSession();
+  return result;
 }

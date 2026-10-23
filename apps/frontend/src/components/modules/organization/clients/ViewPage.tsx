@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -11,10 +12,13 @@ import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import { formatPhoneDisplay } from "@/lib/format/phone-format";
 import {
   fetchOrganisationClientByIdApi,
@@ -116,7 +120,7 @@ export default function ViewPage() {
   });
 
   const handleEdit = () => {
-    router.push(organisationClientEditHref(clientId));
+    navigateToEntityShell(router, organisationClientEditHref(clientId), clientId, 'push');
   };
 
   const handleToggleStatus = () => {
@@ -134,27 +138,21 @@ export default function ViewPage() {
 
   if (isAuthLoading || clientQuery.isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Loading client...
+      <div className="px-5 py-4">
+        <DashboardPageLoadingShell label="Loading client…" />
       </div>
     );
   }
 
   if (clientQuery.isError || !clientQuery.data) {
     return (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
-        <p className="text-sm font-medium text-red-600">
-          {clientQuery.error instanceof ApiClientError
-            ? clientQuery.error.message
-            : "Failed to load client."}
-        </p>
-        <button
-          type="button"
-          onClick={() => void clientQuery.refetch()}
-          className="text-sm text-gray-600 underline"
-        >
-          Try again
-        </button>
+      <div className="px-5 py-4">
+        <DashboardDetailErrorShell
+          title="Failed to load client"
+          error={clientQuery.error}
+          fallbackMessage="Failed to load client."
+          onRetry={() => void clientQuery.refetch()}
+        />
       </div>
     );
   }
@@ -270,10 +268,6 @@ export default function ViewPage() {
           </div>
         </section>
 
-        {/* =================================================
-                    Contract History (deferred — empty until fleet link)
-                ================================================== */}
-
         <section className="mt-2">
           <h2 className="text-[13px] font-semibold text-gray-900">
             Contract history
@@ -284,12 +278,12 @@ export default function ViewPage() {
               <Truck className="mb-2 h-7 w-7 text-gray-400" />
 
               <p className="text-xs font-semibold text-gray-900">
-                No contracts yet for this client
+                No lease contracts yet
               </p>
 
-              <p className="mt-1 text-[14px] text-gray-500">
-                Selectable from New Lease Contract (Flow 01) whenever one
-                starts.
+              <p className="mt-1 max-w-sm text-center text-sm text-gray-500">
+                When this client is linked to an active lease contract, it will
+                show up here.
               </p>
             </div>
           ) : (

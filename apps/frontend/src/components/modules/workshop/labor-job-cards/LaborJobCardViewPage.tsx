@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -135,7 +136,7 @@ export default function LaborJobCardViewPage() {
                 type="button"
                 variant="outline"
                 onClick={() =>
-                  router.push(workshopLabourRateCardEditHref(cardId))
+                  navigateToEntityShell(router, workshopLabourRateCardEditHref(cardId), cardId, 'push')
                 }
               >
                 Edit

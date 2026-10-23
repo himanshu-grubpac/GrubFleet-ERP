@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -197,7 +198,7 @@ export default function RenewLeaseContractPage() {
         showLeaseContractRenewedToast();
       }
 
-      router.replace(fleetLeaseContractDetailHref(leaseId));
+      navigateToEntityShell(router, fleetLeaseContractDetailHref(leaseId), leaseId, 'replace');
     },
 
     onError: (error) => {

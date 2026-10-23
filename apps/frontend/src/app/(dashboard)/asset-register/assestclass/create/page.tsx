@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -33,7 +34,7 @@ export default function Page() {
       });
       showAssetClassCreatedToast(created.name);
       await invalidateAssetClassCaches(queryClient);
-      router.push(assetRegisterAssetClassDetailHref(created.id));
+      navigateToEntityShell(router, assetRegisterAssetClassDetailHref(created.id), created.id, 'push');
     } catch (error) {
       showErrorToast(
         error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,

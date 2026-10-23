@@ -1,6 +1,7 @@
 /**
- * Static export (S3 + CloudFront): one HTML shell per view/edit; runtime id in query string.
+ * Static export (S3 + CloudFront): path-only detail/edit shells; entity id in secure nav store.
  * @see docs/deployment/s3-cloudfront-portal.md
+ * @see lib/navigation/secure-entity-navigation.ts
  */
 
 export type OrganisationEntityQueryKey =
@@ -18,28 +19,25 @@ const MODULE_BASE = {
   drivers: "/organisation/driver-register",
 } as const;
 
+function shellPath(base: string, segment: "detail" | "edit"): string {
+  return `${base}/${segment}/`;
+}
+
+/** @param _id Entity id — use with navigateToEntityShell / prepareEntityNavigationForPath before navigation. */
 function detailHref(
   base: string,
-  queryKey: OrganisationEntityQueryKey,
-  id: string,
+  _queryKey: OrganisationEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  if (!trimmed) {
-    return `${base}/detail/`;
-  }
-  return `${base}/detail/?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return shellPath(base, "detail");
 }
 
 function editHref(
   base: string,
-  queryKey: OrganisationEntityQueryKey,
-  id: string,
+  _queryKey: OrganisationEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  if (!trimmed) {
-    return `${base}/edit/`;
-  }
-  return `${base}/edit/?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return shellPath(base, "edit");
 }
 
 export const organisationLocationDetailHref = (id: string) =>

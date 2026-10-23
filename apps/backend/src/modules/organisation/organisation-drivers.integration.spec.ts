@@ -481,14 +481,6 @@ describe('Organisation drivers (integration)', () => {
         .query({ organizationId })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send({ action: 'activate' })
-        .expect(200);
-
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}/status`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
         .send({ action: 'deactivate', reason: 'For inactive edit test' })
         .expect(200);
 
@@ -503,14 +495,6 @@ describe('Organisation drivers (integration)', () => {
 
     it('returns 400 when deactivate reason exceeds max length', async () => {
       const id = await createDriverAsAdmin();
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}/status`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send({ action: 'activate' })
-        .expect(200);
-
       const longReason = 'x'.repeat(501);
       await request(app.getHttpServer())
         .patch(`/api/v1/organisation/drivers/${id}/status`)
@@ -523,14 +507,6 @@ describe('Organisation drivers (integration)', () => {
 
     it('returns 400 when deactivating inactive driver', async () => {
       const id = await createDriverAsAdmin();
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}/status`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send({ action: 'activate' })
-        .expect(200);
-
       await request(app.getHttpServer())
         .patch(`/api/v1/organisation/drivers/${id}/status`)
         .query({ organizationId })
@@ -550,14 +526,6 @@ describe('Organisation drivers (integration)', () => {
 
     it('writes an audit row on deactivate', async () => {
       const id = await createDriverAsAdmin();
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}/status`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send({ action: 'activate' })
-        .expect(200);
-
       await request(app.getHttpServer())
         .patch(`/api/v1/organisation/drivers/${id}/status`)
         .query({ organizationId })
@@ -584,7 +552,7 @@ describe('Organisation drivers (integration)', () => {
         .expect(400);
     });
 
-    it('creates driver as inactive by default', async () => {
+    it('creates driver as active by default', async () => {
       const id = await createDriverAsAdmin();
       const res = await request(app.getHttpServer())
         .get(`/api/v1/organisation/drivers/${id}`)
@@ -593,20 +561,12 @@ describe('Organisation drivers (integration)', () => {
         .set('x-organization-id', organizationId)
         .expect(200);
       const body = res.body as { status: string; isActive: boolean };
-      expect(body.status).toBe('inactive');
-      expect(body.isActive).toBe(false);
+      expect(body.status).toBe('active');
+      expect(body.isActive).toBe(true);
     });
 
     it('lists license-expired drivers when status=license-expired', async () => {
       const id = await createDriverAsAdmin();
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}/status`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send({ action: 'activate' })
-        .expect(200);
-
       await db
         .update(organisationDrivers)
         .set({ licenseExpiry: '2020-01-01' })
@@ -826,14 +786,6 @@ describe('Organisation drivers (integration)', () => {
 
     it('returns 400 when assigning with expired license', async () => {
       const id = await createDriverAsAdmin();
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}/status`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send({ action: 'activate' })
-        .expect(200);
-
       await db
         .update(organisationDrivers)
         .set({ licenseExpiry: '2020-01-01' })

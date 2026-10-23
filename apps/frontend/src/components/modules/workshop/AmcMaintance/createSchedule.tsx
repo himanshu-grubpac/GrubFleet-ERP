@@ -1,4 +1,5 @@
 
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -139,7 +140,7 @@ export default function CreateAmcSchedulePage() {
             isSubmittingRef.current = false;
             void invalidateAmcScheduleCaches(queryClient);
             showSuccessToast(`${data.name} was created`);
-            router.push(workshopAmcScheduleDetailHref(data.id));
+            navigateToEntityShell(router, workshopAmcScheduleDetailHref(data.id), data.id, 'push');
         },
         onError: (error: Error) => {
             isSubmittingRef.current = false;

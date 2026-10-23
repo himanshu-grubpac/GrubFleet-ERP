@@ -1,7 +1,9 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSecureEntityId } from "@/lib/navigation/use-secure-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
@@ -64,7 +66,7 @@ export default function ClientStatementDetailPage() {
 
   const periodPresets = useMemo(() => getClientStatementPeriodPresets(), []);
 
-  const clientId = searchParams.get("clientId")?.trim() ?? "";
+  const clientId = useSecureEntityId({ legacyQueryKey: "clientId" });
   const initialStart =
     searchParams.get("periodStart")?.trim() ??
     periodPresets[0]?.periodStart ??
@@ -258,7 +260,7 @@ export default function ClientStatementDetailPage() {
                     type="button"
                     className="text-left text-sm font-medium text-[#FE5720] hover:underline"
                     onClick={() =>
-                      router.push(financeInvoiceDetailHref(row.id))
+                      navigateToEntityShell(router, financeInvoiceDetailHref(row.id), row.id, 'push')
                     }
                   >
                     {row.invoiceNumber}

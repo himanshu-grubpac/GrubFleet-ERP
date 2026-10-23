@@ -98,11 +98,12 @@ describe('Auth (integration)', () => {
       .expect(200);
 
     const meBody = me.body as {
-      user: { email: string };
+      user: { id: string; email: string };
       permissionKeys: string[];
     };
     expect(meBody.user.email).toBe(DEV_ADMIN_EMAIL);
     expect(meBody.permissionKeys.length).toBeGreaterThan(0);
+    const adminUserId = meBody.user.id;
 
     const refreshed = await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
@@ -120,6 +121,11 @@ describe('Auth (integration)', () => {
       .set('Authorization', `Bearer ${refreshBody.accessToken}`)
       .send({ refreshToken: refreshBody.refreshToken })
       .expect(201);
+
+    await expectAuditLog(db, {
+      action: AUTH_AUDIT_ACTIONS.LOGOUT,
+      resourceId: adminUserId,
+    });
 
     await request(app.getHttpServer())
       .post('/api/v1/auth/refresh')
@@ -166,6 +172,11 @@ describe('Auth (integration)', () => {
         newPassword: tempPassword,
       })
       .expect(201);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(401);
 
     const adminRow = await db
       .select({ id: schema.users.id })

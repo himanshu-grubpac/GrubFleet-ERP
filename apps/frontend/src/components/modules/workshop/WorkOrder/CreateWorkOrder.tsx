@@ -1,7 +1,9 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
 import { Plus, Minus, Trash2, X } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -92,8 +94,7 @@ function normalizeDateInput(value: string | null | undefined): string {
 export default function WorkForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const editWorkOrderId = searchParams.get("workOrderId")?.trim() ?? "";
+  const editWorkOrderId = useWorkshopEntityId("workOrderId");
   const isEditMode = editWorkOrderId.length > 0;
 
   const {
@@ -452,7 +453,7 @@ export default function WorkForm() {
           ? `Work order ${detail.workOrderNumber} was updated`
           : `Work order ${detail.workOrderNumber} was created`,
       );
-      router.push(workshopWorkOrderDetailHref(detail.id));
+      navigateToEntityShell(router, workshopWorkOrderDetailHref(detail.id), detail.id, 'push');
     },
     onError: (error: Error) => {
       const message =

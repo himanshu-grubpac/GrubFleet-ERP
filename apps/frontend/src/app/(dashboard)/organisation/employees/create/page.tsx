@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
@@ -59,7 +60,7 @@ export default function CreatePage() {
       });
       await invalidateEmployeeCaches(queryClient);
       showEmployeeCreatedToast(created.fullName);
-      router.push(organisationEmployeeDetailHref(created.id));
+      navigateToEntityShell(router, organisationEmployeeDetailHref(created.id), created.id, 'push');
     } catch (error) {
       showApiErrorToast(error, EMPLOYEE_SAVE_ERROR);
       throw error;

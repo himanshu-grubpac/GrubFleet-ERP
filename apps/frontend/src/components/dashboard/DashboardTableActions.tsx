@@ -12,8 +12,10 @@ import {
     DashboardRowActionsMenuItem,
 } from "./DashboardRowActionsMenu";
 import { dashboardRowMenuTriggerClassName } from "./dashboard-row-icon-button";
+import { DashboardPortaledFlyout } from "./dashboard-portaled-flyout";
 
 import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
+import { prepareEntityNavigationForPath, pathnameFromHref } from "@/lib/navigation/secure-entity-navigation";
 
 /**
  * Prevent empty fragments from opening an empty three-dot menu.
@@ -58,6 +60,8 @@ function reactNodeHasRenderableContent(node: ReactNode): boolean {
 type DashboardTableActionsProps = {
     status: "active" | "inactive";
     locationId?: string;
+    /** Entity id for secure navigation when opening View (defaults to locationId). */
+    navigationEntityId?: string;
     copyText?: string;
     viewHref?: string;
     allowEditWhenInactive?: boolean;
@@ -77,6 +81,7 @@ type DashboardTableActionsProps = {
 export default function DashboardTableActions({
     status,
     locationId,
+    navigationEntityId,
     copyText,
     viewHref,
     allowEditWhenInactive = false,
@@ -110,6 +115,19 @@ export default function DashboardTableActions({
         (locationId
             ? organisationLocationDetailHref(locationId)
             : "#");
+
+    const entityIdForViewNavigation =
+        navigationEntityId?.trim() || locationId?.trim() || "";
+
+    const handleViewNavigate = () => {
+        if (!entityIdForViewNavigation || resolvedViewHref === "#") {
+            return;
+        }
+        prepareEntityNavigationForPath(
+            pathnameFromHref(resolvedViewHref),
+            entityIdForViewNavigation,
+        );
+    };
 
     /**
      * Copy row data and display success feedback.
@@ -148,12 +166,26 @@ export default function DashboardTableActions({
             {/* View */}
             <Link
                 href={resolvedViewHref}
+                onClick={handleViewNavigate}
                 className="shrink-0 text-sm font-medium text-[#FE5720] hover:underline"
             >
                 View
             </Link>
             {/* Copy text and icon */}
-            <span className="group/copy relative inline-flex shrink-0 items-center">
+            <DashboardPortaledFlyout
+                forceOpen={copied}
+                panelClassName="
+                    relative whitespace-nowrap rounded-md
+                    border border-orange-100 bg-white px-3 py-1.5
+                    text-xs font-semibold text-[#FE5720] shadow-md
+                "
+                content={
+                    <>
+                        {copied ? "Copied!" : "Copy"}
+                        <span className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-white" />
+                    </>
+                }
+            >
                 <button
                     type="button"
                     onClick={() => void handleCopy()}
@@ -172,26 +204,7 @@ export default function DashboardTableActions({
                         <FaCopy />
                     </span>
                 </button>
-
-                <span
-                    role="tooltip"
-                    className="
-            pointer-events-none invisible absolute bottom-full left-1/2 z-50 mb-2
-            -translate-x-1/2 whitespace-nowrap rounded-md
-            border border-orange-100 bg-white px-3 py-1.5
-            text-xs font-semibold text-[#FE5720] shadow-md
-            group-hover/copy:visible
-        "
-                >
-                    {copied ? "Copied!" : "Copy"}
-                    <span
-                        className="
-                absolute left-1/2 top-full -translate-x-1/2
-                border-[5px] border-transparent border-t-white
-            "
-                    />
-                </span>
-            </span>
+            </DashboardPortaledFlyout>
 
 
             {showOverflowColumn ? (

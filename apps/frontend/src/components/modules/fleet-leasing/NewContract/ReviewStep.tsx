@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -158,7 +159,7 @@ export default function ReviewStep({
             const contractId = result.contract?.id ?? draftContractId;
 
             showLeaseContractSubmittedToast();
-            router.push(fleetLeaseContractDetailHref(contractId));
+            navigateToEntityShell(router, fleetLeaseContractDetailHref(contractId), contractId, 'push');
         } catch (err) {
             const message =
                 err instanceof ApiClientError

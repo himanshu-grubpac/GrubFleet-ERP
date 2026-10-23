@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { Info } from "lucide-react";
 
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
@@ -322,6 +323,7 @@ export default function AmcMaintenancePage() {
                                     <td className="py-3 text-right">
                                         <DashboardTableActions
                                             status={tier.status}
+                                            navigationEntityId={tier.id}
                                             viewHref={workshopAmcTierDetailHref(
                                                 tier.id,
                                             )}
@@ -332,10 +334,12 @@ export default function AmcMaintenancePage() {
                                                 canUpdate &&
                                                 tier.status === "active"
                                                     ? () =>
-                                                          router.push(
+                                                          navigateToEntityShell(
+                                                              router,
                                                               workshopAmcTierEditHref(
                                                                   tier.id,
                                                               ),
+                                                              tier.id,
                                                           )
                                                     : undefined
                                             }
@@ -459,6 +463,7 @@ export default function AmcMaintenancePage() {
                                     <td className="py-3 text-right">
                                         <DashboardTableActions
                                             status={schedule.status}
+                                            navigationEntityId={schedule.id}
                                             viewHref={workshopAmcScheduleDetailHref(
                                                 schedule.id,
                                             )}
@@ -469,10 +474,12 @@ export default function AmcMaintenancePage() {
                                                 canUpdate &&
                                                 schedule.status === "active"
                                                     ? () =>
-                                                          router.push(
+                                                          navigateToEntityShell(
+                                                              router,
                                                               workshopAmcScheduleEditHref(
                                                                   schedule.id,
                                                               ),
+                                                              schedule.id,
                                                           )
                                                     : undefined
                                             }

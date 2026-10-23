@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -277,6 +278,7 @@ export default function LaborJobCardsListPage() {
             <DashboardTableActions
               status={row.status}
               locationId={row.id}
+              navigationEntityId={row.id}
               viewHref={workshopLabourRateCardDetailHref(row.id)}
               copyText={[
                 `Service Package ID: ${row.id}`,
@@ -286,7 +288,7 @@ export default function LaborJobCardsListPage() {
               ].join("\n")}
               onEdit={
                 canUpdate && row.status === "active"
-                  ? () => router.push(workshopLabourRateCardEditHref(row.id))
+                  ? () => navigateToEntityShell(router, workshopLabourRateCardEditHref(row.id), row.id, 'push')
                   : undefined
               }
               onToggleStatus={

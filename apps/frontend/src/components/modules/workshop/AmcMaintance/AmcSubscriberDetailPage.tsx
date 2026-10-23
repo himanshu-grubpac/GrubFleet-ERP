@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -88,7 +89,7 @@ export default function AmcSubscriberDetailPage() {
                     type="button"
                     className="text-[#FE5720] hover:underline"
                     onClick={() =>
-                      router.push(workshopAmcTierDetailHref(subscriber.amcTierId))
+                      navigateToEntityShell(router, workshopAmcTierDetailHref(subscriber.amcTierId), subscriber.amcTierId, 'push')
                     }
                   >
                     {subscriber.tierName}

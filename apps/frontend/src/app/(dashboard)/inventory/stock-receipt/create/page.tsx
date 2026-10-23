@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -83,7 +84,7 @@ export default function CreateStockPage() {
     onSuccess: (result) => {
       void invalidateStockReceiptCaches(queryClient);
       showStockReceiptCreatedToast(result.receiptNumber);
-      router.push(inventoryStockReceiptDetailHref(result.id));
+      navigateToEntityShell(router, inventoryStockReceiptDetailHref(result.id), result.id, 'push');
     },
     onError: (error) =>
       showApiErrorToast(error, "Failed to save stock receipt."),

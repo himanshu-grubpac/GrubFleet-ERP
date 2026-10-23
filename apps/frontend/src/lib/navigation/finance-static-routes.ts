@@ -1,6 +1,8 @@
 /**
- * Static export (S3 + CloudFront): fixed shells; runtime id in query string.
+ * Static export (S3 + CloudFront): path-only shells; entity id in secure nav store.
  */
+
+import { appendQueryToPath } from "./secure-entity-navigation";
 
 export type FinanceEntityQueryKey = "invoiceId" | "clientId" | "paymentId";
 
@@ -10,13 +12,10 @@ const VENDOR_PAYMENTS_BASE = "/finance/vendor-payments";
 
 function detailHref(
   base: string,
-  queryKey: FinanceEntityQueryKey,
-  id: string,
+  _queryKey: FinanceEntityQueryKey,
+  _id: string,
 ): string {
-  const trimmed = id.trim();
-  const path = `${base}/detail/`;
-  if (!trimmed) return path;
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+  return `${base}/detail/`;
 }
 
 export const financeInvoiceDetailHref = (invoiceId: string) =>
@@ -29,16 +28,14 @@ export const financeInvoiceNewSaleHref = `${INVOICES_BASE}/new/sale/`;
 export const financeInvoiceNewBillingHref = `${INVOICES_BASE}/new/billing/`;
 
 export const financeInvoiceEditSaleHref = (invoiceId: string) =>
-  `${financeInvoiceNewSaleHref}?invoiceId=${encodeURIComponent(invoiceId)}`;
+  financeInvoiceNewSaleHref;
 
 export const financeInvoiceEditBillingHref = (invoiceId: string) =>
-  `${financeInvoiceNewBillingHref}?invoiceId=${encodeURIComponent(invoiceId)}`;
+  financeInvoiceNewBillingHref;
 
 export const financeInvoiceRecordPaymentHref = (invoiceId: string) => {
-  const trimmed = invoiceId.trim();
-  const path = `${INVOICES_BASE}/detail/record-payment/`;
-  if (!trimmed) return path;
-  return `${path}?invoiceId=${encodeURIComponent(trimmed)}`;
+  void invoiceId;
+  return `${INVOICES_BASE}/detail/record-payment/`;
 };
 
 export const financeClientStatementsListHref = `${CLIENT_STATEMENTS_BASE}/`;
@@ -54,10 +51,9 @@ export function financeClientStatementDetailHref(
   periodStart: string,
   periodEnd: string,
 ): string {
-  const params = new URLSearchParams({
-    clientId: clientId.trim(),
+  void clientId;
+  return appendQueryToPath(`${CLIENT_STATEMENTS_BASE}/detail/`, {
     periodStart,
     periodEnd,
   });
-  return `${CLIENT_STATEMENTS_BASE}/detail/?${params.toString()}`;
 }

@@ -12,6 +12,7 @@ import {
 
 import Button from "@/components/ui/GrubpacButton";
 import GlobalSearchInput from "@/components/layout/GlobalSearchInput";
+import { LogoutConfirmDialog } from "@/components/layout/logout-confirm-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
@@ -43,6 +44,7 @@ export default function LayoutHeader({
   const { isAuthenticated, isLoggingOut, logout, user } = useAuth();
 
   const [profileOpen, setProfileOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
 
   const userName = useMemo(
     () =>
@@ -62,7 +64,7 @@ export default function LayoutHeader({
     if (isLoggingOut) return;
 
     setProfileOpen(false);
-    void logout?.();
+    setLogoutConfirmOpen(true);
   };
 
   return (
@@ -193,6 +195,20 @@ export default function LayoutHeader({
           </div>
         )}
       </div>
+
+      <LogoutConfirmDialog
+        open={logoutConfirmOpen}
+        isConfirmPending={isLoggingOut}
+        onClose={() => {
+          if (!isLoggingOut) {
+            setLogoutConfirmOpen(false);
+          }
+        }}
+        onConfirm={() => {
+          setLogoutConfirmOpen(false);
+          void logout?.();
+        }}
+      />
     </header>
   );
 }

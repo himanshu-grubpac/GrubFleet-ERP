@@ -43,6 +43,7 @@ import { getPhonePlaceholder } from "@/lib/geo/placeholders";
 import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { DashboardPageLoadingShell } from "@/components/dashboard/dashboard-async-states";
 
 import OrganizationAddressForm from "@/components/common/OrganizationAddressForm";
 
@@ -1052,9 +1053,41 @@ export default function AddLocationForm({
         (message): message is string => Boolean(message),
     );
 
+    const isBootstrappingForm =
+        isAuthLoading ||
+        locationTypesQuery.isLoading ||
+        activeEmployeesQuery.isLoading ||
+        (isEditMode && locationDetailQuery.isLoading);
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                      */
     /* ---------------------------------------------------------------------- */
+
+    if (isBootstrappingForm) {
+        return (
+            <OrganizationFormLayout
+                title={
+                    isEditMode
+                        ? "Edit Location"
+                        : "Add Location"
+                }
+                description={
+                    isEditMode
+                        ? "Update the location details, address, contacts, and responsible people."
+                        : "Register an office, workshop, warehouse, retail outlet, or other organization location."
+                }
+                infoText="Locations aren't just for warehousing — Offices, Workshops, Retail Outlets and more all live in this same register, and are what Asset Management and Inventory select from when marking a vehicle's or part's location."
+            >
+                <DashboardPageLoadingShell
+                    label={
+                        isEditMode
+                            ? "Loading location…"
+                            : "Loading form…"
+                    }
+                />
+            </OrganizationFormLayout>
+        );
+    }
 
     return (
         <OrganizationFormLayout

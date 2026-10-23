@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
@@ -15,7 +16,6 @@ import {
   fetchOrganisationLocationByIdApi,
   updateOrganisationLocationStatusApi,
 } from "@/lib/api/organisation/locations";
-import { ApiClientError } from "@/lib/api/client";
 import {
   LOCATION_STATUS_UPDATE_ERROR,
   showErrorToast,
@@ -27,6 +27,11 @@ import { formatPhoneDisplay } from "@/lib/format/phone-format";
 import { getCountryDefinition } from "@/lib/geo/countries";
 import DetailField from "@/components/common/DetailField";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
+import PortalSearchHighlightableText from "@/components/ui/portal-search-highlightable-text";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 
 const EMPTY = "—";
 
@@ -99,7 +104,7 @@ export default function LocationDetailsPage() {
   });
 
   const handleEdit = () => {
-    router.push(organisationLocationEditHref(locationId));
+    navigateToEntityShell(router, organisationLocationEditHref(locationId), locationId, 'push');
   };
 
   const handleToggleStatus = () => {
@@ -115,27 +120,21 @@ export default function LocationDetailsPage() {
 
   if (isAuthLoading || locationQuery.isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Loading location...
+      <div className="px-5 py-4">
+        <DashboardPageLoadingShell label="Loading location…" />
       </div>
     );
   }
 
   if (locationQuery.isError || !locationQuery.data) {
     return (
-      <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
-        <p className="text-sm font-medium text-red-600">
-          {locationQuery.error instanceof ApiClientError
-            ? locationQuery.error.message
-            : "Failed to load location."}
-        </p>
-        <button
-          type="button"
-          onClick={() => void locationQuery.refetch()}
-          className="text-sm text-gray-600 underline"
-        >
-          Try again
-        </button>
+      <div className="px-5 py-4">
+        <DashboardDetailErrorShell
+          title="Failed to load location"
+          error={locationQuery.error}
+          fallbackMessage="Failed to load location."
+          onRetry={() => void locationQuery.refetch()}
+        />
       </div>
     );
   }
@@ -151,9 +150,11 @@ export default function LocationDetailsPage() {
     <OrganizationViewLayout>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <h1 className="text-[15px] font-semibold text-gray-900">
-            {location.name}
-          </h1>
+          <PortalSearchHighlightableText
+            as="h1"
+            text={location.name}
+            className="text-[15px] font-semibold text-gray-900"
+          />
           <span className="inline-flex shrink-0 rounded-full bg-orange-50 px-2.5 py-1 text-xs font-medium text-[#FE5720]">
             {location.type}
           </span>

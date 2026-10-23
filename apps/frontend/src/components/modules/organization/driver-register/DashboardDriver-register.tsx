@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -39,6 +40,10 @@ import {
 } from "@/lib/toast/show-toast";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
@@ -248,7 +253,7 @@ export default function DriverRegisterPage() {
   };
 
   const handleEdit = (driver: Driver) => {
-    router.push(organisationDriverEditHref(driver.id));
+    navigateToEntityShell(router, organisationDriverEditHref(driver.id), driver.id, 'push');
   };
 
   const handleClearFilters = () => {
@@ -353,9 +358,7 @@ export default function DriverRegisterPage() {
         activeTab="/organisation/driver-register"
         action={addDriverAction}
       >
-        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-          <p className="text-sm text-gray-500">Loading drivers...</p>
-        </div>
+        <DashboardListLoadingShell label="Loading drivers…" />
       </DashboardLayout>
     );
   }
@@ -374,20 +377,12 @@ export default function DriverRegisterPage() {
         activeTab="/organisation/driver-register"
         action={addDriverAction}
       >
-        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-          <p className="text-sm font-medium text-red-600">
-            {driversQuery.error instanceof Error
-              ? driversQuery.error.message
-              : "Failed to load drivers."}
-          </p>
-          <button
-            type="button"
-            onClick={() => void driversQuery.refetch()}
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </div>
+        <DashboardDetailErrorShell
+          title="Failed to load drivers"
+          error={driversQuery.error}
+          fallbackMessage="Failed to load drivers."
+          onRetry={() => void driversQuery.refetch()}
+        />
       </DashboardLayout>
     );
   }
@@ -493,6 +488,7 @@ export default function DriverRegisterPage() {
               <DashboardTableActions
                 status={driver.apiStatus}
                 locationId={driver.id}
+                navigationEntityId={driver.id}
                 viewHref={organisationDriverDetailHref(driver.id)}
                 copyText={[
                   `Driver Name: ${driver.name}`,

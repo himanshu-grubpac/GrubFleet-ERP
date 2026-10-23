@@ -1,7 +1,9 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
@@ -39,8 +41,7 @@ import { useAuth } from "@/providers/auth-provider";
 export default function CreateLaborJobCardForm() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const searchParams = useSearchParams();
-  const editCardId = searchParams.get("laborJobCardId")?.trim() ?? "";
+  const editCardId = useWorkshopEntityId("laborJobCardId");
   const isEditMode = editCardId.length > 0;
   const {
     token,
@@ -77,7 +78,7 @@ export default function CreateLaborJobCardForm() {
     const detail = existingQuery.data;
     if (!detail || !isEditMode) return;
     if (detail.status === "inactive") {
-      router.replace(workshopLabourRateCardDetailHref(editCardId));
+      navigateToEntityShell(router, workshopLabourRateCardDetailHref(editCardId), editCardId, 'replace');
       return;
     }
     setName(detail.name);

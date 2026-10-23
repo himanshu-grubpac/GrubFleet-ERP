@@ -8,6 +8,10 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { INVENTORY_STOCK_BALANCE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
@@ -145,9 +149,14 @@ export default function StockBalanceDashboardPage() {
       />
 
       {listQuery.isLoading ? (
-        <p className="text-sm text-gray-500">Loading stock balance…</p>
+        <DashboardListLoadingShell label="Loading stock balance…" />
       ) : listQuery.isError ? (
-        <p className="text-sm text-red-600">Failed to load stock balance.</p>
+        <DashboardDetailErrorShell
+          title="Failed to load stock balance"
+          error={listQuery.error}
+          fallbackMessage="Failed to load stock balance."
+          onRetry={() => void listQuery.refetch()}
+        />
       ) : items.length === 0 ? (
         <DashboardEmptyState
           icon={<PackageSearch className="h-7 w-7" strokeWidth={1.4} />}
@@ -170,6 +179,7 @@ export default function StockBalanceDashboardPage() {
             <DashboardTableActions
               status="active"
               locationId={row.id}
+              navigationEntityId={row.id}
               viewHref={inventoryStockBalanceDetailHref(row.id)}
               hideOverflowMenu
               copyText={[

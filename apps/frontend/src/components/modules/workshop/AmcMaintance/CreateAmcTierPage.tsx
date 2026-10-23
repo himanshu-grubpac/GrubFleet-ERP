@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -114,7 +115,7 @@ export default function CreateAmcTierPage() {
       isSubmittingRef.current = false;
       void invalidateAmcTierCaches(queryClient);
       showSuccessToast(`${data.name} was created`);
-      router.push(workshopAmcTierDetailHref(data.id));
+      navigateToEntityShell(router, workshopAmcTierDetailHref(data.id), data.id, 'push');
     },
     onError: (error: Error) => {
       isSubmittingRef.current = false;

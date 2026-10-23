@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,10 +9,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import {
   fetchAssetRegisterAssetClassApi,
   updateAssetRegisterAssetClassStatusApi,
@@ -105,30 +109,26 @@ export default function AssetClassViewPage() {
   const handleEdit = () => {
     const detail = detailQuery.data;
     if (!detail || detail.status !== "active") return;
-    router.push(assetRegisterAssetClassEditHref(detail.id));
+    navigateToEntityShell(router, assetRegisterAssetClassEditHref(detail.id), detail.id, 'push');
   };
 
   if (isAuthLoading || detailQuery.isLoading) {
     return (
-      <div className="p-6 text-sm text-gray-500">Loading asset class…</div>
+      <div className="p-6">
+        <DashboardPageLoadingShell label="Loading asset class…" />
+      </div>
     );
   }
 
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="p-6">
-        <p className="text-sm font-medium text-red-600">
-          {detailQuery.error instanceof ApiClientError
-            ? detailQuery.error.message
-            : "Asset class not found."}
-        </p>
-        <button
-          type="button"
-          onClick={() => void detailQuery.refetch()}
-          className="mt-2 text-sm text-gray-600 underline"
-        >
-          Try again
-        </button>
+        <DashboardDetailErrorShell
+          title="Failed to load asset class"
+          error={detailQuery.error}
+          fallbackMessage="Asset class not found."
+          onRetry={() => void detailQuery.refetch()}
+        />
       </div>
     );
   }

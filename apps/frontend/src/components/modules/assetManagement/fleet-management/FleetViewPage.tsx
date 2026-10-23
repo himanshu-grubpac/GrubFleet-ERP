@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -231,7 +232,7 @@ export default function FleetViewPage() {
 
     const handleEdit = () => {
         if (!asset || !detailQuery.data?.isActive) return;
-        router.push(assetRegisterFleetEditHref(asset.id));
+        navigateToEntityShell(router, assetRegisterFleetEditHref(asset.id), asset.id, 'push');
     };
 
     const handleActivate = () => {

@@ -18,6 +18,10 @@ import DashboardTable, {
 } from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import { DashboardRowActionsMenuItem } from "@/components/dashboard/DashboardRowActionsMenu";
 import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
 
@@ -370,6 +374,7 @@ export default function DashboardInvoicesPage() {
     return (
       <DashboardTableActions
         status="active"
+        navigationEntityId={row.id}
         viewHref={financeInvoiceDetailHref(row.id)}
         copyText={copyText}
         alwaysShowOverflowMenu
@@ -428,15 +433,7 @@ export default function DashboardInvoicesPage() {
 
 
           {isInitialLoading && (
-            <div
-              className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white"
-              aria-busy="true"
-              aria-label="Loading invoices"
-            >
-              <p className="text-sm text-gray-500">
-                Loading invoices…
-              </p>
-            </div>
+            <DashboardListLoadingShell label="Loading invoices…" />
           )}
           <DashboardFilters
             searchValue={searchInput}
@@ -482,18 +479,12 @@ export default function DashboardInvoicesPage() {
 
 
           {listQuery.isError && !isInitialLoading && (
-            <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-              <p className="text-sm font-medium text-red-600">
-                Failed to load invoices.
-              </p>
-              <button
-                type="button"
-                onClick={() => void listQuery.refetch()}
-                className="mt-2 text-sm text-gray-600 underline"
-              >
-                Try again
-              </button>
-            </div>
+            <DashboardDetailErrorShell
+              title="Failed to load invoices"
+              error={listQuery.error}
+              fallbackMessage="Failed to load invoices."
+              onRetry={() => void listQuery.refetch()}
+            />
           )}
 
           {!isInitialLoading && !listQuery.isError && (
