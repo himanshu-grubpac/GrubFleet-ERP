@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -17,16 +17,17 @@ import {
 } from "@/lib/query/dashboard-list-query-options";
 import {
     fetchAssetRegisterAssetClassApi,
-    fetchAssetRegisterAssetClassesApi,
+    fetchAllActiveAssetRegisterAssetClassesApi,
 } from "@/lib/api/asset-register/asset-classes";
-import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
-import { fetchFinanceInvoicesApi } from "@/lib/api/finance/invoices";
+import { fetchAllActiveOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
+import { fetchAllFinancePurchaseInvoicesCatalogApi } from "@/lib/api/finance/invoices";
 import {
     formatMileageRangeFromSpec,
     formatRatedLoadRange,
     mapAssetRegisterVehicleTypeToUiLabel,
 } from "@/lib/api/asset-register/mappers";
 import FormActions from "@/components/common/FormActions";
+import { formatLeaseDecimalMoneyForInput } from "@/lib/format/money-format";
 import {
     ASSET_REGISTER_VEHICLE_INPUT_LIMITS,
     sanitizeChassisVinInput,
@@ -121,12 +122,9 @@ export default function CreateFleetVehicleForm({
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssetRegisterAssetClassesApi({
+            return fetchAllActiveAssetRegisterAssetClassesApi({
                 token,
                 organizationId,
-                page: 1,
-                pageSize: 50,
-                status: "active",
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -144,12 +142,10 @@ export default function CreateFleetVehicleForm({
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchFinanceInvoicesApi(token, {
+            return fetchAllFinancePurchaseInvoicesCatalogApi(
+                token,
                 organizationId,
-                page: 1,
-                pageSize: 50,
-                invoiceType: "purchase",
-            });
+            );
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardCatalogQueryOptions,
@@ -160,26 +156,23 @@ export default function CreateFleetVehicleForm({
             "organization",
             "suppliers",
             organizationId,
-            "compliance-catalog",
+            "active-catalog",
         ],
-        queryFn: () => {
+        queryFn: async () => {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchOrganisationSuppliersApi(token, {
+            return fetchAllActiveOrganisationSuppliersApi(
+                token,
                 organizationId,
-                page: 1,
-                pageSize: 50,
-                supplierType: "compliance",
-                status: "active",
-            });
+            );
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardCatalogQueryOptions,
     });
 
     const assetClassOptions = useMemo((): AssetClass[] => {
-        return (classesQuery.data?.items ?? []).map((row) => ({
+        return (classesQuery.data ?? []).map((row) => ({
             id: row.id,
             className: row.name,
             specLabel: row.specLabel || row.name,
@@ -192,7 +185,7 @@ export default function CreateFleetVehicleForm({
             ratedLoadCapacity: "",
             defaultIntakeChecklist: "",
         }));
-    }, [classesQuery.data?.items]);
+    }, [classesQuery.data]);
 
     /* ---------------------------------------------------------------------- */
     /* Form                                                                   */
@@ -226,8 +219,9 @@ export default function CreateFleetVehicleForm({
         insuranceSupplierId:
             initialData?.insuranceSupplierId ?? "",
 
-        insurancePremium:
+        insurancePremium: formatLeaseDecimalMoneyForInput(
             initialData?.insurancePremium ?? "",
+        ),
 
         insuranceStartDate:
             initialData?.insuranceStartDate ?? "",
@@ -256,7 +250,7 @@ export default function CreateFleetVehicleForm({
     );
 
     const insuranceSupplierOptions = useMemo(() => {
-        const items = insuranceSuppliersQuery.data?.items ?? [];
+        const items = insuranceSuppliersQuery.data ?? [];
         const selectedId = form.insuranceSupplierId.trim();
         if (selectedId && !items.some((item) => item.id === selectedId)) {
             return [
@@ -265,7 +259,7 @@ export default function CreateFleetVehicleForm({
             ];
         }
         return items.map((item) => ({ id: item.id, name: item.name }));
-    }, [insuranceSuppliersQuery.data?.items, form.insuranceSupplierId]);
+    }, [insuranceSuppliersQuery.data, form.insuranceSupplierId]);
 
     const classDetailQuery = useQuery({
         queryKey: [
@@ -336,10 +330,13 @@ export default function CreateFleetVehicleForm({
     /* Save                                                                   */
     /* ---------------------------------------------------------------------- */
 
-    const validateForm = (): ValidationErrors =>
-        validateFleetVehicleFormFields(form, { isSaving: false });
+    const validateForm = useCallback(
+        (): ValidationErrors =>
+            validateFleetVehicleFormFields(form, { isSaving: false }),
+        [form],
+    );
 
-    const liveErrors = useMemo(() => validateForm(), [form]);
+    const liveErrors = useMemo(() => validateForm(), [validateForm]);
     const { canSubmit: formCanSubmit } = useMemo(
         () => validateFleetVehicleFormForSubmit(form, { isSaving }),
         [form, isSaving],
@@ -549,15 +546,28 @@ export default function CreateFleetVehicleForm({
             {/* ============================================================ */}
 
             <div className="mt-4">
-                <label
-                    htmlFor="purchase-invoice-id"
-                    className="mb-1 block text-xs font-semibold text-gray-700"
-                >
-                    Finance purchase invoice
-                    <span className="ml-1 font-normal text-gray-400">
-                        (optional)
-                    </span>
-                </label>
+                <div className="mb-1 flex items-center justify-between gap-2">
+                    <label
+                        htmlFor="purchase-invoice-id"
+                        className="block text-xs font-semibold text-gray-700"
+                    >
+                        Finance purchase invoice
+                        <span className="ml-1 font-normal text-gray-400">
+                            (optional)
+                        </span>
+                    </label>
+                    {form.purchaseInvoiceId ? (
+                        <button
+                            type="button"
+                            onClick={() =>
+                                updateForm("purchaseInvoiceId", "")
+                            }
+                            className="text-xs text-gray-500 hover:text-red-500"
+                        >
+                            Clear
+                        </button>
+                    ) : null}
+                </div>
                 <select
                     id="purchase-invoice-id"
                     value={form.purchaseInvoiceId}
@@ -567,7 +577,7 @@ export default function CreateFleetVehicleForm({
                     className={selectClassName}
                 >
                     <option value="">Not linked</option>
-                    {(purchaseInvoicesQuery.data?.items ?? []).map(
+                    {(purchaseInvoicesQuery.data ?? []).map(
                         (invoice) => (
                             <option key={invoice.id} value={invoice.id}>
                                 {invoice.invoiceNumber?.trim() || invoice.id}
@@ -699,6 +709,7 @@ export default function CreateFleetVehicleForm({
                     <input
                         id="registration-end-date"
                         type="date"
+                        min={form.registrationStartDate || undefined}
                         value={form.registrationEndDate}
                         onChange={(event) =>
                             updateForm(
@@ -795,15 +806,28 @@ export default function CreateFleetVehicleForm({
             <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
 
                 <div>
-                    <label
-                        htmlFor="insurance-supplier"
-                        className="mb-1 block text-xs font-semibold text-gray-700"
-                    >
-                        Insurance supplier
-                        <span className="ml-1 font-normal text-gray-500">
-                            (optional)
-                        </span>
-                    </label>
+                    <div className="mb-1 flex items-center justify-between gap-2">
+                        <label
+                            htmlFor="insurance-supplier"
+                            className="block text-xs font-semibold text-gray-700"
+                        >
+                            Insurance supplier
+                            <span className="ml-1 font-normal text-gray-500">
+                                (optional)
+                            </span>
+                        </label>
+                        {form.insuranceSupplierId ? (
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    updateForm("insuranceSupplierId", "")
+                                }
+                                className="text-xs text-gray-500 hover:text-red-500"
+                            >
+                                Clear
+                            </button>
+                        ) : null}
+                    </div>
 
                     <select
                         id="insurance-supplier"
@@ -915,6 +939,7 @@ export default function CreateFleetVehicleForm({
                     <input
                         id="insurance-end-date"
                         type="date"
+                        min={form.insuranceStartDate || undefined}
                         value={form.insuranceEndDate}
                         onChange={(event) =>
                             updateForm(
@@ -983,6 +1008,7 @@ export default function CreateFleetVehicleForm({
                     <input
                         id="warranty-end-date"
                         type="date"
+                        min={form.warrantyStartDate || undefined}
                         value={form.warrantyEndDate}
                         onChange={(event) =>
                             updateForm(

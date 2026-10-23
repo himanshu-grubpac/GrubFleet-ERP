@@ -18,11 +18,16 @@ import DashboardTable, {
 } from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import { DashboardRowActionsMenuItem } from "@/components/dashboard/DashboardRowActionsMenu";
 import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pagination";
 
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 import { FINANCE_INVOICE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
 import {
   listSortQueryKeyPart,
@@ -92,6 +97,35 @@ function statusLabel(status: FinanceInvoiceStatus): string {
     default:
       return status;
   }
+}
+
+/** Native `title` hover — payment breakdown only when status implies money received. */
+function statusPaymentTitle(row: FinanceInvoiceListItem): string | undefined {
+  if (row.status === "unpaid" || row.status === "cancelled") {
+    return undefined;
+  }
+
+  const { amountPaidMinor, balanceDueMinor, totalAmountMinor } = row;
+  if (
+    !Number.isFinite(amountPaidMinor) ||
+    !Number.isFinite(balanceDueMinor) ||
+    !Number.isFinite(totalAmountMinor)
+  ) {
+    return undefined;
+  }
+
+  const total = `Total: ${formatInrFromMinor(totalAmountMinor)}`;
+
+  if (row.status === "partially_paid") {
+    const balanceDue = `Balance due: ${formatInrFromMinor(balanceDueMinor)}`;
+    return `Paid: ${formatInrFromMinor(amountPaidMinor)} · ${balanceDue} · ${total}`;
+  }
+
+  if (row.status === "paid") {
+    return `Paid: ${formatInrFromMinor(amountPaidMinor)} · ${total}`;
+  }
+
+  return undefined;
 }
 
 function typeLabel(type: FinanceInvoiceType): string {
@@ -227,9 +261,7 @@ export default function DashboardInvoicesPage() {
   };
 
   const invalidateInvoiceQueries = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["finance-invoices"],
-    });
+    void invalidateFinanceInvoiceCaches(queryClient);
   };
 
   const cancelMutation = useMutation({
@@ -303,6 +335,7 @@ export default function DashboardInvoicesPage() {
       render: (row) => (
         <span
           className={`inline-flex min-w-[132px] shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold ${statusBadgeClass(row.status)}`}
+          title={statusPaymentTitle(row)}
         >
           {statusLabel(row.status)}
         </span>
@@ -341,6 +374,7 @@ export default function DashboardInvoicesPage() {
     return (
       <DashboardTableActions
         status="active"
+        navigationEntityId={row.id}
         viewHref={financeInvoiceDetailHref(row.id)}
         copyText={copyText}
         alwaysShowOverflowMenu
@@ -399,15 +433,7 @@ export default function DashboardInvoicesPage() {
 
 
           {isInitialLoading && (
-            <div
-              className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white"
-              aria-busy="true"
-              aria-label="Loading invoices"
-            >
-              <p className="text-sm text-gray-500">
-                Loading invoices…
-              </p>
-            </div>
+            <DashboardListLoadingShell label="Loading invoices…" />
           )}
           <DashboardFilters
             searchValue={searchInput}
@@ -453,18 +479,12 @@ export default function DashboardInvoicesPage() {
 
 
           {listQuery.isError && !isInitialLoading && (
-            <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-              <p className="text-sm font-medium text-red-600">
-                Failed to load invoices.
-              </p>
-              <button
-                type="button"
-                onClick={() => void listQuery.refetch()}
-                className="mt-2 text-sm text-gray-600 underline"
-              >
-                Try again
-              </button>
-            </div>
+            <DashboardDetailErrorShell
+              title="Failed to load invoices"
+              error={listQuery.error}
+              fallbackMessage="Failed to load invoices."
+              onRetry={() => void listQuery.refetch()}
+            />
           )}
 
           {!isInitialLoading && !listQuery.isError && (

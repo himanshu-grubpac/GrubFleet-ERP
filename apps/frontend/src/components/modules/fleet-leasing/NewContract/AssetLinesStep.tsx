@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
     keepPreviousData,
@@ -8,6 +7,7 @@ import {
     useQuery,
     useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import InlineAddField from "@/components/ui/inline-add-field";
@@ -250,9 +250,7 @@ export default function AssetLinesStep({
         onSuccess: (detail) => {
             showAssetClassCreatedToast(detail.name);
 
-            void queryClient.invalidateQueries({
-                queryKey: ["fleet-leasing-asset-classes", organizationId],
-            });
+            void invalidateAssetClassCaches(queryClient);
 
             setFormError(null);
 

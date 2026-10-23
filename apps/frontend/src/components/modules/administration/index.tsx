@@ -7,7 +7,7 @@ import { Info } from "lucide-react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
-import { fetchRolesApi } from "@/lib/api/roles";
+import { fetchAllRolesApi } from "@/lib/api/roles";
 import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
 import {
   ADMINISTRATION_ROLE_INPUT_LIMITS,
@@ -59,11 +59,9 @@ export function AdministrationModule() {
     queryKey: ["roles", organizationId, debouncedSearch],
     queryFn: () => {
       if (!token || !organizationId) throw new Error("Missing auth context");
-      return fetchRolesApi(
+      return fetchAllRolesApi(
         token,
         organizationId,
-        1,
-        50,
         undefined,
         debouncedSearch || undefined,
       );
@@ -71,7 +69,7 @@ export function AdministrationModule() {
     enabled: !!token && !!organizationId,
   });
 
-  const roles = useMemo(() => rolesData?.items ?? [], [rolesData?.items]);
+  const roles = useMemo(() => rolesData ?? [], [rolesData]);
   const parentRoleNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const role of roles) {

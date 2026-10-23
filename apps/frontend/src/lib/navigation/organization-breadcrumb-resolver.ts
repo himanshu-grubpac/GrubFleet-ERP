@@ -8,39 +8,39 @@ function normalizePath(path: string): string {
 
 const ORGANIZATION_ROUTES = [
     {
-        path: "/organization/clients",
+        path: "/organisation/clients",
         label: "Clients",
     },
     {
-        path: "/organization/driver-register",
+        path: "/organisation/driver-register",
         label: "Driver Register",
     },
     {
-        path: "/organization/employees",
+        path: "/organisation/employees",
         label: "Employees",
     },
     {
-        path: "/organization/locations",
+        path: "/organisation/locations",
         label: "Locations",
     },
     {
-        path: "/organization/suppliers",
+        path: "/organisation/suppliers",
         label: "Suppliers",
     },
     {
-        path: "/organization/asset-classes",
+        path: "/organisation/asset-classes",
         label: "Asset Classes",
     },
     {
-        path: "/organization/fleet-register",
+        path: "/organisation/fleet-register",
         label: "Fleet Register",
     },
     {
-        path: "/organization/asset-assignment",
+        path: "/organisation/asset-assignment",
         label: "Asset Assignment",
     },
     {
-        path: "/organization/compliance-renewals",
+        path: "/organisation/compliance-renewals",
         label: "Compliance & Renewals",
     },
 ];
@@ -65,11 +65,12 @@ function getPageLabel(segment: string): string {
 
 export function resolveOrganizationBreadcrumbs(
     pathname: string,
-    _searchParams: URLSearchParams,
+    searchParams: URLSearchParams,
 ): BreadcrumbItem[] {
+    void searchParams;
     const path = normalizePath(pathname);
 
-    if (path === "/organization") {
+    if (path === "/organisation") {
         return [{ label: "Organisation" }];
     }
 
@@ -84,7 +85,7 @@ export function resolveOrganizationBreadcrumbs(
     const breadcrumbs: BreadcrumbItem[] = [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: route.label,

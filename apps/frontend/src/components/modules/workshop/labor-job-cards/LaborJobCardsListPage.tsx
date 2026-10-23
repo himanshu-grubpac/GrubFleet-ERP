@@ -1,9 +1,11 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateLaborJobCardCaches } from "@/lib/query/invalidate-domain-caches";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
@@ -140,9 +142,7 @@ export default function LaborJobCardsListPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "labor-job-cards"],
-      });
+      void invalidateLaborJobCardCaches(queryClient);
       setActivateTarget(null);
       setDeactivateTarget(null);
       showSuccessToast(
@@ -278,6 +278,7 @@ export default function LaborJobCardsListPage() {
             <DashboardTableActions
               status={row.status}
               locationId={row.id}
+              navigationEntityId={row.id}
               viewHref={workshopLabourRateCardDetailHref(row.id)}
               copyText={[
                 `Service Package ID: ${row.id}`,
@@ -287,7 +288,7 @@ export default function LaborJobCardsListPage() {
               ].join("\n")}
               onEdit={
                 canUpdate && row.status === "active"
-                  ? () => router.push(workshopLabourRateCardEditHref(row.id))
+                  ? () => navigateToEntityShell(router, workshopLabourRateCardEditHref(row.id), row.id, 'push')
                   : undefined
               }
               onToggleStatus={

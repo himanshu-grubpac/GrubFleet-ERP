@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateLocationCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
@@ -19,8 +20,7 @@ import {
     updateOrganisationLocationApi,
 } from "@/lib/api/organisation/locations";
 import {
-    fetchOrganisationEmployeesApi,
-    ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE,
+    fetchAllActiveOrganisationEmployeesApi,
     type OrganisationEmployeeListItem,
 } from "@/lib/api/organisation/employees";
 import {
@@ -43,6 +43,7 @@ import { getPhonePlaceholder } from "@/lib/geo/placeholders";
 import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { DashboardPageLoadingShell } from "@/components/dashboard/dashboard-async-states";
 
 import OrganizationAddressForm from "@/components/common/OrganizationAddressForm";
 
@@ -232,6 +233,7 @@ export default function AddLocationForm({
             organizationId,
             locationId,
         ],
+        refetchOnMount: "always",
 
         queryFn: () => {
             if (
@@ -290,19 +292,14 @@ export default function AddLocationForm({
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchOrganisationEmployeesApi(token, {
-                organizationId,
-                status: "active",
-                page: 1,
-                pageSize: ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE,
-            });
+            return fetchAllActiveOrganisationEmployeesApi(token, organizationId);
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
     });
 
     const activeEmployees = useMemo(
-        () => activeEmployeesQuery.data?.items ?? [],
-        [activeEmployeesQuery.data?.items],
+        () => activeEmployeesQuery.data ?? [],
+        [activeEmployeesQuery.data],
     );
 
     /* ---------------------------------------------------------------------- */
@@ -641,10 +638,6 @@ export default function AddLocationForm({
         locationDetailQuery.isLoading,
         locationDetailQuery.isError,
         locationDetailQuery.data?.isActive,
-        form.name,
-        form.contactInformation.email,
-        matchedLocationType,
-        form.address,
     ]);
 
     /* ---------------------------------------------------------------------- */
@@ -939,17 +932,12 @@ export default function AddLocationForm({
             siteContactEmail:
                 form.contactInformation.email.trim() ||
                 undefined,
-
-            responsibleEmployeeId:
-                employeeIdForApi(
-                    form.responsiblePerson.id
-                ),
-
-            deputyEmployeeId:
-                employeeIdForApi(
-                    form.deputy.id
-                ),
         };
+
+        const responsibleEmployeeId = employeeIdForApi(
+            form.responsiblePerson.id,
+        );
+        const deputyEmployeeId = employeeIdForApi(form.deputy.id);
 
         /* ------------------------------------------------------------------ */
         /* Save                                                                */
@@ -962,27 +950,38 @@ export default function AddLocationForm({
                 isEditMode &&
                 locationId
             ) {
-                await updateOrganisationLocationApi(
+                const saved = await updateOrganisationLocationApi(
                     token,
                     organizationId,
                     locationId,
-                    payload
+                    {
+                        ...payload,
+                        responsibleEmployeeId: responsibleEmployeeId ?? null,
+                        deputyEmployeeId: deputyEmployeeId ?? null,
+                    },
+                );
+                queryClient.setQueryData(
+                    [
+                        "organization",
+                        "location",
+                        organizationId,
+                        locationId,
+                    ],
+                    saved,
                 );
             } else {
-                await createOrganisationLocationApi(
-                    token,
-                    payload
-                );
+                await createOrganisationLocationApi(token, {
+                    ...payload,
+                    ...(responsibleEmployeeId
+                        ? { responsibleEmployeeId }
+                        : {}),
+                    ...(deputyEmployeeId
+                        ? { deputyEmployeeId }
+                        : {}),
+                });
             }
 
-            await queryClient.invalidateQueries(
-                {
-                    queryKey: [
-                        "organization",
-                        "locations",
-                    ],
-                }
-            );
+            await invalidateLocationCaches(queryClient);
 
             if (isEditMode) {
                 showLocationUpdatedToast(form.name.trim());
@@ -1050,9 +1049,41 @@ export default function AddLocationForm({
         (message): message is string => Boolean(message),
     );
 
+    const isBootstrappingForm =
+        isAuthLoading ||
+        locationTypesQuery.isLoading ||
+        activeEmployeesQuery.isLoading ||
+        (isEditMode && locationDetailQuery.isLoading);
+
     /* ---------------------------------------------------------------------- */
     /* UI                                                                      */
     /* ---------------------------------------------------------------------- */
+
+    if (isBootstrappingForm) {
+        return (
+            <OrganizationFormLayout
+                title={
+                    isEditMode
+                        ? "Edit Location"
+                        : "Add Location"
+                }
+                description={
+                    isEditMode
+                        ? "Update the location details, address, contacts, and responsible people."
+                        : "Register an office, workshop, warehouse, retail outlet, or other organization location."
+                }
+                infoText="Locations aren't just for warehousing — Offices, Workshops, Retail Outlets and more all live in this same register, and are what Asset Management and Inventory select from when marking a vehicle's or part's location."
+            >
+                <DashboardPageLoadingShell
+                    label={
+                        isEditMode
+                            ? "Loading location…"
+                            : "Loading form…"
+                    }
+                />
+            </OrganizationFormLayout>
+        );
+    }
 
     return (
         <OrganizationFormLayout
@@ -1391,12 +1422,31 @@ export default function AddLocationForm({
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="sm:col-span-2 lg:col-span-1">
-                        <label
-                            htmlFor="location-responsible-person"
-                            className="mb-1 block text-xs font-semibold text-gray-700"
-                        >
-                            Name
-                        </label>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                            <label
+                                htmlFor="location-responsible-person"
+                                className="block text-xs font-semibold text-gray-700"
+                            >
+                                Name
+                            </label>
+                            {form.responsiblePerson.id ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        updateForm(
+                                            "responsiblePerson",
+                                            contactFromEmployeeSelection(
+                                                "",
+                                                responsibleSelectOptions,
+                                            ),
+                                        );
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-red-500"
+                                >
+                                    Clear
+                                </button>
+                            ) : null}
+                        </div>
                         <select
                             id="location-responsible-person"
                             value={form.responsiblePerson.id}
@@ -1488,12 +1538,31 @@ export default function AddLocationForm({
 
                 <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <div className="sm:col-span-2 lg:col-span-1">
-                        <label
-                            htmlFor="location-deputy"
-                            className="mb-1 block text-xs font-semibold text-gray-700"
-                        >
-                            Name
-                        </label>
+                        <div className="mb-1 flex items-center justify-between gap-2">
+                            <label
+                                htmlFor="location-deputy"
+                                className="block text-xs font-semibold text-gray-700"
+                            >
+                                Name
+                            </label>
+                            {form.deputy.id ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        updateForm(
+                                            "deputy",
+                                            contactFromEmployeeSelection(
+                                                "",
+                                                deputySelectOptions,
+                                            ),
+                                        );
+                                    }}
+                                    className="text-xs text-gray-500 hover:text-red-500"
+                                >
+                                    Clear
+                                </button>
+                            ) : null}
+                        </div>
                         <select
                             id="location-deputy"
                             value={form.deputy.id}

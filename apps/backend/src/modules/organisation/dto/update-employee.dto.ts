@@ -8,6 +8,7 @@ import {
   IsUUID,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { IsIsoCalendarDate } from '../../../common/decorators/is-iso-calendar-date.decorator';
 import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
@@ -45,8 +46,14 @@ export class UpdateEmployeeDto {
   @IsUUID()
   locationId?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Organisation employee. Null clears reports-to. Omit leaves the current manager.',
+  })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsUUID()
   reportsToEmployeeId?: string | null;
 

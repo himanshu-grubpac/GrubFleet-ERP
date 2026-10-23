@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useState } from "react";
 import { PackagePlus } from "lucide-react";
@@ -10,6 +11,10 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
@@ -175,9 +180,14 @@ export default function StockDashboard() {
       />
 
       {listQuery.isLoading ? (
-        <p className="text-sm text-gray-500">Loading receipts…</p>
+        <DashboardListLoadingShell label="Loading receipts…" />
       ) : listQuery.isError ? (
-        <p className="text-sm text-red-600">Failed to load stock receipts.</p>
+        <DashboardDetailErrorShell
+          title="Failed to load stock receipts"
+          error={listQuery.error}
+          fallbackMessage="Failed to load stock receipts."
+          onRetry={() => void listQuery.refetch()}
+        />
       ) : items.length === 0 ? (
         <DashboardEmptyState
           icon={<PackagePlus className="h-7 w-7" strokeWidth={1.4} />}
@@ -212,6 +222,7 @@ export default function StockDashboard() {
             <DashboardTableActions
               status={row.status}
               locationId={row.id}
+              navigationEntityId={row.id}
               viewHref={inventoryStockReceiptDetailHref(row.id)}
               copyText={[
                 `Date: ${row.purchaseDate}`,
@@ -223,7 +234,7 @@ export default function StockDashboard() {
               ].join("\n")}
               onEdit={
                 canUpdate && row.availableActions.edit
-                  ? () => router.push(inventoryStockReceiptEditHref(row.id))
+                  ? () => navigateToEntityShell(router, inventoryStockReceiptEditHref(row.id), row.id, 'push')
                   : undefined
               }
             />

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Banknote } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinancePaymentCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -137,17 +138,7 @@ export default function VendorPaymentsPage() {
       showFinanceVendorPaymentRemovedToast(data.paymentNumber);
       setRemoveTarget(null);
 
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-vendor-payments"],
-      });
-
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoices"],
-      });
-
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoice-detail"],
-      });
+      void invalidateFinancePaymentCaches(queryClient);
     },
 
     onError: (error) => {
@@ -347,6 +338,7 @@ export default function VendorPaymentsPage() {
                 return (
                   <DashboardTableActions
                     status="active"
+                    navigationEntityId={row.id}
                     viewHref={financeVendorPaymentDetailHref(row.id)}
                     copyText={copyText}
                     alwaysShowOverflowMenu

@@ -1,5 +1,9 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
@@ -76,6 +80,22 @@ export async function fetchAssetRegisterAssetClassesApi(
       token: params.token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+export async function fetchAllActiveAssetRegisterAssetClassesApi(params: {
+  organizationId: string;
+  token: string;
+}): Promise<AssetRegisterAssetClassListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchAssetRegisterAssetClassesApi({
+        ...params,
+        page,
+        pageSize,
+        status: "active",
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
   );
 }
 

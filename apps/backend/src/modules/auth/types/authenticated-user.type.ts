@@ -6,4 +6,6 @@ export type AuthenticatedUser = {
 export type JwtAccessPayload = {
   sub: string;
   email: string;
+  /** Must match users.credentials_revision or access token is rejected. */
+  credRev?: number;
 };

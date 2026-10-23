@@ -15,6 +15,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import { MaxCurrentLocalCalendarYear } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 import {
   ASSET_CLASS_BRAND_MAX_LENGTH,
   ASSET_CLASS_COLOR_CODE_MAX_LENGTH,
@@ -26,7 +27,6 @@ import {
   ASSET_CLASS_FUEL_SYSTEM_MAX_LENGTH,
   ASSET_CLASS_INTAKE_ITEM_MAX_LENGTH,
   ASSET_CLASS_INTAKE_ITEMS_MAX,
-  ASSET_CLASS_MANUFACTURING_YEAR_MAX,
   ASSET_CLASS_MANUFACTURING_YEAR_MIN,
   ASSET_CLASS_MILEAGE_UNITS,
   ASSET_CLASS_MODEL_NAME_MAX_LENGTH,
@@ -56,13 +56,13 @@ export class CreateAssetClassDto {
 
   @ApiPropertyOptional({
     minimum: ASSET_CLASS_MANUFACTURING_YEAR_MIN,
-    maximum: ASSET_CLASS_MANUFACTURING_YEAR_MAX,
+    description: 'Calendar year; must not be after the current year',
   })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(ASSET_CLASS_MANUFACTURING_YEAR_MIN)
-  @Max(ASSET_CLASS_MANUFACTURING_YEAR_MAX)
+  @MaxCurrentLocalCalendarYear()
   manufacturingYear?: number;
 
   @ApiPropertyOptional({

@@ -47,15 +47,15 @@ const MODULE_HUB_LINK_DESCRIPTIONS: Record<string, string> = {
   [normalizeNavPath("/inventory/parts-requests/")]:
     "Manage parts requests and track fulfilment for workshop requirements.",
 
-  [normalizeNavPath("/organization/locations/")]:
+  [normalizeNavPath("/organisation/locations/")]:
     "Manage offices, workshops, warehouses, and other organizational locations.",
-  [normalizeNavPath("/organization/suppliers/")]:
+  [normalizeNavPath("/organisation/suppliers/")]:
     "Maintain supplier details, contact information, and business addresses.",
-  [normalizeNavPath("/organization/employees/")]:
+  [normalizeNavPath("/organisation/employees/")]:
     "Manage employee records, organizational details, and employee status.",
-  [normalizeNavPath("/organization/driver-register/")]:
+  [normalizeNavPath("/organisation/driver-register/")]:
     "Maintain driver records and manage driver information.",
-  [normalizeNavPath("/organization/clients/")]:
+  [normalizeNavPath("/organisation/clients/")]:
     "Manage client records, contact details, and associated business information.",
 
   [normalizeNavPath("/finance/invoices/")]:
@@ -79,7 +79,7 @@ const PORTAL_MAIN_MODULE_DESCRIPTIONS: Record<string, string> = {
     "Manage work orders, service packages, and AMC maintenance schedules.",
   [normalizeNavPath("/inventory/")]:
     "Manage stock register, balances, receipts, and parts requests.",
-  [normalizeNavPath("/organization/")]:
+  [normalizeNavPath("/organisation/")]:
     "Manage locations, suppliers, employees, drivers, and clients.",
   [normalizeNavPath("/finance/")]:
     "Manage invoices, client statements, and vendor payments.",

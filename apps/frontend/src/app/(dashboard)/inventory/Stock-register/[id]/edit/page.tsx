@@ -1,11 +1,13 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect } from "react";
+import { RedirectingState } from "@/components/states/async-states";
 import { useParams, useRouter } from "next/navigation";
 
 import { inventoryStockRegisterEditHref } from "@/lib/navigation/inventory-static-routes";
 
-/** Legacy dynamic segment — redirect to static-export edit shell (?partId=). */
+/** Legacy dynamic segment � redirect to static-export edit shell (?partId=). */
 export default function StockRegisterLegacyEditRedirectPage() {
   const params = useParams();
   const router = useRouter();
@@ -16,12 +18,8 @@ export default function StockRegisterLegacyEditRedirectPage() {
       router.replace("/inventory/Stock-register/");
       return;
     }
-    router.replace(inventoryStockRegisterEditHref(partId));
+    navigateToEntityShell(router, inventoryStockRegisterEditHref(partId), partId, 'replace');
   }, [partId, router]);
 
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm font-medium text-slate-500">
-      Redirecting…
-    </div>
-  );
+  return <RedirectingState />;
 }

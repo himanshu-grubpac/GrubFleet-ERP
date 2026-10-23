@@ -209,14 +209,7 @@ export default function TermsStep({
         }
 
         return errors;
-    }, [
-        assetLines,
-        computedEndDate,
-        lineRates,
-        securityDeposit,
-        startDate,
-        termMonths,
-    ]);
+    }, [assetLines, lineRates, securityDeposit, startDate, termMonths]);
 
     const validationSummary = useMemo(() => {
         const errors = Object.values(fieldErrors).filter(

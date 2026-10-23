@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { X } from "lucide-react";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import Button from "@/components/ui/GrubpacButton";
 import type { BulkAssignVehicleValidationRow } from "@/lib/api/asset-register/assignments";
 import {
@@ -307,6 +308,7 @@ export default function ReviewStep({
                         <input
                             id="bulk-handover-date"
                             type="date"
+                            max={localTodayIsoDate()}
                             value={handoverDate}
                             onChange={(event) =>
                                 onHandoverDateChange(event.target.value)

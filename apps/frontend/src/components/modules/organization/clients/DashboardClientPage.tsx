@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -37,6 +39,10 @@ import {
 } from "@/lib/api/organisation/clients";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
@@ -161,9 +167,7 @@ export default function ClientDashboardPage() {
       );
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "clients"],
-      });
+      void invalidateClientCaches(queryClient);
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
@@ -182,7 +186,7 @@ export default function ClientDashboardPage() {
 
   const handleAddClient = () => {
     if (!canCreate) return;
-    router.push("/organization/clients/create");
+    router.push("/organisation/clients/create");
   };
 
   const addClientAction = canCreate ? (
@@ -192,7 +196,7 @@ export default function ClientDashboardPage() {
   ) : undefined;
 
   const handleEdit = (client: Client) => {
-    router.push(organisationClientEditHref(client.id));
+    navigateToEntityShell(router, organisationClientEditHref(client.id), client.id, 'push');
   };
 
   const handleClearFilters = () => {
@@ -256,9 +260,7 @@ export default function ClientDashboardPage() {
         activeTab="/customer"
         action={addClientAction}
       >
-        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-          <p className="text-sm text-gray-500">Loading clients...</p>
-        </div>
+        <DashboardListLoadingShell label="Loading clients…" />
       </DashboardLayout>
     );
   }
@@ -272,18 +274,11 @@ export default function ClientDashboardPage() {
         activeTab="/customer"
         action={addClientAction}
       >
-        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-          <p className="text-sm font-medium text-red-600">
-            Failed to load clients.
-          </p>
-          <button
-            type="button"
-            onClick={() => void clientsQuery.refetch()}
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </div>
+        <DashboardDetailErrorShell
+          title="Failed to load clients"
+          fallbackMessage="Failed to load clients."
+          onRetry={() => void clientsQuery.refetch()}
+        />
       </DashboardLayout>
     );
   }
@@ -408,6 +403,7 @@ export default function ClientDashboardPage() {
             <DashboardTableActions
               status={client.status}
               locationId={client.id}
+              navigationEntityId={client.id}
               viewHref={organisationClientDetailHref(client.id)}
               copyText={[
                 `Company: ${client.clientName}`,

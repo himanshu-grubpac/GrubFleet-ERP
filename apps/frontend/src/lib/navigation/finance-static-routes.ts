@@ -1,6 +1,8 @@
 /**
- * Static export (S3 + CloudFront): fixed shells; runtime id in query string.
+ * Static export (S3 + CloudFront): path-only shells; entity id in secure nav store.
  */
+
+import { appendQueryToPath } from "./secure-entity-navigation";
 
 export type FinanceEntityQueryKey = "invoiceId" | "clientId" | "paymentId";
 
@@ -8,19 +10,14 @@ const INVOICES_BASE = "/finance/invoices";
 const CLIENT_STATEMENTS_BASE = "/finance/client-statements";
 const VENDOR_PAYMENTS_BASE = "/finance/vendor-payments";
 
-function detailHref(
-  base: string,
-  queryKey: FinanceEntityQueryKey,
-  id: string,
-): string {
-  const trimmed = id.trim();
-  const path = `${base}/detail/`;
-  if (!trimmed) return path;
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+function detailHref(base: string): string {
+  return `${base}/detail/`;
 }
 
-export const financeInvoiceDetailHref = (invoiceId: string) =>
-  detailHref(INVOICES_BASE, "invoiceId", invoiceId);
+export const financeInvoiceDetailHref = (invoiceId: string) => {
+  void invoiceId;
+  return detailHref(INVOICES_BASE);
+};
 
 export const financeInvoicesListHref = `${INVOICES_BASE}/`;
 export const financeInvoiceNewTypeHref = `${INVOICES_BASE}/new/`;
@@ -28,17 +25,19 @@ export const financeInvoiceNewPurchaseHref = `${INVOICES_BASE}/new/purchase/`;
 export const financeInvoiceNewSaleHref = `${INVOICES_BASE}/new/sale/`;
 export const financeInvoiceNewBillingHref = `${INVOICES_BASE}/new/billing/`;
 
-export const financeInvoiceEditSaleHref = (invoiceId: string) =>
-  `${financeInvoiceNewSaleHref}?invoiceId=${encodeURIComponent(invoiceId)}`;
+export const financeInvoiceEditSaleHref = (invoiceId: string) => {
+  void invoiceId;
+  return financeInvoiceNewSaleHref;
+};
 
-export const financeInvoiceEditBillingHref = (invoiceId: string) =>
-  `${financeInvoiceNewBillingHref}?invoiceId=${encodeURIComponent(invoiceId)}`;
+export const financeInvoiceEditBillingHref = (invoiceId: string) => {
+  void invoiceId;
+  return financeInvoiceNewBillingHref;
+};
 
 export const financeInvoiceRecordPaymentHref = (invoiceId: string) => {
-  const trimmed = invoiceId.trim();
-  const path = `${INVOICES_BASE}/detail/record-payment/`;
-  if (!trimmed) return path;
-  return `${path}?invoiceId=${encodeURIComponent(trimmed)}`;
+  void invoiceId;
+  return `${INVOICES_BASE}/detail/record-payment/`;
 };
 
 export const financeClientStatementsListHref = `${CLIENT_STATEMENTS_BASE}/`;
@@ -46,18 +45,19 @@ export const financeClientStatementsListHref = `${CLIENT_STATEMENTS_BASE}/`;
 export const financeVendorPaymentsListHref = `${VENDOR_PAYMENTS_BASE}/`;
 export const financeVendorPaymentRecordHref = `${VENDOR_PAYMENTS_BASE}/record/`;
 
-export const financeVendorPaymentDetailHref = (paymentId: string) =>
-  detailHref(VENDOR_PAYMENTS_BASE, "paymentId", paymentId);
+export const financeVendorPaymentDetailHref = (paymentId: string) => {
+  void paymentId;
+  return detailHref(VENDOR_PAYMENTS_BASE);
+};
 
 export function financeClientStatementDetailHref(
   clientId: string,
   periodStart: string,
   periodEnd: string,
 ): string {
-  const params = new URLSearchParams({
-    clientId: clientId.trim(),
+  void clientId;
+  return appendQueryToPath(`${CLIENT_STATEMENTS_BASE}/detail/`, {
     periodStart,
     periodEnd,
   });
-  return `${CLIENT_STATEMENTS_BASE}/detail/?${params.toString()}`;
 }

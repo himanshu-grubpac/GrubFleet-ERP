@@ -152,6 +152,8 @@ export class AuthService {
     await this.auditService.log({
       userId,
       action: AUTH_AUDIT_ACTIONS.LOGOUT,
+      resourceType: 'user',
+      resourceId: userId,
       ipAddress: req.ip,
       correlationId: req.correlationId,
     });
@@ -249,7 +251,9 @@ export class AuthService {
     refreshTtlSec: number,
     req: Request,
   ): Promise<TokenPairResponseDto> {
-    const payload: JwtAccessPayload = { sub: userId, email };
+    const user = await this.authRepository.findUserById(userId);
+    const credRev = user?.credentialsRevision ?? 0;
+    const payload: JwtAccessPayload = { sub: userId, email, credRev };
     const accessToken = await this.jwtService.signAsync(payload);
 
     const refreshToken = generateOpaqueToken();

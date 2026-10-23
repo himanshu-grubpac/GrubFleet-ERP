@@ -1,13 +1,11 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import type { FinanceEntityQueryKey } from "./finance-static-routes";
+import { useSecureEntityId } from "./use-secure-entity-id";
 
 export function useFinanceEntityId(
   queryKey: FinanceEntityQueryKey,
 ): string | null {
-  const params = useSearchParams();
-  const raw = params.get(queryKey);
-  const trimmed = raw?.trim();
-  return trimmed ? trimmed : null;
+  const id = useSecureEntityId({ legacyQueryKey: queryKey });
+  return id ? id : null;
 }

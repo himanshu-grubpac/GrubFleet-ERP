@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { PackageSearch } from "lucide-react";
@@ -21,7 +22,7 @@ import {
     fetchAssetRegisterVehiclesApi,
     type AssetRegisterVehicleDemandFilter,
 } from "@/lib/api/asset-register/vehicles";
-import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { fetchAllActiveAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
 import { assetRegisterAssetAssignDetailHref } from "@/lib/navigation/asset-register-static-routes";
 import { formatCalendarDateEnIn } from "@/lib/format/date-format";
 
@@ -137,12 +138,9 @@ export default function AssetAssignmentDashboardPage() {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssetRegisterAssetClassesApi({
+            return fetchAllActiveAssetRegisterAssetClassesApi({
                 token,
                 organizationId,
-                page: 1,
-                pageSize: 50,
-                status: "active",
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -150,7 +148,7 @@ export default function AssetAssignmentDashboardPage() {
     });
 
     const assetClassFilterOptions = useMemo(() => {
-        const items = assetClassCatalogQuery.data?.items ?? [];
+        const items = assetClassCatalogQuery.data ?? [];
         return [
             { label: "All asset classes", value: "" },
             ...items.map((row) => ({
@@ -158,7 +156,7 @@ export default function AssetAssignmentDashboardPage() {
                 value: row.id,
             })),
         ];
-    }, [assetClassCatalogQuery.data?.items]);
+    }, [assetClassCatalogQuery.data]);
 
     const selectedAssetClassLabel = useMemo(() => {
         if (!assetClassIdFilter) {
@@ -221,7 +219,7 @@ export default function AssetAssignmentDashboardPage() {
     const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
 
     const handleAssign = (vehicle: AssetAssignmentVehicle) => {
-        router.push(assetRegisterAssetAssignDetailHref(vehicle.id));
+        navigateToEntityShell(router, assetRegisterAssetAssignDetailHref(vehicle.id), vehicle.id, 'push');
     };
 
     const handleBulkAssign = () => {

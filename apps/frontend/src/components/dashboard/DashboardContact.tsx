@@ -2,11 +2,15 @@
 
 import { useState } from "react";
 import { Check, Mail, Phone } from "lucide-react";
+import { DashboardPortaledFlyout } from "@/components/dashboard/dashboard-portaled-flyout";
 
 type DashboardContactProps = {
     phone?: string;
     email?: string;
 };
+
+const contactTooltipPanelClass =
+    "whitespace-nowrap rounded-md bg-gray-900 px-3 py-2 text-xs text-white shadow-lg";
 
 export default function DashboardContact({
     phone,
@@ -32,9 +36,12 @@ export default function DashboardContact({
 
     return (
         <div className="flex items-center gap-3">
-            {/* Phone */}
             {phone && (
-                <div className="group relative">
+                <DashboardPortaledFlyout
+                    forceOpen={copied === "phone"}
+                    content={copied === "phone" ? "Copied!" : phone}
+                    panelClassName={contactTooltipPanelClass}
+                >
                     <button
                         type="button"
                         aria-label="Copy phone number"
@@ -55,37 +62,15 @@ export default function DashboardContact({
                             />
                         )}
                     </button>
-
-                    {/* Phone Tooltip */}
-                    <div
-                        className="
-                            pointer-events-none
-                            absolute
-                            bottom-full
-                            left-1/2
-                            z-20
-                            mb-2
-                            hidden
-                            -translate-x-1/2
-                            whitespace-nowrap
-                            rounded-md
-                            bg-gray-900
-                            px-3
-                            py-2
-                            text-xs
-                            text-white
-                            shadow-lg
-                            group-hover:block
-                        "
-                    >
-                        {copied === "phone" ? "Copied!" : phone}
-                    </div>
-                </div>
+                </DashboardPortaledFlyout>
             )}
 
-            {/* Email */}
             {email && (
-                <div className="group relative">
+                <DashboardPortaledFlyout
+                    forceOpen={copied === "email"}
+                    content={copied === "email" ? "Copied!" : email}
+                    panelClassName={contactTooltipPanelClass}
+                >
                     <button
                         type="button"
                         aria-label="Copy email address"
@@ -106,32 +91,7 @@ export default function DashboardContact({
                             />
                         )}
                     </button>
-
-                    {/* Email Tooltip */}
-                    <div
-                        className="
-                            pointer-events-none
-                            absolute
-                            bottom-full
-                            left-1/2
-                            z-20
-                            mb-2
-                            hidden
-                            -translate-x-1/2
-                            whitespace-nowrap
-                            rounded-md
-                            bg-gray-900
-                            px-3
-                            py-2
-                            text-xs
-                            text-white
-                            shadow-lg
-                            group-hover:block
-                        "
-                    >
-                        {copied === "email" ? "Copied!" : email}
-                    </div>
-                </div>
+                </DashboardPortaledFlyout>
             )}
         </div>
     );

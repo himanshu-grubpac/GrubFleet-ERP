@@ -193,8 +193,12 @@ export default function DashboardTable<T>({
     }
 
     return (
-        <div className="rounded-lg border border-gray-200 bg-white">
-            <div className="w-full overflow-x-auto overflow-y-visible [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="overflow-visible rounded-lg border border-gray-200 bg-white">
+            {/*
+              Horizontal scroll only; vertical overflow is clipped by spec when
+              overflow-x is not visible — use DashboardPortaledFlyout for hovers.
+            */}
+            <div className="w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="w-full min-w-[900px] border-collapse">
                     <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">

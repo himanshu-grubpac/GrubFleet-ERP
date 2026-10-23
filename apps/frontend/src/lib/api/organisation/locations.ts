@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
@@ -65,18 +66,26 @@ export type CreateOrganisationLocationPayload = {
   addressPincode: string;
   siteContactPhone?: string;
   siteContactEmail?: string;
-  responsibleEmployeeId?: string;
-  deputyEmployeeId?: string;
+  responsibleEmployeeId?: string | null;
+  deputyEmployeeId?: string | null;
 };
 
 export type UpdateOrganisationLocationPayload = Partial<
   Omit<
     CreateOrganisationLocationPayload,
-    "organizationId" | "siteContactPhone" | "siteContactEmail"
+    | "organizationId"
+    | "siteContactPhone"
+    | "siteContactEmail"
+    | "responsibleEmployeeId"
+    | "deputyEmployeeId"
   >
 > & {
   siteContactPhone?: string | null;
   siteContactEmail?: string | null;
+  /** `null` clears a saved responsible person. Omit keeps the current person. */
+  responsibleEmployeeId?: string | null;
+  /** `null` clears a saved deputy. Omit keeps the current deputy. */
+  deputyEmployeeId?: string | null;
 };
 
 function orgHeaders(organizationId: string): HeadersInit {
@@ -109,6 +118,22 @@ export async function fetchOrganisationLocationsApi(
       token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+export async function fetchAllActiveOrganisationLocationsApi(
+  token: string,
+  organizationId: string,
+): Promise<OrganisationLocationListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchOrganisationLocationsApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        status: "active",
+      }),
+    ORGANISATION_LOCATION_FORM_PICKER_PAGE_SIZE,
   );
 }
 

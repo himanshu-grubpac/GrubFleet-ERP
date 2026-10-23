@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronDown, X, Plus } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
@@ -203,7 +203,10 @@ export default function CreateAssetClassForm({
     staleTime: 60_000,
   });
 
-  const catalogItems = catalogQuery.data?.items ?? [];
+  const catalogItems = useMemo(
+    () => catalogQuery.data?.items ?? [],
+    [catalogQuery.data?.items],
+  );
 
   const intakeCheckboxRows = useMemo(() => {
     const seen = new Set<string>();
@@ -266,9 +269,6 @@ export default function CreateAssetClassForm({
     });
   };
 
-  const intakeCustomAddTriggerLabel =
-    form.intakeChecklistItems.length > 0 ? "Add more" : "Add";
-
   const submitIntakeCustomAdd = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
@@ -310,7 +310,7 @@ export default function CreateAssetClassForm({
 
   // Keep asset-class-specific rules from the existing mapper and use the
   // shared CommonValidation helpers for the common required-field checks.
-  const validateForm = (): AssetClassFormFieldErrors => {
+  const validateForm = useCallback((): AssetClassFormFieldErrors => {
     const errors = validateAssetClassFormFields(form, { isSaving: false });
 
     const requiredFields: Array<[AssetClassFormFieldKey, string, string]> = [
@@ -336,9 +336,9 @@ export default function CreateAssetClassForm({
     }
 
     return errors;
-  };
+  }, [form]);
 
-  const liveErrors = useMemo(() => validateForm(), [form]);
+  const liveErrors = useMemo(() => validateForm(), [validateForm]);
   const { canSubmit } = useMemo(
     () => validateAssetClassFormForSubmit(form, { isSaving }),
     [form, isSaving],
@@ -432,16 +432,10 @@ export default function CreateAssetClassForm({
     >
       {isEditMode ? (
         <div className="max-w-xl">
-          <label htmlFor="asset-class-name-readonly" className={labelClass}>
-            Class name
-          </label>
-          <input
-            id="asset-class-name-readonly"
-            readOnly
-            tabIndex={-1}
-            value={form.name}
-            className={`${inputClassName} bg-gray-50 text-gray-600`}
-          />
+          <p className={labelClass}>Class name</p>
+          <p className="break-all text-sm text-gray-900">
+            {form.name.trim() || "—"}
+          </p>
         </div>
       ) : null}
 
@@ -832,7 +826,6 @@ export default function CreateAssetClassForm({
                   return !open;
                 })
               }
-              aria-invalid={Boolean(displayedErrors.intakeChecklistItems)}
               className={[
                 mergeFormControlBorderClass(
                   Boolean(displayedErrors.intakeChecklistItems),

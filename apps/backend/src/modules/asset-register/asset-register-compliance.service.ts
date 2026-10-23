@@ -1,4 +1,7 @@
-import { formatDecimalMoneyForStorage } from '@grubpac/validation';
+import {
+  formatDecimalMoneyForStorage,
+  getLocalCalendarDateToday,
+} from '@grubpac/validation';
 import {
   BadRequestException,
   Injectable,
@@ -98,6 +101,31 @@ export class AssetRegisterComplianceService {
       );
     }
 
+    const credential =
+      dto.type === AssetRegisterComplianceRenewType.INSURANCE
+        ? {
+            endDate: existing.insuranceEndDate,
+            startDate: existing.insuranceStartDate,
+          }
+        : dto.type === AssetRegisterComplianceRenewType.REGISTRATION
+          ? {
+              endDate: existing.registrationEndDate,
+              startDate: existing.registrationStartDate,
+            }
+          : {
+              endDate: existing.warrantyEndDate,
+              startDate: existing.warrantyStartDate,
+            };
+    const basis =
+      credential.endDate?.slice(0, 10) ||
+      credential.startDate?.slice(0, 10) ||
+      '';
+    const today = getLocalCalendarDateToday();
+    const floor = basis > today ? basis : today;
+    if (dto.endDate.slice(0, 10) < floor) {
+      throw new BadRequestException(`endDate must be on or after ${floor}`);
+    }
+
     if (
       dto.type === AssetRegisterComplianceRenewType.INSURANCE &&
       dto.insurancePremium === undefined
@@ -118,9 +146,17 @@ export class AssetRegisterComplianceService {
       patch.insuranceStartDate = dto.startDate;
       patch.insuranceEndDate = dto.endDate;
       patch.insurancePremium = formatDecimalMoneyForStorage(premium);
+      if (dto.policyNumber !== undefined) {
+        const trimmed = dto.policyNumber.trim();
+        patch.insurancePolicyNumber = trimmed.length > 0 ? trimmed : null;
+      }
     } else if (dto.type === AssetRegisterComplianceRenewType.REGISTRATION) {
       patch.registrationStartDate = dto.startDate;
       patch.registrationEndDate = dto.endDate;
+      if (dto.registrationReference !== undefined) {
+        const trimmed = dto.registrationReference.trim();
+        patch.registrationReference = trimmed.length > 0 ? trimmed : null;
+      }
     } else {
       patch.warrantyStartDate = dto.startDate;
       patch.warrantyEndDate = dto.endDate;
@@ -140,6 +176,8 @@ export class AssetRegisterComplianceService {
         startDate: dto.startDate,
         endDate: dto.endDate,
         insurancePremium: dto.insurancePremium,
+        policyNumber: dto.policyNumber,
+        registrationReference: dto.registrationReference,
       },
     });
 
@@ -203,8 +241,15 @@ export class AssetRegisterComplianceService {
     ]);
     return {
       overallStatus,
-      insurance: { ...insurance, premium: row.insurancePremium },
-      registration,
+      insurance: {
+        ...insurance,
+        premium: row.insurancePremium,
+        policyNumber: row.insurancePolicyNumber,
+      },
+      registration: {
+        ...registration,
+        registrationReference: row.registrationReference,
+      },
       warranty,
     };
   }

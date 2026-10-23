@@ -1,26 +1,29 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import StockReciptForm, {
   STOCK_RECEIPT_MANUAL_INVOICE,
   type StockFormData,
 } from "@/components/modules/inventory/StockReceipt/StockReciptForm";
-import { fetchFinanceInvoicesApi } from "@/lib/api/finance/invoices";
+import { fetchAllFinancePurchaseInvoicesCatalogApi } from "@/lib/api/finance/invoices";
 import { useAuth } from "@/providers/auth-provider";
-import { fetchStockRegisterListApi } from "@/lib/api/inventory/stock-register";
+import { fetchAllActiveStockRegisterPartsApi } from "@/lib/api/inventory/stock-register";
 import { createStockReceiptApi } from "@/lib/api/inventory/stock-receipts";
-import { fetchOrganisationLocationsApi } from "@/lib/api/organisation/locations";
+import { fetchAllActiveOrganisationLocationsApi } from "@/lib/api/organisation/locations";
 import { inventoryStockReceiptDetailHref } from "@/lib/navigation/inventory-static-routes";
 import {
   showApiErrorToast,
   showStockReceiptCreatedToast,
 } from "@/lib/toast/show-toast";
+import { invalidateStockReceiptCaches } from "@/lib/query/invalidate-domain-caches";
 import { parseRupeeInputToMinor } from "@/lib/format/money-format";
 
 export default function CreateStockPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId, permissions } = useAuth();
 
   const canCreate =
@@ -30,33 +33,21 @@ export default function CreateStockPage() {
   const partsQuery = useQuery({
     queryKey: ["inventory", "stock-register", "catalog", organizationId],
     queryFn: () =>
-      fetchStockRegisterListApi(
-        { organizationId: organizationId!, page: 1, pageSize: 200, status: "active" },
-        token!,
-      ),
+      fetchAllActiveStockRegisterPartsApi(organizationId!, token!),
     enabled: !!token && !!organizationId,
   });
 
   const purchaseInvoicesQuery = useQuery({
     queryKey: ["finance", "invoices", "purchase-catalog", organizationId],
     queryFn: () =>
-      fetchFinanceInvoicesApi(token!, {
-        organizationId: organizationId!,
-        page: 1,
-        pageSize: 200,
-        invoiceType: "purchase",
-      }),
+      fetchAllFinancePurchaseInvoicesCatalogApi(token!, organizationId!),
     enabled: !!token && !!organizationId,
   });
 
   const locationsQuery = useQuery({
     queryKey: ["organisation", "locations", "catalog", organizationId],
     queryFn: () =>
-      fetchOrganisationLocationsApi(token!, {
-        organizationId: organizationId!,
-        page: 1,
-        pageSize: 200,
-      }),
+      fetchAllActiveOrganisationLocationsApi(token!, organizationId!),
     enabled: !!token && !!organizationId,
   });
 
@@ -91,8 +82,9 @@ export default function CreateStockPage() {
       );
     },
     onSuccess: (result) => {
+      void invalidateStockReceiptCaches(queryClient);
       showStockReceiptCreatedToast(result.receiptNumber);
-      router.push(inventoryStockReceiptDetailHref(result.id));
+      navigateToEntityShell(router, inventoryStockReceiptDetailHref(result.id), result.id, 'push');
     },
     onError: (error) =>
       showApiErrorToast(error, "Failed to save stock receipt."),
@@ -109,16 +101,16 @@ export default function CreateStockPage() {
   }
 
   const partOptions =
-    partsQuery.data?.items.map((p) => ({
+    (partsQuery.data ?? []).map((p) => ({
       value: p.id,
       label: `${p.partName} — ${p.partNumber}`,
-    })) ?? [];
+    }));
 
   const locationOptions =
-    locationsQuery.data?.items.map((loc) => ({
+    (locationsQuery.data ?? []).map((loc) => ({
       value: loc.id,
       label: loc.name,
-    })) ?? [];
+    }));
 
   const isCatalogLoading =
     partsQuery.isLoading ||
@@ -130,10 +122,10 @@ export default function CreateStockPage() {
       value: STOCK_RECEIPT_MANUAL_INVOICE,
       label: "Manual / unlinked",
     },
-    ...(purchaseInvoicesQuery.data?.items.map((invoice) => ({
+    ...((purchaseInvoicesQuery.data ?? []).map((invoice) => ({
       value: invoice.id,
       label: invoice.invoiceNumber?.trim() || invoice.id,
-    })) ?? []),
+    }))),
   ];
 
   return (

@@ -162,12 +162,18 @@ export const assetRegisterVehicles = pgTable(
     odometer: integer('odometer').notNull().default(0),
     registrationStartDate: date('registration_start_date').notNull(),
     registrationEndDate: date('registration_end_date').notNull(),
+    registrationReference: varchar('registration_reference', {
+      length: 128,
+    }),
     insuranceStartDate: date('insurance_start_date').notNull(),
     insuranceEndDate: date('insurance_end_date').notNull(),
     insurancePremium: numeric('insurance_premium', {
       precision: 14,
       scale: 2,
     }).notNull(),
+    insurancePolicyNumber: varchar('insurance_policy_number', {
+      length: 128,
+    }),
     insuranceSupplierId: uuid('insurance_supplier_id').references(
       () => organisationSuppliers.id,
       { onDelete: 'set null' },

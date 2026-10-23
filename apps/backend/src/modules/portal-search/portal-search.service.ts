@@ -215,7 +215,7 @@ export class PortalSearchService {
         entityType: 'employee',
         entityTypeLabel: 'Employee',
         status: row.status,
-        routePath: '/organization/employees/detail/',
+        routePath: '/organisation/employees/detail/',
         routeQuery: { employeeId: row.id },
         links,
       });
@@ -231,7 +231,7 @@ export class PortalSearchService {
         entityType: 'location',
         entityTypeLabel: 'Location',
         status: row.status,
-        routePath: '/organization/locations/detail/',
+        routePath: '/organisation/locations/detail/',
         routeQuery: { locationId: row.id },
         links: [],
       });
@@ -247,7 +247,7 @@ export class PortalSearchService {
         entityType: 'supplier',
         entityTypeLabel: 'Supplier',
         status: row.status,
-        routePath: '/organization/suppliers/detail/',
+        routePath: '/organisation/suppliers/detail/',
         routeQuery: { supplierId: row.id },
         links: [],
       });
@@ -263,7 +263,7 @@ export class PortalSearchService {
         entityType: 'client',
         entityTypeLabel: 'Client',
         status: row.status,
-        routePath: '/organization/clients/detail/',
+        routePath: '/organisation/clients/detail/',
         routeQuery: { clientId: row.id },
         links:
           row.contracts > 0
@@ -304,7 +304,7 @@ export class PortalSearchService {
         entityType: 'driver',
         entityTypeLabel: 'Driver',
         status: row.status,
-        routePath: '/organization/driver-register/detail/',
+        routePath: '/organisation/driver-register/detail/',
         routeQuery: { driverId: row.id },
         links,
       });
@@ -546,7 +546,7 @@ export class PortalSearchService {
         entityType: 'labor_job_card',
         entityTypeLabel: 'Labor job card',
         status: row.status,
-        routePath: '/workshop/labour-rate-cards/detail/',
+        routePath: '/workshop/service-packages/detail/',
         routeQuery: { laborJobCardId: row.id },
         links: [],
       });

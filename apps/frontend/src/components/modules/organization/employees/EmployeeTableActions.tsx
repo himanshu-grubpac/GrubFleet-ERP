@@ -49,6 +49,7 @@ export default function EmployeeTableActions({
     return (
         <DashboardTableActions
             status={status}
+            navigationEntityId={employee.id}
             viewHref={organisationEmployeeDetailHref(employee.id)}
             copyText={formatEmployeeListRowCopyText(employee)}
             onEdit={onEdit}

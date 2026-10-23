@@ -1,20 +1,20 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+import { RedirectingState } from "@/components/states/async-states";
 import { internalHref } from "@/lib/navigation/nav-path-match";
 
 export default function AssetMasterRetiredRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(internalHref("/asset-register/assestclass/"));
+    navigateToEntityShell(router, internalHref("/asset-register/assestclass/"), "/asset-register/assestclass/", 'replace');
   }, [router]);
 
   return (
-    <div className="mx-auto max-w-lg p-8 text-center text-sm text-gray-600">
-      Asset Master has been merged into Asset Class. Redirecting…
-    </div>
+    <RedirectingState label="Asset Master has been merged into Asset Class. Redirecting…" />
   );
 }

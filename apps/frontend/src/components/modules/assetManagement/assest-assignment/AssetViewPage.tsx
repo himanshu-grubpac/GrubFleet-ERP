@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -7,6 +8,10 @@ import { FileText, PackageSearch, Plus } from "lucide-react";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import {
+    LoadingState,
+    RedirectingState,
+} from "@/components/states/async-states";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
@@ -15,6 +20,7 @@ import {
     sanitizeTextValue,
 } from "@/lib/forms/restricted-input";
 import { useAuth } from "@/providers/auth-provider";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { assetAssignmentQueryOptions } from "@/lib/query/asset-assignment-query-options";
 import { invalidateAssetAssignmentCaches } from "@/lib/query/invalidate-asset-assignment-caches";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
@@ -29,7 +35,7 @@ import {
 import { fetchAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
 import {
     bulkAssignAssetRegisterVehiclesApi,
-    fetchAssignableLeaseContractsForVehicleApi,
+    fetchAllAssignableLeaseContractsForVehicleApi,
     unassignAssetRegisterVehicleApi,
     type AssignableLeaseContractForVehicle,
 } from "@/lib/api/asset-register/assignments";
@@ -131,7 +137,6 @@ export default function AssetAssignmentViewPage() {
     const [handoverLocation, setHandoverLocation] = useState("");
     const [assignNotes, setAssignNotes] = useState("");
     const [confirmOpen, setConfirmOpen] = useState(false);
-    const [isLeavingAssignFlow, setIsLeavingAssignFlow] = useState(false);
     const assignSucceededRef = useRef(false);
 
     const vehicleQuery = useQuery({
@@ -170,12 +175,10 @@ export default function AssetAssignmentViewPage() {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssignableLeaseContractsForVehicleApi({
+            return fetchAllAssignableLeaseContractsForVehicleApi({
                 token,
                 organizationId,
                 vehicleId,
-                page: 1,
-                pageSize: 50,
             });
         },
         enabled:
@@ -196,12 +199,10 @@ export default function AssetAssignmentViewPage() {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssignableLeaseContractsForVehicleApi({
+            return fetchAllAssignableLeaseContractsForVehicleApi({
                 token,
                 organizationId,
                 vehicleId,
-                page: 1,
-                pageSize: 50,
                 search: debouncedContractSearch || undefined,
                 organisationClientId: clientFilterId || undefined,
             });
@@ -230,7 +231,10 @@ export default function AssetAssignmentViewPage() {
         ];
     }, [catalogContractsQuery.data?.items]);
 
-    const contractItems = contractsQuery.data?.items ?? [];
+    const contractItems = useMemo(
+        () => contractsQuery.data?.items ?? [],
+        [contractsQuery.data?.items],
+    );
     const hiddenOtherActiveCount =
         contractsQuery.data?.hiddenOtherActiveCount ?? 0;
     const showNoDemandEmptyState =
@@ -249,7 +253,7 @@ export default function AssetAssignmentViewPage() {
         );
 
     useEffect(() => {
-        if (isLeavingAssignFlow || assignSucceededRef.current) {
+        if (assignSucceededRef.current) {
             return;
         }
         if (vehicleQuery.isError) {
@@ -259,7 +263,7 @@ export default function AssetAssignmentViewPage() {
         if (vehicle && vehicle.operationalStatus !== "available") {
             router.replace(ASSET_ASSIGN_LIST_HREF);
         }
-    }, [vehicle, vehicleQuery.isError, isLeavingAssignFlow, router]);
+    }, [vehicle, vehicleQuery.isError, router]);
 
     useEffect(() => {
         if (showNoDemandEmptyState) {
@@ -325,7 +329,6 @@ export default function AssetAssignmentViewPage() {
         },
         onSuccess: async (result) => {
             assignSucceededRef.current = true;
-            setIsLeavingAssignFlow(true);
             setConfirmOpen(false);
 
             const contractId =
@@ -347,13 +350,6 @@ export default function AssetAssignmentViewPage() {
                 "Contract";
             const remainingToAssignOnLine = result.remainingToAssignOnLine;
 
-            await invalidateAssetAssignmentCaches(
-                queryClient,
-                organizationId,
-                contractId,
-            );
-            router.replace(ASSET_ASSIGN_LIST_HREF);
-
             showVehicleAssignedToLeaseToast({
                 fleetCode,
                 clientName,
@@ -361,7 +357,7 @@ export default function AssetAssignmentViewPage() {
                 remainingToAssignOnLine,
                 onViewContract: contractId
                     ? () => {
-                          router.push(fleetLeaseContractDetailHref(contractId));
+                          navigateToEntityShell(router, fleetLeaseContractDetailHref(contractId), contractId, 'push');
                       }
                     : undefined,
                 onUndo:
@@ -390,6 +386,13 @@ export default function AssetAssignmentViewPage() {
                           }
                         : undefined,
             });
+
+            await invalidateAssetAssignmentCaches(
+                queryClient,
+                organizationId,
+                contractId,
+            );
+            router.replace(ASSET_ASSIGN_LIST_HREF);
         },
         onError: (error: Error) => {
             showErrorToast(getApiErrorMessage(error, VEHICLE_ASSIGN_ERROR));
@@ -397,22 +400,17 @@ export default function AssetAssignmentViewPage() {
         });
 
     if (
-        isLeavingAssignFlow ||
         assignSucceededRef.current ||
         (vehicleQuery.isError && !vehicleQuery.isLoading) ||
         (vehicle && vehicle.operationalStatus !== "available")
     ) {
-        return (
-            <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
-                Returning to assignment list…
-                    </div>
-        );
+        return <RedirectingState />;
     }
 
     if (isAuthLoading || vehicleQuery.isLoading || !vehicle) {
         return (
-            <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
-                Loading vehicle…
+            <div className="min-h-full bg-gray-50 px-5 py-4">
+                <LoadingState label="Loading vehicle…" />
             </div>
         );
     }
@@ -642,6 +640,7 @@ export default function AssetAssignmentViewPage() {
                                 <input
                                     id="handover-date"
                                     type="date"
+                                    max={localTodayIsoDate()}
                                     value={handoverDate}
                                     onChange={(event) =>
                                         setHandoverDate(event.target.value)

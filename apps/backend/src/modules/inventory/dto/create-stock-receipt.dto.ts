@@ -10,6 +10,10 @@ import {
   Min,
 } from 'class-validator';
 import {
+  IsIsoDateOnOrAfterProperty,
+  IsNotAfterLocalToday,
+} from '../../../common/decorators/local-calendar-date-bounds.decorator';
+import {
   INVENTORY_STOCK_RECEIPT_BATCH_LOT_REF_MAX,
   INVENTORY_STOCK_RECEIPT_NOTES_MAX,
   INVENTORY_STOCK_RECEIPT_PURCHASE_INVOICE_REF_MAX,
@@ -46,13 +50,21 @@ export class CreateStockReceiptDto {
   @IsUUID()
   financeInvoiceId?: string;
 
-  @ApiProperty({ format: 'date' })
+  @ApiProperty({
+    format: 'date',
+    description: 'Must not be after today',
+  })
   @IsDateString({ strict: true })
+  @IsNotAfterLocalToday()
   purchaseDate!: string;
 
-  @ApiPropertyOptional({ format: 'date' })
+  @ApiPropertyOptional({
+    format: 'date',
+    description: 'Must be on or after purchaseDate',
+  })
   @IsOptional()
   @IsDateString({ strict: true })
+  @IsIsoDateOnOrAfterProperty('purchaseDate')
   expiryDate?: string;
 
   @ApiProperty()

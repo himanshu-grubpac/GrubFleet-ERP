@@ -21,11 +21,14 @@ import CreateClientPage, {
 } from "@/components/modules/organization/clients/CreateClientPage";
 import {
     createOrganisationClientFromForm,
-    organisationClientsQueryKey,
     requireLinkedFleetClientId,
 } from "@/lib/api/organisation/clients";
 import { ApiClientError } from "@/lib/api/client";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+    invalidateClientCaches,
+    invalidateLeaseDomainCaches,
+} from "@/lib/query/invalidate-domain-caches";
 
 import {
     createLeaseContract,
@@ -244,12 +247,11 @@ export default function NewLeaseContractPage() {
 
     const invalidateLeaseQueries = useCallback(
         async (contractId: string) => {
-            await queryClient.invalidateQueries({
-                queryKey: ["lease-contracts-list", organizationId],
-            });
-            await queryClient.invalidateQueries({
-                queryKey: ["lease-contract", organizationId, contractId],
-            });
+            await invalidateLeaseDomainCaches(
+                queryClient,
+                organizationId,
+                contractId,
+            );
         },
         [organizationId, queryClient],
     );
@@ -437,17 +439,7 @@ export default function NewLeaseContractPage() {
                 },
             );
             const fleetClientId = requireLinkedFleetClientId(created);
-            await Promise.all([
-                queryClient.invalidateQueries({
-                    queryKey: organisationClientsQueryKey(organizationId),
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ["organization", "clients"],
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ["fleet-leasing-clients", organizationId],
-                }),
-            ]);
+            await invalidateClientCaches(queryClient);
 
             await handleClientCreated({
                 id: fleetClientId,

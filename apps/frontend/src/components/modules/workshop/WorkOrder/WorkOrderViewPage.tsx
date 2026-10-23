@@ -1,9 +1,12 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
 import { AlertCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateWorkOrderCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -11,7 +14,6 @@ import { ApiClientError } from "@/lib/api/client";
 import {
   fetchWorkshopWorkOrderApi,
   updateWorkshopWorkOrderStatusApi,
-  type WorkshopWorkOrderDetail,
   type WorkshopWorkOrderStatus,
 } from "@/lib/api/workshop/work-orders";
 import { formatInrFromMinor } from "@/lib/format/money-format";
@@ -57,9 +59,8 @@ function statusBadgeClass(status: WorkshopWorkOrderStatus): string {
 
 export default function WorkOrderViewPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  const workOrderId = searchParams.get("workOrderId")?.trim() ?? "";
+  const workOrderId = useWorkshopEntityId("workOrderId");
 
   const {
     token,
@@ -98,12 +99,7 @@ export default function WorkOrderViewPage() {
       });
     },
     onSuccess: (detail, action) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "work-order", organizationId, workOrderId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "work-orders", organizationId],
-      });
+      void invalidateWorkOrderCaches(queryClient);
       if (action === "start") {
         showSuccessToast(`Work order ${detail.workOrderNumber} started`);
       } else if (action === "close") {
@@ -254,7 +250,7 @@ export default function WorkOrderViewPage() {
                   type="button"
                   variant="outline"
                   onClick={() =>
-                    router.push(workshopWorkOrderEditHref(workOrder.id))
+                    navigateToEntityShell(router, workshopWorkOrderEditHref(workOrder.id), workOrder.id, 'push')
                   }
                   className="h-8 px-3 text-[12px] font-medium"
                 >

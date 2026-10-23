@@ -162,6 +162,24 @@ export async function fetchAllActiveAssetRegisterVehiclesApi(params: {
   );
 }
 
+/** Active vehicles currently available (sale invoice picker). */
+export async function fetchAllAvailableActiveAssetRegisterVehiclesApi(params: {
+  organizationId: string;
+  token: string;
+}): Promise<AssetRegisterVehicleListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchAssetRegisterVehiclesApi({
+        ...params,
+        page,
+        pageSize,
+        status: "active",
+        operationalStatus: "available",
+      }),
+    ASSET_REGISTER_VEHICLE_CATALOG_PAGE_SIZE,
+  );
+}
+
 export type AssetRegisterVehicleLeaseHistoryItem = {
   id: string;
   date: string;
@@ -239,8 +257,16 @@ export async function updateAssetRegisterVehicleApi(params: {
   token: string;
   id: string;
   body: Partial<
-    Omit<CreateAssetRegisterVehiclePayload, "organizationId" | "assetClassId">
-  >;
+    Omit<
+      CreateAssetRegisterVehiclePayload,
+      "organizationId" | "assetClassId" | "purchaseInvoiceId"
+    >
+  > & {
+    /** `null` clears a linked finance purchase invoice. Omit keeps the current link. */
+    purchaseInvoiceId?: string | null;
+    /** `null` clears the insurance supplier. Omit keeps the current supplier. */
+    insuranceSupplierId?: string | null;
+  };
 }): Promise<AssetRegisterVehicleDetail> {
   const q = new URLSearchParams({ organizationId: params.organizationId });
   return apiFetch<AssetRegisterVehicleDetail>(

@@ -1,11 +1,13 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect } from "react";
+import { RedirectingState } from "@/components/states/async-states";
 import { useParams, useRouter } from "next/navigation";
 
 import { workshopAmcScheduleEditHref } from "@/lib/navigation/workshop-static-routes";
 
-/** Legacy path — redirect to static-export schedule edit (?scheduleId=). */
+/** Legacy path � redirect to static-export schedule edit (?scheduleId=). */
 export default function WorkshopAmcScheduleLegacyEditRedirectPage() {
   const params = useParams();
   const router = useRouter();
@@ -16,12 +18,8 @@ export default function WorkshopAmcScheduleLegacyEditRedirectPage() {
       router.replace("/workshop/amc-maintenance/");
       return;
     }
-    router.replace(workshopAmcScheduleEditHref(scheduleId));
+    navigateToEntityShell(router, workshopAmcScheduleEditHref(scheduleId), scheduleId, 'replace');
   }, [scheduleId, router]);
 
-  return (
-    <div className="flex min-h-[40vh] items-center justify-center text-sm font-medium text-slate-500">
-      Redirecting…
-    </div>
-  );
+  return <RedirectingState />;
 }

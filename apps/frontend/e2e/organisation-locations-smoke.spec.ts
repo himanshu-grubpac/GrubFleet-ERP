@@ -17,7 +17,7 @@ test.describe("Organisation locations smoke", () => {
     const organizationId = me.memberships[0]?.organizationId;
     expect(organizationId).toBeTruthy();
 
-    await page.goto("/organization/locations");
+    await page.goto("/organisation/locations");
     await expect(
       page.getByRole("heading", { name: /^locations$/i }),
     ).toBeVisible({ timeout: 60_000 });
@@ -56,13 +56,13 @@ test.describe("Organisation locations smoke", () => {
     );
     expect(created.id).toBeTruthy();
 
-    await page.goto("/organization/locations/create");
+    await page.goto("/organisation/locations/create");
     await expect(
       page.getByRole("heading", { name: /add location/i }),
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByLabel(/location name/i)).toBeVisible();
 
-    await page.goto("/organization/locations");
+    await page.goto("/organisation/locations");
     await expect(page.getByText(locationName)).toBeVisible({
       timeout: 60_000,
     });

@@ -5,6 +5,7 @@ import { Suspense, useCallback, useEffect, useState } from "react";
 
 import LayoutHeader from "@/components/layout/LayoutHeader";
 import ModuleSubHeader from "@/components/layout/ModuleSubHeader";
+import { PortalSearchHighlightLayer } from "@/components/layout/PortalSearchHighlightLayer";
 import { Sidebar } from "@/components/layout/sidebar";
 
 import {
@@ -78,7 +79,9 @@ export function AppShell({
 
         {/* Page Content */}
         <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-y-contain">
-          {children}
+          <Suspense fallback={children}>
+            <PortalSearchHighlightLayer>{children}</PortalSearchHighlightLayer>
+          </Suspense>
         </main>
       </div>
     </div>

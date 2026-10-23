@@ -4,7 +4,7 @@
  * Scope: apps/frontend/src/components/modules/ (recursive .tsx)
  *
  * Allowed without allowlist entry:
- * - type date | checkbox | radio | hidden | file (matches field-kind APPROVED_RAW_INPUT_TYPES)
+ * - type date | month | checkbox | radio | hidden | file (matches field-kind APPROVED_RAW_INPUT_TYPES)
  * - readOnly / read-only mirrors (tabIndex={-1} optional)
  * - `<textarea>` with readOnly
  *
@@ -30,6 +30,7 @@ const allowlistPath = path.join(
 
 const APPROVED_TYPES = new Set([
   'date',
+  'month',
   'checkbox',
   'radio',
   'hidden',

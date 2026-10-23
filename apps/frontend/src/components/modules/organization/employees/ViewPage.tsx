@@ -1,10 +1,12 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
 import { organisationEmployeeEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateEmployeeCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -25,6 +27,10 @@ import { EMPLOYMENT_TYPE_LABELS } from "./types";
 import type { DeactivateReasonType, EmployeeRecord } from "./types";
 import { formatEmployeeDateForForm } from "./employeeFormMappers";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 
 export default function EmployeeViewPage() {
   const router = useRouter();
@@ -78,12 +84,7 @@ export default function EmployeeViewPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "employee", organizationId, employeeId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "employees"],
-      });
+      void invalidateEmployeeCaches(queryClient);
       setActivateOpen(false);
       setShowDeactivateModal(false);
       setStatusError(null);
@@ -106,7 +107,7 @@ export default function EmployeeViewPage() {
   if (isAuthLoading || employeeQuery.isLoading) {
     return (
       <div className="px-5 py-4">
-        <p className="text-sm text-gray-500">Loading employee...</p>
+        <DashboardPageLoadingShell label="Loading employee…" />
       </div>
     );
   }
@@ -114,18 +115,12 @@ export default function EmployeeViewPage() {
   if (employeeQuery.isError || !employeeQuery.data) {
     return (
       <div className="px-5 py-4">
-        <p className="text-sm text-gray-500">
-          {employeeQuery.error instanceof ApiClientError
-            ? employeeQuery.error.message
-            : "Employee not found."}
-        </p>
-        <button
-          type="button"
-          onClick={() => void employeeQuery.refetch()}
-          className="mt-2 text-sm text-gray-600 underline"
-        >
-          Try again
-        </button>
+        <DashboardDetailErrorShell
+          title="Failed to load employee"
+          error={employeeQuery.error}
+          fallbackMessage="Employee not found."
+          onRetry={() => void employeeQuery.refetch()}
+        />
       </div>
     );
   }
@@ -154,7 +149,7 @@ export default function EmployeeViewPage() {
 
   const handleEdit = () => {
     if (!isActive || !canUpdate) return;
-    router.push(organisationEmployeeEditHref(employee.id));
+    navigateToEntityShell(router, organisationEmployeeEditHref(employee.id), employee.id, 'push');
   };
 
   const handleOpenDeactivate = () => {

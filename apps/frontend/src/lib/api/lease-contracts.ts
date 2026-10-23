@@ -1,4 +1,8 @@
 import { apiFetch } from './client';
+import {
+    DEFAULT_API_CATALOG_PAGE_SIZE,
+    fetchAllPaginatedItems,
+} from './fetch-all-paginated';
 import type { ListSortParams } from '@/lib/query/list-sort-params';
 import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
 import { normalizeDecimalMoneyForLeaseApi } from '@/lib/format/money-format';
@@ -573,6 +577,22 @@ export async function fetchLeaseContractsList(
     );
 }
 
+export async function fetchAllLeaseContractsList(
+    token: string,
+    organizationId: string,
+    options: Omit<LeaseContractsListOptions, 'page' | 'pageSize'> = {},
+): Promise<LeaseContractListItem[]> {
+    return fetchAllPaginatedItems(
+        (page, pageSize) =>
+            fetchLeaseContractsList(token, organizationId, {
+                ...options,
+                page,
+                pageSize,
+            }),
+        DEFAULT_API_CATALOG_PAGE_SIZE,
+    );
+}
+
 export interface RenewLeaseContractInput {
     newTermMonths: number;
     newStartDate: string;
@@ -1052,6 +1072,34 @@ export async function fetchFleetClients(
                     organizationId,
             },
         },
+    );
+}
+
+export async function fetchAllFleetClients(
+    token: string,
+    organizationId: string,
+    search?: string,
+): Promise<FleetClientListItem[]> {
+    return fetchAllPaginatedItems(
+        async (page, pageSize) => {
+            const response = await fetchFleetClients(token, organizationId, {
+                page,
+                pageSize,
+                search,
+            });
+            const items = response.items ?? [];
+            const total = response.total;
+            return {
+                items,
+                page: response.page ?? page,
+                pageSize: response.pageSize ?? pageSize,
+                total,
+                totalPages:
+                    response.totalPages ??
+                    (pageSize > 0 ? Math.ceil(total / pageSize) : 1),
+            };
+        },
+        DEFAULT_API_CATALOG_PAGE_SIZE,
     );
 }
 

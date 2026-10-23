@@ -20,7 +20,7 @@ export default function ModuleSubHeader() {
         ? resolveFleetBreadcrumbs(pathname, searchParams)
         : pathname.startsWith("/inventory")
             ? resolveInventoryBreadcrumbs(pathname, searchParams)
-            : pathname.startsWith("/organization")
+            : pathname.startsWith("/organisation")
                 ? resolveOrganizationBreadcrumbs(pathname, searchParams)
                 : pathname.startsWith("/finance")
                     ? resolveFinanceBreadcrumbs(pathname, searchParams)

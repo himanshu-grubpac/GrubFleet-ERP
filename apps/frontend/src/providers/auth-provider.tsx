@@ -12,6 +12,7 @@ import React, {
 import { useRouter } from "next/navigation";
 import { AuthBootstrapLoader } from "@/components/states/auth-bootstrap-loader";
 import { loginApi, refreshApi, logoutApi, getMeApi } from "@/lib/api/auth";
+import { invalidateLocalSession } from "@/lib/api/client";
 import { ApiClientError } from "@/lib/api/client";
 import type { AuthMeUser, AuthMeResponse } from "@grubpac/shared-types";
 
@@ -198,6 +199,7 @@ export function GrubpacAuthProvider({
       applyMeData(me);
       return true;
     } catch {
+      invalidateLocalSession();
       return false;
     }
   }, [applyMeData]);
@@ -225,7 +227,11 @@ export function GrubpacAuthProvider({
         return false;
       }
       if (err instanceof ApiClientError && err.status === 401) {
-        return refreshSession();
+        const refreshed = await refreshSession();
+        if (!refreshed && mountedRef.current) {
+          invalidateLocalSession();
+        }
+        return refreshed;
       }
       return false;
     } finally {

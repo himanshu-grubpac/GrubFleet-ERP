@@ -276,6 +276,19 @@ describe('Workshop module (integration)', () => {
         .expect(201);
       const laborJobCardId = (cardRes.body as { id: string }).id;
 
+      await request(app.getHttpServer())
+        .post('/api/v1/workshop/work-orders')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vehicleId,
+          laborJobCardId,
+          issueDescription: 'Integration work order',
+          expectedCompletionDate: '2000-01-01',
+        })
+        .expect(400);
+
       const res = await request(app.getHttpServer())
         .post('/api/v1/workshop/work-orders')
         .set('Authorization', `Bearer ${accessToken}`)
@@ -372,6 +385,52 @@ describe('Workshop module (integration)', () => {
       }
 
       expect(detailRes.body).toBeDefined();
+    });
+
+    it('clears assigned technician when PATCH sends null', async () => {
+      if (!vehicleId || !technicianEmployeeId) {
+        return;
+      }
+      const created = await request(app.getHttpServer())
+        .post('/api/v1/workshop/work-orders')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vehicleId,
+          technicianEmployeeId,
+          issueDescription: 'Clear technician',
+          expectedCompletionDate: '2027-06-01',
+        })
+        .expect(201);
+      const workOrderId = (created.body as { id: string }).id;
+      expect(
+        (created.body as { technicianEmployeeId: string | null })
+          .technicianEmployeeId,
+      ).toBe(technicianEmployeeId);
+
+      const cleared = await request(app.getHttpServer())
+        .patch(`/api/v1/workshop/work-orders/${workOrderId}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ technicianEmployeeId: null })
+        .expect(200);
+      expect(
+        (cleared.body as { technicianEmployeeId: string | null })
+          .technicianEmployeeId,
+      ).toBeNull();
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/workshop/work-orders/${workOrderId}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      expect(
+        (detail.body as { technicianEmployeeId: string | null })
+          .technicianEmployeeId,
+      ).toBeNull();
     });
 
     it('returns 403 or 404 on work order GET with foreign org (IDOR)', async () => {

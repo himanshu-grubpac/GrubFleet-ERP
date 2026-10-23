@@ -1,8 +1,10 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateLeaseDomainCaches } from "@/lib/query/invalidate-domain-caches";
 import { Info } from "lucide-react";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -10,7 +12,6 @@ import DetailField from "@/components/common/DetailField";
 import OrganizationDetailCard, {
   OrganizationDetailFieldGrid,
 } from "@/components/common/OrganizationDetailCard";
-import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatCalendarDateEnIn } from "@/lib/format/date-format";
@@ -128,6 +129,7 @@ export default function RenewLeaseContractPage() {
       const startDateError = validateDate(newStartDate, {
         label: "New start date",
         required: true,
+        minDate: detail?.endDate || undefined,
       });
 
       if (startDateError) {
@@ -136,7 +138,7 @@ export default function RenewLeaseContractPage() {
     }
 
     return errors;
-  }, [newTermMonths, newStartDate]);
+  }, [detail?.endDate, newTermMonths, newStartDate]);
 
   const validationSummary = useMemo(
     () => Object.values(validationErrors),
@@ -187,17 +189,7 @@ export default function RenewLeaseContractPage() {
     },
 
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["renewals-extensions-list", organizationId],
-      });
-
-      void queryClient.invalidateQueries({
-        queryKey: ["lease-contracts-list", organizationId],
-      });
-
-      void queryClient.invalidateQueries({
-        queryKey: ["lease-contract", leaseId, organizationId],
-      });
+      void invalidateLeaseDomainCaches(queryClient, organizationId, leaseId);
 
       if (data.outcomeKind === "extension") {
         showLeaseContractExtendedToast();
@@ -205,7 +197,7 @@ export default function RenewLeaseContractPage() {
         showLeaseContractRenewedToast();
       }
 
-      router.replace(fleetLeaseContractDetailHref(leaseId));
+      navigateToEntityShell(router, fleetLeaseContractDetailHref(leaseId), leaseId, 'replace');
     },
 
     onError: (error) => {
@@ -402,6 +394,7 @@ export default function RenewLeaseContractPage() {
                   <input
                     id="renew-start-date"
                     type="date"
+                    min={detail?.endDate || undefined}
                     value={newStartDate}
                     onChange={(event) => {
                       setNewStartDate(event.target.value);

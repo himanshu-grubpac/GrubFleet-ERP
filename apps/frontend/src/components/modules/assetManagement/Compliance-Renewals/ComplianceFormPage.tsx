@@ -2,15 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateVehicleCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import { useAuth } from "@/providers/auth-provider";
-import { parseRupeeInputToMajorNumber } from "@/lib/format/money-format";
 import { ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import {
     COMPLIANCE_RENEWAL_SAVE_ERROR,
@@ -23,6 +24,7 @@ import {
 } from "@/lib/api/asset-register/compliance";
 import {
     formatAssetRegisterIsoDate,
+    toRenewAssetRegisterCompliancePayload,
     validateComplianceRenewFormFields,
     validateComplianceRenewFormForSubmit,
     type ComplianceRenewalTypeUi,
@@ -111,47 +113,27 @@ export default function RenewCompliancePage() {
         }
         : undefined;
     const renewMutation = useMutation({
-        mutationFn: async (input: {
-            endDate: string;
-            premium?: number;
-        }) => {
-            if (!token || !organizationId || !vehicleId || !detailQuery.data) {
+        mutationFn: async (input: ReturnType<
+            typeof toRenewAssetRegisterCompliancePayload
+        >) => {
+            if (!token || !organizationId || !vehicleId) {
                 throw new Error("Missing auth context");
-            }
-            const type =
-                renewalType === "Insurance"
-                    ? "insurance"
-                    : renewalType === "Registration"
-                        ? "registration"
-                        : "warranty";
-
-            const startDate =
-                renewalType === "Insurance"
-                    ? detailQuery.data.insurance?.startDate
-                    : renewalType === "Registration"
-                        ? detailQuery.data.registration?.startDate
-                        : detailQuery.data.warranty?.startDate;
-
-            if (!startDate) {
-                throw new Error(
-                    `A valid start date is missing for ${renewalType.toLowerCase()}.`,
-                );
             }
 
             return renewAssetRegisterComplianceApi({
                 token,
                 organizationId,
                 vehicleId,
-                type,
-                startDate,
+                type: input.type,
+                startDate: input.startDate,
                 endDate: input.endDate,
-                insurancePremium: input.premium,
+                insurancePremium: input.insurancePremium,
+                policyNumber: input.policyNumber,
+                registrationReference: input.registrationReference,
             });
         },
         onSuccess: () => {
-            void queryClient.invalidateQueries({
-                queryKey: ["asset-register", "compliance"],
-            });
+            void invalidateVehicleCaches(queryClient);
             showComplianceRenewalSavedToast();
             router.push("/asset-register/compliance-renewals");
         },
@@ -189,6 +171,16 @@ export default function RenewCompliancePage() {
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
 
+    useEffect(() => {
+        if (!detailQuery.isSuccess || !detailQuery.data) return;
+        setPolicyNumber(detailQuery.data.insurance?.policyNumber?.trim() ?? "");
+        setRegistrationReference(
+            detailQuery.data.registration?.registrationReference?.trim() ?? "",
+        );
+        // Hydrate once per vehicle load; do not overwrite while the user types.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [vehicleId, detailQuery.isSuccess]);
+
     /* ---------------------------------------------------------------------- */
     /* Input Classes                                                          */
     /* ---------------------------------------------------------------------- */
@@ -206,6 +198,22 @@ export default function RenewCompliancePage() {
         }
         return detailQuery.data.warranty?.startDate;
     }, [detailQuery.data, renewalType]);
+
+    const newExpiryMin = useMemo(() => {
+        const today = localTodayIsoDate();
+        const currentExpiry =
+            renewalType === "Insurance"
+                ? detailQuery.data?.insurance?.endDate
+                : renewalType === "Registration"
+                  ? detailQuery.data?.registration?.endDate
+                  : detailQuery.data?.warranty?.endDate;
+        const basis = (
+            currentExpiry?.trim() ||
+            credentialStartDate?.trim() ||
+            ""
+        ).slice(0, 10);
+        return basis > today ? basis : today;
+    }, [credentialStartDate, detailQuery.data, renewalType]);
 
     const liveErrors = useMemo(
         () =>
@@ -312,17 +320,25 @@ export default function RenewCompliancePage() {
             return;
         }
 
+        if (!credentialStartDate) {
+            isSubmittingRef.current = false;
+            return;
+        }
+
         try {
             setIsSaving(true);
-            const premiumValue =
-                renewalType === "Insurance"
-                    ? parseRupeeInputToMajorNumber(premium)
-                    : undefined;
+            const payload = toRenewAssetRegisterCompliancePayload(
+                {
+                    renewalType,
+                    newExpiryDate: endDate,
+                    premium,
+                    policyNumber,
+                    registrationReference,
+                },
+                { startDate: credentialStartDate },
+            );
 
-            await renewMutation.mutateAsync({
-                endDate,
-                premium: premiumValue,
-            });
+            await renewMutation.mutateAsync(payload);
         } catch {
             setError("Failed to save renewal. Please try again.");
         } finally {
@@ -529,6 +545,7 @@ export default function RenewCompliancePage() {
                                 <input
                                     id="new-expiry-date"
                                     type="date"
+                                    min={newExpiryMin}
                                     value={newExpiryDate}
                                     onChange={(event) => {
                                         setNewExpiryDate(event.target.value);

@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
@@ -8,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateAmcTierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
@@ -127,7 +129,7 @@ export default function AmcTierDetailsPage() {
   useEffect(() => {
     if (!tier || !isEditRoute) return;
     if (tier.status === "inactive") {
-      router.replace(workshopAmcTierDetailHref(tierId));
+      navigateToEntityShell(router, workshopAmcTierDetailHref(tierId), tierId, 'replace');
     }
   }, [tier, isEditRoute, tierId, router]);
 
@@ -159,11 +161,9 @@ export default function AmcTierDetailsPage() {
       return updateWorkshopAmcTierApi(token, tierId, payload);
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-      });
+      void invalidateAmcTierCaches(queryClient);
       showSuccessToast(`${data.name} was updated`);
-      router.push(workshopAmcTierDetailHref(tierId));
+      navigateToEntityShell(router, workshopAmcTierDetailHref(tierId), tierId, 'push');
     },
     onError: (error: Error) => {
       const message =
@@ -191,12 +191,7 @@ export default function AmcTierDetailsPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tier", organizationId, tierId],
-      });
+      void invalidateAmcTierCaches(queryClient);
       setActivateOpen(false);
       setDeactivateOpen(false);
       showSuccessToast(
@@ -274,14 +269,7 @@ export default function AmcTierDetailsPage() {
           return [...list, row];
         },
       );
-      void queryClient.invalidateQueries({
-        queryKey: subscribersKey,
-        refetchType: "none",
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-        refetchType: "none",
-      });
+      void invalidateAmcTierCaches(queryClient);
       showSuccessToast(
         `${detail.fleetCode} was subscribed to ${tier?.name ?? "tier"}`,
       );
@@ -434,7 +422,7 @@ export default function AmcTierDetailsPage() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => router.push(workshopAmcTierDetailHref(tierId))}
+            onClick={() => navigateToEntityShell(router, workshopAmcTierDetailHref(tierId), tierId, 'push')}
           >
             Cancel
           </Button>
@@ -493,7 +481,7 @@ export default function AmcTierDetailsPage() {
               type="button"
               variant="outline"
               className="h-8 text-xs"
-              onClick={() => router.push(workshopAmcTierEditHref(tierId))}
+              onClick={() => navigateToEntityShell(router, workshopAmcTierEditHref(tierId), tierId, 'push')}
             >
               Edit tier
             </Button>
@@ -590,7 +578,7 @@ export default function AmcTierDetailsPage() {
                   type="button"
                   className="text-xs font-medium text-[#FE5720] hover:underline"
                   onClick={() =>
-                    router.push(workshopAmcSubscriberDetailHref(row.subscriberCode))
+                    navigateToEntityShell(router, workshopAmcSubscriberDetailHref(row.subscriberCode), row.subscriberCode, 'push')
                   }
                 >
                   View

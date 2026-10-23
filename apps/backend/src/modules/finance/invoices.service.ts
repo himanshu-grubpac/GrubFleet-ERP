@@ -1,3 +1,4 @@
+import { getLocalCalendarDateToday } from '@grubpac/validation';
 import {
   BadRequestException,
   Inject,
@@ -682,6 +683,15 @@ export class InvoicesService {
     }
 
     const paymentDate = dto.paymentDate.slice(0, 10);
+    const invoiceDate = inv.invoiceDate.slice(0, 10);
+    if (paymentDate > getLocalCalendarDateToday()) {
+      throw new BadRequestException('paymentDate must not be after today');
+    }
+    if (paymentDate < invoiceDate) {
+      throw new BadRequestException(
+        'paymentDate must be on or after the invoice date',
+      );
+    }
     const newPaid = paid + dto.amountMinor;
     const newStatus: FinanceInvoiceStatus =
       newPaid >= inv.totalAmountMinor

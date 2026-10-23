@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 import DashboardTable, {
   type DashboardColumn,
 } from "@/components/dashboard/DashboardTable";
@@ -223,9 +225,7 @@ export default function AssetClassesPage() {
       });
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "asset-classes"],
-      });
+      void invalidateAssetClassCaches(queryClient);
 
       setDeactivateTarget(null);
       setActivateTarget(null);
@@ -279,7 +279,7 @@ export default function AssetClassesPage() {
 
   const handleEdit = (assetClass: AssetClass) => {
     if (!canUpdate || assetClass.status !== "active") return;
-    router.push(assetRegisterAssetClassEditHref(assetClass.id));
+    navigateToEntityShell(router, assetRegisterAssetClassEditHref(assetClass.id), assetClass.id, 'push');
   };
 
   const handleClearFilters = () => {
@@ -469,6 +469,7 @@ export default function AssetClassesPage() {
             <DashboardTableActions
               status={assetClass.status}
               locationId={assetClass.id}
+              navigationEntityId={assetClass.id}
               viewHref={assetRegisterAssetClassDetailHref(assetClass.id)}
               copyText={[
                 `Asset Class ID: ${assetClass.id}`,

@@ -246,6 +246,15 @@ describe('Asset Register — asset classes (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 when manufacturing year is after the current year', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/asset-classes')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildAssetClassCreatePayload({ manufacturingYear: 2099 }))
+        .expect(400);
+    });
+
     it('returns 400 for invalid vehicleType on create', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/asset-register/asset-classes')

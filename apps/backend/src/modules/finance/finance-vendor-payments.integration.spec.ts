@@ -174,6 +174,22 @@ describe('Finance vendor payments (integration)', () => {
         .expect(403);
     });
 
+    it('returns 400 when payment date is before the invoice date', async () => {
+      const inv = await createPurchaseInvoice(5000);
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/vendor-payments')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          purchaseInvoiceId: inv.id,
+          amountMinor: 1000,
+          paymentDate: '2026-05-01',
+          paymentMethod: 'bank_transfer',
+        })
+        .expect(400);
+    });
+
     it('400 unknown field on create', async () => {
       const inv = await createPurchaseInvoice(5000);
       await request(app.getHttpServer())

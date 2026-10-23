@@ -1,8 +1,10 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -17,6 +19,7 @@ import {
   fetchWorkshopLaborJobCardApi,
   updateWorkshopLaborJobCardApi,
 } from "@/lib/api/workshop/labor-job-cards";
+import { invalidateLaborJobCardCaches } from "@/lib/query/invalidate-domain-caches";
 import {
   workshopLabourRateCardDetailHref,
   workshopLabourRateCardListHref,
@@ -37,8 +40,8 @@ import { useAuth } from "@/providers/auth-provider";
 
 export default function CreateLaborJobCardForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const editCardId = searchParams.get("laborJobCardId")?.trim() ?? "";
+  const queryClient = useQueryClient();
+  const editCardId = useWorkshopEntityId("laborJobCardId");
   const isEditMode = editCardId.length > 0;
   const {
     token,
@@ -75,7 +78,7 @@ export default function CreateLaborJobCardForm() {
     const detail = existingQuery.data;
     if (!detail || !isEditMode) return;
     if (detail.status === "inactive") {
-      router.replace(workshopLabourRateCardDetailHref(editCardId));
+      navigateToEntityShell(router, workshopLabourRateCardDetailHref(editCardId), editCardId, 'replace');
       return;
     }
     setName(detail.name);
@@ -132,6 +135,7 @@ export default function CreateLaborJobCardForm() {
       return createWorkshopLaborJobCardApi(token, payload);
     },
     onSuccess: (detail) => {
+      void invalidateLaborJobCardCaches(queryClient);
       showSuccessToast(
         isEditMode ? `${detail.name} was updated` : `${detail.name} was added`,
       );

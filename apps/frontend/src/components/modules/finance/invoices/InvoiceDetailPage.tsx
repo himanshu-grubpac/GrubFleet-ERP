@@ -1,18 +1,24 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import Link from "next/link";
+import { SecureEntityLink } from "@/components/ui/secure-entity-link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
 import DetailField from "@/components/common/DetailField";
 import OrganizationDetailCard, {
   OrganizationDetailFieldGrid,
 } from "@/components/common/OrganizationDetailCard";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
 import { useAuth } from "@/providers/auth-provider";
 import {
   cancelFinanceInvoiceApi,
@@ -65,10 +71,7 @@ export default function InvoiceDetailPage() {
     onSuccess: (detail) => {
       showFinanceInvoiceCancelledToast(detail.invoiceNumber);
       setCancelOpen(false);
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoice-detail", organizationId, invoiceId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
+      void invalidateFinanceInvoiceCaches(queryClient);
     },
     onError: (error) => showApiErrorToast(error, FINANCE_INVOICE_CANCEL_ERROR),
   });
@@ -79,7 +82,7 @@ export default function InvoiceDetailPage() {
     onSuccess: (result) => {
       showFinanceInvoiceRemovedToast(result.invoiceNumber);
       setRemoveOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
+      void invalidateFinanceInvoiceCaches(queryClient);
       router.push(financeInvoicesListHref);
     },
     onError: (error) => showApiErrorToast(error, FINANCE_INVOICE_REMOVE_ERROR),
@@ -97,7 +100,7 @@ export default function InvoiceDetailPage() {
   if (detailQuery.isLoading || authLoading) {
     return (
       <OrganizationViewLayout>
-        <p className="text-sm text-slate-500">Loading invoice…</p>
+        <DashboardPageLoadingShell label="Loading invoice…" />
       </OrganizationViewLayout>
     );
   }
@@ -105,7 +108,12 @@ export default function InvoiceDetailPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <OrganizationViewLayout>
-        <p className="text-sm text-red-700">Invoice not found.</p>
+        <DashboardDetailErrorShell
+          title="Failed to load invoice"
+          error={detailQuery.error}
+          fallbackMessage="Invoice not found."
+          onRetry={() => void detailQuery.refetch()}
+        />
       </OrganizationViewLayout>
     );
   }
@@ -148,7 +156,7 @@ export default function InvoiceDetailPage() {
               type="button"
               variant="secondary"
               onClick={() => {
-                window.location.href = editHref;
+                navigateToEntityShell(router, editHref, invoice.id);
               }}
             >
               Edit
@@ -158,7 +166,7 @@ export default function InvoiceDetailPage() {
             <Button
               type="button"
               onClick={() =>
-                router.push(financeInvoiceRecordPaymentHref(invoice.id))
+                navigateToEntityShell(router, financeInvoiceRecordPaymentHref(invoice.id), invoice.id, 'push')
               }
             >
               Record payment
@@ -240,12 +248,13 @@ export default function InvoiceDetailPage() {
                 className="rounded-md border border-slate-100 bg-slate-50 px-3 py-2"
               >
                 {summary.readOnly && p.paymentNumber ? (
-                  <Link
+                  <SecureEntityLink
                     href={financeVendorPaymentDetailHref(p.id)}
+                    entityId={p.id}
                     className="font-medium text-[#FE5720] hover:underline"
                   >
                     {p.paymentNumber}
-                  </Link>
+                  </SecureEntityLink>
                 ) : null}
                 {summary.readOnly && p.paymentNumber ? " — " : null}
                 {formatInrFromMinor(p.amountMinor)} on {p.paymentDate}

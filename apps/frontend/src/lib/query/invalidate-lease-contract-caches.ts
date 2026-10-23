@@ -38,6 +38,18 @@ export async function invalidateLeaseContractCaches(
         queryClient.invalidateQueries({
             queryKey: ["asset-register", "assignable-lease-contracts"],
         }),
+        queryClient.invalidateQueries({
+            queryKey: ["lease-contract"],
+        }),
+        queryClient.invalidateQueries({
+            queryKey: ["finance-billing-contracts"],
+        }),
+        queryClient.invalidateQueries({
+            queryKey: ["finance-client-statements"],
+        }),
+        queryClient.invalidateQueries({
+            queryKey: ["finance-client-statement-detail"],
+        }),
     ];
 
     if (contractId) {

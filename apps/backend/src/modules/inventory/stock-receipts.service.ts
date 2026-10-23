@@ -1,3 +1,4 @@
+import { getLocalCalendarDateToday } from '@grubpac/validation';
 import {
   BadRequestException,
   Injectable,
@@ -119,6 +120,7 @@ export class StockReceiptsService {
     if (!part.isActive) {
       throw new BadRequestException('Cannot receive stock for inactive part');
     }
+    this.assertStockReceiptDates(dto.purchaseDate, dto.expiryDate);
     const receiptNumber = await this.repo.nextReceiptNumber(dto.organizationId);
     const row = await this.repo.insertStockReceipt({
       organizationId: dto.organizationId,
@@ -153,6 +155,12 @@ export class StockReceiptsService {
       throw new BadRequestException(
         'Inactive stock receipt cannot be edited until reactivated',
       );
+    }
+    if (dto.purchaseDate !== undefined || dto.expiryDate !== undefined) {
+      const purchaseDate = dto.purchaseDate ?? existing.purchaseDate;
+      const expiryDate =
+        dto.expiryDate !== undefined ? dto.expiryDate : existing.expiryDate;
+      this.assertStockReceiptDates(purchaseDate, expiryDate);
     }
     const updated = await this.repo.updateStockReceipt(
       organizationId,
@@ -232,5 +240,20 @@ export class StockReceiptsService {
     });
 
     return this.enrichReceipt(organizationId, updated);
+  }
+
+  private assertStockReceiptDates(
+    purchaseDate: string,
+    expiryDate: string | null | undefined,
+  ) {
+    const purchase = purchaseDate.slice(0, 10);
+    if (purchase > getLocalCalendarDateToday()) {
+      throw new BadRequestException('purchaseDate must not be after today');
+    }
+    if (expiryDate && expiryDate.slice(0, 10) < purchase) {
+      throw new BadRequestException(
+        'expiryDate must be on or after purchaseDate',
+      );
+    }
   }
 }

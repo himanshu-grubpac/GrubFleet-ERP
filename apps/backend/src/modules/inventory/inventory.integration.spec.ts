@@ -369,6 +369,43 @@ describe('Inventory module (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 when stock receipt purchase date is after today', async () => {
+      if (!locationId) {
+        expect(locationId).toBeDefined();
+        return;
+      }
+      const partId = await createPartAsAdmin();
+      await request(app.getHttpServer())
+        .post('/api/v1/inventory/stock-receipts')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildStockReceiptPayload(partId, {
+            purchaseDate: '2099-01-01',
+          }),
+        )
+        .expect(400);
+    });
+
+    it('returns 400 when stock receipt expiry is before purchase date', async () => {
+      if (!locationId) {
+        expect(locationId).toBeDefined();
+        return;
+      }
+      const partId = await createPartAsAdmin();
+      await request(app.getHttpServer())
+        .post('/api/v1/inventory/stock-receipts')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildStockReceiptPayload(partId, {
+            purchaseDate: '2026-02-01',
+            expiryDate: '2026-01-01',
+          }),
+        )
+        .expect(400);
+    });
+
     it('returns 400 when stock receipt notes exceed max length on create', async () => {
       if (!locationId) {
         expect(locationId).toBeDefined();

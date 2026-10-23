@@ -5409,6 +5409,14 @@ paths:
                   allOf:
                     - $ref: '#/components/schemas/DecimalMoneyString'
                   description: Required when type is insurance
+                policyNumber:
+                  type: string
+                  maxLength: 128
+                  description: Persisted when type is insurance
+                registrationReference:
+                  type: string
+                  maxLength: 128
+                  description: Persisted when type is registration
       responses:
         '200':
           description: Updated compliance detail
@@ -5696,9 +5704,13 @@ components:
         responsibleEmployeeId:
           type: string
           format: uuid
+          nullable: true
+          description: Organisation employee. Omit or null when no responsible person.
         deputyEmployeeId:
           type: string
           format: uuid
+          nullable: true
+          description: Organisation employee. Omit or null when no deputy.
     UpdateOrganisationLocationRequest:
       type: object
       properties:
@@ -5743,10 +5755,12 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: Organisation employee. Null clears the responsible person. Omit leaves the current assignment.
         deputyEmployeeId:
           type: string
           format: uuid
           nullable: true
+          description: Organisation employee. Null clears the deputy. Omit leaves the current assignment.
     AssetRegisterAssetClassListItem:
       type: object
       required:
@@ -5902,7 +5916,7 @@ components:
         manufacturingYear:
           type: integer
           minimum: 1980
-          maximum: 2100
+          description: Must not be after the current calendar year.
         engineDisplacementCc:
           type: integer
           minimum: 1
@@ -5975,7 +5989,7 @@ components:
         manufacturingYear:
           type: integer
           minimum: 1980
-          maximum: 2100
+          description: Must not be after the current calendar year.
         engineDisplacementCc:
           type: integer
           minimum: 1
@@ -6067,7 +6081,7 @@ components:
         modelYear:
           type: integer
           minimum: 1900
-          maximum: 2100
+          description: Must not be after the current calendar year.
         odometer:
           type: integer
           minimum: 0
@@ -6119,7 +6133,7 @@ components:
         modelYear:
           type: integer
           minimum: 1900
-          maximum: 2100
+          description: Must not be after the current calendar year.
         odometer:
           type: integer
           minimum: 0
@@ -7618,9 +7632,13 @@ components:
         laborJobCardId:
           type: string
           format: uuid
+          nullable: true
+          description: >-
+            Labor job card template. Omit or null when no service package is selected.
         technicianEmployeeId:
           type: string
           format: uuid
+          nullable: true
         expectedCompletionDate:
           type: string
           format: date
@@ -7930,6 +7948,11 @@ components:
           type: string
         routePath:
           type: string
+          description: >
+            Static-export detail shell path (trailing slash), e.g.
+            `/organisation/employees/detail/`. Frontend maps moduleKey/entityType
+            to canonical routes; append client-side `?highlight=` after navigation
+            from global search.
         routeQuery:
           type: object
           additionalProperties:

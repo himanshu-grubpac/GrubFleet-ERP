@@ -1,10 +1,11 @@
-
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Check, Copy, PackageSearch } from "lucide-react";
+import { PackageSearch } from "lucide-react";
+import DashboardAssetClassTableCell from "@/components/dashboard/DashboardAssetClassTableCell";
 
 import Button from "@/components/ui/GrubpacButton";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -178,7 +179,7 @@ export default function ComplianceDashboardPage() {
     };
 
     const handleRenew = (item: ComplianceItem) => {
-        router.push(assetRegisterComplianceRenewalDetailHref(item.id));
+        navigateToEntityShell(router, assetRegisterComplianceRenewalDetailHref(item.id), item.id, 'push');
     };
 
     const handleClearFilters = () => {
@@ -213,51 +214,11 @@ export default function ComplianceDashboardPage() {
             sortable: false,
             className: "w-[180px] max-w-[180px]",
             render: (item: ComplianceItem) => (
-                <div className="group/asset relative w-[180px] max-w-full">
-                    <span className="block truncate">
-                        {item.assetClass || "-"}
-                    </span>
-
-                    {item.assetClass && (
-                        <div
-                            className="
-                    invisible pointer-events-none
-                    absolute left-0 top-full z-50
-                    w-max min-w-[260px] max-w-[360px]
-                    rounded-md border border-gray-200
-                    bg-white p-3 shadow-lg
-                    opacity-0
-                    transition-opacity duration-150
-                    group-hover/asset:visible
-                    group-hover/asset:pointer-events-auto
-                    group-hover/asset:opacity-100
-                    group-focus-within/asset:visible
-                    group-focus-within/asset:pointer-events-auto
-                    group-focus-within/asset:opacity-100
-                "
-                        >
-                            <div className="flex items-start gap-1">
-                                <span className="min-w-0 flex-1 whitespace-normal break-words text-xs text-gray-800">
-                                    {item.assetClass}
-                                </span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => void handleCopyAssetClass(item.assetClass)}
-                                    className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                                    title="Copy full asset class name"
-                                    aria-label="Copy full asset class name"
-                                >
-                                    {copiedAssetClass === item.assetClass ? (
-                                        <Check className="h-4 w-4 text-green-600" />
-                                    ) : (
-                                        <Copy className="h-4 w-4" />
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <DashboardAssetClassTableCell
+                    assetClass={item.assetClass}
+                    copied={copiedAssetClass === item.assetClass}
+                    onCopy={() => void handleCopyAssetClass(item.assetClass)}
+                />
             ),
         },
         { key: "insuranceStart", label: "INSURANCE START", sortable: false },

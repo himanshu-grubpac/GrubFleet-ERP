@@ -10,6 +10,10 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import {
+  IsNotAfterLocalToday,
+  IsYearMonthNotAfterCurrentLocal,
+} from '../../../common/decorators/local-calendar-date-bounds.decorator';
 
 export class CreateBillingInvoiceDto {
   @ApiProperty()
@@ -24,9 +28,14 @@ export class CreateBillingInvoiceDto {
   @IsUUID()
   leaseContractId!: string;
 
-  @ApiProperty({ maxLength: 120 })
+  @ApiProperty({
+    maxLength: 120,
+    description:
+      'YYYY-MM must not be after the current month. Other text is unchanged.',
+  })
   @IsString()
   @MaxLength(120)
+  @IsYearMonthNotAfterCurrentLocal()
   billingPeriod!: string;
 
   @ApiProperty({
@@ -39,8 +48,12 @@ export class CreateBillingInvoiceDto {
   @Max(Number.MAX_SAFE_INTEGER)
   totalAmountMinor!: number;
 
-  @ApiProperty({ format: 'date' })
+  @ApiProperty({
+    format: 'date',
+    description: 'Must not be after today',
+  })
   @IsDateString({ strict: true })
+  @IsNotAfterLocalToday()
   invoiceDate!: string;
 
   @ApiPropertyOptional({ maxLength: 2000 })

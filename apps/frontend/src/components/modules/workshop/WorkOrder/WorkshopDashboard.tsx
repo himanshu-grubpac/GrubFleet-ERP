@@ -1,9 +1,11 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardList, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateWorkOrderCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -193,9 +195,7 @@ export default function WorkshopDashboardPage() {
       });
     },
     onSuccess: (detail) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "work-orders", organizationId],
-      });
+      void invalidateWorkOrderCaches(queryClient);
 
       setCancelTarget(null);
       showSuccessToast(
@@ -231,7 +231,7 @@ export default function WorkshopDashboardPage() {
           <button
             type="button"
             onClick={() =>
-              router.push(workshopWorkOrderDetailHref(workOrder.id))
+              navigateToEntityShell(router, workshopWorkOrderDetailHref(workOrder.id), workOrder.id, 'push')
             }
             className="font-medium text-gray-900 hover:text-[#FE5720]"
           >
@@ -425,6 +425,7 @@ export default function WorkshopDashboardPage() {
                 <DashboardTableActions
                   status={isTerminal ? "inactive" : "active"}
                   locationId={workOrder.id}
+                  navigationEntityId={workOrder.id}
                   viewHref={workshopWorkOrderDetailHref(workOrder.id)}
                   copyText={[
                     `Work Order ID: ${workOrder.id}`,

@@ -1,14 +1,16 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useSecureEntityId } from "@/lib/navigation/use-secure-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationDetailCard from "@/components/common/OrganizationDetailCard";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -22,7 +24,6 @@ import {
 } from "@/lib/finance/client-statement-periods";
 import {
   financeClientStatementDetailHref,
-  financeClientStatementsListHref,
   financeInvoiceDetailHref,
 } from "@/lib/navigation/finance-static-routes";
 import {
@@ -63,7 +64,7 @@ export default function ClientStatementDetailPage() {
 
   const periodPresets = useMemo(() => getClientStatementPeriodPresets(), []);
 
-  const clientId = searchParams.get("clientId")?.trim() ?? "";
+  const clientId = useSecureEntityId({ legacyQueryKey: "clientId" });
   const initialStart =
     searchParams.get("periodStart")?.trim() ??
     periodPresets[0]?.periodStart ??
@@ -111,9 +112,7 @@ export default function ClientStatementDetailPage() {
       const name = detailQuery.data?.clientName ?? "Client";
       showFinanceClientStatementSendRecordedToast(name);
       setSendConfirmOpen(false);
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-client-statement-detail"],
-      });
+      void invalidateFinanceInvoiceCaches(queryClient);
     },
     onError: (error) =>
       showApiErrorToast(error, FINANCE_CLIENT_STATEMENT_SEND_ERROR),
@@ -259,7 +258,7 @@ export default function ClientStatementDetailPage() {
                     type="button"
                     className="text-left text-sm font-medium text-[#FE5720] hover:underline"
                     onClick={() =>
-                      router.push(financeInvoiceDetailHref(row.id))
+                      navigateToEntityShell(router, financeInvoiceDetailHref(row.id), row.id, 'push')
                     }
                   >
                     {row.invoiceNumber}

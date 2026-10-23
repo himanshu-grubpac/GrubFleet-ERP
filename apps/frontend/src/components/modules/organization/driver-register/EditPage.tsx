@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -7,6 +8,7 @@ import {
   organisationDriverDetailHref,
 } from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateDriverCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
@@ -25,6 +27,10 @@ import {
 import CreateDriverPage, {
   type DriverFormData,
 } from "@/components/modules/organization/driver-register/CreateDriverPage";
+import {
+  LoadingState,
+  RedirectingState,
+} from "@/components/states/async-states";
 
 export default function EditDriverPage() {
   const router = useRouter();
@@ -61,7 +67,7 @@ export default function EditDriverPage() {
     const detail = driverQuery.data;
     if (!detail) return;
     if (!detail.isActive || detail.status === "inactive") {
-      router.replace(organisationDriverDetailHref(driverId));
+      navigateToEntityShell(router, organisationDriverDetailHref(driverId), driverId, 'replace');
     }
   }, [driverQuery.data, driverId, router]);
 
@@ -71,7 +77,7 @@ export default function EditDriverPage() {
   }, [driverQuery.data]);
 
   const handleCancel = () => {
-    router.push(organisationDriverDetailHref(driverId));
+    navigateToEntityShell(router, organisationDriverDetailHref(driverId), driverId, 'push');
   };
 
   const handleSaved = async (data: DriverFormData) => {
@@ -86,14 +92,9 @@ export default function EditDriverPage() {
         driverId,
         buildDriverUpdatePayloadFromForm(data),
       );
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers", organizationId, driverId],
-      });
+      await invalidateDriverCaches(queryClient);
       showDriverUpdatedToast(updated.name);
-      router.push(organisationDriverDetailHref(driverId));
+      navigateToEntityShell(router, organisationDriverDetailHref(driverId), driverId, 'push');
     } catch (error) {
       const message =
         error instanceof ApiClientError
@@ -106,8 +107,8 @@ export default function EditDriverPage() {
 
   if (isAuthLoading || driverQuery.isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Loading driver...
+      <div className="min-h-[40vh]">
+        <LoadingState label="Loading driver…" />
       </div>
     );
   }
@@ -143,11 +144,7 @@ export default function EditDriverPage() {
     !driverQuery.data.isActive ||
     driverQuery.data.status === "inactive"
   ) {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Redirecting...
-      </div>
-    );
+    return <RedirectingState />;
   }
 
   return (

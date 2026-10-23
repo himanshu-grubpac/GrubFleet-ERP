@@ -1,7 +1,8 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import CreatePartForm, {
   type PartFormData,
@@ -13,9 +14,11 @@ import {
   showApiErrorToast,
   showSparePartCreatedToast,
 } from "@/lib/toast/show-toast";
+import { invalidateSparePartCaches } from "@/lib/query/invalidate-domain-caches";
 
 export default function StockCreatePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId, permissions } = useAuth();
 
   const canCreate =
@@ -38,8 +41,9 @@ export default function StockCreatePage() {
         token!,
       ),
     onSuccess: (result) => {
+      void invalidateSparePartCaches(queryClient);
       showSparePartCreatedToast(result.partName);
-      router.push(inventoryStockRegisterDetailHref(result.id));
+      navigateToEntityShell(router, inventoryStockRegisterDetailHref(result.id), result.id, 'push');
     },
     onError: (error) => showApiErrorToast(error, "Failed to save part."),
   });

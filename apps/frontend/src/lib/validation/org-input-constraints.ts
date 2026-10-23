@@ -4,7 +4,6 @@
  * patterns, limits, and user-facing messages.
  */
 
-import { ORG_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
   EMAIL_STORAGE_MAX_LENGTH,
   isValidEmail,

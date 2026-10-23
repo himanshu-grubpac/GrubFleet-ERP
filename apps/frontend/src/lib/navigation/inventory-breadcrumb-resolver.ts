@@ -7,8 +7,9 @@ function normalizePath(path: string): string {
 
 export function resolveInventoryBreadcrumbs(
     pathname: string,
-    _searchParams: URLSearchParams,
+    searchParams: URLSearchParams,
 ): BreadcrumbItem[] {
+    void searchParams;
     const path = normalizePath(pathname);
 
     const stockRegister = "/inventory/Stock-register";

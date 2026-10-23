@@ -130,6 +130,8 @@ export const WORKSHOP_INPUT_LIMITS = {
   amcTierPriceLabel: 120,
   maintenanceScheduleName: 255,
   maintenanceScheduleDescription: 2000,
+  /** Calendar interval days digit cap (stored in intervalLabel, e.g. "90 days"). */
+  calendarIntervalDays: 4,
 } as const;
 
 /** Finance invoices — mirrors create/list DTO @MaxLength and quantity caps. */
@@ -206,11 +208,9 @@ export const ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS = {
     ASSET_REGISTER_VEHICLE_INPUT_LIMITS.odometerMaxDigits,
 } as const;
 
-/** Compliance renew form — UI reference fields + shared money/date with vehicle DTO. */
+/** Compliance renew form — mirrors RenewAssetRegisterComplianceDto @MaxLength(128). */
 export const ASSET_REGISTER_COMPLIANCE_INPUT_LIMITS = {
-  /** Product-only policy number (not persisted on renew API yet). */
   policyNumber: 128,
-  /** Product-only registration reference (not persisted on renew API yet). */
   registrationReference: 128,
 } as const;
 

@@ -39,6 +39,7 @@ import { DashboardNavLink } from "@/components/ui/dashboard-nav-link";
 import { useAuth } from "@/providers/auth-provider";
 
 import { PortalEnvironmentBadge } from "@/components/layout/PortalEnvironmentBadge";
+import { LogoutConfirmDialog } from "@/components/layout/logout-confirm-dialog";
 import { cn } from "@/lib/utils";
 
 function userInitials(
@@ -496,6 +497,8 @@ function SidebarAccountFooter({
 
     const [open, setOpen] = useState(false);
 
+    const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+
     const menuRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -616,7 +619,7 @@ function SidebarAccountFooter({
 
                             setOpen(false);
 
-                            onLogout();
+                            setLogoutConfirmOpen(true);
 
                         }}
 
@@ -773,6 +776,32 @@ function SidebarAccountFooter({
                 )}
 
             </button>
+
+            <LogoutConfirmDialog
+
+                open={logoutConfirmOpen}
+
+                isConfirmPending={isLoggingOut}
+
+                onClose={() => {
+
+                    if (!isLoggingOut) {
+
+                        setLogoutConfirmOpen(false);
+
+                    }
+
+                }}
+
+                onConfirm={() => {
+
+                    setLogoutConfirmOpen(false);
+
+                    onLogout();
+
+                }}
+
+            />
 
         </div>
 
