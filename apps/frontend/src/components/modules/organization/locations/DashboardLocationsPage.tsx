@@ -1,6 +1,7 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import {
@@ -8,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateLocationCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -19,7 +21,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ORGANISATION_LOCATION_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   LOCATION_STATUS_UPDATE_ERROR,
   showErrorToast,
@@ -34,6 +40,10 @@ import {
 import { fetchOrganisationLocationTypesApi } from "@/lib/api/organisation/location-types";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
@@ -85,8 +95,20 @@ export default function LocationsPage() {
   /* State                                                                    */
   /* ------------------------------------------------------------------------ */
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onLocationListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ORGANISATION_LOCATION_INPUT_LIMITS.locationListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [page, setPage] = useState(1);
 
   const {
@@ -193,9 +215,7 @@ export default function LocationsPage() {
       );
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "locations"],
-      });
+      void invalidateLocationCaches(queryClient);
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
@@ -219,7 +239,7 @@ export default function LocationsPage() {
   const handleAddLocation = () => {
     if (!canCreate) return;
     router.push(
-      "/organization/locations/create"
+      "/organisation/locations/create"
     );
   };
 
@@ -230,7 +250,7 @@ export default function LocationsPage() {
   ) : undefined;
 
   const handleEdit = (location: Location) => {
-    router.push(organisationLocationEditHref(location.id));
+    navigateToEntityShell(router, organisationLocationEditHref(location.id), location.id, 'push');
   };
 
   /* ------------------------------------------------------------------------ */
@@ -260,7 +280,7 @@ export default function LocationsPage() {
   /* ------------------------------------------------------------------------ */
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
 
     setFilters({
       type: "",
@@ -343,11 +363,7 @@ export default function LocationsPage() {
         description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
         action={addLocationAction}
       >
-        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-          <p className="text-sm text-gray-500">
-            Loading locations...
-          </p>
-        </div>
+        <DashboardListLoadingShell label="Loading locations…" />
       </DashboardLayout>
     );
   }
@@ -363,21 +379,11 @@ export default function LocationsPage() {
         description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
         action={addLocationAction}
       >
-        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-          <p className="text-sm font-medium text-red-600">
-            Failed to load locations.
-          </p>
-
-          <button
-            type="button"
-            onClick={() =>
-              locationsQuery.refetch()
-            }
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </div>
+        <DashboardDetailErrorShell
+          title="Failed to load locations"
+          fallbackMessage="Failed to load locations."
+          onRetry={() => void locationsQuery.refetch()}
+        />
       </DashboardLayout>
     );
   }
@@ -390,7 +396,7 @@ export default function LocationsPage() {
     <DashboardLayout
       title="Locations"
       description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
-      activeTab="/organization/locations"
+      activeTab="/organisation/locations"
       action={addLocationAction}
       pagination={
         locationsTotal > LOCATIONS_PAGE_SIZE
@@ -408,48 +414,46 @@ export default function LocationsPage() {
       {/* Filters                                                            */}
       {/* ------------------------------------------------------------------ */}
 
-      {locationsTotal > 0 && (
-        <DashboardFilters
-          searchValue={search}
-          searchPlaceholder="Search locations..."
-          onSearchChange={setSearch}
-          selectFilters={[
-            {
-              key: "type",
-              label: "All types",
-              options: (locationTypesQuery.data?.items ?? []).map(
-                (type) => ({
-                  label: type.name,
-                  value: type.presetKey ?? type.id,
-                }),
-              ),
-            },
+      <DashboardFilters
+        searchValue={searchInput}
+        searchPlaceholder="Search locations..."
+        onSearchChange={onLocationListSearchChange}
+        selectFilters={[
+          {
+            key: "type",
+            label: "All types",
+            options: (locationTypesQuery.data?.items ?? []).map(
+              (type) => ({
+                label: type.name,
+                value: type.presetKey ?? type.id,
+              }),
+            ),
+          },
 
-            {
-              key: "status",
-              label: "All statuses",
-              options: [
-                {
-                  label: "Active",
-                  value: "active",
-                },
-                {
-                  label: "Deactivated",
-                  value: "inactive",
-                },
-              ],
-            },
-          ]}
-          filterValues={filters}
-          onFilterChange={(key, value) => {
-            setFilters((previous) => ({
-              ...previous,
-              [key]: value,
-            }));
-          }}
-          onClear={handleClearFilters}
-        />
-      )}
+          {
+            key: "status",
+            label: "All statuses",
+            options: [
+              {
+                label: "Active",
+                value: "active",
+              },
+              {
+                label: "Deactivated",
+                value: "inactive",
+              },
+            ],
+          },
+        ]}
+        filterValues={filters}
+        onFilterChange={(key, value) => {
+          setFilters((previous) => ({
+            ...previous,
+            [key]: value,
+          }));
+        }}
+        onClear={handleClearFilters}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Empty State                                                        */}

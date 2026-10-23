@@ -1,5 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
-import { and, eq, inArray, sql, type AnyColumn } from 'drizzle-orm';
+import { and, eq, ilike, inArray, or, sql, type AnyColumn } from 'drizzle-orm';
 import {
   buildListOrderBy,
   type ResolvedListSort,
@@ -33,18 +33,28 @@ export class RolesRepository {
     pageSize: number,
     visibleRoleIds?: string[] | null,
     sort?: ResolvedListSort<RoleListSortField>,
+    search?: string,
   ): Promise<{ rows: (typeof roles.$inferSelect)[]; total: number }> {
     const offset = (page - 1) * pageSize;
     const scopeFilter = and(
       eq(roles.organizationId, organizationId),
       eq(roles.scope, 'organization'),
     );
-    const whereClause =
+    const trimmedSearch = search?.trim();
+    const searchFilter =
+      trimmedSearch && trimmedSearch.length > 0
+        ? or(
+            ilike(roles.name, `%${trimmedSearch}%`),
+            ilike(roles.description, `%${trimmedSearch}%`),
+          )
+        : undefined;
+    const visibilityFilter =
       visibleRoleIds === null || visibleRoleIds === undefined
-        ? scopeFilter
+        ? undefined
         : visibleRoleIds.length === 0
           ? sql`false`
-          : and(scopeFilter, inArray(roles.id, visibleRoleIds));
+          : inArray(roles.id, visibleRoleIds);
+    const whereClause = and(scopeFilter, searchFilter, visibilityFilter);
 
     const [rows, countRows] = await Promise.all([
       this.db

@@ -1,9 +1,9 @@
-
 "use client";
 
 import { useRouter } from "next/navigation";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { useMemo, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import FormActions from "@/components/common/FormActions";
@@ -18,11 +18,12 @@ import {
     mergeFormControlBorderClass,
 } from "@/components/ui/form-field-inline-error";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
-import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { fetchAllActiveAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
 import { ApiClientError } from "@/lib/api/client";
 import { createWorkshopMaintenanceScheduleApi } from "@/lib/api/workshop/amc";
 import { WORKSHOP_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { invalidateAmcScheduleCaches } from "@/lib/query/invalidate-domain-caches";
 import {
     workshopAmcMaintenanceListHref,
     workshopAmcScheduleDetailHref,
@@ -35,6 +36,7 @@ import { useAuth } from "@/providers/auth-provider";
 
 export default function CreateAmcSchedulePage() {
     const router = useRouter();
+    const queryClient = useQueryClient();
     const { token, organizationId, permissions, isLoading: isAuthLoading } =
         useAuth();
     const canCreate =
@@ -44,17 +46,14 @@ export default function CreateAmcSchedulePage() {
     const assetClassesQuery = useQuery({
         queryKey: ["workshop", "schedule-asset-classes", organizationId],
         queryFn: () =>
-            fetchAssetRegisterAssetClassesApi({
+            fetchAllActiveAssetRegisterAssetClassesApi({
                 token: token!,
                 organizationId: organizationId!,
-                page: 1,
-                pageSize: 200,
-                status: "active",
             }),
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardCatalogQueryOptions,
     });
-    const assetClasses = assetClassesQuery.data?.items ?? [];
+    const assetClasses = assetClassesQuery.data ?? [];
 
     const [form, setForm] = useState({
         name: "",
@@ -138,8 +137,9 @@ export default function CreateAmcSchedulePage() {
             }),
         onSuccess: (data) => {
             isSubmittingRef.current = false;
+            void invalidateAmcScheduleCaches(queryClient);
             showSuccessToast(`${data.name} was created`);
-            router.push(workshopAmcScheduleDetailHref(data.id));
+            navigateToEntityShell(router, workshopAmcScheduleDetailHref(data.id), data.id, 'push');
         },
         onError: (error: Error) => {
             isSubmittingRef.current = false;
@@ -181,14 +181,19 @@ export default function CreateAmcSchedulePage() {
         router.push(workshopAmcMaintenanceListHref);
     };
 
+    const canSubmit = useMemo(() => {
+        if (!canCreate || createMutation.isPending) {
+            return false;
+        }
+        return !hasValidationErrors(validationErrors);
+    }, [canCreate, createMutation.isPending, validationErrors]);
+
     const formActions = (
         <FormActions
             hasAttemptedSubmit={hasAttemptedSubmit}
             validationSummary={validationSummary}
             isSaving={createMutation.isPending}
-            // Match the shared form flow: keep Save enabled until submission
-            // starts so clicking it can display validation errors/summary.
-            canSubmit={!createMutation.isPending}
+            canSubmit={canSubmit}
             onCancel={handleCancel}
             onSave={handleSave}
             saveLabel="Save schedule"
@@ -303,6 +308,11 @@ export default function CreateAmcSchedulePage() {
                         >
                             <RestrictedInput
                                 restrictedKind="digits"
+                                maxLength={
+                                    form.intervalType === "Odometer"
+                                        ? WORKSHOP_INPUT_LIMITS.workOrderOdometerMaxDigits
+                                        : WORKSHOP_INPUT_LIMITS.calendarIntervalDays
+                                }
                                 value={form.intervalValue}
                                 onChange={(value) =>
                                     updateField("intervalValue", value)

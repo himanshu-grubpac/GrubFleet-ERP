@@ -5,6 +5,10 @@ import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/providers/auth-provider";
 import { fetchStockBalanceDetailApi } from "@/lib/api/inventory/stock-balance";
 import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 
 export default function StockViewPage() {
   const partId = useInventoryEntityId("partId");
@@ -29,7 +33,7 @@ export default function StockViewPage() {
   if (detailQuery.isLoading || isAuthLoading) {
     return (
       <div className="p-6">
-        <p className="text-sm text-gray-500">Loading stock balance…</p>
+        <DashboardPageLoadingShell label="Loading stock balance…" />
       </div>
     );
   }
@@ -37,7 +41,12 @@ export default function StockViewPage() {
   if (detailQuery.isError || !detailQuery.data) {
     return (
       <div className="p-6">
-        <p className="text-sm text-gray-500">Stock balance not found.</p>
+        <DashboardDetailErrorShell
+          title="Failed to load stock balance"
+          error={detailQuery.error}
+          fallbackMessage="Stock balance not found."
+          onRetry={() => void detailQuery.refetch()}
+        />
       </div>
     );
   }

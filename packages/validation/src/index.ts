@@ -23,6 +23,7 @@ export * from './geo';
 export * from './vehicle-registration';
 export * from './driver-license';
 export * from './phone';
+export * from './email';
 export * from './gstin';
 export * from './color-code';
 export * from './chassis-vin';

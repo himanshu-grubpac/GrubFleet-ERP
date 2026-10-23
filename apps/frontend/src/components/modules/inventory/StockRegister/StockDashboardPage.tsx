@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 import {
@@ -16,15 +16,28 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
-import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import {
+  dashboardCatalogQueryOptions,
+  dashboardListQueryOptions,
+} from "@/lib/query/dashboard-list-query-options";
+import { fetchAllActiveAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { invalidateSparePartCaches } from "@/lib/query/invalidate-domain-caches";
 import { INVENTORY_SPARE_PART_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
 import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  INVENTORY_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   fetchStockRegisterListApi,
   updateSparePartStatusApi,
@@ -57,8 +70,23 @@ export default function StockDashboardPage() {
     permissions.has("inventory.create") ||
     permissions.has("inventory.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const canUpdate =
+    permissions.has("inventory.update") ||
+    permissions.has("inventory.manage");
+
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: INVENTORY_INPUT_LIMITS.listSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
   const [filters, setFilters] = useState<Record<string, string>>({
     compatibleClass: "",
     unit: "",
@@ -76,6 +104,32 @@ export default function StockDashboardPage() {
     useState<StockRegisterListItem | null>(null);
   const [activateOpen, setActivateOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
+
+  const assetClassesQuery = useQuery({
+    queryKey: [
+      "inventory",
+      "stock-register",
+      "asset-classes",
+      organizationId,
+    ],
+    queryFn: () =>
+      fetchAllActiveAssetRegisterAssetClassesApi({
+        token: token!,
+        organizationId: organizationId!,
+      }),
+    enabled: !!token && !!organizationId && !isAuthLoading,
+    ...dashboardCatalogQueryOptions,
+  });
+
+  const compatibleClassOptions = useMemo(() => {
+    const labels = (assetClassesQuery.data ?? [])
+      .map((row) => row.specLabel?.trim() || row.name.trim())
+      .filter((label) => label.length > 0);
+    return [...new Set(labels)].map((label) => ({
+      label,
+      value: label,
+    }));
+  }, [assetClassesQuery.data]);
 
   const listQuery = useQuery({
     queryKey: [
@@ -119,9 +173,7 @@ export default function StockDashboardPage() {
         token!,
       ),
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["inventory", "stock-register", organizationId],
-      });
+      void invalidateSparePartCaches(queryClient);
       if (variables.isActive) {
         showSparePartActivatedToast(variables.part.partName);
       } else {
@@ -226,23 +278,14 @@ export default function StockDashboardPage() {
         }}
       >
         <DashboardFilters
-          searchValue={search}
+          searchValue={searchInput}
           searchPlaceholder="Search by part name or part number"
-          onSearchChange={setSearch}
+          onSearchChange={onListSearchChange}
           selectFilters={[
             {
               key: "compatibleClass",
               label: "Compatible Class",
-              options: [
-                {
-                  label: "Petrol Scooter — Standard",
-                  value: "Petrol Scooter — Standard",
-                },
-                {
-                  label: "Petrol Auto — Cargo",
-                  value: "Petrol Auto — Cargo",
-                },
-              ],
+              options: compatibleClassOptions,
             },
           ]}
           filterValues={filters}
@@ -253,18 +296,21 @@ export default function StockDashboardPage() {
             }));
           }}
           onClear={() => {
-            setSearch("");
+            clearSearch();
             setFilters({ compatibleClass: "", unit: "" });
             setCurrentPage(1);
           }}
         />
 
         {listQuery.isLoading ? (
-          <p className="text-sm text-gray-500">Loading stock register…</p>
+          <DashboardListLoadingShell label="Loading stock register…" />
         ) : listQuery.isError ? (
-          <p className="text-sm text-red-600">
-            Failed to load stock register.
-          </p>
+          <DashboardDetailErrorShell
+            title="Failed to load stock register"
+            error={listQuery.error}
+            fallbackMessage="Failed to load stock register."
+            onRetry={() => void listQuery.refetch()}
+          />
         ) : filteredItems.length === 0 ? (
           <DashboardEmptyState
             icon={
@@ -288,7 +334,7 @@ export default function StockDashboardPage() {
                 router.push(inventoryStockRegisterCreateHref);
                 return;
               }
-              setSearch("");
+              clearSearch();
               setFilters({ compatibleClass: "", unit: "" });
             }}
           />
@@ -304,6 +350,7 @@ export default function StockDashboardPage() {
               <DashboardTableActions
                 status={part.status}
                 locationId={part.id}
+                navigationEntityId={part.id}
                 viewHref={inventoryStockRegisterDetailHref(part.id)}
                 copyText={[
                   `Part: ${part.partName}`,
@@ -314,21 +361,25 @@ export default function StockDashboardPage() {
                   `Status: ${part.status}`,
                 ].join("\n")}
                 onEdit={
-                  part.availableActions.edit
+                  canUpdate && part.availableActions.edit
                     ? () =>
                       router.push(
                         inventoryStockRegisterEditHref(part.id),
                       )
                     : undefined
                 }
-                onToggleStatus={() => {
-                  setStatusTarget(part);
-                  if (part.status === "active") {
-                    setDeactivateOpen(true);
-                  } else {
-                    setActivateOpen(true);
-                  }
-                }}
+                onToggleStatus={
+                  canUpdate
+                    ? () => {
+                        setStatusTarget(part);
+                        if (part.status === "active") {
+                          setDeactivateOpen(true);
+                        } else {
+                          setActivateOpen(true);
+                        }
+                      }
+                    : undefined
+                }
               />
             )}
           />

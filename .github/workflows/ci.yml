@@ -103,6 +103,8 @@ jobs:
             -w frontend
       - name: Build shared packages (frontend)
         run: npm run build -w @grubpac/validation
+      - name: Module raw-input audit (frontend)
+        run: npm run audit:module-raw-inputs
       - name: Lint frontend
         run: npm run lint -w frontend
       - name: Typecheck frontend

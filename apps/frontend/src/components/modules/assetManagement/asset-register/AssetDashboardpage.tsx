@@ -1,6 +1,7 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 import {
@@ -8,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 import DashboardTable, {
   type DashboardColumn,
 } from "@/components/dashboard/DashboardTable";
@@ -25,7 +27,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ASSET_REGISTER_CLASS_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   ASSET_CLASS_STATUS_UPDATE_ERROR,
   showAssetClassActivatedToast,
@@ -122,8 +128,19 @@ export default function AssetClassesPage() {
     permissions.has("asset_register.update") ||
     permissions.has("asset_register.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onAssetClassListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ASSET_REGISTER_CLASS_INPUT_LIMITS.listSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
 
   const [activeFilter, setActiveFilter] = useState<AssetFilter>("all");
 
@@ -208,9 +225,7 @@ export default function AssetClassesPage() {
       });
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "asset-classes"],
-      });
+      void invalidateAssetClassCaches(queryClient);
 
       setDeactivateTarget(null);
       setActivateTarget(null);
@@ -264,11 +279,11 @@ export default function AssetClassesPage() {
 
   const handleEdit = (assetClass: AssetClass) => {
     if (!canUpdate || assetClass.status !== "active") return;
-    router.push(assetRegisterAssetClassEditHref(assetClass.id));
+    navigateToEntityShell(router, assetRegisterAssetClassEditHref(assetClass.id), assetClass.id, 'push');
   };
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
     setActiveFilter("all");
     setPage(1);
   };
@@ -359,9 +374,12 @@ export default function AssetClassesPage() {
       <div className="mb-4 flex items-center gap-3">
         <div className="min-w-0 flex-1">
           <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            type="search"
+            value={searchInput}
+            maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.listSearch}
+            onChange={(event) =>
+              onAssetClassListSearchChange(event.target.value)
+            }
             placeholder="Search by class name"
             className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
           />
@@ -451,6 +469,7 @@ export default function AssetClassesPage() {
             <DashboardTableActions
               status={assetClass.status}
               locationId={assetClass.id}
+              navigationEntityId={assetClass.id}
               viewHref={assetRegisterAssetClassDetailHref(assetClass.id)}
               copyText={[
                 `Asset Class ID: ${assetClass.id}`,

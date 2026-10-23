@@ -218,6 +218,22 @@ describe('Finance client statements (integration)', () => {
         })
         .expect(400);
     });
+
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/finance/client-statements')
+        .query({
+          organizationId,
+          periodStart,
+          periodEnd,
+          page: 1,
+          pageSize: 10,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
   });
 
   describe('aggregates and detail', () => {

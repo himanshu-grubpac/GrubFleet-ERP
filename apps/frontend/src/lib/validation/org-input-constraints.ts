@@ -4,7 +4,10 @@
  * patterns, limits, and user-facing messages.
  */
 
-import { ORG_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import {
+  EMAIL_STORAGE_MAX_LENGTH,
+  isValidEmail,
+} from "@/lib/validation/email-validation";
 
 export { ORG_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 export {
@@ -16,6 +19,7 @@ export {
   type RestrictedInputKind,
 } from "@/lib/forms/restricted-input";
 
+/** UX-only quick check; prefer `isValidOrgEmail` / `@grubpac/validation` for save gates. */
 export const ORG_EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export const ORG_PINCODE_PATTERN = /^\d{6}$/;
 
@@ -24,10 +28,10 @@ export function isValidOrgEmail(value: string): boolean {
   if (!trimmed) {
     return true;
   }
-  return (
-    trimmed.length <= ORG_INPUT_LIMITS.email &&
-    ORG_EMAIL_PATTERN.test(trimmed)
-  );
+  if (trimmed.length > EMAIL_STORAGE_MAX_LENGTH) {
+    return false;
+  }
+  return isValidEmail(trimmed);
 }
 
 export function isValidOrgPincode(value: string): boolean {

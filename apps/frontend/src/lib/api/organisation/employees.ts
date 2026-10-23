@@ -1,5 +1,6 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import { fetchAllPaginatedItems } from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
@@ -125,6 +126,22 @@ export async function fetchOrganisationEmployeesApi(
       token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+export async function fetchAllActiveOrganisationEmployeesApi(
+  token: string,
+  organizationId: string,
+): Promise<OrganisationEmployeeListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchOrganisationEmployeesApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        status: "active",
+      }),
+    ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE,
   );
 }
 

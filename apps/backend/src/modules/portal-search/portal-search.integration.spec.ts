@@ -27,6 +27,7 @@ type PortalSearchResponse = {
     entityType: string;
     moduleLabel: string;
     entityTypeLabel: string;
+    routePath: string;
   }>;
   meta: {
     totalReturned: number;
@@ -118,6 +119,8 @@ describe('Portal search (integration)', () => {
       expect(hit.moduleKey).toBe('organisation');
       expect(hit.moduleLabel).toBe('Organisation');
       expect(hit.entityTypeLabel.length).toBeGreaterThan(0);
+      expect(hit.routePath.startsWith('/organisation/')).toBe(true);
+      expect(hit.routePath).not.toContain('/organization/');
     }
   });
 

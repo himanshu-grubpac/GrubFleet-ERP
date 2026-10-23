@@ -1,13 +1,19 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation"
+import { useRouter } from "next/navigation"
+import { useWorkshopEntityId } from "@/lib/navigation/use-workshop-entity-id";
 import { Plus, Minus, Trash2, X } from "lucide-react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import FormActions from "@/components/common/FormActions";
+import {
+  isoDateFloorKeepingSaved,
+  localTodayIsoDate,
+} from "@/lib/format/date-format";
 import {
   validateRequired,
   validateNumber,
@@ -28,6 +34,7 @@ import {
   fetchWorkshopLaborJobCardApi,
 } from "@/lib/api/workshop/labor-job-cards";
 import { fetchAllWorkshopTechniciansApi } from "@/lib/api/workshop/technicians";
+import { invalidateWorkOrderCaches } from "@/lib/query/invalidate-domain-caches";
 import {
   createWorkshopWorkOrderApi,
   fetchWorkshopWorkOrderApi,
@@ -86,8 +93,8 @@ function normalizeDateInput(value: string | null | undefined): string {
 
 export default function WorkForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const editWorkOrderId = searchParams.get("workOrderId")?.trim() ?? "";
+  const queryClient = useQueryClient();
+  const editWorkOrderId = useWorkshopEntityId("workOrderId");
   const isEditMode = editWorkOrderId.length > 0;
 
   const {
@@ -208,7 +215,10 @@ export default function WorkForm() {
     ...dashboardCatalogQueryOptions,
   });
 
-  const vehicles = vehiclesQuery.data ?? [];
+  const vehicles = useMemo(
+    () => vehiclesQuery.data ?? [],
+    [vehiclesQuery.data],
+  );
   const laborJobCards = laborJobCardsQuery.data ?? [];
   const partsCatalog = partsCatalogQuery.data ?? [];
   const technicians = techniciansQuery.data ?? [];
@@ -246,6 +256,11 @@ export default function WorkForm() {
     (part) => !additionalParts.some((row) => row.partId === part.id),
   );
 
+  const expectedCompletionMin = isoDateFloorKeepingSaved(
+    isEditMode ? existingQuery.data?.expectedCompletionDate : undefined,
+    localTodayIsoDate(),
+  );
+
   const validationErrors: ValidationErrors = useMemo(() => {
     const errors: ValidationErrors = {};
 
@@ -276,6 +291,7 @@ export default function WorkForm() {
       const dateError = validateDate(expectedCompletionDate, {
         label: "Expected completion date",
         required: false,
+        minDate: expectedCompletionMin,
       });
       if (dateError) errors.expectedCompletionDate = dateError;
     }
@@ -307,6 +323,7 @@ export default function WorkForm() {
     reportedBy,
     odometerReading,
     expectedCompletionDate,
+    expectedCompletionMin,
     isAddingPart,
     selectedPartId,
     isAddingLabor,
@@ -318,6 +335,17 @@ export default function WorkForm() {
     () => Object.values(validationErrors).filter(Boolean) as string[],
     [validationErrors],
   );
+
+  const isCoreFormValid = useMemo(() => {
+    const inlineAddKeys = new Set([
+      "selectedPartId",
+      "newLaborDescription",
+      "newLaborAmount",
+    ]);
+    return !Object.entries(validationErrors).some(
+      ([key, message]) => message && !inlineAddKeys.has(key),
+    );
+  }, [validationErrors]);
 
   const getFieldError = (field: string) =>
     hasAttemptedSubmit ? validationErrors[field] : undefined;
@@ -421,13 +449,14 @@ export default function WorkForm() {
           }>,
       });
     },
-    onSuccess: (detail) => {
+    onSuccess: async (detail) => {
+      await invalidateWorkOrderCaches(queryClient);
       showSuccessToast(
         isEditMode
           ? `Work order ${detail.workOrderNumber} was updated`
           : `Work order ${detail.workOrderNumber} was created`,
       );
-      router.push(workshopWorkOrderDetailHref(detail.id));
+      navigateToEntityShell(router, workshopWorkOrderDetailHref(detail.id), detail.id, 'push');
     },
     onError: (error: Error) => {
       const message =
@@ -593,13 +622,24 @@ export default function WorkForm() {
           </div>
 
           <div>
-            <label
-              htmlFor="technician"
-              className="mb-1 block text-xs font-semibold text-gray-700"
-            >
-              Assigned technician{" "}
-              <span className="font-normal text-gray-400">(optional)</span>
-            </label>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label
+                htmlFor="technician"
+                className="block text-xs font-semibold text-gray-700"
+              >
+                Assigned technician{" "}
+                <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              {technicianEmployeeId ? (
+                <button
+                  type="button"
+                  onClick={() => setTechnicianEmployeeId("")}
+                  className="text-xs text-gray-500 hover:text-red-500"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
             <select
               id="technician"
               value={technicianEmployeeId}
@@ -642,7 +682,7 @@ export default function WorkForm() {
             <input
               id="expected-completion"
               type="date"
-              min="0001-01-01"
+              min={expectedCompletionMin}
               max="9999-12-31"
               value={expectedCompletionDate}
               onChange={(event) => {
@@ -689,6 +729,7 @@ export default function WorkForm() {
             <RestrictedInput
               id="odometer-reading"
               restrictedKind="digits"
+              maxLength={WORKSHOP_INPUT_LIMITS.workOrderOdometerMaxDigits}
               value={odometerReading}
               onChange={(value) => setOdometerReading(value)}
               placeholder="e.g. 45000"
@@ -736,13 +777,24 @@ export default function WorkForm() {
 
         {!isEditMode && (
           <div className="mt-3">
-            <label
-              htmlFor="labor-job-card"
-              className="mb-1 block text-xs font-semibold text-gray-700"
-            >
-              Service package{" "}
-              <span className="font-normal text-gray-400">(optional)</span>
-            </label>
+            <div className="mb-1 flex items-center justify-between gap-2">
+              <label
+                htmlFor="labor-job-card"
+                className="block text-xs font-semibold text-gray-700"
+              >
+                Service package{" "}
+                <span className="font-normal text-gray-400">(optional)</span>
+              </label>
+              {laborJobCardId ? (
+                <button
+                  type="button"
+                  onClick={() => setLaborJobCardId("")}
+                  className="text-xs text-gray-500 hover:text-red-500"
+                >
+                  Clear
+                </button>
+              ) : null}
+            </div>
             <select
               id="labor-job-card"
               value={laborJobCardId}
@@ -1003,11 +1055,14 @@ export default function WorkForm() {
         isSaving={isSubmitting || saveMutation.isPending}
         canSubmit={
           canSave &&
+          isCoreFormValid &&
           !isAuthLoading &&
           !isSubmitting &&
           !saveMutation.isPending &&
           (!isEditMode
-            ? !vehiclesQuery.isLoading && !laborJobCardsQuery.isLoading
+            ? !vehiclesQuery.isLoading &&
+              !laborJobCardsQuery.isLoading &&
+              !!vehicleId.trim()
             : !existingQuery.isLoading)
         }
         onCancel={() => router.push(workshopWorkOrderListHref)}

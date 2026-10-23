@@ -1,6 +1,17 @@
-import type { LeaseContractDetail } from "@/lib/api/lease-contracts";
+import type {
+    ContractAssetLineInput,
+    LeaseContractDetail,
+} from "@/lib/api/lease-contracts";
 import type { AssetLine } from "@/components/modules/fleet-leasing/NewContract/AssetLinesStep";
 import type { LeaseTerms } from "@/components/modules/fleet-leasing/NewContract/TermsStep";
+import {
+    formatLeaseDecimalMoneyForInput,
+    normalizeDecimalMoneyForLeaseApi,
+    normalizeLeaseLineRateForApi,
+} from "@/lib/format/money-format";
+
+/** Valid API decimal when monthly rate is not entered yet (Asset Lines step). */
+export const LEASE_WIZARD_DRAFT_ASSET_LINE_RATE_PLACEHOLDER = "0.00";
 
 export type LeaseWizardScreen =
     | "select-client"
@@ -81,7 +92,16 @@ export function assetLinesAreWizardReady(
 export function assetLineRatesReady(lines: AssetLine[]): boolean {
     return (
         lines.length > 0 &&
-        lines.every((line) => String(line.ratePerVehicleMonth ?? "").trim())
+        lines.every((line) => {
+            const normalized = normalizeDecimalMoneyForLeaseApi(
+                String(line.ratePerVehicleMonth ?? ""),
+            );
+            return (
+                Boolean(normalized) &&
+                normalized !== LEASE_WIZARD_DRAFT_ASSET_LINE_RATE_PLACEHOLDER &&
+                Number(normalized) > 0
+            );
+        })
     );
 }
 
@@ -92,7 +112,32 @@ export function mapDetailToWizardAssetLines(
         id: line.id,
         assetClass: line.assetClass,
         committedQuantity: line.committedQuantity,
-        ratePerVehicleMonth: String(line.ratePerVehicleMonth ?? ""),
+        ratePerVehicleMonth: (() => {
+            const formatted = formatLeaseDecimalMoneyForInput(
+                line.ratePerVehicleMonth,
+            );
+            const normalized = normalizeDecimalMoneyForLeaseApi(formatted);
+            if (
+                !normalized ||
+                normalized === LEASE_WIZARD_DRAFT_ASSET_LINE_RATE_PLACEHOLDER ||
+                Number(normalized) === 0
+            ) {
+                return "";
+            }
+            return formatted;
+        })(),
+    }));
+}
+
+export function mapWizardAssetLinesToApi(
+    lines: AssetLine[],
+): ContractAssetLineInput[] {
+    return lines.map((line) => ({
+        assetClass: line.assetClass,
+        committedQuantity: Number(line.committedQuantity),
+        ratePerVehicleMonth: normalizeLeaseLineRateForApi(
+            String(line.ratePerVehicleMonth ?? ""),
+        ),
     }));
 }
 
@@ -158,7 +203,9 @@ export function buildPartialTermsPatch(
     }
 
     if (String(terms.securityDeposit).trim()) {
-        patch.securityDeposit = String(terms.securityDeposit).trim();
+        patch.securityDeposit = normalizeDecimalMoneyForLeaseApi(
+            String(terms.securityDeposit),
+        );
     }
     if (terms.billingFrequency) {
         patch.billingFrequency = terms.billingFrequency;
@@ -192,7 +239,9 @@ export function buildCompleteTermsApiPayload(terms: LeaseTerms): {
         startDate,
         endDate,
         termMonths,
-        securityDeposit: String(terms.securityDeposit).trim(),
+        securityDeposit: normalizeDecimalMoneyForLeaseApi(
+            String(terms.securityDeposit),
+        ),
         billingFrequency: terms.billingFrequency,
     };
 }

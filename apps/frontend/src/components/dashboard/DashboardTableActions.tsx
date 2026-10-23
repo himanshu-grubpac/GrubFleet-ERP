@@ -12,8 +12,10 @@ import {
     DashboardRowActionsMenuItem,
 } from "./DashboardRowActionsMenu";
 import { dashboardRowMenuTriggerClassName } from "./dashboard-row-icon-button";
+import { DashboardPortaledFlyout } from "./dashboard-portaled-flyout";
 
 import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
+import { prepareEntityNavigationForPath, pathnameFromHref } from "@/lib/navigation/secure-entity-navigation";
 
 /**
  * Prevent empty fragments from opening an empty three-dot menu.
@@ -48,15 +50,28 @@ function reactNodeHasRenderableContent(node: ReactNode): boolean {
     return true;
 }
 
+/**
+ * Shared list row actions: View link, Copy, optional ⋮ overflow (Edit / lifecycle / extras).
+ *
+ * **Overflow column policy (rule 37):**
+ * - {@link hideOverflowMenu} — read-only lists where **no row** ever has overflow (Stock Balance, Parts Requests): View + Copy only.
+ * - Default (disabled ⋮ when empty) — lists where **some rows** have menu items and others need a gray ⋮ for column alignment (org, Stock Receipt/Register, etc.).
+ */
 type DashboardTableActionsProps = {
     status: "active" | "inactive";
     locationId?: string;
+    /** Entity id for secure navigation when opening View (defaults to locationId). */
+    navigationEntityId?: string;
     copyText?: string;
     viewHref?: string;
     allowEditWhenInactive?: boolean;
     hideEdit?: boolean;
     alwaysShowOverflowMenu?: boolean;
-    /** Gray non-clickable ⋮ for row alignment when no menu actions apply. */
+    /**
+     * Omit ⋮ entirely (not even disabled). Use on read-only lists with no lifecycle or row overflow actions.
+     */
+    hideOverflowMenu?: boolean;
+    /** Gray non-clickable ⋮ when this row has no menu items but the table needs ⋮ column alignment. */
     overflowMenuDisabled?: boolean;
     onEdit?: () => void;
     onToggleStatus?: () => void;
@@ -66,16 +81,21 @@ type DashboardTableActionsProps = {
 export default function DashboardTableActions({
     status,
     locationId,
+    navigationEntityId,
     copyText,
     viewHref,
     allowEditWhenInactive = false,
     hideEdit = false,
     alwaysShowOverflowMenu = false,
+    hideOverflowMenu = false,
     overflowMenuDisabled = false,
     onEdit,
     onToggleStatus,
     renderAdditionalMenuItems,
 }: DashboardTableActionsProps) {
+    /** @deprecated No-op — use `hideOverflowMenu` or `overflowMenuDisabled` instead. */
+    void alwaysShowOverflowMenu;
+
     const isActive = status === "active";
 
     const [copied, setCopied] = useState(false);
@@ -96,11 +116,24 @@ export default function DashboardTableActions({
             ? organisationLocationDetailHref(locationId)
             : "#");
 
+    const entityIdForViewNavigation =
+        navigationEntityId?.trim() || locationId?.trim() || "";
+
+    const handleViewNavigate = () => {
+        if (!entityIdForViewNavigation || resolvedViewHref === "#") {
+            return;
+        }
+        prepareEntityNavigationForPath(
+            pathnameFromHref(resolvedViewHref),
+            entityIdForViewNavigation,
+        );
+    };
+
     /**
      * Copy row data and display success feedback.
      */
     const handleCopy = async () => {
-        const text = copyText?.trim() || locationId;
+        const text = copyText?.trim() || locationId;    
 
         if (!text) {
             return;
@@ -118,23 +151,41 @@ export default function DashboardTableActions({
         }
     };
 
-    const hasOverflowMenu =
-        alwaysShowOverflowMenu ||
+    const hasActionableOverflowItems =
         showEdit ||
         hasAdditionalMenuItems ||
         !!onToggleStatus;
+
+    const showActiveOverflowMenu =
+        !overflowMenuDisabled && hasActionableOverflowItems;
+
+    const showOverflowColumn = !hideOverflowMenu;
 
     return (
         <div className="flex shrink-0 items-center justify-end gap-3 whitespace-nowrap">
             {/* View */}
             <Link
                 href={resolvedViewHref}
+                onClick={handleViewNavigate}
                 className="shrink-0 text-sm font-medium text-[#FE5720] hover:underline"
             >
                 View
             </Link>
             {/* Copy text and icon */}
-            <span className="group/copy relative inline-flex shrink-0 items-center">
+            <DashboardPortaledFlyout
+                forceOpen={copied}
+                panelClassName="
+                    relative whitespace-nowrap rounded-md
+                    border border-orange-100 bg-white px-3 py-1.5
+                    text-xs font-semibold text-[#FE5720] shadow-md
+                "
+                content={
+                    <>
+                        {copied ? "Copied!" : "Copy"}
+                        <span className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-white" />
+                    </>
+                }
+            >
                 <button
                     type="button"
                     onClick={() => void handleCopy()}
@@ -153,81 +204,63 @@ export default function DashboardTableActions({
                         <FaCopy />
                     </span>
                 </button>
-
-                <span
-                    role="tooltip"
-                    className="
-            pointer-events-none invisible absolute bottom-full left-1/2 z-50 mb-2
-            -translate-x-1/2 whitespace-nowrap rounded-md
-            border border-orange-100 bg-white px-3 py-1.5
-            text-xs font-semibold text-[#FE5720] shadow-md
-            group-hover/copy:visible
-        "
-                >
-                    {copied ? "Copied!" : "Copy"}
-                    <span
-                        className="
-                absolute left-1/2 top-full -translate-x-1/2
-                border-[5px] border-transparent border-t-white
-            "
-                    />
-                </span>
-            </span>
+            </DashboardPortaledFlyout>
 
 
-            {/* Three-dot actions menu */}
-            {overflowMenuDisabled ? (
-                <button
-                    type="button"
-                    disabled
-                    aria-label="Row actions unavailable"
-                    title="No actions available"
-                    className={`${dashboardRowMenuTriggerClassName} cursor-not-allowed text-gray-400 opacity-40`}
-                >
-                    <MoreVertical
-                        className="h-4 w-4"
-                        strokeWidth={1.75}
-                    />
-                </button>
-            ) : hasOverflowMenu ? (
-                <DashboardRowActionsMenu ariaLabel="Row actions">
-                    {({ close }) => (
-                        <>
-                            {/* Edit */}
-                            {showEdit ? (
-                                <DashboardRowActionsMenuItem
-                                    icon={<Edit className="h-4 w-4" />}
-                                    label="Edit"
-                                    onSelect={() => {
-                                        close();
-                                        onEdit?.();
-                                    }}
-                                />
-                            ) : null}
+            {showOverflowColumn ? (
+                showActiveOverflowMenu ? (
+                    <DashboardRowActionsMenu ariaLabel="Row actions">
+                        {({ close }) => (
+                            <>
+                                {/* Edit */}
+                                {showEdit ? (
+                                    <DashboardRowActionsMenuItem
+                                        icon={<Edit className="h-4 w-4" />}
+                                        label="Edit"
+                                        onSelect={() => {
+                                            close();
+                                            onEdit?.();
+                                        }}
+                                    />
+                                ) : null}
 
-                            {/* Additional module-specific actions */}
-                            {hasAdditionalMenuItems
-                                ? additionalMenuItems
-                                : null}
+                                {/* Additional module-specific actions */}
+                                {hasAdditionalMenuItems
+                                    ? additionalMenuItems
+                                    : null}
 
-                            {/* Activate / Deactivate */}
-                            {onToggleStatus ? (
-                                <DashboardRowActionsMenuItem
-                                    icon={<Power className="h-4 w-4" />}
-                                    label={
-                                        isActive
-                                            ? "Deactivate"
-                                            : "Activate"
-                                    }
-                                    onSelect={() => {
-                                        close();
-                                        onToggleStatus();
-                                    }}
-                                />
-                            ) : null}
-                        </>
-                    )}
-                </DashboardRowActionsMenu>
+                                {/* Activate / Deactivate */}
+                                {onToggleStatus ? (
+                                    <DashboardRowActionsMenuItem
+                                        icon={<Power className="h-4 w-4" />}
+                                        label={
+                                            isActive
+                                                ? "Deactivate"
+                                                : "Activate"
+                                        }
+                                        onSelect={() => {
+                                            close();
+                                            onToggleStatus();
+                                        }}
+                                    />
+                                ) : null}
+                            </>
+                        )}
+                    </DashboardRowActionsMenu>
+                ) : (
+                    <button
+                        type="button"
+                        disabled
+                        aria-label="Row actions unavailable"
+                        title="No actions available"
+                        className={`${dashboardRowMenuTriggerClassName} cursor-not-allowed text-gray-400 opacity-40`}
+                    >
+                        <MoreVertical
+                            className="h-4 w-4"
+                            strokeWidth={1.75}
+                        />
+                    </button>
+                )
             ) : null}
         </div>
     );

@@ -19,6 +19,10 @@ import {
     type OrganizationValidationErrors,
 } from "@/components/common/Commonvalidation";
 import { ORGANISATION_CLIENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
 import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
 
 export type PointOfContact = {
@@ -259,6 +263,11 @@ export default function CreateClientPage({
     // Keep validation calculations live, but do not show errors before the user submits.
     const displayedErrors = hasAttemptedSubmit ? liveErrors : errors;
 
+    const canSubmit = useMemo(
+        () => !saving && !hasValidationErrors(liveErrors),
+        [liveErrors, saving],
+    );
+
     const handleSubmit = async () => {
         if (isSubmittingRef.current) return;
 
@@ -299,7 +308,7 @@ export default function CreateClientPage({
             if (onSaved) {
                 await onSaved(payload);
             } else {
-                router.push("/organization/clients");
+                router.push("/organisation/clients");
             }
         } catch (error) {
             console.error("Failed to save client:", error);
@@ -327,7 +336,7 @@ export default function CreateClientPage({
                 variant="outline"
                 onClick={
                     onCancel ??
-                    (() => router.push("/organization/clients"))
+                    (() => router.push("/organisation/clients"))
                 }
                 disabled={saving}
             >
@@ -338,7 +347,7 @@ export default function CreateClientPage({
                 type="button"
                 variant="primary"
                 onClick={handleSubmit}
-                disabled={saving}
+                disabled={!canSubmit}
             >
                 {saving
                     ? "Saving..."
@@ -373,19 +382,15 @@ export default function CreateClientPage({
                         value={companyName}
                         onChange={setCompanyName}
                         placeholder="Enter company name"
-                        className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${displayedErrors.companyName
-                            ? "border-red-500"
-                            : "border-gray-300"
-                            }`}
+                        className={mergeFormControlBorderClass(
+                            Boolean(displayedErrors.companyName),
+                            "w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#FE5720]",
+                        )}
                     />
 
-                    {displayedErrors.companyName && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {
-                                displayedErrors.companyName
-                            }
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={displayedErrors.companyName}
+                    />
                 </div>
             </section>
 
@@ -424,13 +429,10 @@ export default function CreateClientPage({
                     </Button>
                 </div>
 
-                {displayedErrors.primaryContact && (
-                    <p className="mt-3 text-xs text-red-500">
-                        {
-                            displayedErrors.primaryContact
-                        }
-                    </p>
-                )}
+                <FormFieldInlineError
+                    message={displayedErrors.primaryContact}
+                    className="mt-3"
+                />
 
                 <div className="mt-5 space-y-4">
                     {pointsOfContact.map(
@@ -484,26 +486,29 @@ export default function CreateClientPage({
                                                     name,
                                                 )
                                             }
-                                            className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${displayedErrors[
-                                                `contact-${index}-name`
-                                            ]
-                                                ? "border-red-500"
-                                                : "border-gray-300"
-                                                }`}
+                                            className={mergeFormControlBorderClass(
+                                                Boolean(
+                                                    displayedErrors[
+                                                        `contact-${index}-name`
+                                                    ],
+                                                ),
+                                                "w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#FE5720]",
+                                            )}
                                             placeholder="Enter contact name"
+                                            aria-invalid={Boolean(
+                                                displayedErrors[
+                                                    `contact-${index}-name`
+                                                ],
+                                            )}
                                         />
 
-                                        {displayedErrors[
-                                            `contact-${index}-name`
-                                        ] && (
-                                                <p className="mt-1 text-xs text-red-500">
-                                                    {
-                                                        displayedErrors[
-                                                        `contact-${index}-name`
-                                                        ]
-                                                    }
-                                                </p>
-                                            )}
+                                        <FormFieldInlineError
+                                            message={
+                                                displayedErrors[
+                                                    `contact-${index}-name`
+                                                ]
+                                            }
+                                        />
                                     </div>
 
                                     {/* Contact Number */}
@@ -528,26 +533,29 @@ export default function CreateClientPage({
                                                     contactNumber,
                                                 )
                                             }
-                                            className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${displayedErrors[
-                                                `contact-${index}-contactNumber`
-                                            ]
-                                                ? "border-red-500"
-                                                : "border-gray-300"
-                                                }`}
+                                            className={mergeFormControlBorderClass(
+                                                Boolean(
+                                                    displayedErrors[
+                                                        `contact-${index}-contactNumber`
+                                                    ],
+                                                ),
+                                                "w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#FE5720]",
+                                            )}
                                             placeholder={getInternationalPhonePlaceholder()}
+                                            aria-invalid={Boolean(
+                                                displayedErrors[
+                                                    `contact-${index}-contactNumber`
+                                                ],
+                                            )}
                                         />
 
-                                        {displayedErrors[
-                                            `contact-${index}-contactNumber`
-                                        ] && (
-                                                <p className="mt-1 text-xs text-red-500">
-                                                    {
-                                                        displayedErrors[
-                                                        `contact-${index}-contactNumber`
-                                                        ]
-                                                    }
-                                                </p>
-                                            )}
+                                        <FormFieldInlineError
+                                            message={
+                                                displayedErrors[
+                                                    `contact-${index}-contactNumber`
+                                                ]
+                                            }
+                                        />
                                     </div>
 
                                     {/* Email */}
@@ -572,26 +580,29 @@ export default function CreateClientPage({
                                                     email,
                                                 )
                                             }
-                                            className={`w-full rounded-md border px-3 py-2 text-sm outline-none focus:border-[#FE5720] ${displayedErrors[
-                                                `contact-${index}-email`
-                                            ]
-                                                ? "border-red-500"
-                                                : "border-gray-300"
-                                                }`}
+                                            className={mergeFormControlBorderClass(
+                                                Boolean(
+                                                    displayedErrors[
+                                                        `contact-${index}-email`
+                                                    ],
+                                                ),
+                                                "w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#FE5720]",
+                                            )}
                                             placeholder="name@company.com"
+                                            aria-invalid={Boolean(
+                                                displayedErrors[
+                                                    `contact-${index}-email`
+                                                ],
+                                            )}
                                         />
 
-                                        {displayedErrors[
-                                            `contact-${index}-email`
-                                        ] && (
-                                                <p className="mt-1 text-xs text-red-500">
-                                                    {
-                                                        displayedErrors[
-                                                        `contact-${index}-email`
-                                                        ]
-                                                    }
-                                                </p>
-                                            )}
+                                        <FormFieldInlineError
+                                            message={
+                                                displayedErrors[
+                                                    `contact-${index}-email`
+                                                ]
+                                            }
+                                        />
                                     </div>
 
                                     {pointsOfContact.length > 1 ? (

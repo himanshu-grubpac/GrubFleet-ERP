@@ -3,7 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    invalidateClientCaches,
+    invalidateLeaseDomainCaches,
+} from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import SelectClientStep from "@/components/modules/fleet-leasing/NewContract/SelectClientStep";
@@ -21,7 +26,6 @@ import CreateClientPage, {
 } from "@/components/modules/organization/clients/CreateClientPage";
 import {
     createOrganisationClientFromForm,
-    organisationClientsQueryKey,
     requireLinkedFleetClientId,
 } from "@/lib/api/organisation/clients";
 import { ApiClientError } from "@/lib/api/client";
@@ -50,8 +54,10 @@ import {
     computeLeaseEndDateIso,
     inferDraftWizardResumeScreen,
     mapDetailToWizardAssetLines,
+    mapWizardAssetLinesToApi,
     termsAreComplete,
 } from "@/lib/lease-contract/lease-contract-wizard.util";
+import { formatLeaseDecimalMoneyForInput } from "@/lib/format/money-format";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
 
@@ -103,10 +109,9 @@ function mapDetailToTerms(detail: LeaseContractDetail): LeaseTerms {
         startDate,
         endDate,
         termMonths,
-        securityDeposit:
-            detail.securityDeposit != null
-                ? String(detail.securityDeposit)
-                : "",
+        securityDeposit: formatLeaseDecimalMoneyForInput(
+            detail.securityDeposit,
+        ),
         billingFrequency:
             (detail.billingFrequency as LeaseTerms["billingFrequency"]) ??
             "monthly",
@@ -171,9 +176,9 @@ export default function EditLeaseContractPage({
     useEffect(() => {
         if (isAuthLoading) return;
         if (!canUpdate) {
-            router.replace(detailHref);
+            navigateToEntityShell(router, detailHref, leaseId, "replace");
         }
-    }, [canUpdate, detailHref, isAuthLoading, router]);
+    }, [canUpdate, detailHref, isAuthLoading, leaseId, router]);
 
     const contractQuery = useQuery({
         queryKey: ["lease-contract", organizationId, leaseId],
@@ -234,7 +239,7 @@ export default function EditLeaseContractPage({
     useEffect(() => {
         if (!contract || initialized) return;
         if (!isEditAllowed(contract)) {
-            router.replace(detailHref);
+            navigateToEntityShell(router, detailHref, leaseId, "replace");
             return;
         }
         const clientId = contract.client?.id ?? "";
@@ -250,7 +255,7 @@ export default function EditLeaseContractPage({
                     : "select-client",
         );
         setInitialized(true);
-    }, [contract, detailHref, initialized, isDraft, router]);
+    }, [contract, detailHref, initialized, isDraft, leaseId, router]);
 
     const persistClient = useCallback(
         async (clientId: string) => {
@@ -268,19 +273,18 @@ export default function EditLeaseContractPage({
     );
 
     const invalidateContract = useCallback(async () => {
-        await queryClient.invalidateQueries({
-            queryKey: ["lease-contract", organizationId, leaseId],
-        });
-        await queryClient.invalidateQueries({
-            queryKey: ["lease-contracts-list", organizationId],
-        });
+        await invalidateLeaseDomainCaches(
+            queryClient,
+            organizationId,
+            leaseId,
+        );
     }, [leaseId, organizationId, queryClient]);
 
     const finishNonDraftSave = useCallback(async () => {
         await invalidateContract();
         showLeaseContractUpdatedToast();
-        router.push(detailHref);
-    }, [detailHref, invalidateContract, router]);
+        navigateToEntityShell(router, detailHref, leaseId);
+    }, [detailHref, invalidateContract, leaseId, router]);
 
     const resolveDraftAssetLines = useCallback(
         async (
@@ -356,13 +360,7 @@ export default function EditLeaseContractPage({
                     organizationId,
                     leaseId,
                     {
-                        assetLines: linesToPersist.map((line) => ({
-                            assetClass: line.assetClass,
-                            committedQuantity: Number(line.committedQuantity),
-                            ratePerVehicleMonth: String(
-                                line.ratePerVehicleMonth || "0",
-                            ),
-                        })),
+                        assetLines: mapWizardAssetLinesToApi(linesToPersist),
                     },
                 );
             }
@@ -548,17 +546,7 @@ export default function EditLeaseContractPage({
                 },
             );
             const fleetClientId = requireLinkedFleetClientId(created);
-            await Promise.all([
-                queryClient.invalidateQueries({
-                    queryKey: organisationClientsQueryKey(organizationId),
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ["organization", "clients"],
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ["fleet-leasing-clients", organizationId],
-                }),
-            ]);
+            await invalidateClientCaches(queryClient);
             await handleClientCreated({
                 id: fleetClientId,
                 companyName: created.clientName,
@@ -690,15 +678,7 @@ export default function EditLeaseContractPage({
                             organizationId,
                             leaseId,
                             {
-                                assetLines: lines.map((line) => ({
-                                    assetClass: line.assetClass,
-                                    committedQuantity: Number(
-                                        line.committedQuantity,
-                                    ),
-                                    ratePerVehicleMonth: String(
-                                        line.ratePerVehicleMonth || "0",
-                                    ),
-                                })),
+                                assetLines: mapWizardAssetLinesToApi(lines),
                                 ...(continueOptions?.confirmShortfall
                                     ? { confirmShortfall: true }
                                     : {}),
@@ -754,15 +734,8 @@ export default function EditLeaseContractPage({
                             organizationId,
                             leaseId,
                             {
-                                assetLines: linesWithRates.map((line) => ({
-                                    assetClass: line.assetClass,
-                                    committedQuantity: Number(
-                                        line.committedQuantity,
-                                    ),
-                                    ratePerVehicleMonth: String(
-                                        line.ratePerVehicleMonth,
-                                    ),
-                                })),
+                                assetLines:
+                                    mapWizardAssetLinesToApi(linesWithRates),
                             },
                         );
                         await updateLeaseContract(

@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -7,6 +8,7 @@ import {
   organisationClientDetailHref,
 } from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -25,6 +27,10 @@ import {
 import CreateClientPage, {
   type ClientFormData,
 } from "@/components/modules/organization/clients/CreateClientPage";
+import {
+  LoadingState,
+  RedirectingState,
+} from "@/components/states/async-states";
 
 export default function EditClientPage() {
   const router = useRouter();
@@ -59,7 +65,7 @@ export default function EditClientPage() {
       return;
     }
     if (!detail.isActive || detail.status === "inactive") {
-      router.replace(organisationClientDetailHref(clientId));
+      navigateToEntityShell(router, organisationClientDetailHref(clientId), clientId, 'replace');
     }
   }, [clientQuery.data, clientId, router]);
 
@@ -71,7 +77,7 @@ export default function EditClientPage() {
   }, [clientQuery.data]);
 
   const handleCancel = () => {
-    router.push(organisationClientDetailHref(clientId));
+    navigateToEntityShell(router, organisationClientDetailHref(clientId), clientId, 'push');
   };
 
   const handleSaved = async (data: ClientFormData) => {
@@ -102,14 +108,9 @@ export default function EditClientPage() {
         clientId,
         payload,
       );
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "clients"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "client", organizationId, clientId],
-      });
+      await invalidateClientCaches(queryClient);
       showClientUpdatedToast(updated.clientName);
-      router.push(organisationClientDetailHref(clientId));
+      navigateToEntityShell(router, organisationClientDetailHref(clientId), clientId, 'push');
     } catch (error) {
       showApiErrorToast(error, CLIENT_SAVE_ERROR);
       throw error;
@@ -118,8 +119,8 @@ export default function EditClientPage() {
 
   if (isAuthLoading || clientQuery.isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Loading client...
+      <div className="min-h-[40vh]">
+        <LoadingState label="Loading client…" />
       </div>
     );
   }
@@ -151,9 +152,7 @@ export default function EditClientPage() {
 
   if (!clientQuery.data.isActive || clientQuery.data.status === "inactive") {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Inactive clients cannot be edited. Redirecting…
-      </div>
+      <RedirectingState label="Inactive clients cannot be edited. Redirecting…" />
     );
   }
 

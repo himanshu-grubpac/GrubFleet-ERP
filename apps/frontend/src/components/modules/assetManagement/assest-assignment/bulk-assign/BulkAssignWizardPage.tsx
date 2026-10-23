@@ -1,19 +1,24 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { RedirectingState } from "@/components/states/async-states";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAuth } from "@/providers/auth-provider";
 import { assetAssignmentQueryOptions } from "@/lib/query/asset-assignment-query-options";
 import { invalidateAssetAssignmentCaches } from "@/lib/query/invalidate-asset-assignment-caches";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import {
+    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS,
+    sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { ApiClientError } from "@/lib/api/client";
 import {
-    BULK_ASSIGN_DONE_STORAGE_KEY,
     bulkAssignAssetRegisterVehiclesApi,
     fetchBulkAssignCatalogApi,
     parseBulkAssignConflictDetails,
@@ -25,7 +30,12 @@ import {
     fetchAllAssetRegisterVehiclesForClassApi,
     fetchAssetRegisterVehiclesApi,
 } from "@/lib/api/asset-register/vehicles";
-import { showErrorToast, VEHICLE_ASSIGN_ERROR } from "@/lib/toast/show-toast";
+import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
+import {
+    showBulkVehiclesAssignedToLeaseToast,
+    showErrorToast,
+    VEHICLE_ASSIGN_ERROR,
+} from "@/lib/toast/show-toast";
 import BulkAssignStepper from "./BulkAssignStepper";
 import ContractStep from "./ContractStep";
 import VehiclesStep from "./VehiclesStep";
@@ -37,7 +47,6 @@ import {
 import { todayIsoDate } from "./bulk-assign-wizard.util";
 
 const ASSET_ASSIGN_LIST_HREF = "/asset-register/asset-assign/";
-const BULK_ASSIGN_DONE_HREF = "/asset-register/asset-assign/bulk/done/";
 const FLEET_REGISTER_CREATE_HREF = "/asset-register/fleetregister/create/";
 const VEHICLE_PAGE_SIZE = 10;
 
@@ -65,6 +74,15 @@ export default function BulkAssignWizardPage() {
     );
     const [vehicleSearch, setVehicleSearch] = useState("");
     const debouncedVehicleSearch = useDebouncedValue(vehicleSearch, 300);
+
+    const onBulkVehicleSearchChange = useCallback((value: string) => {
+        setVehicleSearch(
+            sanitizeRestrictedInputValue("text", value, {
+                maxLength:
+                    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.vehicleListSearch,
+            }),
+        );
+    }, []);
     const [vehiclePage, setVehiclePage] = useState(1);
     const [showSelectedOnly, setShowSelectedOnly] = useState(false);
     const [handoverDate, setHandoverDate] = useState(() => todayIsoDate());
@@ -131,7 +149,10 @@ export default function BulkAssignWizardPage() {
     });
 
     const clients = clientsQuery.data?.clients ?? [];
-    const contracts = contractsQuery.data?.contracts ?? [];
+    const contracts = useMemo(
+        () => contractsQuery.data?.contracts ?? [],
+        [contractsQuery.data?.contracts],
+    );
 
     const selectedContract = useMemo(
         () =>
@@ -241,7 +262,10 @@ export default function BulkAssignWizardPage() {
         ...assetAssignmentQueryOptions,
     });
 
-    const vehicleRows = vehiclesQuery.data?.items ?? [];
+    const vehicleRows = useMemo(
+        () => vehiclesQuery.data?.items ?? [],
+        [vehiclesQuery.data?.items],
+    );
     const vehicleTotal = vehiclesQuery.data?.total ?? 0;
     const vehicleTotalPages = Math.max(
         1,
@@ -591,20 +615,33 @@ export default function BulkAssignWizardPage() {
             setConfirmOpen(false);
             const contractId =
                 result.contractId ?? result.leaseContractId ?? "";
+            const clientName =
+                result.clientName?.trim() ||
+                selectedContract?.clientName?.trim() ||
+                "client";
+            const contractNumber =
+                result.contractNumber?.trim() ||
+                selectedContract?.contractNumber?.trim() ||
+                "Contract";
+
+            showBulkVehiclesAssignedToLeaseToast({
+                assignedCount: result.assignedCount,
+                clientName,
+                contractNumber,
+                remainingToAssignOnLine: result.remainingToAssignOnLine,
+                onViewContract: contractId
+                    ? () => {
+                          navigateToEntityShell(router, fleetLeaseContractDetailHref(contractId), contractId, 'push');
+                      }
+                    : undefined,
+            });
+
             await invalidateAssetAssignmentCaches(
                 queryClient,
                 organizationId,
                 contractId,
             );
-            try {
-                sessionStorage.setItem(
-                    BULK_ASSIGN_DONE_STORAGE_KEY,
-                    JSON.stringify(result),
-                );
-            } catch {
-                // sessionStorage may be unavailable
-            }
-            router.replace(BULK_ASSIGN_DONE_HREF);
+            router.replace(ASSET_ASSIGN_LIST_HREF);
         },
         onError: async (error: Error) => {
             if (error instanceof ApiClientError && error.status === 409) {
@@ -724,6 +761,10 @@ export default function BulkAssignWizardPage() {
         );
     }
 
+    if (assignSucceededRef.current) {
+        return <RedirectingState />;
+    }
+
     return (
         <>
             <OrganizationFormLayout
@@ -760,7 +801,7 @@ export default function BulkAssignWizardPage() {
                         fleetRegisterCreateHref={FLEET_REGISTER_CREATE_HREF}
                         onChangeContract={() => setStep(1)}
                         search={vehicleSearch}
-                        onSearchChange={setVehicleSearch}
+                        onSearchChange={onBulkVehicleSearchChange}
                         showSelectedOnly={showSelectedOnly}
                         onShowSelectedOnlyChange={setShowSelectedOnly}
                         vehicles={vehicleRows}

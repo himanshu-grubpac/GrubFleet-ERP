@@ -1,19 +1,29 @@
-
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
+import { useRouter } from "next/navigation";
+import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
+import {
+  localCurrentYearMonth,
+  localTodayIsoDate,
+} from "@/lib/format/date-format";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchOrganisationClientByIdApi,
-  fetchOrganisationClientsApi,
+  fetchAllActiveOrganisationClientsApi,
 } from "@/lib/api/organisation/clients";
-import { fetchLeaseContractsList } from "@/lib/api/lease-contracts";
+import { fetchAllLeaseContractsList } from "@/lib/api/lease-contracts";
 import {
   createBillingInvoiceApi,
   fetchFinanceInvoiceDetailApi,
@@ -29,6 +39,7 @@ import {
   financeInvoiceNewTypeHref,
   financeInvoicesListHref,
 } from "@/lib/navigation/finance-static-routes";
+import { FINANCE_INVOICE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
   FINANCE_INVOICE_SAVE_ERROR,
   showApiErrorToast,
@@ -43,6 +54,45 @@ const BILLABLE_RAW_STATUSES = new Set([
   "billing_paused",
 ]);
 
+const BILLING_PERIOD_MONTH_VALUE = /^\d{4}-(0[1-9]|1[0-2])$/;
+
+const BILLING_PERIOD_MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+] as const;
+
+/** Native type=month value (YYYY-MM). API stores the same string (varchar 120). */
+function toBillingPeriodMonthValue(stored: string): string {
+  const trimmed = stored.trim();
+  if (BILLING_PERIOD_MONTH_VALUE.test(trimmed)) {
+    return trimmed;
+  }
+
+  const named = trimmed.match(/^([A-Za-z]+)\s+(\d{4})$/);
+  if (!named) {
+    return "";
+  }
+
+  const monthIndex = BILLING_PERIOD_MONTH_NAMES.findIndex(
+    (name) => name.toLowerCase() === named[1].toLowerCase(),
+  );
+  if (monthIndex < 0) {
+    return "";
+  }
+
+  return `${named[2]}-${String(monthIndex + 1).padStart(2, "0")}`;
+}
+
 type InvoiceValidationErrors = {
   clientId?: string;
   leaseContractId?: string;
@@ -53,8 +103,8 @@ type InvoiceValidationErrors = {
 
 export default function NewBillingInvoicePage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const editInvoiceId = searchParams.get("invoiceId")?.trim() || null;
+  const queryClient = useQueryClient();
+  const editInvoiceId = useFinanceEntityId("invoiceId");
 
   const { token, organizationId, isLoading: authLoading, permissions } =
     useAuth();
@@ -94,7 +144,7 @@ export default function NewBillingInvoicePage() {
     if (data.clientId) setClientId(data.clientId);
     if (data.leaseContractId) setLeaseContractId(data.leaseContractId);
 
-    setBillingPeriod(data.billingPeriod ?? "");
+    setBillingPeriod(toBillingPeriodMonthValue(data.billingPeriod ?? ""));
     setAmount(
       formatRupeeInputDisplay(String(data.totalAmountMinor / 100)),
     );
@@ -105,12 +155,7 @@ export default function NewBillingInvoicePage() {
   const clientsQuery = useQuery({
     queryKey: ["finance-billing-clients", organizationId],
     queryFn: () =>
-      fetchOrganisationClientsApi(token!, {
-        organizationId: organizationId!,
-        page: 1,
-        pageSize: 50,
-        status: "active",
-      }),
+      fetchAllActiveOrganisationClientsApi(token!, organizationId!),
     enabled: catalogEnabled,
   });
 
@@ -124,9 +169,7 @@ export default function NewBillingInvoicePage() {
   const contractsQuery = useQuery({
     queryKey: ["finance-billing-contracts", organizationId],
     queryFn: () =>
-      fetchLeaseContractsList(token!, organizationId!, {
-        page: 1,
-        pageSize: 50,
+      fetchAllLeaseContractsList(token!, organizationId!, {
         statusFilter: "active",
       }),
     enabled: catalogEnabled,
@@ -136,7 +179,7 @@ export default function NewBillingInvoicePage() {
     clientDetailQuery.data?.linkedFleetClientId ?? null;
 
   const contractOptions = useMemo(() => {
-    const items = contractsQuery.data?.items ?? [];
+    const items = contractsQuery.data ?? [];
 
     return items.filter(
       (contract) =>
@@ -154,7 +197,7 @@ export default function NewBillingInvoicePage() {
     }
   }, [contractOptions, leaseContractId]);
 
-  const validateForm = (): InvoiceValidationErrors => {
+  const validateForm = useCallback((): InvoiceValidationErrors => {
     const errors: InvoiceValidationErrors = {};
     const parsedAmount = parseRupeeInputToMinor(amount);
 
@@ -166,8 +209,8 @@ export default function NewBillingInvoicePage() {
       errors.leaseContractId = "Please select a lease contract.";
     }
 
-    if (!billingPeriod.trim()) {
-      errors.billingPeriod = "Please enter the billing period.";
+    if (!BILLING_PERIOD_MONTH_VALUE.test(billingPeriod.trim())) {
+      errors.billingPeriod = "Please select the billing period.";
     }
 
     if (!amount.trim()) {
@@ -183,12 +226,9 @@ export default function NewBillingInvoicePage() {
     }
 
     return errors;
-  };
+  }, [amount, billingPeriod, clientId, invoiceDate, leaseContractId]);
 
-  const liveErrors = useMemo(
-    () => validateForm(),
-    [clientId, leaseContractId, billingPeriod, amount, invoiceDate],
-  );
+  const liveErrors = useMemo(() => validateForm(), [validateForm]);
 
   const displayedErrors: InvoiceValidationErrors = hasAttemptedSubmit
     ? liveErrors
@@ -239,9 +279,10 @@ export default function NewBillingInvoicePage() {
     },
 
     onSuccess: (detail) => {
+      void invalidateFinanceInvoiceCaches(queryClient);
       if (editInvoiceId) {
         showFinanceInvoiceUpdatedToast(detail.invoiceNumber);
-        router.push(financeInvoiceDetailHref(detail.id));
+        navigateToEntityShell(router, financeInvoiceDetailHref(detail.id), detail.id, 'push');
       } else {
         showFinanceInvoiceCreatedToast(detail.invoiceNumber);
         router.push(financeInvoicesListHref);
@@ -264,7 +305,7 @@ export default function NewBillingInvoicePage() {
     canSave &&
     !saveMutation.isPending &&
     !editQuery.isLoading &&
-    (!hasAttemptedSubmit || isFormValid);
+    isFormValid;
 
   const handleSave = () => {
     setHasAttemptedSubmit(true);
@@ -279,27 +320,24 @@ export default function NewBillingInvoicePage() {
     saveMutation.mutate();
   };
 
-  const clients = clientsQuery.data?.items ?? [];
+  const clients = clientsQuery.data ?? [];
 
   const isLoading =
     clientsQuery.isLoading ||
     contractsQuery.isLoading ||
     editQuery.isLoading;
 
-  const fieldClassName = (hasError: boolean) =>
-    [
-      "w-full rounded-md border px-3 py-2 text-sm",
-      hasError
-        ? "border-red-500 focus:border-red-500 focus:outline-none focus:ring-1 focus:ring-red-500"
-        : "border-slate-200",
-    ].join(" ");
+  const controlBaseClass =
+    "w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
 
-  const renderFieldError = (message?: string) =>
-    message ? (
-      <p className="mt-1 text-xs text-red-600" role="alert">
-        {message}
-      </p>
-    ) : null;
+  const selectBaseClass =
+    "w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
+
+  const fieldBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, controlBaseClass);
+
+  const selectBorderClass = (hasError: boolean) =>
+    mergeFormControlBorderClass(hasError, selectBaseClass);
 
   if (!canSave && !authLoading) {
     return (
@@ -388,7 +426,7 @@ export default function NewBillingInvoicePage() {
 
             <select
               id="billing-client"
-              className={fieldClassName(!!displayedErrors.clientId)}
+              className={selectBorderClass(!!displayedErrors.clientId)}
               value={clientId}
               onChange={(event) => {
                 setClientId(event.target.value);
@@ -410,7 +448,7 @@ export default function NewBillingInvoicePage() {
 
             {displayedErrors.clientId && (
               <div id="billing-client-error">
-                {renderFieldError(displayedErrors.clientId)}
+                <FormFieldInlineError message={displayedErrors.clientId} />
               </div>
             )}
           </div>
@@ -425,7 +463,7 @@ export default function NewBillingInvoicePage() {
 
             <select
               id="billing-contract"
-              className={fieldClassName(!!displayedErrors.leaseContractId)}
+              className={selectBorderClass(!!displayedErrors.leaseContractId)}
               value={leaseContractId}
               onChange={(event) => setLeaseContractId(event.target.value)}
               disabled={
@@ -450,7 +488,7 @@ export default function NewBillingInvoicePage() {
 
             {displayedErrors.leaseContractId && (
               <div id="billing-contract-error">
-                {renderFieldError(displayedErrors.leaseContractId)}
+                <FormFieldInlineError message={displayedErrors.leaseContractId} />
               </div>
             )}
 
@@ -472,15 +510,17 @@ export default function NewBillingInvoicePage() {
               Billing period *
             </label>
 
-            <RestrictedInput
-              restrictedKind="text"
+            <input
+              id="billing-period"
+              type="month"
+              max={localCurrentYearMonth()}
               value={billingPeriod}
-              onChange={setBillingPeriod}
-              maxLength={120}
-              placeholder="e.g. April 2026"
+              onChange={(event) => setBillingPeriod(event.target.value)}
+              className={fieldBorderClass(!!displayedErrors.billingPeriod)}
+              aria-invalid={!!displayedErrors.billingPeriod}
             />
 
-            {renderFieldError(displayedErrors.billingPeriod)}
+            <FormFieldInlineError message={displayedErrors.billingPeriod} />
           </div>
 
           <div>
@@ -496,9 +536,11 @@ export default function NewBillingInvoicePage() {
               value={amount}
               onChange={setAmount}
               placeholder={INR_RUPEE_INPUT_PLACEHOLDER}
+              className={fieldBorderClass(!!displayedErrors.amount)}
+              aria-invalid={!!displayedErrors.amount}
             />
 
-            {renderFieldError(displayedErrors.amount)}
+            <FormFieldInlineError message={displayedErrors.amount} />
           </div>
 
           <div>
@@ -512,7 +554,8 @@ export default function NewBillingInvoicePage() {
             <input
               id="billing-invoice-date"
               type="date"
-              className={fieldClassName(!!displayedErrors.invoiceDate)}
+              max={localTodayIsoDate()}
+              className={fieldBorderClass(!!displayedErrors.invoiceDate)}
               value={invoiceDate}
               onChange={(event) => setInvoiceDate(event.target.value)}
               aria-invalid={!!displayedErrors.invoiceDate}
@@ -525,7 +568,7 @@ export default function NewBillingInvoicePage() {
 
             {displayedErrors.invoiceDate && (
               <div id="billing-invoice-date-error">
-                {renderFieldError(displayedErrors.invoiceDate)}
+                <FormFieldInlineError message={displayedErrors.invoiceDate} />
               </div>
             )}
           </div>
@@ -542,7 +585,7 @@ export default function NewBillingInvoicePage() {
               restrictedKind="text"
               value={notes}
               onChange={setNotes}
-              maxLength={2000}
+              maxLength={FINANCE_INVOICE_INPUT_LIMITS.invoiceNotes}
             />
           </div>
         </div>

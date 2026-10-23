@@ -1,6 +1,7 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserRound } from "lucide-react";
 import {
@@ -8,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateEmployeeCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -23,7 +25,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ORGANISATION_EMPLOYEE_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { ApiClientError } from "@/lib/api/client";
 import {
   fetchOrganisationEmployeeDepartmentsApi,
@@ -42,6 +48,10 @@ import { organisationEmployeeEditHref } from "@/lib/navigation/organisation-stat
 import type { DeactivateReasonType, EmployeeRecord } from "./types";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
@@ -114,8 +124,20 @@ export default function EmployeesPage() {
     permissions.has("organisation.update") ||
     permissions.has("organisation.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onEmployeeListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ORGANISATION_EMPLOYEE_INPUT_LIMITS.employeeListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [filters, setFilters] = useState<Record<string, string>>({
     department: "",
     status: "",
@@ -227,9 +249,7 @@ export default function EmployeesPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "employees"],
-      });
+      void invalidateEmployeeCaches(queryClient);
       setActivateTarget(null);
       setDeactivateTarget(null);
       setStatusError(null);
@@ -251,15 +271,15 @@ export default function EmployeesPage() {
 
   const handleAddEmployee = () => {
     if (!canCreate) return;
-    router.push("/organization/employees/create");
+    router.push("/organisation/employees/create");
   };
 
   const handleEditEmployee = (employee: Employee) => {
-    router.push(organisationEmployeeEditHref(employee.id));
+    navigateToEntityShell(router, organisationEmployeeEditHref(employee.id), employee.id, 'push');
   };
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
     setFilters({
       department: "",
       status: "",
@@ -375,9 +395,7 @@ export default function EmployeesPage() {
         description="This organisation's HR record — job details, performance, location, and reporting line for every employee."
         action={addEmployeeAction}
       >
-        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-          <p className="text-sm text-gray-500">Loading employees...</p>
-        </div>
+        <DashboardListLoadingShell label="Loading employees…" />
       </DashboardLayout>
     );
   }
@@ -389,18 +407,11 @@ export default function EmployeesPage() {
         description="This organisation's HR record — job details, performance, location, and reporting line for every employee."
         action={addEmployeeAction}
       >
-        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-          <p className="text-sm font-medium text-red-600">
-            Failed to load employees.
-          </p>
-          <button
-            type="button"
-            onClick={() => void employeesQuery.refetch()}
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </div>
+        <DashboardDetailErrorShell
+          title="Failed to load employees"
+          fallbackMessage="Failed to load employees."
+          onRetry={() => void employeesQuery.refetch()}
+        />
       </DashboardLayout>
     );
   }
@@ -423,9 +434,9 @@ export default function EmployeesPage() {
       }
     >
       <DashboardFilters
-        searchValue={search}
+        searchValue={searchInput}
         searchPlaceholder="Search by name, designation, or department"
-        onSearchChange={setSearch}
+        onSearchChange={onEmployeeListSearchChange}
         selectFilters={[
           {
             key: "department",

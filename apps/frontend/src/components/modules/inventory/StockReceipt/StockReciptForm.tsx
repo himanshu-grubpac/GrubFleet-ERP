@@ -3,9 +3,22 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 
+import { localTodayIsoDate } from "@/lib/format/date-format";
+import { inventoryStockReceiptListHref } from "@/lib/navigation/inventory-static-routes";
+
 import FormActions from "@/components/common/FormActions";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
+import { parseRupeeInputToMinor } from "@/lib/format/money-format";
+import { INVENTORY_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+
+/** Select value when receipt is not linked to a Finance purchase invoice. */
+export const STOCK_RECEIPT_MANUAL_INVOICE = "__manual_unlinked__";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -14,11 +27,15 @@ import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 export type StockFormData = {
     part: string;
     purchaseInvoice: string;
+    purchaseDate: string;
+    expiryDate: string;
     destinationLocation: string;
     quantityReceived: string;
     unitCost: string;
     batchLotReference: string;
     notes: string;
+    /** Optional free-text ref when purchase invoice is manual / unlinked. */
+    purchaseInvoiceManualRef: string;
 };
 
 export type SelectOption = { value: string; label: string };
@@ -40,6 +57,7 @@ function getStockReceiptValidationErrors(form: StockFormData): string[] {
 
     if (!form.part.trim()) errors.push("Part is required.");
     if (!form.purchaseInvoice.trim()) errors.push("Purchase invoice is required.");
+    if (!form.purchaseDate.trim()) errors.push("Purchase date is required.");
     if (!form.destinationLocation.trim()) errors.push("Destination location is required.");
 
     if (!form.quantityReceived.trim()) {
@@ -53,11 +71,8 @@ function getStockReceiptValidationErrors(form: StockFormData): string[] {
 
     if (!form.unitCost.trim()) {
         errors.push("Unit cost is required.");
-    } else {
-        const unitCost = Number(form.unitCost);
-        if (!Number.isFinite(unitCost) || unitCost < 0) {
-            errors.push("Unit cost must be a valid number greater than or equal to zero.");
-        }
+    } else if (parseRupeeInputToMinor(form.unitCost) === null) {
+        errors.push("Unit cost must be a valid amount.");
     }
 
     return errors;
@@ -93,6 +108,10 @@ export default function CreateStockForm({
     const [form, setForm] = useState<StockFormData>({
         part: initialData?.part ?? "",
         purchaseInvoice: initialData?.purchaseInvoice ?? "",
+        purchaseDate:
+            initialData?.purchaseDate ??
+            new Date().toISOString().slice(0, 10),
+        expiryDate: initialData?.expiryDate ?? "",
         destinationLocation:
             initialData?.destinationLocation ?? "",
         quantityReceived:
@@ -101,7 +120,12 @@ export default function CreateStockForm({
         batchLotReference:
             initialData?.batchLotReference ?? "",
         notes: initialData?.notes ?? "",
+        purchaseInvoiceManualRef:
+            initialData?.purchaseInvoiceManualRef ?? "",
     });
+
+    const isManualPurchaseInvoice =
+        form.purchaseInvoice === STOCK_RECEIPT_MANUAL_INVOICE;
 
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -113,8 +137,11 @@ export default function CreateStockForm({
         [form],
     );
 
-    // Keep Save enabled until the first attempt so users can see validation errors.
-    const canSubmit = canSave && !isSaving && !isCatalogLoading;
+    const canSubmit =
+        canSave &&
+        !isSaving &&
+        !isCatalogLoading &&
+        validationSummary.length === 0;
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -142,7 +169,7 @@ export default function CreateStockForm({
             return;
         }
 
-        router.push("/inventory/stock-receipt");
+        router.push(inventoryStockReceiptListHref);
     };
 
     /* ---------------------------------------------------------------------- */
@@ -177,6 +204,8 @@ export default function CreateStockForm({
                 part: form.part.trim(),
                 purchaseInvoice:
                     form.purchaseInvoice.trim(),
+                purchaseDate: form.purchaseDate.trim(),
+                expiryDate: form.expiryDate.trim(),
                 destinationLocation:
                     form.destinationLocation.trim(),
                 quantityReceived:
@@ -186,12 +215,14 @@ export default function CreateStockForm({
                 batchLotReference:
                     form.batchLotReference.trim(),
                 notes: form.notes.trim(),
+                purchaseInvoiceManualRef:
+                    form.purchaseInvoiceManualRef.trim(),
             };
 
             if (onSaved) {
                 await onSaved(stock);
             } else {
-                router.push("/inventory/stock-receipt");
+                router.push(inventoryStockReceiptListHref);
             }
         } catch {
             setError(
@@ -258,28 +289,26 @@ export default function CreateStockForm({
                         id="part"
                         value={form.part}
                         onChange={(event) =>
-                            updateForm(
-                                "part",
-                                event.target.value,
-                            )
+                            updateForm("part", event.target.value)
                         }
-                        className={`${selectClassName} ${hasAttemptedSubmit && !form.part.trim() ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && !form.part.trim()}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit && !form.part.trim(),
+                            selectClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit && !form.part.trim()
+                        }
                     >
-                        <option value="">
-                            Select part
-                        </option>
-
+                        <option value="">Select part</option>
                         {partOptions.map((part) => (
-                            <option
-                                key={part.value}
-                                value={part.value}
-                            >
+                            <option key={part.value} value={part.value}>
                                 {part.label}
                             </option>
                         ))}
                     </select>
-                    {hasAttemptedSubmit && !form.part.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Part is required.</p>}
+                    {hasAttemptedSubmit && !form.part.trim() ? (
+                        <FormFieldInlineError message="Part is required." />
+                    ) : null}
                 </div>
 
                 {/* Purchase Invoice */}
@@ -298,31 +327,115 @@ export default function CreateStockForm({
                     <select
                         id="purchase-invoice"
                         value={form.purchaseInvoice}
-                        onChange={(event) =>
-                            updateForm(
-                                "purchaseInvoice",
-                                event.target.value,
-                            )
-                        }
-                        className={`${selectClassName} ${hasAttemptedSubmit && !form.purchaseInvoice.trim() ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && !form.purchaseInvoice.trim()}
-                    >
-                        <option value="">
-                            Select purchase invoice
-                        </option>
-
-                        {purchaseInvoiceOptions.map(
-                            (invoice) => (
-                                <option
-                                    key={invoice.value}
-                                    value={invoice.value}
-                                >
-                                    {invoice.label}
-                                </option>
-                            ),
+                        onChange={(event) => {
+                            const nextValue = event.target.value;
+                            updateForm("purchaseInvoice", nextValue);
+                            if (nextValue !== STOCK_RECEIPT_MANUAL_INVOICE) {
+                                updateForm("purchaseInvoiceManualRef", "");
+                            }
+                        }}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                !form.purchaseInvoice.trim(),
+                            selectClassName,
                         )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            !form.purchaseInvoice.trim()
+                        }
+                    >
+                        <option value="">Select purchase invoice</option>
+                        {purchaseInvoiceOptions.map((invoice) => (
+                            <option
+                                key={invoice.value}
+                                value={invoice.value}
+                            >
+                                {invoice.label}
+                            </option>
+                        ))}
                     </select>
-                    {hasAttemptedSubmit && !form.purchaseInvoice.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Purchase invoice is required.</p>}
+                    {hasAttemptedSubmit && !form.purchaseInvoice.trim() ? (
+                        <FormFieldInlineError message="Purchase invoice is required." />
+                    ) : null}
+                </div>
+            </div>
+
+            {isManualPurchaseInvoice ? (
+                <div className="mt-4">
+                    <label
+                        htmlFor="manual-purchase-invoice-ref"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Manual invoice reference
+                        <span className="ml-1 font-normal text-gray-400">
+                            (optional)
+                        </span>
+                    </label>
+                    <RestrictedInput
+                        id="manual-purchase-invoice-ref"
+                        restrictedKind="text"
+                        maxLength={
+                            INVENTORY_INPUT_LIMITS.stockReceiptPurchaseInvoiceRef
+                        }
+                        value={form.purchaseInvoiceManualRef}
+                        onChange={(value) =>
+                            updateForm("purchaseInvoiceManualRef", value)
+                        }
+                        placeholder="e.g. vendor invoice no. if not in Finance"
+                        className={inputClassName}
+                    />
+                </div>
+            ) : null}
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                    <label
+                        htmlFor="purchase-date"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Purchase date
+                        <span className="ml-1 text-red-500">*</span>
+                    </label>
+                    <input
+                        id="purchase-date"
+                        type="date"
+                        max={localTodayIsoDate()}
+                        value={form.purchaseDate}
+                        onChange={(event) =>
+                            updateForm("purchaseDate", event.target.value)
+                        }
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit && !form.purchaseDate.trim(),
+                            inputClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit && !form.purchaseDate.trim()
+                        }
+                    />
+                    {hasAttemptedSubmit && !form.purchaseDate.trim() && (
+                        <FormFieldInlineError message="Purchase date is required." />
+                    )}
+                </div>
+                <div>
+                    <label
+                        htmlFor="expiry-date"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Expiry date
+                        <span className="ml-1 font-normal text-gray-400">
+                            (optional)
+                        </span>
+                    </label>
+                    <input
+                        id="expiry-date"
+                        type="date"
+                        min={form.purchaseDate || undefined}
+                        value={form.expiryDate}
+                        onChange={(event) =>
+                            updateForm("expiryDate", event.target.value)
+                        }
+                        className={inputClassName}
+                    />
                 </div>
             </div>
 
@@ -353,8 +466,15 @@ export default function CreateStockForm({
                                 event.target.value,
                             )
                         }
-                        className={`${selectClassName} ${hasAttemptedSubmit && !form.destinationLocation.trim() ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && !form.destinationLocation.trim()}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                !form.destinationLocation.trim(),
+                            selectClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            !form.destinationLocation.trim()
+                        }
                     >
                         <option value="">
                             Select location
@@ -371,7 +491,9 @@ export default function CreateStockForm({
                             ),
                         )}
                     </select>
-                    {hasAttemptedSubmit && !form.destinationLocation.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Destination location is required.</p>}
+                    {hasAttemptedSubmit && !form.destinationLocation.trim() ? (
+                        <FormFieldInlineError message="Destination location is required." />
+                    ) : null}
                 </div>
 
                 {/* Quantity Received */}
@@ -387,24 +509,42 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="quantity-received"
-                        type="number"
-                        min="1"
-                        step="1"
+                        restrictedKind="digits"
+                        maxLength={
+                            INVENTORY_INPUT_LIMITS.stockReceiptQuantityMaxDigits
+                        }
                         value={form.quantityReceived}
-                        onChange={(event) =>
-                            updateForm(
-                                "quantityReceived",
-                                event.target.value,
-                            )
+                        onChange={(value) =>
+                            updateForm("quantityReceived", value)
                         }
                         placeholder="e.g. 20"
-                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.quantityReceived.trim() || !Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0) ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && (!form.quantityReceived.trim() || !Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0)}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                (!form.quantityReceived.trim() ||
+                                    !Number.isFinite(
+                                        Number(form.quantityReceived),
+                                    ) ||
+                                    Number(form.quantityReceived) <= 0),
+                            inputClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            (!form.quantityReceived.trim() ||
+                                !Number.isFinite(Number(form.quantityReceived)) ||
+                                Number(form.quantityReceived) <= 0)
+                        }
                     />
-                    {hasAttemptedSubmit && !form.quantityReceived.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Quantity received is required.</p>}
-                    {hasAttemptedSubmit && form.quantityReceived.trim() && (!Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0) && <p className="mt-1 text-xs text-red-600" role="alert">Quantity received must be a valid number greater than 0.</p>}
+                    {hasAttemptedSubmit && !form.quantityReceived.trim() ? (
+                        <FormFieldInlineError message="Quantity received is required." />
+                    ) : null}
+                    {hasAttemptedSubmit &&
+                    form.quantityReceived.trim() &&
+                    (!Number.isFinite(Number(form.quantityReceived)) ||
+                        Number(form.quantityReceived) <= 0) ? (
+                        <FormFieldInlineError message="Quantity received must be a valid number greater than 0." />
+                    ) : null}
                 </div>
             </div>
 
@@ -426,24 +566,33 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="unit-cost"
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        restrictedKind="inrRupee"
                         value={form.unitCost}
-                        onChange={(event) =>
-                            updateForm(
-                                "unitCost",
-                                event.target.value,
-                            )
+                        onChange={(value) => updateForm("unitCost", value)}
+                        placeholder="e.g. 340"
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                (!form.unitCost.trim() ||
+                                    parseRupeeInputToMinor(form.unitCost) ===
+                                        null),
+                            inputClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            (!form.unitCost.trim() ||
+                                parseRupeeInputToMinor(form.unitCost) === null)
                         }
-                        placeholder="e.g. Rs. 340"
-                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.unitCost.trim() || !Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0) ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && (!form.unitCost.trim() || !Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0)}
                     />
-                    {hasAttemptedSubmit && !form.unitCost.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Unit cost is required.</p>}
-                    {hasAttemptedSubmit && form.unitCost.trim() && (!Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0) && <p className="mt-1 text-xs text-red-600" role="alert">Unit cost must be a valid number greater than or equal to zero.</p>}
+                    {hasAttemptedSubmit && !form.unitCost.trim() && (
+                        <FormFieldInlineError message="Unit cost is required." />
+                    )}
+                    {hasAttemptedSubmit &&
+                        form.unitCost.trim() &&
+                        parseRupeeInputToMinor(form.unitCost) === null && (
+                            <FormFieldInlineError message="Unit cost must be a valid amount." />
+                        )}
                 </div>
 
                 {/* Batch / Lot Reference */}
@@ -459,15 +608,13 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="batch-lot-reference"
-                        type="text"
+                        restrictedKind="text"
+                        maxLength={INVENTORY_INPUT_LIMITS.stockReceiptBatchLot}
                         value={form.batchLotReference}
-                        onChange={(event) =>
-                            updateForm(
-                                "batchLotReference",
-                                event.target.value,
-                            )
+                        onChange={(value) =>
+                            updateForm("batchLotReference", value)
                         }
                         placeholder="e.g. vendor's dispatch no."
                         className={inputClassName}
@@ -490,16 +637,12 @@ export default function CreateStockForm({
                     </span>
                 </label>
 
-                <input
+                <RestrictedInput
                     id="notes"
-                    type="text"
+                    restrictedKind="text"
+                    maxLength={INVENTORY_INPUT_LIMITS.stockReceiptNotes}
                     value={form.notes}
-                    onChange={(event) =>
-                        updateForm(
-                            "notes",
-                            event.target.value,
-                        )
-                    }
+                    onChange={(value) => updateForm("notes", value)}
                     placeholder="e.g. Partial delivery, balance expected next week"
                     className={inputClassName}
                 />

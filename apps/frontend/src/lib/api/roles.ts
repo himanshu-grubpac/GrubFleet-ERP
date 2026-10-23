@@ -6,6 +6,10 @@ import type {
 import type { ListSortParams } from '@/lib/query/list-sort-params';
 import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
 import { apiFetch } from './client';
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from './fetch-all-paginated';
 
 export type RoleEditorMatrixRow = {
   moduleId: string;
@@ -69,6 +73,7 @@ export async function fetchRolesApi(
   page = 1,
   pageSize = 50,
   sort?: ListSortParams,
+  search?: string,
 ): Promise<PaginatedResponse<Role>> {
   const query = new URLSearchParams({
     organizationId,
@@ -76,6 +81,10 @@ export async function fetchRolesApi(
     pageSize: String(pageSize),
   });
   appendListSortSearchParams(query, sort);
+  const trimmedSearch = search?.trim();
+  if (trimmedSearch) {
+    query.set('search', trimmedSearch);
+  }
 
   return apiFetch<PaginatedResponse<Role>>(`/roles?${query.toString()}`, {
     method: 'GET',
@@ -84,6 +93,20 @@ export async function fetchRolesApi(
       'x-organization-id': organizationId,
     },
   });
+}
+
+/** Loads every role page (page size 50) so catalogs and the roles list are not capped at one page. */
+export async function fetchAllRolesApi(
+  token: string,
+  organizationId: string,
+  sort?: ListSortParams,
+  search?: string,
+): Promise<Role[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchRolesApi(token, organizationId, page, pageSize, sort, search),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
+  );
 }
 
 export async function fetchRoleEditorMatrixApi(

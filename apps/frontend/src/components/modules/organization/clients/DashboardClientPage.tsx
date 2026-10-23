@@ -1,6 +1,7 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import {
@@ -8,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -19,7 +21,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ORGANISATION_CLIENT_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   CLIENT_STATUS_UPDATE_ERROR,
   showClientActivatedToast,
@@ -33,6 +39,10 @@ import {
 } from "@/lib/api/organisation/clients";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
@@ -72,8 +82,20 @@ export default function ClientDashboardPage() {
     permissions.has("organisation.update") ||
     permissions.has("organisation.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onClientListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ORGANISATION_CLIENT_INPUT_LIMITS.clientListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [page, setPage] = useState(1);
 
   const {
@@ -145,9 +167,7 @@ export default function ClientDashboardPage() {
       );
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "clients"],
-      });
+      void invalidateClientCaches(queryClient);
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
@@ -166,7 +186,7 @@ export default function ClientDashboardPage() {
 
   const handleAddClient = () => {
     if (!canCreate) return;
-    router.push("/organization/clients/create");
+    router.push("/organisation/clients/create");
   };
 
   const addClientAction = canCreate ? (
@@ -176,11 +196,11 @@ export default function ClientDashboardPage() {
   ) : undefined;
 
   const handleEdit = (client: Client) => {
-    router.push(organisationClientEditHref(client.id));
+    navigateToEntityShell(router, organisationClientEditHref(client.id), client.id, 'push');
   };
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
   };
 
   const handleActivate = (client: Client) => {
@@ -240,9 +260,7 @@ export default function ClientDashboardPage() {
         activeTab="/customer"
         action={addClientAction}
       >
-        <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-          <p className="text-sm text-gray-500">Loading clients...</p>
-        </div>
+        <DashboardListLoadingShell label="Loading clients…" />
       </DashboardLayout>
     );
   }
@@ -256,18 +274,11 @@ export default function ClientDashboardPage() {
         activeTab="/customer"
         action={addClientAction}
       >
-        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-          <p className="text-sm font-medium text-red-600">
-            Failed to load clients.
-          </p>
-          <button
-            type="button"
-            onClick={() => void clientsQuery.refetch()}
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </div>
+        <DashboardDetailErrorShell
+          title="Failed to load clients"
+          fallbackMessage="Failed to load clients."
+          onRetry={() => void clientsQuery.refetch()}
+        />
       </DashboardLayout>
     );
   }
@@ -299,9 +310,11 @@ export default function ClientDashboardPage() {
         {/* Search */}
         <div className="min-w-0 flex-1">
           <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            type="search"
+            value={searchInput}
+            onChange={(event) =>
+              onClientListSearchChange(event.target.value)
+            }
             placeholder="Search by company or point of contact name"
             className="
                             h-9
@@ -390,6 +403,7 @@ export default function ClientDashboardPage() {
             <DashboardTableActions
               status={client.status}
               locationId={client.id}
+              navigationEntityId={client.id}
               viewHref={organisationClientDetailHref(client.id)}
               copyText={[
                 `Company: ${client.clientName}`,

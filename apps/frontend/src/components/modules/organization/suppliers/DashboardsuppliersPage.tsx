@@ -1,6 +1,7 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 import {
@@ -8,6 +9,7 @@ import {
     useQuery,
     useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateSupplierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -19,7 +21,11 @@ import {
     listSortQueryKeyPart,
     useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+    ORGANISATION_SUPPLIER_INPUT_LIMITS,
+    sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
     SUPPLIER_STATUS_UPDATE_ERROR,
     showErrorToast,
@@ -34,6 +40,10 @@ import {
 } from "@/lib/api/organisation/suppliers";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+    DashboardDetailErrorShell,
+    DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import {
@@ -108,8 +118,21 @@ export default function SuppliersPage() {
         permissions.has("organisation.update") ||
         permissions.has("organisation.manage");
 
-    const [search, setSearch] = useState("");
-    const debouncedSearch = useDebouncedValue(search, 300);
+    const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+        useDashboardListSearch();
+
+    const onSupplierListSearchChange = useCallback(
+        (value: string) => {
+            setSearchInput(
+                sanitizeRestrictedInputValue("text", value, {
+                    maxLength:
+                        ORGANISATION_SUPPLIER_INPUT_LIMITS.supplierListSearch,
+                }),
+            );
+        },
+        [setSearchInput],
+    );
+
     const [activeFilter, setActiveFilter] =
         useState<SupplierFilter>("all");
     const [page, setPage] = useState(1);
@@ -187,9 +210,7 @@ export default function SuppliersPage() {
             );
         },
         onSuccess: (_data, variables) => {
-            void queryClient.invalidateQueries({
-                queryKey: ["organization", "suppliers"],
-            });
+            void invalidateSupplierCaches(queryClient);
             setDeactivateTarget(null);
             setActivateTarget(null);
             setStatusError(null);
@@ -209,7 +230,7 @@ export default function SuppliersPage() {
 
     const handleAddSupplier = () => {
         if (!canCreate) return;
-        router.push("/organization/suppliers/create");
+        router.push("/organisation/suppliers/create");
     };
 
     const addSupplierAction = canCreate ? (
@@ -219,11 +240,11 @@ export default function SuppliersPage() {
     ) : undefined;
 
     const handleEdit = (supplier: Supplier) => {
-        router.push(organisationSupplierEditHref(supplier.id));
+        navigateToEntityShell(router, organisationSupplierEditHref(supplier.id), supplier.id, 'push');
     };
 
     const handleClearFilters = () => {
-        setSearch("");
+        clearSearch();
         setActiveFilter("all");
     };
 
@@ -279,14 +300,10 @@ export default function SuppliersPage() {
                 title="Suppliers"
                 description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts, used across Asset Management and Inventory."
                 descriptionBreakAfter="contacts,"
-                activeTab="/organization/suppliers"
+                activeTab="/organisation/suppliers"
                 action={addSupplierAction}
             >
-                <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
-                    <p className="text-sm text-gray-500">
-                        Loading suppliers...
-                    </p>
-                </div>
+                <DashboardListLoadingShell label="Loading suppliers…" />
             </DashboardLayout>
         );
     }
@@ -297,21 +314,14 @@ export default function SuppliersPage() {
                 title="Suppliers"
                 description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts,
              used across Asset Management and Inventory."
-                activeTab="/organization/suppliers"
+                activeTab="/organisation/suppliers"
                 action={addSupplierAction}
             >
-                <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-                    <p className="text-sm font-medium text-red-600">
-                        Failed to load suppliers.
-                    </p>
-                    <button
-                        type="button"
-                        onClick={() => void suppliersQuery.refetch()}
-                        className="mt-2 text-sm text-gray-600 underline"
-                    >
-                        Try again
-                    </button>
-                </div>
+                <DashboardDetailErrorShell
+                    title="Failed to load suppliers"
+                    fallbackMessage="Failed to load suppliers."
+                    onRetry={() => void suppliersQuery.refetch()}
+                />
             </DashboardLayout>
         );
     }
@@ -321,7 +331,7 @@ export default function SuppliersPage() {
             title="Suppliers"
             description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts,
              used across Asset Management and Inventory."
-            activeTab="/organization/suppliers"
+            activeTab="/organisation/suppliers"
             action={addSupplierAction}
             pagination={
                 suppliersTotal > SUPPLIERS_PAGE_SIZE
@@ -338,10 +348,10 @@ export default function SuppliersPage() {
             <div className="mb-4 flex items-center gap-3">
                 <div className="min-w-0 flex-1">
                     <input
-                        type="text"
-                        value={search}
+                        type="search"
+                        value={searchInput}
                         onChange={(event) =>
-                            setSearch(event.target.value)
+                            onSupplierListSearchChange(event.target.value)
                         }
                         placeholder="Search by supplier or contact person name"
                         className="h-9 w-full rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
@@ -419,6 +429,7 @@ export default function SuppliersPage() {
                         <DashboardTableActions
                             status={supplier.status}
                             locationId={supplier.id}
+                            navigationEntityId={supplier.id}
                             viewHref={organisationSupplierDetailHref(supplier.id)}
                             copyText={[
                                 `Company: ${supplier.name}`,

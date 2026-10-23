@@ -9,7 +9,7 @@ import { ModuleHubQuickLinksSection } from "@/components/dashboard/ModuleHubQuic
 export default function OrganizationPage() {
     return (
         <DashboardLayout
-            title="Organization"
+            title="Organisation"
             description="Manage organizational locations, suppliers, employees, drivers, and clients."
         >
             <div className="space-y-6">
@@ -21,7 +21,7 @@ export default function OrganizationPage() {
 
                         <div>
                             <h2 className="text-base font-semibold text-gray-900">
-                                Organization Overview
+                                Organisation Overview
                             </h2>
                             <p className="mt-1 text-sm text-gray-500">
                                 Keep organizational information organized
@@ -32,7 +32,7 @@ export default function OrganizationPage() {
                     </div>
                 </section>
 
-                <ModuleHubQuickLinksSection moduleRootHref="/organization/" />
+                <ModuleHubQuickLinksSection moduleRootHref="/organisation/" />
             </div>
         </DashboardLayout>
     );

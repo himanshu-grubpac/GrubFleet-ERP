@@ -1,6 +1,7 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -12,6 +13,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateLeaseDomainCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -21,6 +23,10 @@ import { DashboardRowActionsMenuItem } from "@/components/dashboard/DashboardRow
 import DashboardAssetClassNameCell from "@/components/dashboard/DashboardAssetClassNameCell";
 import DashboardFilters from "@/components/dashboard/DashboardFilters";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTable, {
   type DashboardColumn,
 } from "@/components/dashboard/DashboardTable";
@@ -64,6 +70,10 @@ import {
   canReactivateLeaseContractListRow,
 } from "@/components/modules/fleet-leasing/lease-contracts/lease-contract-list-row-actions";
 import { leaseStatusPillClass } from "@/lib/lease-contract/lease-contract-status-display";
+import {
+  FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 
 type LeaseListRowAction = "deactivate" | "reactivate";
 
@@ -112,6 +122,17 @@ export default function LeaseContractsTable() {
 
   const { searchInput, setSearchInput, debouncedSearch } =
     useDashboardListSearch();
+
+  const onLeaseListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS.search,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
   const [statusFilter, setStatusFilter] = useState("");
   const [page, setPage] = useState(1);
   const {
@@ -187,13 +208,12 @@ export default function LeaseContractsTable() {
     setStatusFilter("");
   };
 
-  const invalidateLeaseListQueries = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["lease-contracts-list", organizationId],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["renewals-extensions-list", organizationId],
-    });
+  const invalidateLeaseListQueries = (contractId?: string) => {
+    void invalidateLeaseDomainCaches(
+      queryClient,
+      organizationId,
+      contractId,
+    );
   };
 
   const statusMutation = useMutation({
@@ -211,7 +231,7 @@ export default function LeaseContractsTable() {
       return api.reactivate(input.contractId);
     },
     onSuccess: (_data, variables) => {
-      invalidateLeaseListQueries();
+      invalidateLeaseListQueries(variables.contractId);
       if (variables.kind === "activate") {
         showLeaseContractActivatedToast();
       } else if (variables.kind === "deactivate") {
@@ -232,7 +252,7 @@ export default function LeaseContractsTable() {
   });
 
   const handleEdit = (contract: LeaseContractListItem) => {
-    router.push(fleetLeaseContractEditHref(contract.id));
+    navigateToEntityShell(router, fleetLeaseContractEditHref(contract.id), contract.id, 'push');
   };
 
   const handleConfirmActivate = () => {
@@ -333,6 +353,7 @@ export default function LeaseContractsTable() {
     return (
       <DashboardTableActions
         status={listRowStatus}
+        navigationEntityId={row.id}
         viewHref={fleetLeaseContractDetailHref(row.id)}
         copyText={formatLeaseContractRowCopyText(row)}
         allowEditWhenInactive
@@ -401,28 +422,16 @@ export default function LeaseContractsTable() {
     >
       <>
         {isInitialLoading && (
-          <div
-            className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white"
-            aria-busy="true"
-            aria-label="Loading lease contracts"
-          >
-            <p className="text-sm text-gray-500">Loading lease contracts…</p>
-          </div>
+          <DashboardListLoadingShell label="Loading lease contracts…" />
         )}
 
         {listQuery.isError && !isInitialLoading && (
-          <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-            <p className="text-sm font-medium text-red-600">
-              Failed to load lease contracts.
-            </p>
-            <button
-              type="button"
-              onClick={() => void listQuery.refetch()}
-              className="mt-2 text-sm text-gray-600 underline"
-            >
-              Try again
-            </button>
-          </div>
+          <DashboardDetailErrorShell
+            title="Failed to load lease contracts"
+            error={listQuery.error}
+            fallbackMessage="Failed to load lease contracts."
+            onRetry={() => void listQuery.refetch()}
+          />
         )}
 
         {!isInitialLoading && !listQuery.isError && (
@@ -431,7 +440,7 @@ export default function LeaseContractsTable() {
               <DashboardFilters
                 searchValue={searchInput}
                 searchPlaceholder="Search by contract no. or client…"
-                onSearchChange={setSearchInput}
+                onSearchChange={onLeaseListSearchChange}
                 selectFilters={[
                   {
                     key: "status",

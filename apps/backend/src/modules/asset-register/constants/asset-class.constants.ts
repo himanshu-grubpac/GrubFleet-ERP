@@ -28,13 +28,16 @@ export const ASSET_CLASS_COLOR_CODE_MAX_LENGTH = 32;
 export const ASSET_CLASS_MILEAGE_UNIT_MAX_LENGTH = 32;
 export const ASSET_CLASS_DEFAULT_INTAKE_MAX_LENGTH = 8000;
 export const ASSET_CLASS_MANUFACTURING_YEAR_MIN = 1980;
-export const ASSET_CLASS_MANUFACTURING_YEAR_MAX = 2100;
+/** Upper bound is the current local calendar year (MaxCurrentLocalCalendarYear). */
 export const ASSET_CLASS_ENGINE_CC_MIN = 1;
 export const ASSET_CLASS_ENGINE_CC_MAX = 99999;
 export const ASSET_CLASS_INTAKE_ITEMS_MAX = 100;
 export const ASSET_CLASS_INTAKE_ITEM_MAX_LENGTH = 500;
 
 export const ASSET_CLASS_DEACTIVATE_REASON_MAX_LENGTH = 500;
+
+/** ListAssetClassesQueryDto.search — aligned with fleet list search cap. */
+export const ASSET_CLASS_LIST_SEARCH_MAX_LENGTH = 120;
 
 /** Global seed catalog for intake checklist dropdown on create (2026-10-12 meeting). */
 export const ASSET_CLASS_INTAKE_CATALOG_ITEMS = [

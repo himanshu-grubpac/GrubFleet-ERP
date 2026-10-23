@@ -48,6 +48,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       });
     }
 
+    const tokenRevision = payload.credRev ?? 0;
+    if (tokenRevision !== user.credentialsRevision) {
+      throw new UnauthorizedException({
+        message: 'Session expired — sign in again',
+        code: 'SESSION_CREDENTIALS_STALE',
+      });
+    }
+
     return { userId: user.id, email: user.email };
   }
 }

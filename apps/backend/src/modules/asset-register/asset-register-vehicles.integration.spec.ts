@@ -376,6 +376,16 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       );
     });
 
+    it('returns 400 when model year is after the current year', async () => {
+      const classId = await createAssetClass();
+      await request(app.getHttpServer())
+        .post('/api/v1/asset-register/vehicles')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildVehiclePayload(classId, { modelYear: 2099 }))
+        .expect(400);
+    });
+
     it('returns 400 for registration number that is too short', async () => {
       const classId = await createAssetClass();
       await request(app.getHttpServer())
@@ -530,6 +540,20 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       expect(body.assetClassSpecLabel).not.toBe(body.assetClassName);
     });
 
+    it('rejects list search longer than max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/asset-register/vehicles')
+        .query({
+          organizationId,
+          page: 1,
+          pageSize: 20,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
     it('filters list by assetClassId and operationalStatus', async () => {
       const classA = await createAssetClass();
       const classB = await createAssetClass();
@@ -602,6 +626,69 @@ describe('Asset Register — fleet register vehicles (integration)', () => {
       expect(
         (detail.body as { purchaseInvoiceId: string }).purchaseInvoiceId,
       ).toBe(invoiceId);
+    });
+
+    it('clears purchase invoice and insurance supplier when PATCH sends null', async () => {
+      const unique = Date.now();
+      const supplierRes = await request(app.getHttpServer())
+        .post('/api/v1/organisation/suppliers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          name: `Vehicle Insurer ${unique}`,
+          supplierType: 'spare_parts',
+          contactPerson: 'Integration Contact',
+          contactPhone: `+9195${String(unique).slice(-8)}`,
+          contactEmail: `vehicle.insurer.${unique}@grubpac.local`,
+          agreementReference: `AGR-VH-${unique}`,
+          addressLine1: 'Line 1',
+          addressCountry: 'IN',
+          addressState: 'Maharashtra',
+          addressDistrict: 'Mumbai',
+          addressPincode: '400001',
+        })
+        .expect(201);
+      const supplierId = (supplierRes.body as { id: string }).id;
+      const invoiceId = '22222222-2222-4222-8222-222222222222';
+      const classId = await createAssetClass();
+      const created = await createVehicleAsAdmin(classId, {
+        purchaseInvoiceId: invoiceId,
+        insuranceSupplierId: supplierId,
+      });
+
+      const cleared = await request(app.getHttpServer())
+        .patch(`/api/v1/asset-register/vehicles/${created.id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          purchaseInvoiceId: null,
+          insuranceSupplierId: null,
+        })
+        .expect(200);
+      expect(
+        (cleared.body as { purchaseInvoiceId: string | null })
+          .purchaseInvoiceId,
+      ).toBeNull();
+      expect(
+        (cleared.body as { insuranceSupplierId: string | null })
+          .insuranceSupplierId,
+      ).toBeNull();
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/asset-register/vehicles/${created.id}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      expect(
+        (detail.body as { purchaseInvoiceId: string | null }).purchaseInvoiceId,
+      ).toBeNull();
+      expect(
+        (detail.body as { insuranceSupplierId: string | null })
+          .insuranceSupplierId,
+      ).toBeNull();
     });
 
     it('returns 403 on GET detail without asset_register.view', async () => {

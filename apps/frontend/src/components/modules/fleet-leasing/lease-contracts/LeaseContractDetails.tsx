@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 
-import Link from "next/link";
+import { SecureEntityLink } from "@/components/ui/secure-entity-link";
 import {
     useSearchParams,
     useRouter,
@@ -24,7 +24,7 @@ import {
 import { organisationDriverDetailHref } from "@/lib/navigation/organisation-static-routes";
 import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
 import { ApiClientError } from "@/lib/api/client";
-import { invalidateLeaseContractCaches } from "@/lib/query/invalidate-lease-contract-caches";
+import { invalidateLeaseDomainCaches } from "@/lib/query/invalidate-domain-caches";
 import {
     LEASE_CONTRACT_STATUS_UPDATE_ERROR,
     showErrorToast,
@@ -53,7 +53,7 @@ import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 import OrganizationDetailCard, {
     OrganizationDetailFieldGrid,
 } from "@/components/common/OrganizationDetailCard";
-import { fetchOrganisationDriversApi } from "@/lib/api/organisation/drivers";
+import { fetchAllOrganisationDriversApi } from "@/lib/api/organisation/drivers";
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import type {
@@ -129,25 +129,21 @@ function ContractVehicleDriverLinks({
             organizationId,
         ],
         queryFn: () =>
-            fetchOrganisationDriversApi(token!, {
-                organizationId,
-                page: 1,
-                pageSize: 50,
-            }),
+            fetchAllOrganisationDriversApi(token!, organizationId, "active"),
         enabled: Boolean(token) && vehicles.length > 0,
         ...dashboardListQueryOptions,
     });
 
     const driverByVehicleCode = useMemo(() => {
         const map = new Map<string, { id: string; name: string }>();
-        for (const row of driversQuery.data?.items ?? []) {
+        for (const row of driversQuery.data ?? []) {
             const code = row.assignedVehicle?.trim();
             if (code) {
                 map.set(code, { id: row.id, name: row.name });
             }
         }
         return map;
-    }, [driversQuery.data?.items]);
+    }, [driversQuery.data]);
 
     if (vehicles.length === 0) {
         return null;
@@ -172,12 +168,13 @@ function ContractVehicleDriverLinks({
                                     {vehicle.registrationNo}
                                 </span>
                                 {linked ? (
-                                    <Link
+                                    <SecureEntityLink
                                         href={organisationDriverDetailHref(linked.id)}
+                                        entityId={linked.id}
                                         className="text-sm font-medium text-[#FE5720] hover:underline"
                                     >
                                         {linked.name}
-                                    </Link>
+                                    </SecureEntityLink>
                                 ) : (
                                     <span className="text-slate-500">
                                         No driver linked
@@ -244,7 +241,7 @@ export default function LeaseContractDetails() {
     });
 
     const refreshLeaseContractCaches = () => {
-        void invalidateLeaseContractCaches(
+        void invalidateLeaseDomainCaches(
             queryClient,
             organizationId,
             leaseId,

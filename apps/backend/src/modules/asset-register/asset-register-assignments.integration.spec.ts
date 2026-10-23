@@ -249,6 +249,20 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     return { contractId, organisationClientId, fleetClientId: clientId };
   }
 
+  it('returns 400 when handover date is after today', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        leaseContractId: '00000000-0000-4000-8000-000000000001',
+        vehicleIds: ['00000000-0000-4000-8000-000000000002'],
+        handoverDate: '2099-01-01',
+      })
+      .expect(400);
+  });
+
   it('returns 401 without JWT on bulk assign', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
@@ -736,6 +750,26 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     expect(body.hasOpenDemand).toBe(false);
     expect(body.assetClassName).toBe(assetClass.name);
     expect(typeof body.hiddenOtherActiveCount).toBe('number');
+  });
+
+  it('rejects assignable lease contract list search longer than max length', async () => {
+    const assetClass = await createAssetClass(`SearchCap ${Date.now()}`);
+    const vehicle = await createVehicle(assetClass.id);
+
+    await request(app.getHttpServer())
+      .get(
+        '/api/v1/asset-register/vehicle-assignments/assignable-lease-contracts',
+      )
+      .query({
+        organizationId,
+        vehicleId: vehicle.id,
+        page: 1,
+        pageSize: 50,
+        search: 'x'.repeat(65),
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 
   it('returns 401 without JWT on bulk assign catalog', async () => {

@@ -1,10 +1,6 @@
 import type { BreadcrumbItem } from "@/config/breadcrumb-config";
 import { mainNavItems, type NavItem } from "@/lib/navigation/modules";
-import {
-    fleetLeaseContractDetailHref,
-    fleetLeaseContractChangeHistoryHref,
-    fleetLeaseContractEditHref,
-} from "@/lib/navigation/fleet-static-routes";
+import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
 
 function normalizePath(path: string): string {
     const normalized = path.split("?")[0].replace(/\/+$/, "");

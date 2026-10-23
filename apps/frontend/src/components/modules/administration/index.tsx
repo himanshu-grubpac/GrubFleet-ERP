@@ -1,13 +1,18 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Info } from "lucide-react";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { useAuth } from "@/providers/auth-provider";
-import { fetchRolesApi } from "@/lib/api/roles";
+import { fetchAllRolesApi } from "@/lib/api/roles";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ADMINISTRATION_ROLE_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
 import { getApiErrorMessage } from "@/lib/toast/show-toast";
 import {
@@ -30,7 +35,20 @@ export function AdministrationModule() {
   const canCreate = canCreateRole(permissions);
   const canUpdate = canUpdateRole(permissions);
   const canDelete = canDeleteRole(permissions);
-  const [searchQuery, setSearchQuery] = useState("");
+  const { searchInput, setSearchInput } = useDashboardListSearch();
+
+  const onRoleListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ADMINISTRATION_ROLE_INPUT_LIMITS.roleListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
+  const debouncedSearch = searchInput.trim();
 
   const {
     data: rolesData,
@@ -38,15 +56,20 @@ export function AdministrationModule() {
     error,
     refetch,
   } = useQuery({
-    queryKey: ["roles", organizationId],
+    queryKey: ["roles", organizationId, debouncedSearch],
     queryFn: () => {
       if (!token || !organizationId) throw new Error("Missing auth context");
-      return fetchRolesApi(token, organizationId);
+      return fetchAllRolesApi(
+        token,
+        organizationId,
+        undefined,
+        debouncedSearch || undefined,
+      );
     },
     enabled: !!token && !!organizationId,
   });
 
-  const roles = useMemo(() => rolesData?.items ?? [], [rolesData?.items]);
+  const roles = useMemo(() => rolesData ?? [], [rolesData]);
   const parentRoleNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const role of roles) {
@@ -54,16 +77,6 @@ export function AdministrationModule() {
     }
     return map;
   }, [roles]);
-  const filteredRoles = useMemo(
-    () =>
-      roles.filter(
-        (r) =>
-          r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          r.description?.toLowerCase().includes(searchQuery.toLowerCase()),
-      ),
-    [roles, searchQuery],
-  );
-
   const createRoleAction = canCreate ? (
     <Button
       type="button"
@@ -136,19 +149,19 @@ export function AdministrationModule() {
       action={createRoleAction}
     >
       <RolesListToolbar
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
+        searchQuery={searchInput}
+        onSearchChange={onRoleListSearchChange}
       />
-      {filteredRoles.length === 0 ? (
+      {roles.length === 0 ? (
         <div className="mt-4 rounded-lg border border-gray-200 bg-white py-16 text-center text-sm text-gray-500">
-          {searchQuery
+          {searchInput.trim()
             ? "No roles match your search."
             : "No roles yet. Create a role to get started."}
         </div>
       ) : (
         <div className="mt-4">
           <RolesListTable
-            roles={filteredRoles}
+            roles={roles}
             parentRoleNameById={parentRoleNameById}
             canUpdateRole={canUpdate}
             canDeleteRole={canDelete}

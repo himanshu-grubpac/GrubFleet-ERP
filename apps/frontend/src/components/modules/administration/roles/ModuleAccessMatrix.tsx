@@ -13,6 +13,10 @@ import {
   isModuleCrudToggleDisabled,
   maxAssignablePermissionSlots,
 } from "@/lib/administration/module-access-ui";
+import {
+  ADMINISTRATION_ROLE_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 
 type ModuleAccessMatrixProps = {
   modules: RoleEditorMatrixRow[];
@@ -110,7 +114,15 @@ export function ModuleAccessMatrix({
         <input
           type="search"
           value={search}
-          onChange={(e) => setSearch(e.target.value)}
+          maxLength={ADMINISTRATION_ROLE_INPUT_LIMITS.moduleMatrixSearch}
+          onChange={(e) =>
+            setSearch(
+              sanitizeRestrictedInputValue("text", e.target.value, {
+                maxLength:
+                  ADMINISTRATION_ROLE_INPUT_LIMITS.moduleMatrixSearch,
+              }),
+            )
+          }
           placeholder="Search modules…"
           aria-label="Filter modules"
           className="w-full max-w-sm rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-[#FE5720] focus:outline-none focus:ring-1 focus:ring-[#FE5720]"

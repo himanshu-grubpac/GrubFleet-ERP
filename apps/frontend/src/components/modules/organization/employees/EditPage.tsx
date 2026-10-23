@@ -1,4 +1,5 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
@@ -7,10 +8,15 @@ import {
   organisationEmployeeDetailHref,
 } from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateEmployeeCaches } from "@/lib/query/invalidate-domain-caches";
 
 import CreateEmployeePage, {
   type EmployeeFormData,
 } from "@/components/modules/organization/employees/CreateEmployeePage";
+import {
+  LoadingState,
+  RedirectingState,
+} from "@/components/states/async-states";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchOrganisationEmployeeByIdApi,
@@ -60,7 +66,7 @@ export default function EditEmployeePage() {
     const detail = employeeQuery.data;
     if (!detail) return;
     if (detail.status === "inactive") {
-      router.replace(organisationEmployeeDetailHref(employeeId));
+      navigateToEntityShell(router, organisationEmployeeDetailHref(employeeId), employeeId, 'replace');
     }
   }, [employeeQuery.data, employeeId, router]);
 
@@ -82,7 +88,7 @@ export default function EditEmployeePage() {
   }, [employeeQuery.data]);
 
   const handleCancel = () => {
-    router.push(organisationEmployeeDetailHref(employeeId));
+    navigateToEntityShell(router, organisationEmployeeDetailHref(employeeId), employeeId, 'push');
   };
 
   const handleSaved = async (data: EmployeeFormData) => {
@@ -114,17 +120,9 @@ export default function EditEmployeePage() {
           isWorkshopTechnician: data.isWorkshopTechnician,
         },
       );
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "employees"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "employee", organizationId, employeeId],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["workshop", "technicians-all"],
-      });
+      await invalidateEmployeeCaches(queryClient);
       showEmployeeUpdatedToast(updated.fullName);
-      router.push(organisationEmployeeDetailHref(employeeId));
+      navigateToEntityShell(router, organisationEmployeeDetailHref(employeeId), employeeId, 'push');
     } catch (error) {
       showApiErrorToast(error, EMPLOYEE_SAVE_ERROR);
       throw error;
@@ -133,8 +131,8 @@ export default function EditEmployeePage() {
 
   if (isAuthLoading || employeeQuery.isLoading) {
     return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Loading employee...
+      <div className="min-h-[40vh]">
+        <LoadingState label="Loading employee…" />
       </div>
     );
   }
@@ -165,11 +163,7 @@ export default function EditEmployeePage() {
   }
 
   if (employeeQuery.data.status === "inactive") {
-    return (
-      <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-        Redirecting...
-      </div>
-    );
+    return <RedirectingState />;
   }
 
   return (

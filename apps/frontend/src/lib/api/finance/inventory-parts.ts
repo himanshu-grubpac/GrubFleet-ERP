@@ -2,6 +2,10 @@ import type { PaginatedResponse } from "@grubpac/shared-types";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 
 export type InventoryPartCatalogItem = {
   id: string;
@@ -30,6 +34,20 @@ export async function fetchInventoryPartsCatalogApi(
     token,
     headers: { "x-organization-id": organizationId },
   });
+}
+
+export async function fetchAllInventoryPartsCatalogApi(
+  token: string,
+  organizationId: string,
+): Promise<InventoryPartCatalogItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchInventoryPartsCatalogApi(token, organizationId, {
+        page,
+        pageSize,
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
+  );
 }
 
 export async function createInventoryPartCatalogApi(

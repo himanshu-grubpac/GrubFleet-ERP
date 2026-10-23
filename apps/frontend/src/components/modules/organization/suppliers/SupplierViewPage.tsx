@@ -1,21 +1,27 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
 import { organisationSupplierEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateSupplierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
-import { ApiClientError } from "@/lib/api/client";
 import { formatPhoneDisplay } from "@/lib/format/phone-format";
 import {
     fetchOrganisationSupplierByIdApi,
     updateOrganisationSupplierStatusApi,
+    type OrganisationSupplierTypeKey,
 } from "@/lib/api/organisation/suppliers";
+import {
+    DashboardDetailErrorShell,
+    DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import {
     SUPPLIER_STATUS_UPDATE_ERROR,
     showErrorToast,
@@ -78,12 +84,7 @@ export default function SupplierViewPage() {
             );
         },
         onSuccess: (data) => {
-            void queryClient.invalidateQueries({
-                queryKey: ["organization", "suppliers"],
-            });
-            void queryClient.invalidateQueries({
-                queryKey: ["organization", "supplier", organizationId, supplierId],
-            });
+            void invalidateSupplierCaches(queryClient);
             setDeactivateOpen(false);
             setActivateOpen(false);
             setStatusError(null);
@@ -101,7 +102,7 @@ export default function SupplierViewPage() {
     });
 
     const handleEdit = () => {
-        router.push(organisationSupplierEditHref(supplierId));
+        navigateToEntityShell(router, organisationSupplierEditHref(supplierId), supplierId, 'push');
     };
 
     const handleToggleStatus = () => {
@@ -119,34 +120,30 @@ export default function SupplierViewPage() {
 
     if (isAuthLoading || supplierQuery.isLoading) {
         return (
-            <div className="flex min-h-[40vh] items-center justify-center text-sm text-gray-500">
-                Loading supplier...
+            <div className="px-5 py-4">
+                <DashboardPageLoadingShell label="Loading supplier…" />
             </div>
         );
     }
 
     if (supplierQuery.isError || !supplierQuery.data) {
         return (
-            <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-center">
-                <p className="text-sm font-medium text-red-600">
-                    {supplierQuery.error instanceof ApiClientError
-                        ? supplierQuery.error.message
-                        : "Failed to load supplier."}
-                </p>
-                <button
-                    type="button"
-                    onClick={() => void supplierQuery.refetch()}
-                    className="text-sm text-gray-600 underline"
-                >
-                    Try again
-                </button>
+            <div className="px-5 py-4">
+                <DashboardDetailErrorShell
+                    title="Failed to load supplier"
+                    error={supplierQuery.error}
+                    fallbackMessage="Failed to load supplier."
+                    onRetry={() => void supplierQuery.refetch()}
+                />
             </div>
         );
     }
 
     const supplier = supplierQuery.data;
     const isActive = supplier.status === "active";
-    const linkedItems = supplier.linkedSections?.linked?.items ?? [];
+    const linkedSection = supplier.linkedSections.linked;
+    const linkedItems = linkedSection.items ?? [];
+    const linkedColumns = getSupplierLinkedTableColumns(supplier.supplierType);
 
     return (
         <div className="min-h-full bg-gray-50">
@@ -262,34 +259,26 @@ export default function SupplierViewPage() {
                 </div>
 
                 {/* ========================================================== */}
-                {/* Linked Parts                                               */}
+                {/* Linked section (title + columns from API / supplier type)  */}
                 {/* ========================================================== */}
 
                 <section className="mt-4">
                     <h2 className="mb-3 text-sm font-semibold text-gray-900">
-                        Linked parts
+                        {linkedSection.title}
                     </h2>
 
                     <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                         <table className="w-full text-left">
                             <thead>
                                 <tr className="border-b border-gray-200">
-
-                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
-                                        PART
-                                    </th>
-
-                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
-                                        CATEGORY
-                                    </th>
-
-                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
-                                        LAST BATCH RECEIVED
-                                    </th>
-
-                                    <th className="px-3 py-2 text-[12px] font-medium text-gray-400">
-                                        ON-HAND QTY
-                                    </th>
+                                    {linkedColumns.map((column) => (
+                                        <th
+                                            key={column.key}
+                                            className="px-3 py-2 text-[12px] font-medium text-gray-400"
+                                        >
+                                            {column.header}
+                                        </th>
+                                    ))}
                                 </tr>
                             </thead>
 
@@ -297,7 +286,7 @@ export default function SupplierViewPage() {
                                 {linkedItems.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={4}
+                                            colSpan={linkedColumns.length}
                                             className="px-3 py-6 text-center text-[12px] text-gray-500"
                                         >
                                             No linked records yet.
@@ -309,37 +298,16 @@ export default function SupplierViewPage() {
                                             key={String(item.id ?? index)}
                                             className="border-b border-gray-100 last:border-0"
                                         >
-                                            <td className="px-3 py-2.5 text-xs text-gray-700">
-                                                {String(
-                                                    item.part ??
-                                                    item.driver ??
-                                                    "—",
-                                                )}
-                                            </td>
-
-                                            <td className="px-3 py-2.5 text-xs text-gray-700">
-                                                {String(
-                                                    item.category ??
-                                                    item.licenseNo ??
-                                                    "—",
-                                                )}
-                                            </td>
-
-                                            <td className="px-3 py-2.5 text-xs text-gray-700">
-                                                {String(
-                                                    item.lastBatchReceived ??
-                                                    item.assignedVehicle ??
-                                                    "—",
-                                                )}
-                                            </td>
-
-                                            <td className="px-3 py-2.5 text-xs text-gray-700">
-                                                {String(
-                                                    item.onHandQty ??
-                                                    item.status ??
-                                                    "—",
-                                                )}
-                                            </td>
+                                            {linkedColumns.map((column) => (
+                                                <td
+                                                    key={column.key}
+                                                    className="px-3 py-2.5 text-xs text-gray-700"
+                                                >
+                                                    {formatLinkedCellValue(
+                                                        item[column.fieldKey],
+                                                    )}
+                                                </td>
+                                            ))}
                                         </tr>
                                     ))
                                 )}
@@ -397,6 +365,69 @@ export default function SupplierViewPage() {
             />
         </div>
     );
+}
+
+type LinkedTableColumn = {
+    key: string;
+    header: string;
+    fieldKey: string;
+};
+
+function getSupplierLinkedTableColumns(
+    supplierType: OrganisationSupplierTypeKey,
+): LinkedTableColumn[] {
+    switch (supplierType) {
+        case "driver":
+            return [
+                { key: "driver", header: "DRIVER", fieldKey: "driver" },
+                {
+                    key: "license",
+                    header: "LICENSE NO.",
+                    fieldKey: "licenseNo",
+                },
+                {
+                    key: "vehicle",
+                    header: "ASSIGNED VEHICLE",
+                    fieldKey: "assignedVehicle",
+                },
+                { key: "status", header: "STATUS", fieldKey: "status" },
+            ];
+        case "bike":
+            return [
+                { key: "vehicle", header: "VEHICLE", fieldKey: "vehicle" },
+                { key: "code", header: "CODE", fieldKey: "code" },
+                { key: "status", header: "STATUS", fieldKey: "status" },
+            ];
+        case "compliance":
+            return [
+                { key: "renewal", header: "RENEWAL", fieldKey: "renewal" },
+                { key: "due", header: "DUE DATE", fieldKey: "dueDate" },
+                { key: "status", header: "STATUS", fieldKey: "status" },
+            ];
+        case "spare_parts":
+        default:
+            return [
+                { key: "part", header: "PART", fieldKey: "part" },
+                { key: "category", header: "CATEGORY", fieldKey: "category" },
+                {
+                    key: "lastBatch",
+                    header: "LAST BATCH RECEIVED",
+                    fieldKey: "lastBatchReceived",
+                },
+                {
+                    key: "onHand",
+                    header: "ON-HAND QTY",
+                    fieldKey: "onHandQty",
+                },
+            ];
+    }
+}
+
+function formatLinkedCellValue(value: string | number | undefined): string {
+    if (value === undefined || value === null || value === "") {
+        return "—";
+    }
+    return String(value);
 }
 
 /* -------------------------------------------------------------------------- */

@@ -13,7 +13,7 @@ export const breadcrumbConfig: Record<
     // ORGANISATION
     // ============================================================
 
-    "/organization": [
+    "/organisation": [
         {
             label: "Organisation",
         },
@@ -23,24 +23,24 @@ export const breadcrumbConfig: Record<
     // Clients
     // ----------------------------
 
-    "/organization/clients": [
+    "/organisation/clients": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Clients",
         },
     ],
 
-    "/organization/clients/create": [
+    "/organisation/clients/create": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Clients",
-            href: "/organization/clients",
+            href: "/organisation/clients",
         },
         {
             label: "Create Client",
@@ -51,24 +51,24 @@ export const breadcrumbConfig: Record<
     // Driver Register
     // ----------------------------
 
-    "/organization/driver-register": [
+    "/organisation/driver-register": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Driver Register",
         },
     ],
 
-    "/organization/driver-register/create": [
+    "/organisation/driver-register/create": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Driver Register",
-            href: "/organization/driver-register",
+            href: "/organisation/driver-register",
         },
         {
             label: "Create Driver",
@@ -76,14 +76,14 @@ export const breadcrumbConfig: Record<
     ],
 
     // Existing route support
-    "/organization/driver-register/add-driver": [
+    "/organisation/driver-register/add-driver": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Driver Register",
-            href: "/organization/driver-register",
+            href: "/organisation/driver-register",
         },
         {
             label: "Add Driver",
@@ -94,24 +94,24 @@ export const breadcrumbConfig: Record<
     // Employees
     // ----------------------------
 
-    "/organization/employees": [
+    "/organisation/employees": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Employees",
         },
     ],
 
-    "/organization/employees/create": [
+    "/organisation/employees/create": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Employees",
-            href: "/organization/employees",
+            href: "/organisation/employees",
         },
         {
             label: "Create Employee",
@@ -122,24 +122,24 @@ export const breadcrumbConfig: Record<
     // Locations
     // ----------------------------
 
-    "/organization/locations": [
+    "/organisation/locations": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Locations",
         },
     ],
 
-    "/organization/locations/create": [
+    "/organisation/locations/create": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Locations",
-            href: "/organization/locations",
+            href: "/organisation/locations",
         },
         {
             label: "Create Location",
@@ -150,24 +150,24 @@ export const breadcrumbConfig: Record<
     // Suppliers
     // ----------------------------
 
-    "/organization/suppliers": [
+    "/organisation/suppliers": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Suppliers",
         },
     ],
 
-    "/organization/suppliers/create": [
+    "/organisation/suppliers/create": [
         {
             label: "Organisation",
-            href: "/organization",
+            href: "/organisation",
         },
         {
             label: "Suppliers",
-            href: "/organization/suppliers",
+            href: "/organisation/suppliers",
         },
         {
             label: "Create Supplier",

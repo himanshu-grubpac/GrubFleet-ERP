@@ -12,6 +12,7 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
+import { IsNotAfterLocalToday } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 
 export const FINANCE_PURCHASE_VEHICLE_TAX_MODES = [
   'INCLUSIVE',
@@ -64,8 +65,12 @@ export class CreatePurchaseVehicleInvoiceDto {
   @IsUUID()
   supplierId!: string;
 
-  @ApiProperty({ format: 'date' })
+  @ApiProperty({
+    format: 'date',
+    description: 'Must not be after today',
+  })
   @IsDateString({ strict: true })
+  @IsNotAfterLocalToday()
   invoiceDate!: string;
 
   @ApiProperty({

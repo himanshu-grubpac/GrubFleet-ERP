@@ -11,7 +11,10 @@ import {
   searchPortalApi,
   type PortalSearchHit,
 } from "@/lib/api/portal-search";
-import { portalSearchHitHref } from "@/lib/navigation/portal-search-href";
+import {
+  portalSearchHitHref,
+  primePortalSearchNavigation,
+} from "@/lib/navigation/portal-search-href";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { cn } from "@/lib/utils";
 
@@ -89,9 +92,11 @@ export default function GlobalSearchInput({
   }, [closePanel, showPanel]);
 
   const navigateToHit = (hit: PortalSearchHit) => {
+    const highlightTerm = query.trim() || debouncedQuery;
     closePanel();
     setQuery("");
-    router.push(portalSearchHitHref(hit));
+    primePortalSearchNavigation(hit);
+    router.push(portalSearchHitHref(hit, highlightTerm));
   };
 
   const isLoading = searchEnabled && searchResult.isFetching;

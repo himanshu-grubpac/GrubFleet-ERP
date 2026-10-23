@@ -4,6 +4,7 @@ import { DataTable, type Column } from "@grubpac/ui-kit";
 import { Shield, ShieldCheck } from "lucide-react";
 import type { Role } from "@grubpac/shared-types";
 import { countConfiguredModules } from "@/lib/administration/module-access-ui";
+import { ADMINISTRATION_ROLE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { RoleRowActionsMenu } from "./RoleRowActionsMenu";
 
 type RolesListTableProps = {
@@ -154,6 +155,7 @@ export function RolesListToolbar({
         type="search"
         placeholder="Search roles by name or description..."
         value={searchQuery}
+        maxLength={ADMINISTRATION_ROLE_INPUT_LIMITS.roleListSearch}
         onChange={(e) => onSearchChange(e.target.value)}
         className="h-9 w-full max-w-md rounded-md border border-gray-200 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
       />

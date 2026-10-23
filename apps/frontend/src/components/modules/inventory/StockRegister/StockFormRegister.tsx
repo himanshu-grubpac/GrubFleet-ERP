@@ -6,7 +6,13 @@ import { useQuery } from "@tanstack/react-query";
 
 import FormActions from "@/components/common/FormActions";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
-import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import {
+    FormFieldInlineError,
+    mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { fetchAllActiveAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { INVENTORY_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -16,6 +22,7 @@ import { useAuth } from "@/providers/auth-provider";
 
 export type PartFormData = {
     name: string;
+    brand: string;
     compatibleAssetClasses: string[];
     unitOfMeasure: string;
     retailMarkup: string;
@@ -37,6 +44,15 @@ function getPartFormValidationErrors(form: PartFormData): string[] {
 
     if (!form.name.trim()) {
         errors.push("Part name is required.");
+    } else if (form.name.trim().length > INVENTORY_INPUT_LIMITS.sparePartName) {
+        errors.push(`Part name must be at most ${INVENTORY_INPUT_LIMITS.sparePartName} characters.`);
+    }
+
+    if (
+        form.brand.trim() &&
+        form.brand.trim().length > INVENTORY_INPUT_LIMITS.sparePartBrand
+    ) {
+        errors.push(`Brand must be at most ${INVENTORY_INPUT_LIMITS.sparePartBrand} characters.`);
     }
 
     if (form.compatibleAssetClasses.length === 0) {
@@ -111,22 +127,19 @@ export default function CreatePartForm({
             organizationId,
         ],
         queryFn: () =>
-            fetchAssetRegisterAssetClassesApi({
+            fetchAllActiveAssetRegisterAssetClassesApi({
                 token: token!,
                 organizationId: organizationId!,
-                page: 1,
-                pageSize: 50,
-                status: "active",
             }),
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardCatalogQueryOptions,
     });
 
     const assetClassOptions = useMemo(() => {
-        return (assetClassesQuery.data?.items ?? []).map(
+        return (assetClassesQuery.data ?? []).map(
             (row) => row.specLabel?.trim() || row.name.trim(),
         );
-    }, [assetClassesQuery.data?.items]);
+    }, [assetClassesQuery.data]);
 
     const catalogLoading =
         isCatalogLoading ||
@@ -139,6 +152,7 @@ export default function CreatePartForm({
 
     const [form, setForm] = useState<PartFormData>({
         name: initialData?.name ?? "",
+        brand: initialData?.brand ?? "",
         compatibleAssetClasses:
             initialData?.compatibleAssetClasses ?? [],
         unitOfMeasure:
@@ -158,17 +172,17 @@ export default function CreatePartForm({
     const [isSaving, setIsSaving] = useState(false);
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
     const isSubmittingRef = useRef(false);
-    const [isAssetClassDropdownOpen, setIsAssetClassDropdownOpen] =
-        useState(false);
 
     const validationSummary = useMemo(
         () => getPartFormValidationErrors(form),
         [form],
     );
 
-    // Keep Save enabled for an invalid form so the first click can reveal errors.
-    // Submission itself is blocked by handleSave until validation passes.
-    const canSubmit = canSave && !isSaving && !catalogLoading;
+    const canSubmit =
+        canSave &&
+        !isSaving &&
+        !catalogLoading &&
+        validationSummary.length === 0;
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -190,27 +204,26 @@ export default function CreatePartForm({
     /* Asset Class Selection                                                  */
     /* ---------------------------------------------------------------------- */
 
-    const toggleAssetClass = (assetClass: string) => {
+    const addAssetClass = (assetClass: string) => {
+        if (!assetClass.trim()) {
+            return;
+        }
+
         setForm((previous) => {
-            const alreadySelected =
-                previous.compatibleAssetClasses.includes(assetClass);
+            if (previous.compatibleAssetClasses.includes(assetClass)) {
+                return previous;
+            }
 
             return {
                 ...previous,
-                compatibleAssetClasses: alreadySelected
-                    ? previous.compatibleAssetClasses.filter(
-                        (item) => item !== assetClass,
-                    )
-                    : [
-                        ...previous.compatibleAssetClasses,
-                        assetClass,
-                    ],
+                compatibleAssetClasses: [
+                    ...previous.compatibleAssetClasses,
+                    assetClass,
+                ],
             };
         });
 
         setError("");
-        // Close after each selection; reopen to choose another item.
-        setIsAssetClassDropdownOpen(false);
     };
 
     const removeAssetClass = (assetClass: string) => {
@@ -266,6 +279,7 @@ export default function CreatePartForm({
 
             const part: PartFormData = {
                 name: form.name.trim(),
+                brand: form.brand.trim(),
                 compatibleAssetClasses: form.compatibleAssetClasses,
                 unitOfMeasure: form.unitOfMeasure.trim(),
                 retailMarkup: form.retailMarkup.trim(),
@@ -338,24 +352,45 @@ export default function CreatePartForm({
                     </span>
                 </label>
 
-                <input
+                <RestrictedInput
                     id="part-name"
-                    type="text"
+                    restrictedKind="name"
+                    maxLength={INVENTORY_INPUT_LIMITS.sparePartName}
                     value={form.name}
-                    onChange={(event) =>
-                        updateForm(
-                            "name",
-                            event.target.value,
-                        )
-                    }
+                    onChange={(value) => updateForm("name", value)}
                     placeholder="e.g. Fuel Filter"
-                    className={`${inputClassName} ${hasAttemptedSubmit && !form.name.trim() ? "border-red-500" : ""}`}
+                    className={mergeFormControlBorderClass(
+                        hasAttemptedSubmit && !form.name.trim(),
+                        inputClassName,
+                    )}
+                    aria-invalid={hasAttemptedSubmit && !form.name.trim()}
                 />
-                {hasAttemptedSubmit && !form.name.trim() && (
-                    <p className="mt-1 text-xs text-red-600" role="alert">
-                        Part name is required.
-                    </p>
-                )}
+                <FormFieldInlineError
+                    message={
+                        hasAttemptedSubmit && !form.name.trim()
+                            ? "Part name is required."
+                            : undefined
+                    }
+                />
+            </div>
+
+            <div className="mt-4">
+                <label
+                    htmlFor="part-brand"
+                    className="mb-1 block text-xs font-semibold text-gray-700"
+                >
+                    Brand <span className="font-normal text-gray-500">(optional)</span>
+                </label>
+
+                <RestrictedInput
+                    id="part-brand"
+                    restrictedKind="text"
+                    maxLength={INVENTORY_INPUT_LIMITS.sparePartBrand}
+                    value={form.brand}
+                    onChange={(value) => updateForm("brand", value)}
+                    placeholder="e.g. OEM manufacturer"
+                    className={inputClassName}
+                />
             </div>
 
             {/* ================================================================ */}
@@ -373,107 +408,43 @@ export default function CreatePartForm({
                     </span>
                 </label>
 
-                <div className="relative">
-                    <div className={`flex min-h-10 w-full items-center rounded-md border bg-white transition focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20 ${hasAttemptedSubmit && form.compatibleAssetClasses.length === 0 ? "border-red-500" : "border-gray-300"}`}>
-                        <button
-                            id="compatible-asset-classes"
-                            type="button"
-                            onClick={() =>
-                                setIsAssetClassDropdownOpen((previous) => !previous)
-                            }
-                            aria-expanded={isAssetClassDropdownOpen}
-                            aria-haspopup="listbox"
-                            className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 outline-none"
-                        >
-                            <span className={form.compatibleAssetClasses.length === 0 ? "text-gray-400" : "text-gray-900"}>
-                                {form.compatibleAssetClasses.length === 0
-                                    ? "Select asset class(es)"
-                                    : `${form.compatibleAssetClasses.length} asset class${form.compatibleAssetClasses.length > 1 ? "es" : ""} selected`}
-                            </span>
-                        </button>
-
-                        <div className="flex shrink-0 items-center gap-1 pr-2">
-                            <button
-                                type="button"
-                                onClick={() => setIsAssetClassDropdownOpen((previous) => !previous)}
-                                aria-label={isAssetClassDropdownOpen ? "Close asset class options" : "Open asset class options"}
-                                aria-expanded={isAssetClassDropdownOpen}
-                                className="flex h-7 w-7 items-center justify-center rounded text-gray-500 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FE5720]"
-                            >
-                                <svg
-                                    className={`h-4 w-4 transition-transform ${isAssetClassDropdownOpen ? "rotate-180" : ""}`}
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                    aria-hidden="true"
-                                >
-                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    {isAssetClassDropdownOpen && (
-                        <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
-                            <div className="max-h-56 overflow-y-auto py-1" role="listbox" aria-multiselectable="true" aria-labelledby="compatible-asset-classes">
-                                {catalogLoading ? (
-                                    <p className="px-3 py-2 text-sm text-gray-500">
-                                        Loading asset classes…
-                                    </p>
-                                ) : assetClassOptions.length === 0 ? (
-                                    <p className="px-3 py-2 text-sm text-gray-500">
-                                        No active asset classes found. Add asset
-                                        classes in Asset Register first.
-                                    </p>
-                                ) : (
-                                    assetClassOptions.map((assetClass) => {
-                                        const isSelected =
-                                            form.compatibleAssetClasses.includes(
-                                                assetClass,
-                                            );
-
-                                        return (
-                                            <button
-                                                key={assetClass}
-                                                type="button"
-                                                role="option"
-                                                aria-selected={isSelected}
-                                                onClick={() =>
-                                                    toggleAssetClass(assetClass)
-                                                }
-                                                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                            >
-                                                <span
-                                                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isSelected ? "border-[#FE5720] bg-[#FE5720] text-white" : "border-gray-300 bg-white"}`}
-                                                >
-                                                    {isSelected && (
-                                                        <svg
-                                                            className="h-3 w-3"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                            aria-hidden="true"
-                                                        >
-                                                            <path
-                                                                fillRule="evenodd"
-                                                                d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z"
-                                                                clipRule="evenodd"
-                                                            />
-                                                        </svg>
-                                                    )}
-                                                </span>
-                                                <span>{assetClass}</span>
-                                            </button>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
-                {hasAttemptedSubmit && form.compatibleAssetClasses.length === 0 && (
-                    <p className="mt-1 text-xs text-red-600" role="alert">
-                        At least one compatible asset class is required.
-                    </p>
-                )}
+                <select
+                    id="compatible-asset-classes"
+                    value=""
+                    onChange={(event) => addAssetClass(event.target.value)}
+                    disabled={catalogLoading || assetClassOptions.length === 0}
+                    className={`${selectClassName} ${hasAttemptedSubmit && form.compatibleAssetClasses.length === 0 ? "border-red-500" : ""}`}
+                    aria-invalid={
+                        hasAttemptedSubmit &&
+                        form.compatibleAssetClasses.length === 0
+                    }
+                >
+                    <option value="">
+                        {catalogLoading
+                            ? "Loading asset classes…"
+                            : "Select asset class(es)"}
+                    </option>
+                    {assetClassOptions
+                        .filter(
+                            (assetClass) =>
+                                !form.compatibleAssetClasses.includes(
+                                    assetClass,
+                                ),
+                        )
+                        .map((assetClass) => (
+                            <option key={assetClass} value={assetClass}>
+                                {assetClass}
+                            </option>
+                        ))}
+                </select>
+                <FormFieldInlineError
+                    message={
+                        hasAttemptedSubmit &&
+                        form.compatibleAssetClasses.length === 0
+                            ? "At least one compatible asset class is required."
+                            : undefined
+                    }
+                />
 
                 {/* Selected asset classes */}
 
@@ -542,11 +513,13 @@ export default function CreatePartForm({
                             </option>
                         ))}
                     </select>
-                    {hasAttemptedSubmit && !form.unitOfMeasure.trim() && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Unit of measure is required.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit && !form.unitOfMeasure.trim()
+                                ? "Unit of measure is required."
+                                : undefined
+                        }
+                    />
                 </div>
 
                 {/* Retail Markup */}
@@ -559,26 +532,31 @@ export default function CreatePartForm({
                         Retail markup %
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="retail-markup"
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        restrictedKind="digits"
+                        maxLength={INVENTORY_INPUT_LIMITS.markupPercentMaxDigits}
                         value={form.retailMarkup}
-                        onChange={(event) =>
-                            updateForm(
-                                "retailMarkup",
-                                event.target.value,
-                            )
-                        }
+                        onChange={(value) => updateForm("retailMarkup", value)}
                         placeholder="e.g. 20 — over latest batch cost"
-                        className={`${inputClassName} ${hasAttemptedSubmit && form.retailMarkup.trim() && (!Number.isFinite(Number(form.retailMarkup)) || Number(form.retailMarkup) < 0) ? "border-red-500" : ""}`}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                form.retailMarkup.trim() !== "" &&
+                                (!Number.isFinite(Number(form.retailMarkup)) ||
+                                    Number(form.retailMarkup) < 0),
+                            inputClassName,
+                        )}
                     />
-                    {hasAttemptedSubmit && form.retailMarkup.trim() && (!Number.isFinite(Number(form.retailMarkup)) || Number(form.retailMarkup) < 0) && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Retail markup must be a valid number greater than or equal to zero.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit &&
+                            form.retailMarkup.trim() &&
+                            (!Number.isFinite(Number(form.retailMarkup)) ||
+                                Number(form.retailMarkup) < 0)
+                                ? "Retail markup must be a valid number greater than or equal to zero."
+                                : undefined
+                        }
+                    />
                 </div>
             </div>
 
@@ -597,26 +575,31 @@ export default function CreatePartForm({
                         Wholesale markup %
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="wholesale-markup"
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        restrictedKind="digits"
+                        maxLength={INVENTORY_INPUT_LIMITS.markupPercentMaxDigits}
                         value={form.wholesaleMarkup}
-                        onChange={(event) =>
-                            updateForm(
-                                "wholesaleMarkup",
-                                event.target.value,
-                            )
-                        }
+                        onChange={(value) => updateForm("wholesaleMarkup", value)}
                         placeholder="e.g. 10 — over latest batch cost"
-                        className={`${inputClassName} ${hasAttemptedSubmit && form.wholesaleMarkup.trim() && (!Number.isFinite(Number(form.wholesaleMarkup)) || Number(form.wholesaleMarkup) < 0) ? "border-red-500" : ""}`}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                form.wholesaleMarkup.trim() !== "" &&
+                                (!Number.isFinite(Number(form.wholesaleMarkup)) ||
+                                    Number(form.wholesaleMarkup) < 0),
+                            inputClassName,
+                        )}
                     />
-                    {hasAttemptedSubmit && form.wholesaleMarkup.trim() && (!Number.isFinite(Number(form.wholesaleMarkup)) || Number(form.wholesaleMarkup) < 0) && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Wholesale markup must be a valid number greater than or equal to zero.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit &&
+                            form.wholesaleMarkup.trim() &&
+                            (!Number.isFinite(Number(form.wholesaleMarkup)) ||
+                                Number(form.wholesaleMarkup) < 0)
+                                ? "Wholesale markup must be a valid number greater than or equal to zero."
+                                : undefined
+                        }
+                    />
                 </div>
 
                 {/* Threshold */}
@@ -632,31 +615,33 @@ export default function CreatePartForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="threshold"
-                        type="number"
-                        min="0"
-                        step="1"
+                        restrictedKind="digits"
+                        maxLength={INVENTORY_INPUT_LIMITS.reorderThresholdMaxDigits}
                         value={form.threshold}
-                        onChange={(event) =>
-                            updateForm(
-                                "threshold",
-                                event.target.value,
-                            )
-                        }
+                        onChange={(value) => updateForm("threshold", value)}
                         placeholder="e.g. 10 — minimum stock level"
-                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.threshold.trim() || !Number.isFinite(Number(form.threshold)) || Number(form.threshold) < 0) ? "border-red-500" : ""}`}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                (!form.threshold.trim() ||
+                                    !Number.isFinite(Number(form.threshold)) ||
+                                    Number(form.threshold) < 0),
+                            inputClassName,
+                        )}
                     />
-                    {hasAttemptedSubmit && !form.threshold.trim() && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Threshold is required.
-                        </p>
-                    )}
-                    {hasAttemptedSubmit && form.threshold.trim() && (!Number.isFinite(Number(form.threshold)) || Number(form.threshold) < 0) && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Threshold must be a valid number greater than or equal to zero.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit && !form.threshold.trim()
+                                ? "Threshold is required."
+                                : hasAttemptedSubmit &&
+                                    form.threshold.trim() &&
+                                    (!Number.isFinite(Number(form.threshold)) ||
+                                        Number(form.threshold) < 0)
+                                  ? "Threshold must be a valid number greater than or equal to zero."
+                                  : undefined
+                        }
+                    />
                 </div>
             </div>
 

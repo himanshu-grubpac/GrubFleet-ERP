@@ -176,38 +176,38 @@ export const mainNavItems: NavItem[] = [
   },
 
   // ============================================================
-  // ORGANIZATION
+  // ORGANISATION
   // ============================================================
   {
-    label: "Organization",
-    href: "/organization/",
+    label: "Organisation",
+    href: "/organisation/",
     icon: Building2,
     requiredPermission: "organisation.view",
 
     children: [
       {
         label: "Locations",
-        href: "/organization/locations/",
+        href: "/organisation/locations/",
         icon: MapPin,
       },
       {
         label: "Suppliers",
-        href: "/organization/suppliers/",
+        href: "/organisation/suppliers/",
         icon: Truck,
       },
       {
         label: "Employees",
-        href: "/organization/employees/",
+        href: "/organisation/employees/",
         icon: UserRound,
       },
       {
         label: "Driver Register",
-        href: "/organization/driver-register/",
+        href: "/organisation/driver-register/",
         icon: Contact,
       },
       {
         label: "Clients",
-        href: "/organization/clients/",
+        href: "/organisation/clients/",
         icon: Users,
       },
     ],

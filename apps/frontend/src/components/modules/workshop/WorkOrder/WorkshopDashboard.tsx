@@ -1,9 +1,11 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardList, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateWorkOrderCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -24,7 +26,11 @@ import {
   showErrorToast,
   showSuccessToast,
 } from "@/lib/toast/show-toast";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  sanitizeRestrictedInputValue,
+  WORKSHOP_INPUT_LIMITS,
+} from "@/lib/forms/restricted-input";
 import {
   workshopWorkOrderCreateHref,
   workshopWorkOrderDetailHref,
@@ -117,7 +123,20 @@ export default function WorkshopDashboardPage() {
     permissions.has("workshop.update") ||
     permissions.has("workshop.manage");
 
-  const [search, setSearch] = useState("");
+  const { searchInput, setSearchInput, debouncedSearch } =
+    useDashboardListSearch();
+
+  const onWorkOrderListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: WORKSHOP_INPUT_LIMITS.workOrderListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [cancelTarget, setCancelTarget] =
     useState<WorkshopWorkOrderListItem | null>(null);
   const [activeFilter, setActiveFilter] =
@@ -130,8 +149,6 @@ export default function WorkshopDashboardPage() {
     listSortParams,
     serverSorted,
   } = useDashboardTableListSort(WORKSHOP_WORK_ORDER_COLUMN_SORT);
-
-  const debouncedSearch = useDebouncedValue(search, 300);
 
   // Reset pagination when search, status filter, or sorting changes.
   useEffect(() => {
@@ -178,9 +195,7 @@ export default function WorkshopDashboardPage() {
       });
     },
     onSuccess: (detail) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "work-orders", organizationId],
-      });
+      void invalidateWorkOrderCaches(queryClient);
 
       setCancelTarget(null);
       showSuccessToast(
@@ -216,7 +231,7 @@ export default function WorkshopDashboardPage() {
           <button
             type="button"
             onClick={() =>
-              router.push(workshopWorkOrderDetailHref(workOrder.id))
+              navigateToEntityShell(router, workshopWorkOrderDetailHref(workOrder.id), workOrder.id, 'push')
             }
             className="font-medium text-gray-900 hover:text-[#FE5720]"
           >
@@ -277,7 +292,7 @@ export default function WorkshopDashboardPage() {
   );
 
   const handleClearFilters = () => {
-    setSearch("");
+    setSearchInput("");
     setActiveFilter("all");
   };
 
@@ -316,9 +331,12 @@ export default function WorkshopDashboardPage() {
           />
 
           <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            type="search"
+            value={searchInput}
+            maxLength={WORKSHOP_INPUT_LIMITS.workOrderListSearch}
+            onChange={(event) =>
+              onWorkOrderListSearchChange(event.target.value)
+            }
             placeholder="Search by work order, vehicle or technician"
             className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
           />
@@ -407,6 +425,7 @@ export default function WorkshopDashboardPage() {
                 <DashboardTableActions
                   status={isTerminal ? "inactive" : "active"}
                   locationId={workOrder.id}
+                  navigationEntityId={workOrder.id}
                   viewHref={workshopWorkOrderDetailHref(workOrder.id)}
                   copyText={[
                     `Work Order ID: ${workOrder.id}`,

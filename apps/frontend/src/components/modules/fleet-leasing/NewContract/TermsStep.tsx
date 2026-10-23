@@ -4,6 +4,10 @@ import { useMemo, useState } from "react";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { FLEET_LEASE_TERMS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
+    formatLeaseDecimalMoneyForInput,
+    validateLeaseDecimalMoneyInput,
+} from "@/lib/format/money-format";
+import {
     validateDate,
     validateNumber,
     validateRequired,
@@ -103,8 +107,7 @@ function MoneyField({
 
                 <RestrictedInput
                     id={id}
-                    restrictedKind="digits"
-                    maxLength={FLEET_LEASE_TERMS_INPUT_LIMITS.moneyMaxDigits}
+                    restrictedKind="inrRupee"
                     value={value}
                     onChange={onChange}
                     placeholder={placeholder}
@@ -142,8 +145,8 @@ export default function TermsStep({
         initialTerms?.termMonths ?? "",
     );
 
-    const [securityDeposit, setSecurityDeposit] = useState(
-        initialTerms?.securityDeposit ?? "",
+    const [securityDeposit, setSecurityDeposit] = useState(() =>
+        formatLeaseDecimalMoneyForInput(initialTerms?.securityDeposit ?? ""),
     );
 
     const [billingFrequency, setBillingFrequency] = useState<
@@ -154,7 +157,9 @@ export default function TermsStep({
         const initial: Record<string, string> = {};
 
         for (const line of assetLines) {
-            initial[line.id] = line.ratePerVehicleMonth ?? "";
+            initial[line.id] = formatLeaseDecimalMoneyForInput(
+                line.ratePerVehicleMonth ?? "",
+            );
         }
 
         return initial;
@@ -185,13 +190,16 @@ export default function TermsStep({
             integer: true,
         });
 
-        errors.securityDeposit = validateNumber(securityDeposit, {
-            label: "Security deposit",
-            min: 0,
-        });
+        errors.securityDeposit = validateLeaseDecimalMoneyInput(
+            securityDeposit,
+            {
+                label: "Security deposit",
+                min: 0,
+            },
+        );
 
         for (const line of assetLines) {
-            errors[`rate-${line.id}`] = validateNumber(
+            errors[`rate-${line.id}`] = validateLeaseDecimalMoneyInput(
                 lineRates[line.id] ?? "",
                 {
                     label: `Monthly rate for ${line.assetClass || "the asset class"}`,
@@ -201,14 +209,7 @@ export default function TermsStep({
         }
 
         return errors;
-    }, [
-        assetLines,
-        computedEndDate,
-        lineRates,
-        securityDeposit,
-        startDate,
-        termMonths,
-    ]);
+    }, [assetLines, lineRates, securityDeposit, startDate, termMonths]);
 
     const validationSummary = useMemo(() => {
         const errors = Object.values(fieldErrors).filter(
@@ -471,7 +472,7 @@ export default function TermsStep({
                     hasAttemptedSubmit={hasAttemptedSubmit}
                     validationSummary={validationSummary}
                     isSaving={isContinuing}
-                    canSubmit={true}
+                    canSubmit={canSubmit && !isContinuing}
                     onCancel={onBack}
                     onSave={handleContinue}
                     saveLabel="Continue"

@@ -22,6 +22,8 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteRoleApi, updateRoleApi } from "@/lib/api/roles";
+import { invalidateRoleCaches } from "@/lib/query/invalidate-domain-caches";
+import { prepareEntityNavigationForPath } from "@/lib/navigation/secure-entity-navigation";
 
 type PendingConfirm =
   | { kind: "toggle-active"; nextActive: boolean }
@@ -121,7 +123,7 @@ export function RoleRowActionsMenu({
     onSuccess: async () => {
       setPendingConfirm(null);
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["roles", organizationId] });
+      await invalidateRoleCaches(queryClient);
       await refetchMe?.();
     },
   });
@@ -136,14 +138,18 @@ export function RoleRowActionsMenu({
     onSuccess: async () => {
       setPendingConfirm(null);
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["roles", organizationId] });
+      await invalidateRoleCaches(queryClient);
       await refetchMe?.();
     },
   });
 
-  const base = `/administration/roles/edit/?roleId=${encodeURIComponent(roleId)}`;
-  const viewHref = `${base}&mode=view`;
-  const editHref = base;
+  const editShell = "/administration/roles/edit/";
+  const viewHref = `${editShell}?mode=view`;
+  const editHref = editShell;
+
+  const primeRoleNavigation = () => {
+    prepareEntityNavigationForPath(editShell, roleId);
+  };
 
   const itemClass =
     "flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
@@ -202,7 +208,10 @@ export function RoleRowActionsMenu({
     >
       <Link
         href={viewHref}
-        onClick={() => setOpen(false)}
+        onClick={() => {
+          primeRoleNavigation();
+          setOpen(false);
+        }}
         className={itemClass}
         role="menuitem"
       >
@@ -212,7 +221,10 @@ export function RoleRowActionsMenu({
       {canEdit ? (
         <Link
           href={editHref}
-          onClick={() => setOpen(false)}
+          onClick={() => {
+            primeRoleNavigation();
+            setOpen(false);
+          }}
           className={itemClass}
           role="menuitem"
         >

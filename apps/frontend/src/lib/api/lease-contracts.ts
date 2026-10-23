@@ -1,6 +1,11 @@
 import { apiFetch } from './client';
+import {
+    DEFAULT_API_CATALOG_PAGE_SIZE,
+    fetchAllPaginatedItems,
+} from './fetch-all-paginated';
 import type { ListSortParams } from '@/lib/query/list-sort-params';
 import { appendListSortSearchParams } from '@/lib/query/list-sort-params';
+import { normalizeDecimalMoneyForLeaseApi } from '@/lib/format/money-format';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared query helpers
@@ -395,6 +400,42 @@ export interface ContractAssetLineInput {
     ratePerVehicleMonth: string;
 }
 
+export function normalizeContractAssetLineForApi(
+    line: ContractAssetLineInput,
+): ContractAssetLineInput {
+    return {
+        ...line,
+        committedQuantity: Number(line.committedQuantity),
+        ratePerVehicleMonth: normalizeDecimalMoneyForLeaseApi(
+            String(line.ratePerVehicleMonth ?? ""),
+        ),
+    };
+}
+
+export function normalizeContractAssetLinesForApi(
+    lines: ContractAssetLineInput[],
+): ContractAssetLineInput[] {
+    return lines.map(normalizeContractAssetLineForApi);
+}
+
+function normalizeLeaseContractWritePayload<
+    T extends {
+        securityDeposit?: string;
+        assetLines?: ContractAssetLineInput[];
+    },
+>(payload: T): T {
+    const next = { ...payload };
+    if (next.securityDeposit !== undefined) {
+        next.securityDeposit = normalizeDecimalMoneyForLeaseApi(
+            String(next.securityDeposit),
+        );
+    }
+    if (next.assetLines) {
+        next.assetLines = normalizeContractAssetLinesForApi(next.assetLines);
+    }
+    return next;
+}
+
 /** Wizard draft — only `organizationId` (+ optional client) required on POST. */
 export type CreateLeaseContractDraftPayload = {
     clientId?: string;
@@ -533,6 +574,22 @@ export async function fetchLeaseContractsList(
                     organizationId,
             },
         },
+    );
+}
+
+export async function fetchAllLeaseContractsList(
+    token: string,
+    organizationId: string,
+    options: Omit<LeaseContractsListOptions, 'page' | 'pageSize'> = {},
+): Promise<LeaseContractListItem[]> {
+    return fetchAllPaginatedItems(
+        (page, pageSize) =>
+            fetchLeaseContractsList(token, organizationId, {
+                ...options,
+                page,
+                pageSize,
+            }),
+        DEFAULT_API_CATALOG_PAGE_SIZE,
     );
 }
 
@@ -877,7 +934,12 @@ export async function updateLeaseContractAssetLines(
             headers: {
                 'x-organization-id': organizationId,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({
+                ...payload,
+                assetLines: normalizeContractAssetLinesForApi(
+                    payload.assetLines,
+                ),
+            }),
         },
     );
 }
@@ -898,7 +960,9 @@ export async function updateLeaseContractTerms(
             headers: {
                 'x-organization-id': organizationId,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(
+                normalizeLeaseContractWritePayload(payload),
+            ),
         },
     );
 }
@@ -921,7 +985,7 @@ export async function createLeaseContract(
             },
             body: JSON.stringify({
                 organizationId,
-                ...payload,
+                ...normalizeLeaseContractWritePayload(payload),
             }),
         },
     );
@@ -948,7 +1012,9 @@ export async function updateLeaseContract(
                 'x-organization-id':
                     organizationId,
             },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(
+                normalizeLeaseContractWritePayload(payload),
+            ),
         },
     );
 }
@@ -1006,6 +1072,34 @@ export async function fetchFleetClients(
                     organizationId,
             },
         },
+    );
+}
+
+export async function fetchAllFleetClients(
+    token: string,
+    organizationId: string,
+    search?: string,
+): Promise<FleetClientListItem[]> {
+    return fetchAllPaginatedItems(
+        async (page, pageSize) => {
+            const response = await fetchFleetClients(token, organizationId, {
+                page,
+                pageSize,
+                search,
+            });
+            const items = response.items ?? [];
+            const total = response.total;
+            return {
+                items,
+                page: response.page ?? page,
+                pageSize: response.pageSize ?? pageSize,
+                total,
+                totalPages:
+                    response.totalPages ??
+                    (pageSize > 0 ? Math.ceil(total / pageSize) : 1),
+            };
+        },
+        DEFAULT_API_CATALOG_PAGE_SIZE,
     );
 }
 

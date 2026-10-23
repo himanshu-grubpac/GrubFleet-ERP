@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { Info } from "lucide-react";
 
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
@@ -9,6 +10,10 @@ import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  invalidateAmcScheduleCaches,
+  invalidateAmcTierCaches,
+} from "@/lib/query/invalidate-domain-caches";
 
 import { ApiClientError } from "@/lib/api/client";
 import {
@@ -95,8 +100,14 @@ export default function AmcMaintenancePage() {
     ...dashboardListQueryOptions,
   });
 
-  const tiers = tiersQuery.data?.items ?? [];
-  const schedules = schedulesQuery.data?.items ?? [];
+  const tiers = useMemo(
+    () => tiersQuery.data?.items ?? [],
+    [tiersQuery.data?.items],
+  );
+  const schedules = useMemo(
+    () => schedulesQuery.data?.items ?? [],
+    [schedulesQuery.data?.items],
+  );
 
   const summary = useMemo(() => {
     const activeTiers = tiers.filter((tier) => tier.status === "active").length;
@@ -129,9 +140,7 @@ export default function AmcMaintenancePage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-      });
+      void invalidateAmcTierCaches(queryClient);
       setTierActivateTarget(null);
       setTierDeactivateTarget(null);
       showSuccessToast(
@@ -167,9 +176,7 @@ export default function AmcMaintenancePage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-schedules"],
-      });
+      void invalidateAmcScheduleCaches(queryClient);
       setScheduleActivateTarget(null);
       setScheduleDeactivateTarget(null);
       showSuccessToast(
@@ -322,6 +329,7 @@ export default function AmcMaintenancePage() {
                                     <td className="py-3 text-right">
                                         <DashboardTableActions
                                             status={tier.status}
+                                            navigationEntityId={tier.id}
                                             viewHref={workshopAmcTierDetailHref(
                                                 tier.id,
                                             )}
@@ -332,10 +340,12 @@ export default function AmcMaintenancePage() {
                                                 canUpdate &&
                                                 tier.status === "active"
                                                     ? () =>
-                                                          router.push(
+                                                          navigateToEntityShell(
+                                                              router,
                                                               workshopAmcTierEditHref(
                                                                   tier.id,
                                                               ),
+                                                              tier.id,
                                                           )
                                                     : undefined
                                             }
@@ -459,6 +469,7 @@ export default function AmcMaintenancePage() {
                                     <td className="py-3 text-right">
                                         <DashboardTableActions
                                             status={schedule.status}
+                                            navigationEntityId={schedule.id}
                                             viewHref={workshopAmcScheduleDetailHref(
                                                 schedule.id,
                                             )}
@@ -469,10 +480,12 @@ export default function AmcMaintenancePage() {
                                                 canUpdate &&
                                                 schedule.status === "active"
                                                     ? () =>
-                                                          router.push(
+                                                          navigateToEntityShell(
+                                                              router,
                                                               workshopAmcScheduleEditHref(
                                                                   schedule.id,
                                                               ),
+                                                              schedule.id,
                                                           )
                                                     : undefined
                                             }

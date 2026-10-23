@@ -3,23 +3,22 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertCircle,
-  CheckCircle2,
-  Lock,
-  RefreshCw,
-  X,
-} from "lucide-react";
+import { Lock, RefreshCw } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import {
   createRoleApi,
   fetchRoleByIdApi,
   fetchRoleEditorMatrixApi,
-  fetchRolesApi,
+  fetchAllRolesApi,
   updateRoleApi,
 } from "@/lib/api/roles";
+import { invalidateRoleCaches } from "@/lib/query/invalidate-domain-caches";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
-import { getApiErrorMessage } from "@/lib/toast/show-toast";
+import {
+  getApiErrorMessage,
+  showErrorToast,
+  showSuccessToast,
+} from "@/lib/toast/show-toast";
 import {
   canCreateRole,
   canManageAdministration,
@@ -32,7 +31,12 @@ import {
 } from "@/lib/administration/module-access-ui";
 import { ModuleAccessMatrix } from "./ModuleAccessMatrix";
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import {
+  ADMINISTRATION_ROLE_INPUT_LIMITS,
+  sanitizeTextValue,
+} from "@/lib/forms/restricted-input";
 
 type RoleEditorMode = "create" | "edit";
 
@@ -58,11 +62,6 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
   const [parentRoleId, setParentRoleId] = useState<string | null>(null);
   const [crudMap, setCrudMap] = useState<ModuleCrudMap>({});
   const [dirty, setDirty] = useState(false);
-  const [feedback, setFeedback] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
-
   const {
     data: roleMeta,
     isLoading: roleLoading,
@@ -106,26 +105,26 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
     queryKey: ["roles", organizationId],
     queryFn: () => {
       if (!token || !organizationId) throw new Error("Missing auth context");
-      return fetchRolesApi(token, organizationId);
+      return fetchAllRolesApi(token, organizationId);
     },
     enabled: !!token && !!organizationId,
   });
 
   const parentRoleOptions = useMemo(() => {
-    const items = rolesCatalog?.items ?? [];
+    const items = rolesCatalog ?? [];
     return items
       .filter((role) => !(isEdit && roleId && role.id === roleId))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rolesCatalog?.items, isEdit, roleId]);
+  }, [rolesCatalog, isEdit, roleId]);
 
   const parentRoleNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const role of rolesCatalog?.items ?? []) {
+    for (const role of rolesCatalog ?? []) {
       map.set(role.id, role.name);
     }
     return map;
-  }, [rolesCatalog?.items]);
+  }, [rolesCatalog]);
 
   const resolvedParentLabel = useMemo(() => {
     if (!parentRoleId) {
@@ -136,6 +135,15 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
 
   const hierarchyValid =
     canSetRootRole || parentRoleId !== null;
+
+  const hasMatrixPermissions = useMemo(() => {
+    if (!matrixData?.modules?.length) {
+      return false;
+    }
+    return (
+      buildPermissionKeysFromCrudMap(matrixData.modules, crudMap).length > 0
+    );
+  }, [crudMap, matrixData?.modules]);
 
   useEffect(() => {
     if (!matrixData?.modules?.length) {
@@ -208,32 +216,20 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
       });
     },
     onSuccess: async (savedRole) => {
-      setFeedback({
-        type: "success",
-        message: isEdit
+      showSuccessToast(
+        isEdit
           ? `Role "${savedRole.name}" updated successfully.`
           : `Role "${savedRole.name}" created successfully.`,
-      });
+      );
       setDirty(false);
-      await queryClient.invalidateQueries({ queryKey: ["roles", organizationId] });
-      if (isEdit && roleId) {
-        await queryClient.invalidateQueries({
-          queryKey: ["role", organizationId, roleId],
-        });
-      }
-      await queryClient.invalidateQueries({
-        queryKey: ["role-matrix", organizationId],
-      });
+      await invalidateRoleCaches(queryClient);
       await refetchMe?.();
       if (!isEdit) {
         router.push("/administration/roles/");
       }
     },
     onError: (err: Error) => {
-      setFeedback({
-        type: "error",
-        message: err.message || "Failed to save role.",
-      });
+      showErrorToast(err.message || "Failed to save role.");
     },
   });
 
@@ -307,8 +303,10 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
         disabled={
           !name.trim() ||
           !hierarchyValid ||
+          !hasMatrixPermissions ||
           saveMutation.isPending ||
           rolesCatalogLoading ||
+          matrixLoading ||
           (isEdit && !dirty)
         }
         onClick={() => saveMutation.mutate()}
@@ -330,31 +328,6 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
           <Lock className="h-3 w-3" />
           System role — view only
         </span>
-      ) : null}
-
-      {feedback ? (
-        <div
-          className={`mb-4 flex items-center justify-between rounded-lg p-4 text-sm ${feedback.type === "success"
-            ? "border border-emerald-200 bg-emerald-50 text-emerald-800"
-            : "border border-red-200 bg-red-50 text-red-800"
-            }`}
-        >
-          <div className="flex items-center gap-2">
-            {feedback.type === "success" ? (
-              <CheckCircle2 className="h-5 w-5 text-emerald-600" />
-            ) : (
-              <AlertCircle className="h-5 w-5 text-red-600" />
-            )}
-            <span>{feedback.message}</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setFeedback(null)}
-            className="text-slate-400 hover:text-slate-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
       ) : null}
 
       {matrixLoading ? (
@@ -384,13 +357,14 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
                 <label className="block text-xs font-semibold uppercase text-slate-700">
                   Role name *
                 </label>
-                <input
-                  type="text"
+                <RestrictedInput
+                  restrictedKind="name"
                   required
                   disabled={readOnly}
                   value={name}
-                  onChange={(e) => {
-                    setName(e.target.value);
+                  maxLength={ADMINISTRATION_ROLE_INPUT_LIMITS.roleName}
+                  onChange={(next) => {
+                    setName(next);
                     setDirty(true);
                   }}
                   placeholder="e.g. Fleet operator"
@@ -398,12 +372,26 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
                 />
               </div>
               <div className="md:col-span-1">
-                <label className="block text-xs font-semibold uppercase text-slate-700">
-                  Organisation hierarchy
-                  {!canSetRootRole ? (
-                    <span className="ml-0.5 text-red-500">*</span>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold uppercase text-slate-700">
+                    Organisation hierarchy
+                    {!canSetRootRole ? (
+                      <span className="ml-0.5 text-red-500">*</span>
+                    ) : null}
+                  </label>
+                  {!readOnly && canSetRootRole && parentRoleId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParentRoleId(null);
+                        setDirty(true);
+                      }}
+                      className="text-xs text-gray-500 hover:text-red-500"
+                    >
+                      Clear
+                    </button>
                   ) : null}
-                </label>
+                </div>
                 {rolesCatalogLoading ? (
                   <p className="mt-1 text-sm text-slate-500">
                     Loading roles…
@@ -471,8 +459,14 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
                   rows={2}
                   disabled={readOnly}
                   value={description}
+                  maxLength={ADMINISTRATION_ROLE_INPUT_LIMITS.roleDescription}
                   onChange={(e) => {
-                    setDescription(e.target.value);
+                    setDescription(
+                      sanitizeTextValue(
+                        e.target.value,
+                        ADMINISTRATION_ROLE_INPUT_LIMITS.roleDescription,
+                      ),
+                    );
                     setDirty(true);
                   }}
                   placeholder="Brief summary of responsibilities and access…"

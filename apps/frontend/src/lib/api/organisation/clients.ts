@@ -4,6 +4,10 @@ import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
 import type { CreateFleetClientPayload } from "@/lib/api/lease-contracts";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
@@ -175,6 +179,22 @@ export async function fetchOrganisationClientsApi(
       token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+export async function fetchAllActiveOrganisationClientsApi(
+  token: string,
+  organizationId: string,
+): Promise<OrganisationClientListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchOrganisationClientsApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        status: "active",
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
   );
 }
 

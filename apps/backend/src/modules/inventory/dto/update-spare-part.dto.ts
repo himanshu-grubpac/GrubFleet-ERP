@@ -11,6 +11,12 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import {
+  INVENTORY_COMPATIBLE_ASSET_CLASS_LABEL_MAX,
+  INVENTORY_COMPATIBLE_ASSET_CLASSES_MAX_ITEMS,
+  INVENTORY_SPARE_PART_BRAND_MAX,
+  INVENTORY_SPARE_PART_NAME_MAX,
+} from '../constants/inventory-field.constants';
 import { INVENTORY_UNIT_OF_MEASURE_VALUES } from '../constants/unit-of-measure.constants';
 
 export class UpdateSparePartDto {
@@ -18,21 +24,21 @@ export class UpdateSparePartDto {
   @IsOptional()
   @IsString()
   @MinLength(1)
-  @MaxLength(255)
+  @MaxLength(INVENTORY_SPARE_PART_NAME_MAX)
   name?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(255)
+  @MaxLength(INVENTORY_SPARE_PART_BRAND_MAX)
   brand?: string;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(32)
+  @ArrayMaxSize(INVENTORY_COMPATIBLE_ASSET_CLASSES_MAX_ITEMS)
   @IsString({ each: true })
-  @MaxLength(120, { each: true })
+  @MaxLength(INVENTORY_COMPATIBLE_ASSET_CLASS_LABEL_MAX, { each: true })
   compatibleAssetClasses?: string[];
 
   @ApiPropertyOptional()

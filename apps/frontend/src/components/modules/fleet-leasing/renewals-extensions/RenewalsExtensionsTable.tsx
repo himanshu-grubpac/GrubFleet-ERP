@@ -1,11 +1,16 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 import DashboardTable, {
   type DashboardColumn,
 } from "@/components/dashboard/DashboardTable";
@@ -31,6 +36,10 @@ import {
 } from "@/lib/hooks/dashboard-list-search-ui";
 import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
 import {
+  FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
+import {
   fleetLeaseContractDetailHref,
   fleetRenewLeaseContractHref,
 } from "@/lib/navigation/fleet-static-routes";
@@ -52,6 +61,17 @@ export default function RenewalsExtensionsTable() {
 
   const { searchInput, setSearchInput, debouncedSearch } =
     useDashboardListSearch();
+
+  const onRenewalsListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS.search,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
 
   const [page, setPage] = useState(1);
 
@@ -140,7 +160,7 @@ export default function RenewalsExtensionsTable() {
   ];
 
   const handleRenew = (row: LeaseContractListItem) => {
-    router.push(fleetRenewLeaseContractHref(row.id));
+    navigateToEntityShell(router, fleetRenewLeaseContractHref(row.id), row.id, 'push');
   };
 
   const handleClearSearch = () => {
@@ -167,29 +187,16 @@ export default function RenewalsExtensionsTable() {
       }
     >
       {isInitialLoading && (
-        <div
-          className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white"
-          aria-busy="true"
-          aria-label="Loading eligible contracts"
-        >
-          <p className="text-sm text-gray-500">Loading contracts…</p>
-        </div>
+        <DashboardListLoadingShell label="Loading contracts…" />
       )}
 
       {listQuery.isError && !isInitialLoading && (
-        <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
-          <p className="text-sm font-medium text-red-600">
-            Failed to load contracts.
-          </p>
-
-          <button
-            type="button"
-            onClick={() => void listQuery.refetch()}
-            className="mt-2 text-sm text-gray-600 underline"
-          >
-            Try again
-          </button>
-        </div>
+        <DashboardDetailErrorShell
+          title="Failed to load contracts"
+          error={listQuery.error}
+          fallbackMessage="Failed to load contracts."
+          onRetry={() => void listQuery.refetch()}
+        />
       )}
 
       {!isInitialLoading && !listQuery.isError && (
@@ -198,7 +205,7 @@ export default function RenewalsExtensionsTable() {
             <DashboardFilters
               searchValue={searchInput}
               searchPlaceholder="Search contract ID or client"
-              onSearchChange={setSearchInput}
+              onSearchChange={onRenewalsListSearchChange}
               onClear={handleClearSearch}
             />
           )}
@@ -242,6 +249,7 @@ export default function RenewalsExtensionsTable() {
                 renderActions={(row) => (
                   <DashboardTableActions
                     status="active"
+                    navigationEntityId={row.id}
                     viewHref={fleetLeaseContractDetailHref(row.id)}
                     copyText={formatLeaseContractRowCopyText(row)}
                     renderAdditionalMenuItems={() =>

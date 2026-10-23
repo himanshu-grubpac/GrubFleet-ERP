@@ -11,6 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsNotAfterLocalToday } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 import {
   ASSET_REGISTER_ASSIGNMENT_HANDOVER_LOCATION_MAX_LENGTH,
   ASSET_REGISTER_ASSIGNMENT_NOTES_MAX_LENGTH,
@@ -46,10 +47,11 @@ export class BulkAssignAssetRegisterVehiclesDto {
 
   @ApiPropertyOptional({
     description:
-      'Handover calendar date (ISO YYYY-MM-DD); defaults to assignment time UTC',
+      'Handover calendar date (ISO YYYY-MM-DD). Must not be after today. Defaults to assignment time when omitted.',
   })
   @IsOptional()
   @IsDateString()
+  @IsNotAfterLocalToday()
   handoverDate?: string;
 
   @ApiPropertyOptional({

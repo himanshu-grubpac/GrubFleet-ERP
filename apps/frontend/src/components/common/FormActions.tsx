@@ -83,7 +83,7 @@ export default function FormActions({
                         type="button"
                         variant="primary"
                         onClick={() => void onSave()}
-                        disabled={isSaving || secondaryPending}
+                        disabled={isSaving || secondaryPending || !canSubmit}
                         className="h-10 px-5"
                     >
                         {isSaving ? savingLabel : saveLabel}

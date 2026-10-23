@@ -11,6 +11,7 @@ import {
     isBulkAssignSelectionFull,
     isBulkAssignVehicleRowLocked,
 } from "./bulk-assign-vehicle-selection.util";
+import { ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 
 type VehiclesStepProps = {
     summary: {
@@ -207,7 +208,9 @@ export default function VehiclesStep({
                 <div className="flex flex-wrap items-center gap-2">
                     <RestrictedInput
                         restrictedKind="text"
-                        maxLength={64}
+                        maxLength={
+                            ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.vehicleListSearch
+                        }
                         value={search}
                         onChange={onSearchChange}
                         placeholder="Search fleet code, registration, chassis"

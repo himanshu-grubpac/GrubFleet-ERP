@@ -5,6 +5,12 @@ import React, { useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+    FormFieldInlineError,
+    mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
+import { ORGANISATION_SUPPLIER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 
 import OrganizationAddressForm, {
@@ -18,6 +24,10 @@ import {
     hasValidationErrors,
     type OrganizationValidationErrors,
 } from "@/components/common/Commonvalidation";
+import {
+    supplierApiKeyToFormLabel,
+    supplierFormTypeToApiKey,
+} from "@/lib/api/organisation/suppliers";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -121,7 +131,7 @@ export default function CreateSupplierForm({
             return;
         }
 
-        router.push("/organization/suppliers");
+        router.push("/organisation/suppliers");
     };
 
     /* ---------------------------------------------------------------------- */
@@ -250,9 +260,19 @@ export default function CreateSupplierForm({
             return;
         }
 
+        const apiKey = supplierFormTypeToApiKey(trimmedName);
+        if (!apiKey) {
+            setError(
+                "Supplier type must map to Vehicles, Parts, Drivers, or Compliance (or a known alias such as Insurance or Spare parts)."
+            );
+            return;
+        }
+
+        const canonicalName = supplierApiKeyToFormLabel(apiKey);
+
         const customType: SupplierType = {
             id: `custom-${Date.now()}`,
-            name: trimmedName,
+            name: canonicalName,
             isCustom: true,
             isUsed: false,
         };
@@ -266,7 +286,7 @@ export default function CreateSupplierForm({
 
         updateForm(
             "type",
-            trimmedName
+            canonicalName
         );
 
         setNewType("");
@@ -603,7 +623,7 @@ export default function CreateSupplierForm({
                         <Button
                             type="button"
                             onClick={handleSave}
-                            disabled={isSaving}
+                            disabled={!canSubmit || isSaving}
                             className="h-10 px-5"
                         >
                             {isSaving ? "Saving..." : "Save supplier"}
@@ -630,54 +650,29 @@ export default function CreateSupplierForm({
                     </span>
                 </label>
 
-                <input
+                <RestrictedInput
                     id="supplier-name"
-                    type="text"
-                    value={
-                        form.name
-                    }
-                    onChange={(
-                        event
-                    ) => {
-                        updateForm(
-                            "name",
-                            event.target
-                                .value
-                        );
-
+                    restrictedKind="name"
+                    maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.name}
+                    value={form.name}
+                    onChange={(value) => {
+                        updateForm("name", value);
                         setError("");
-
-                        setValidationErrors(
-                            (
-                                previous
-                            ) => {
-                                const next = {
-                                    ...previous,
-                                };
-
-                                delete next.name;
-
-                                return next;
-                            }
-                        );
+                        setValidationErrors((previous) => {
+                            const next = { ...previous };
+                            delete next.name;
+                            return next;
+                        });
                     }}
                     placeholder="Enter supplier / company name"
-                    className={[
-                        "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
-
-                        validationErrors.name
-                            ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                            : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-                    ].join(" ")}
+                    className={mergeFormControlBorderClass(
+                        Boolean(validationErrors.name),
+                        "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+                    )}
+                    aria-invalid={Boolean(validationErrors.name)}
                 />
 
-                {validationErrors.name && (
-                    <p className="mt-1 text-xs text-red-500">
-                        {
-                            validationErrors.name
-                        }
-                    </p>
-                )}
+                <FormFieldInlineError message={validationErrors.name} />
             </div>
 
             {/* ============================================================ */}
@@ -803,33 +798,17 @@ export default function CreateSupplierForm({
 
                 {showAddType && (
                     <div className="mt-3 flex max-w-md items-center gap-2">
-                        <input
-                            type="text"
-                            value={
-                                newType
-                            }
-                            onChange={(
-                                event
-                            ) => {
-                                setNewType(
-                                    event
-                                        .target
-                                        .value
-                                );
-
-                                setError(
-                                    ""
-                                );
+                        <RestrictedInput
+                            restrictedKind="name"
+                            maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.agreementReference}
+                            value={newType}
+                            onChange={(value) => {
+                                setNewType(value);
+                                setError("");
                             }}
-                            onKeyDown={(
-                                event
-                            ) => {
-                                if (
-                                    event.key ===
-                                    "Enter"
-                                ) {
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
                                     event.preventDefault();
-
                                     handleAddType();
                                 }
                             }}
@@ -883,54 +862,32 @@ export default function CreateSupplierForm({
                         </span>
                     </label>
 
-                    <input
-                        type="text"
-                        value={
-                            form.contactPerson
+                    <RestrictedInput
+                        restrictedKind="name"
+                        maxLength={
+                            ORGANISATION_SUPPLIER_INPUT_LIMITS.contactPerson
                         }
-                        onChange={(
-                            event
-                        ) => {
-                            updateForm(
-                                "contactPerson",
-                                event.target
-                                    .value
-                            );
-
+                        value={form.contactPerson}
+                        onChange={(value) => {
+                            updateForm("contactPerson", value);
                             setError("");
-
-                            setValidationErrors(
-                                (
-                                    previous
-                                ) => {
-                                    const next =
-                                    {
-                                        ...previous,
-                                    };
-
-                                    delete next.contactPerson;
-
-                                    return next;
-                                }
-                            );
+                            setValidationErrors((previous) => {
+                                const next = { ...previous };
+                                delete next.contactPerson;
+                                return next;
+                            });
                         }}
                         placeholder="e.g. Imran Qureshi"
-                        className={[
-                            "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
-
-                            validationErrors.contactPerson
-                                ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                                : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-                        ].join(" ")}
+                        className={mergeFormControlBorderClass(
+                            Boolean(validationErrors.contactPerson),
+                            "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400 border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+                        )}
+                        aria-invalid={Boolean(validationErrors.contactPerson)}
                     />
 
-                    {validationErrors.contactPerson && (
-                        <p className="mt-1 text-xs text-red-500">
-                            {
-                                validationErrors.contactPerson
-                            }
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={validationErrors.contactPerson}
+                    />
                 </div>
 
                 {/* Agreement Reference */}
@@ -940,20 +897,15 @@ export default function CreateSupplierForm({
                         Agreement reference
                     </label>
 
-                    <input
-                        type="text"
-                        value={
-                            form.agreementReference
+                    <RestrictedInput
+                        restrictedKind="text"
+                        maxLength={
+                            ORGANISATION_SUPPLIER_INPUT_LIMITS.agreementReference
                         }
-                        onChange={(
-                            event
-                        ) => {
-                            updateForm(
-                                "agreementReference",
-                                event.target
-                                    .value
-                            );
-                        }}
+                        value={form.agreementReference}
+                        onChange={(value) =>
+                            updateForm("agreementReference", value)
+                        }
                         placeholder="e.g. AGR-2026-0142 (optional)"
                         className="h-10 w-full rounded-md border border-gray-300 px-3 text-sm outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
                     />
@@ -1051,16 +1003,13 @@ export default function CreateSupplierForm({
                         </label>
 
 
-                        <input
-                            type="tel"
+                        <RestrictedInput
+                            restrictedKind="phone"
+                            maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.phone}
                             value={form.phone}
-                            onChange={(event) => {
-                                const phone = event.target.value.replace(/[^0-9+\s()-]/g, "");
-
-                                updateForm("phone", phone);
-
+                            onChange={(value) => {
+                                updateForm("phone", value);
                                 setError("");
-
                                 setValidationErrors((previous) => {
                                     const next = { ...previous };
                                     delete next.phone;
@@ -1068,22 +1017,14 @@ export default function CreateSupplierForm({
                                 });
                             }}
                             placeholder="+91 98XXXXXXXX"
-                            className={[
-                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
-                                validationErrors.phone
-                                    ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                                    : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-                            ].join(" ")}
+                            className={mergeFormControlBorderClass(
+                                Boolean(validationErrors.phone),
+                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400 border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+                            )}
+                            aria-invalid={Boolean(validationErrors.phone)}
                         />
 
-
-                        {validationErrors.phone && (
-                            <p className="mt-1 text-xs text-red-500">
-                                {
-                                    validationErrors.phone
-                                }
-                            </p>
-                        )}
+                        <FormFieldInlineError message={validationErrors.phone} />
                     </div>
 
                     {/* Email */}
@@ -1097,54 +1038,28 @@ export default function CreateSupplierForm({
                             </span>
                         </label>
 
-                        <input
-                            type="email"
-                            value={
-                                form.email
-                            }
-                            onChange={(
-                                event
-                            ) => {
-                                updateForm(
-                                    "email",
-                                    event.target
-                                        .value
-                                );
-
+                        <RestrictedInput
+                            restrictedKind="email"
+                            maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.email}
+                            value={form.email}
+                            onChange={(value) => {
+                                updateForm("email", value);
                                 setError("");
-
-                                setValidationErrors(
-                                    (
-                                        previous
-                                    ) => {
-                                        const next =
-                                        {
-                                            ...previous,
-                                        };
-
-                                        delete next.email;
-
-                                        return next;
-                                    }
-                                );
+                                setValidationErrors((previous) => {
+                                    const next = { ...previous };
+                                    delete next.email;
+                                    return next;
+                                });
                             }}
                             placeholder="name@supplier.com"
-                            className={[
-                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400",
-
-                                validationErrors.email
-                                    ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-                                    : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-                            ].join(" ")}
+                            className={mergeFormControlBorderClass(
+                                Boolean(validationErrors.email),
+                                "h-10 w-full rounded-md border px-3 text-sm outline-none placeholder:text-gray-400 border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+                            )}
+                            aria-invalid={Boolean(validationErrors.email)}
                         />
 
-                        {validationErrors.email && (
-                            <p className="mt-1 text-xs text-red-500">
-                                {
-                                    validationErrors.email
-                                }
-                            </p>
-                        )}
+                        <FormFieldInlineError message={validationErrors.email} />
                     </div>
                 </div>
             </div>

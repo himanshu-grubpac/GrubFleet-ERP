@@ -1,7 +1,9 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateVehicleCaches } from "@/lib/query/invalidate-domain-caches";
 
 import FleetFormPage, {
   type FleetVehicleFormData,
@@ -37,11 +39,9 @@ export default function FleetCreatePage() {
       });
     },
     onSuccess: (created) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "vehicles"],
-      });
+      void invalidateVehicleCaches(queryClient);
       showFleetVehicleAddedToast();
-      router.push(assetRegisterFleetDetailHref(created.id));
+      navigateToEntityShell(router, assetRegisterFleetDetailHref(created.id), created.id, 'push');
     },
     onError: (error: Error) => {
       showErrorToast(error.message || FLEET_VEHICLE_ADD_ERROR);

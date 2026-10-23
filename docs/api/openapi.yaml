@@ -649,6 +649,13 @@ paths:
             type: string
             enum: [createdAt, name, updatedAt]
         - $ref: '#/components/parameters/SortOrderParam'
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+            maxLength: 120
+          description: Case-insensitive filter on role name or description.
       responses:
         '200':
           description: Paginated roles
@@ -2318,6 +2325,7 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 120
         - name: locationTypeId
           in: query
           schema:
@@ -2448,6 +2456,7 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 120
         - name: supplierType
           in: query
           schema:
@@ -2462,7 +2471,7 @@ paths:
         '200':
           description: Paginated supplier rows for dashboard
         '400':
-          description: Invalid sortBy or sortOrder
+          description: Invalid sortBy, sortOrder, or search length
     post:
       tags: [organisation]
       summary: Create organisation supplier
@@ -2620,6 +2629,7 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 120
         - name: status
           in: query
           schema:
@@ -2773,7 +2783,7 @@ paths:
                 - unitOfMeasure
                 - retailMarkupPercent
                 - wholesaleMarkupPercent
-                - thresholdQuantity
+                - reorderThreshold
               properties:
                 organizationId:
                   type: string
@@ -2799,12 +2809,10 @@ paths:
                 wholesaleMarkupPercent:
                   type: integer
                   minimum: 0
-                thresholdQuantity:
+                reorderThreshold:
                   type: integer
                   minimum: 0
-                notes:
-                  type: string
-                  maxLength: 2000
+                  maximum: 9999999
       responses:
         '201':
           description: Created spare part
@@ -2921,8 +2929,10 @@ paths:
               required:
                 - organizationId
                 - partId
-                - quantity
-                - receiptDate
+                - locationId
+                - purchaseDate
+                - quantityReceived
+                - quantityUnitCostMinor
               properties:
                 organizationId:
                   type: string
@@ -2930,28 +2940,36 @@ paths:
                 partId:
                   type: string
                   format: uuid
-                quantity:
-                  type: integer
-                  minimum: 1
-                receiptDate:
-                  type: string
-                  format: date
-                supplierId:
+                locationId:
                   type: string
                   format: uuid
-                locationId:
+                supplierId:
                   type: string
                   format: uuid
                 purchaseInvoiceReference:
                   type: string
-                  maxLength: 120
+                  maxLength: 255
                 financeInvoiceId:
                   type: string
                   format: uuid
                   description: Optional link to finance purchase invoice
+                purchaseDate:
+                  type: string
+                  format: date
                 expiryDate:
                   type: string
                   format: date
+                quantityReceived:
+                  type: integer
+                  minimum: 1
+                  maximum: 9999999
+                quantityUnitCostMinor:
+                  type: integer
+                  minimum: 0
+                  description: Unit cost in minor currency units (paise)
+                batchLotReference:
+                  type: string
+                  maxLength: 120
                 notes:
                   type: string
                   maxLength: 2000
@@ -3091,9 +3109,23 @@ paths:
             type: string
             enum: [requestedAt, status, requestNumber]
         - $ref: '#/components/parameters/SortOrderParam'
+        - name: search
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+          description: Filter by request number, work order ref, part name, or vehicle ref (ILIKE).
+        - name: requestStatus
+          in: query
+          schema:
+            type: string
+            enum: [blocked, fulfilled, reserved, cancelled, lapsed]
+          description: Raw workflow status filter (UI maps reserved/cancelled/lapsed to Blocked).
       responses:
         '200':
           description: Paginated requests
+        '400':
+          $ref: '#/components/responses/BadRequest'
   /inventory/parts-requests/{id}:
     get:
       tags: [inventory]
@@ -4242,6 +4274,7 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 120
         - name: status
           in: query
           schema:
@@ -4445,6 +4478,7 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 120
         - name: department
           in: query
           schema:
@@ -4625,6 +4659,7 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 120
         - name: status
           in: query
           schema:
@@ -4783,6 +4818,7 @@ paths:
           in: query
           schema:
             type: string
+            maxLength: 120
           description: Partial match on fleet code, registration number, or asset class name
         - name: demandFilter
           in: query
@@ -5373,6 +5409,14 @@ paths:
                   allOf:
                     - $ref: '#/components/schemas/DecimalMoneyString'
                   description: Required when type is insurance
+                policyNumber:
+                  type: string
+                  maxLength: 128
+                  description: Persisted when type is insurance
+                registrationReference:
+                  type: string
+                  maxLength: 128
+                  description: Persisted when type is registration
       responses:
         '200':
           description: Updated compliance detail
@@ -5660,9 +5704,13 @@ components:
         responsibleEmployeeId:
           type: string
           format: uuid
+          nullable: true
+          description: Organisation employee. Omit or null when no responsible person.
         deputyEmployeeId:
           type: string
           format: uuid
+          nullable: true
+          description: Organisation employee. Omit or null when no deputy.
     UpdateOrganisationLocationRequest:
       type: object
       properties:
@@ -5707,10 +5755,12 @@ components:
           type: string
           format: uuid
           nullable: true
+          description: Organisation employee. Null clears the responsible person. Omit leaves the current assignment.
         deputyEmployeeId:
           type: string
           format: uuid
           nullable: true
+          description: Organisation employee. Null clears the deputy. Omit leaves the current assignment.
     AssetRegisterAssetClassListItem:
       type: object
       required:
@@ -5866,7 +5916,7 @@ components:
         manufacturingYear:
           type: integer
           minimum: 1980
-          maximum: 2100
+          description: Must not be after the current calendar year.
         engineDisplacementCc:
           type: integer
           minimum: 1
@@ -5939,7 +5989,7 @@ components:
         manufacturingYear:
           type: integer
           minimum: 1980
-          maximum: 2100
+          description: Must not be after the current calendar year.
         engineDisplacementCc:
           type: integer
           minimum: 1
@@ -6031,7 +6081,7 @@ components:
         modelYear:
           type: integer
           minimum: 1900
-          maximum: 2100
+          description: Must not be after the current calendar year.
         odometer:
           type: integer
           minimum: 0
@@ -6083,7 +6133,7 @@ components:
         modelYear:
           type: integer
           minimum: 1900
-          maximum: 2100
+          description: Must not be after the current calendar year.
         odometer:
           type: integer
           minimum: 0
@@ -7020,8 +7070,10 @@ components:
           format: uuid
         name:
           type: string
+          maxLength: 120
         description:
           type: string
+          maxLength: 2000
         moduleAccess:
           type: array
           items:
@@ -7046,8 +7098,10 @@ components:
       properties:
         name:
           type: string
+          maxLength: 120
         description:
           type: string
+          maxLength: 2000
         moduleAccess:
           type: array
           items:
@@ -7578,9 +7632,13 @@ components:
         laborJobCardId:
           type: string
           format: uuid
+          nullable: true
+          description: >-
+            Labor job card template. Omit or null when no service package is selected.
         technicianEmployeeId:
           type: string
           format: uuid
+          nullable: true
         expectedCompletionDate:
           type: string
           format: date
@@ -7890,6 +7948,11 @@ components:
           type: string
         routePath:
           type: string
+          description: >
+            Static-export detail shell path (trailing slash), e.g.
+            `/organisation/employees/detail/`. Frontend maps moduleKey/entityType
+            to canonical routes; append client-side `?highlight=` after navigation
+            from global search.
         routeQuery:
           type: object
           additionalProperties:

@@ -1,7 +1,9 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateSupplierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -57,11 +59,9 @@ export default function CreateSupplierPage() {
 
         try {
             const created = await createOrganisationSupplierApi(token, payload);
-            await queryClient.invalidateQueries({
-                queryKey: ["organization", "suppliers"],
-            });
+            await invalidateSupplierCaches(queryClient);
             showSupplierCreatedToast(created.name);
-            router.push(organisationSupplierDetailHref(created.id));
+            navigateToEntityShell(router, organisationSupplierDetailHref(created.id), created.id, 'push');
         } catch (error) {
             showApiErrorToast(error, SUPPLIER_SAVE_ERROR);
             throw error;

@@ -8,6 +8,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
 import { SortByQuery } from '../../../common/decorators/list-sort-by.decorator';
@@ -16,7 +17,10 @@ import {
   ASSET_REGISTER_VEHICLE_LIST_SORT_FIELDS,
   type AssetRegisterVehicleListSortField,
 } from '../constants/asset-register-list-sort.constants';
-import { ASSET_REGISTER_VEHICLE_OPERATIONAL_STATUSES } from '../constants/asset-register-vehicle.constants';
+import {
+  ASSET_REGISTER_VEHICLE_LIST_SEARCH_MAX_LENGTH,
+  ASSET_REGISTER_VEHICLE_OPERATIONAL_STATUSES,
+} from '../constants/asset-register-vehicle.constants';
 
 export const ASSET_REGISTER_VEHICLE_LIST_MAX_PAGE_SIZE = 50;
 
@@ -67,9 +71,11 @@ export class ListAssetRegisterVehiclesQueryDto extends PaginationQueryDto {
   @ApiPropertyOptional({
     description:
       'Search fleet code, registration number, or asset class name (partial match)',
+    maxLength: ASSET_REGISTER_VEHICLE_LIST_SEARCH_MAX_LENGTH,
   })
   @IsOptional()
   @IsString()
+  @MaxLength(ASSET_REGISTER_VEHICLE_LIST_SEARCH_MAX_LENGTH)
   search?: string;
 
   @ApiPropertyOptional({

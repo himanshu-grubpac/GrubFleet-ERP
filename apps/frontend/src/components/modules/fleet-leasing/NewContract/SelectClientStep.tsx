@@ -8,9 +8,11 @@ import { useGrubpacAuth } from "@/lib/auth-context";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 
 import {
-    fetchFleetClients,
+    fetchAllFleetClients,
     type FleetClientListItem,
 } from "@/lib/api/lease-contracts";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { FLEET_CLIENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 
 const PAGE_SIZE = 10;
 
@@ -47,16 +49,18 @@ export default function SelectClientStep({
                 );
             }
 
-            return fetchFleetClients(token, organizationId, {
-                search: debouncedSearch || undefined,
-            });
+            return fetchAllFleetClients(
+                token,
+                organizationId,
+                debouncedSearch || undefined,
+            );
         },
         enabled: Boolean(token && organizationId),
         staleTime: 30_000,
         refetchOnWindowFocus: false,
     });
 
-    const clients = clientsQuery.data?.items ?? [];
+    const clients = clientsQuery.data ?? [];
     const trimmedSearch = search.trim();
 
     const showNoResultsEmpty =
@@ -80,12 +84,14 @@ export default function SelectClientStep({
             <div className="relative mb-4">
                 <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
 
-                <input
-                    type="text"
+                <RestrictedInput
+                    restrictedKind="text"
+                    maxLength={FLEET_CLIENT_INPUT_LIMITS.clientSearch}
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={setSearch}
                     placeholder="Search clients by name..."
                     className="h-10 w-full rounded-md border border-slate-300 bg-white pl-10 pr-4 text-sm text-slate-700 outline-none transition focus:border-[#FE5720] focus:ring-2 focus:ring-[#FE5720]/10 placeholder:text-slate-400"
+                    aria-label="Search clients by name"
                 />
             </div>
 

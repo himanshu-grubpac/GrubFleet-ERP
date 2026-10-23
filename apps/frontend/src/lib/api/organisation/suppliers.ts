@@ -4,6 +4,10 @@ import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries"
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 
 export type SupplierStatus = "active" | "inactive";
@@ -132,12 +136,19 @@ export function supplierFormTypeToApiKey(
 ): OrganisationSupplierTypeKey | null {
   const trimmed = label.trim();
   if (!trimmed) return null;
-  return (
+  const direct =
     SUPPLIER_TYPE_LABEL_TO_KEY[trimmed] ??
-    (["bike", "driver", "spare_parts", "compliance"].includes(trimmed)
-      ? (trimmed as OrganisationSupplierTypeKey)
-      : null)
-  );
+    SUPPLIER_TYPE_LABEL_TO_KEY[
+      trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase()
+    ];
+  if (direct) return direct;
+  const lower = trimmed.toLowerCase();
+  for (const [key, value] of Object.entries(SUPPLIER_TYPE_LABEL_TO_KEY)) {
+    if (key.toLowerCase() === lower) return value;
+  }
+  return ["bike", "driver", "spare_parts", "compliance"].includes(trimmed)
+    ? (trimmed as OrganisationSupplierTypeKey)
+    : null;
 }
 
 /** Maps API detail to Khushi form chip labels (no UI label changes). */
@@ -146,6 +157,12 @@ export function supplierDetailTypeToFormLabel(
   supplierType: OrganisationSupplierTypeKey,
 ): string {
   return SUPPLIER_API_KEY_TO_FORM_LABEL[supplierType] ?? typeLabel;
+}
+
+export function supplierApiKeyToFormLabel(
+  supplierType: OrganisationSupplierTypeKey,
+): string {
+  return SUPPLIER_API_KEY_TO_FORM_LABEL[supplierType];
 }
 
 export function supplierDetailToFormData(detail: OrganisationSupplierDetail): {
@@ -240,6 +257,24 @@ export async function fetchOrganisationSuppliersApi(
       token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+export async function fetchAllActiveOrganisationSuppliersApi(
+  token: string,
+  organizationId: string,
+  filters?: { supplierType?: ListOrganisationSuppliersParams["supplierType"] },
+): Promise<OrganisationSupplierListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchOrganisationSuppliersApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        status: "active",
+        supplierType: filters?.supplierType,
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
   );
 }
 

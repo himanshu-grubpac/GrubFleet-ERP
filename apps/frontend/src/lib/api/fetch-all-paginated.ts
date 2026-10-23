@@ -1,5 +1,8 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 
+/** Matches backend `MAX_PAGE_SIZE` on most list DTOs. */
+export const DEFAULT_API_CATALOG_PAGE_SIZE = 50;
+
 /**
  * Fetches every page until all items are loaded (for bounded catalog dropdowns).
  */

@@ -126,6 +126,7 @@ export class RolesService {
       pageSize,
       visibleRoleIds,
       sort,
+      query.search,
     );
     const permissionKeysByRoleId =
       await this.rolesRepository.getPermissionKeysForRoles(

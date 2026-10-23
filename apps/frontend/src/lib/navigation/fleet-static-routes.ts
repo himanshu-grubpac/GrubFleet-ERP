@@ -1,64 +1,45 @@
 /**
- * Static export (S3 + CloudFront): fixed shells; runtime id in query string.
- * @see docs/deployment/s3-cloudfront-portal.md
+ * Static export (S3 + CloudFront): path-only shells; entity id in secure nav store.
+ * @see lib/navigation/secure-entity-navigation.ts
  */
+
+import { appendQueryToPath } from "./secure-entity-navigation";
 
 export type FleetEntityQueryKey = "leaseId";
 
 const LEASE_CONTRACTS_BASE = "/fleet-leasing/lease-contracts";
 const RENEWALS_BASE = "/fleet-leasing/renewals-extensions";
 
-function detailHref(
-  base: string,
-  queryKey: FleetEntityQueryKey,
-  id: string,
-  detailSegment = "detail",
-): string {
-  const trimmed = id.trim();
-  const path = `${base}/${detailSegment}/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+function detailHref(base: string, detailSegment = "detail"): string {
+  return `${base}/${detailSegment}/`;
 }
 
-function editHref(
-  base: string,
-  queryKey: FleetEntityQueryKey,
-  id: string,
-): string {
-  const trimmed = id.trim();
-  const path = `${base}/edit/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?${queryKey}=${encodeURIComponent(trimmed)}`;
+function editHref(base: string): string {
+  return `${base}/edit/`;
 }
 
-export const fleetLeaseContractDetailHref = (leaseId: string) =>
-  detailHref(LEASE_CONTRACTS_BASE, "leaseId", leaseId);
+export const fleetLeaseContractDetailHref = (leaseId: string) => {
+  void leaseId;
+  return detailHref(LEASE_CONTRACTS_BASE);
+};
 
-export const fleetLeaseContractEditHref = (leaseId: string) =>
-  editHref(LEASE_CONTRACTS_BASE, "leaseId", leaseId);
+export const fleetLeaseContractEditHref = (leaseId: string) => {
+  void leaseId;
+  return editHref(LEASE_CONTRACTS_BASE);
+};
 
 export const fleetLeaseContractChangeHistoryHref = (leaseId: string) => {
-  const trimmed = leaseId.trim();
-  const path = `${LEASE_CONTRACTS_BASE}/detail/change-history/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?leaseId=${encodeURIComponent(trimmed)}`;
+  void leaseId;
+  return `${LEASE_CONTRACTS_BASE}/detail/change-history/`;
 };
 
 export const fleetRenewLeaseContractHref = (leaseId: string) => {
-  const trimmed = leaseId.trim();
-  const path = `${RENEWALS_BASE}/renew/`;
-  if (!trimmed) {
-    return path;
-  }
-  return `${path}?leaseId=${encodeURIComponent(trimmed)}`;
+  void leaseId;
+  return `${RENEWALS_BASE}/renew/`;
 };
 
-/** Detail URL after wizard confirm (optional query flag). */
+/** Detail URL after wizard confirm (non-id query flag only). */
 export const fleetLeaseContractDetailConfirmedHref = (leaseId: string) =>
-  `${fleetLeaseContractDetailHref(leaseId)}&confirmed=1`;
+  appendQueryToPath(fleetLeaseContractDetailHref(leaseId), {
+    confirmed: "1",
+  });

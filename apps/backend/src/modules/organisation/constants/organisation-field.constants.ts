@@ -1,0 +1,11 @@
+/** Shared organisation module string limits — mirror CreateLocationDto / list query caps. */
+
+export const ORGANISATION_LIST_SEARCH_MAX_LENGTH = 120;
+
+export const ORGANISATION_LOCATION_NAME_MAX = 255;
+export const ORGANISATION_LOCATION_TYPE_NAME_MAX = 120;
+export const ORGANISATION_LOCATION_ADDRESS_LINE_MAX = 255;
+export const ORGANISATION_LOCATION_ADDRESS_REGION_MAX = 120;
+export const ORGANISATION_LOCATION_POSTAL_MAX = 20;
+export const ORGANISATION_LOCATION_SITE_PHONE_MAX = 32;
+export const ORGANISATION_LOCATION_SITE_EMAIL_MAX = 320;

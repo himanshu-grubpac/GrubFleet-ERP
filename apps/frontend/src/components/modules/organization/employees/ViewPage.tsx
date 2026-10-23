@@ -1,10 +1,12 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useRouter } from "next/navigation";
 import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
 import { organisationEmployeeEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateEmployeeCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -24,6 +26,11 @@ import {
 import { EMPLOYMENT_TYPE_LABELS } from "./types";
 import type { DeactivateReasonType, EmployeeRecord } from "./types";
 import { formatEmployeeDateForForm } from "./employeeFormMappers";
+import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
+import {
+  DashboardDetailErrorShell,
+  DashboardPageLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 
 export default function EmployeeViewPage() {
   const router = useRouter();
@@ -77,12 +84,7 @@ export default function EmployeeViewPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "employee", organizationId, employeeId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "employees"],
-      });
+      void invalidateEmployeeCaches(queryClient);
       setActivateOpen(false);
       setShowDeactivateModal(false);
       setStatusError(null);
@@ -105,7 +107,7 @@ export default function EmployeeViewPage() {
   if (isAuthLoading || employeeQuery.isLoading) {
     return (
       <div className="px-5 py-4">
-        <p className="text-sm text-gray-500">Loading employee...</p>
+        <DashboardPageLoadingShell label="Loading employee…" />
       </div>
     );
   }
@@ -113,18 +115,12 @@ export default function EmployeeViewPage() {
   if (employeeQuery.isError || !employeeQuery.data) {
     return (
       <div className="px-5 py-4">
-        <p className="text-sm text-gray-500">
-          {employeeQuery.error instanceof ApiClientError
-            ? employeeQuery.error.message
-            : "Employee not found."}
-        </p>
-        <button
-          type="button"
-          onClick={() => void employeeQuery.refetch()}
-          className="mt-2 text-sm text-gray-600 underline"
-        >
-          Try again
-        </button>
+        <DashboardDetailErrorShell
+          title="Failed to load employee"
+          error={employeeQuery.error}
+          fallbackMessage="Employee not found."
+          onRetry={() => void employeeQuery.refetch()}
+        />
       </div>
     );
   }
@@ -153,7 +149,7 @@ export default function EmployeeViewPage() {
 
   const handleEdit = () => {
     if (!isActive || !canUpdate) return;
-    router.push(organisationEmployeeEditHref(employee.id));
+    navigateToEntityShell(router, organisationEmployeeEditHref(employee.id), employee.id, 'push');
   };
 
   const handleOpenDeactivate = () => {
@@ -167,32 +163,31 @@ export default function EmployeeViewPage() {
   };
 
   return (
-    <div className="min-h-full bg-gray-50">
-      <div className="px-5 py-4">
-        <div className="mb-4 flex items-start justify-between">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl font-semibold text-gray-900">
+    <OrganizationViewLayout>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <h1 className="text-[15px] font-semibold text-gray-900">
               {employee.fullName}
             </h1>
 
-            {isActive ? (
-              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-medium text-[#FE5720]">
-                Active
-              </span>
-            ) : (
-              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium text-gray-500">
-                Inactive
-              </span>
-            )}
+            <span
+              className={[
+                "inline-flex shrink-0 rounded-full px-2.5 py-1 text-xs font-medium",
+                isActive
+                  ? "bg-green-50 text-green-700"
+                  : "bg-gray-100 text-gray-500",
+              ].join(" ")}
+            >
+              {isActive ? "Active" : "Deactivated"}
+            </span>
           </div>
 
           <div className="flex items-center gap-2">
             {canUpdate && isActive ? (
               <Button
                 type="button"
-                variant="outline"
+                variant="secondary"
                 onClick={handleEdit}
-                className="h-9 border-gray-300 bg-white px-5 text-gray-700 hover:bg-gray-50"
               >
                 Edit
               </Button>
@@ -257,7 +252,6 @@ export default function EmployeeViewPage() {
             />
           </div>
         </div>
-      </div>
 
       <ConfirmDialog
         open={activateOpen}
@@ -294,7 +288,7 @@ export default function EmployeeViewPage() {
           });
         }}
       />
-    </div>
+    </OrganizationViewLayout>
   );
 }
 

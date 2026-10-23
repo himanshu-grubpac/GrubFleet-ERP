@@ -3,6 +3,10 @@ import type { DriverFormData } from "@/components/modules/organization/driver-re
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
@@ -105,6 +109,23 @@ export async function fetchOrganisationDriversApi(
       token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+export async function fetchAllOrganisationDriversApi(
+  token: string,
+  organizationId: string,
+  status?: DriverStatus,
+): Promise<OrganisationDriverListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchOrganisationDriversApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        status,
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
   );
 }
 

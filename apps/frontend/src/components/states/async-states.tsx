@@ -16,6 +16,11 @@ import {
 export type LoadingStateVariant = "spinner" | "skeleton";
 export type LoadingSkeletonPreset = "block" | "table" | "page-header";
 
+/** Brief navigation guard (inactive edit, post-mutation leave, legacy URL rewrite). */
+export function RedirectingState({ label = "Redirecting…" }: { label?: string }) {
+  return <LoadingState label={label} />;
+}
+
 export function LoadingState({
   label = "Loading…",
   variant = "spinner",

@@ -13,9 +13,9 @@ import {
 import { IsDecimalMoneyAmount } from '../../../common/decorators/is-decimal-money-amount.decorator';
 import { IsValidChassisVin } from '../../../common/decorators/is-valid-chassis-vin.decorator';
 import { IsValidVehicleRegistrationNumber } from '../../../common/decorators/is-valid-vehicle-registration-number.decorator';
+import { MaxCurrentLocalCalendarYear } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 import {
   ASSET_REGISTER_VEHICLE_CHASSIS_MAX_LENGTH,
-  ASSET_REGISTER_VEHICLE_MODEL_YEAR_MAX,
   ASSET_REGISTER_VEHICLE_MODEL_YEAR_MIN,
   ASSET_REGISTER_VEHICLE_ODOMETER_MAX,
   ASSET_REGISTER_VEHICLE_REGISTRATION_MAX_LENGTH,
@@ -45,10 +45,13 @@ export class CreateAssetRegisterVehicleDto {
   @IsValidChassisVin()
   chassisNumber!: string;
 
-  @ApiProperty({ minimum: ASSET_REGISTER_VEHICLE_MODEL_YEAR_MIN })
+  @ApiProperty({
+    minimum: ASSET_REGISTER_VEHICLE_MODEL_YEAR_MIN,
+    description: 'Calendar year; must not be after the current year',
+  })
   @IsInt()
   @Min(ASSET_REGISTER_VEHICLE_MODEL_YEAR_MIN)
-  @Max(ASSET_REGISTER_VEHICLE_MODEL_YEAR_MAX)
+  @MaxCurrentLocalCalendarYear()
   modelYear!: number;
 
   @ApiProperty({ minimum: 0 })

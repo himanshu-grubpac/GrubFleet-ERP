@@ -174,6 +174,22 @@ describe('Finance vendor payments (integration)', () => {
         .expect(403);
     });
 
+    it('returns 400 when payment date is before the invoice date', async () => {
+      const inv = await createPurchaseInvoice(5000);
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/vendor-payments')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          purchaseInvoiceId: inv.id,
+          amountMinor: 1000,
+          paymentDate: '2026-05-01',
+          paymentMethod: 'bank_transfer',
+        })
+        .expect(400);
+    });
+
     it('400 unknown field on create', async () => {
       const inv = await createPurchaseInvoice(5000);
       await request(app.getHttpServer())
@@ -187,6 +203,37 @@ describe('Finance vendor payments (integration)', () => {
           paymentDate: '2026-06-02',
           paymentMethod: 'bank_transfer',
           extraField: true,
+        })
+        .expect(400);
+    });
+
+    it('400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/finance/vendor-payments')
+        .query({
+          organizationId,
+          page: 1,
+          pageSize: 10,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
+    it('400 when paymentReference exceeds max length on create', async () => {
+      const inv = await createPurchaseInvoice(5000);
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/vendor-payments')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          purchaseInvoiceId: inv.id,
+          amountMinor: 1000,
+          paymentDate: '2026-06-02',
+          paymentMethod: 'bank_transfer',
+          paymentReference: 'r'.repeat(121),
         })
         .expect(400);
     });

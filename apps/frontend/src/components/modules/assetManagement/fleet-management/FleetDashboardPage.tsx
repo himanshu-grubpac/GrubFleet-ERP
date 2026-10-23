@@ -1,8 +1,10 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { CarFront, Search, Check, Copy } from "lucide-react";
+import { CarFront, Search } from "lucide-react";
+import DashboardAssetClassTableCell from "@/components/dashboard/DashboardAssetClassTableCell";
 import { useQuery } from "@tanstack/react-query";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -13,7 +15,11 @@ import {
     listSortQueryKeyPart,
     useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+    ASSET_REGISTER_VEHICLE_INPUT_LIMITS,
+    sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
 import {
     assetRegisterFleetDetailHref,
@@ -23,6 +29,10 @@ import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
+import {
+    DashboardDetailErrorShell,
+    DashboardListLoadingShell,
+} from "@/components/dashboard/dashboard-async-states";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -168,8 +178,19 @@ export default function FleetDashboardPage() {
     /* State                                                                  */
     /* ---------------------------------------------------------------------- */
 
-    const [search, setSearch] = useState("");
-    const debouncedSearch = useDebouncedValue(search, 300);
+    const { searchInput, setSearchInput, debouncedSearch } =
+        useDashboardListSearch();
+
+    const onFleetListSearchChange = useCallback(
+        (value: string) => {
+            setSearchInput(
+                sanitizeRestrictedInputValue("text", value, {
+                    maxLength: ASSET_REGISTER_VEHICLE_INPUT_LIMITS.listSearch,
+                }),
+            );
+        },
+        [setSearchInput],
+    );
 
     const [activeFilter, setActiveFilter] =
         useState<FleetFilter>("all");
@@ -255,47 +276,15 @@ export default function FleetDashboardPage() {
     };
 
     const handleEdit = (vehicle: FleetVehicle) => {
-        router.push(assetRegisterFleetEditHref(vehicle.id));
+        navigateToEntityShell(router, assetRegisterFleetEditHref(vehicle.id), vehicle.id, 'push');
     };
 
     /* ---------------------------------------------------------------------- */
     /* Filtering                                                              */
     /* ---------------------------------------------------------------------- */
 
-    const filteredVehicles = useMemo(() => {
-        const searchValue = debouncedSearch.trim().toLowerCase();
-
-        return apiVehicles.filter((vehicle) => {
-            const matchesSearch =
-                !searchValue ||
-                vehicle.fleetCode.toLowerCase().includes(searchValue) ||
-                vehicle.assetClass.toLowerCase().includes(searchValue) ||
-                vehicle.registrationNumber.toLowerCase().includes(searchValue);
-
-            let matchesFilter = true;
-
-            switch (activeFilter) {
-                case "available":
-                    matchesFilter = vehicle.status === "available";
-                    break;
-                case "leased":
-                    matchesFilter = vehicle.status === "leased";
-                    break;
-                case "workshop":
-                    matchesFilter = vehicle.status === "workshop";
-                    break;
-                case "sold":
-                    matchesFilter = vehicle.status === "sold";
-                    break;
-                case "all":
-                default:
-                    matchesFilter = true;
-                    break;
-            }
-
-            return matchesSearch && matchesFilter;
-        });
-    }, [debouncedSearch, activeFilter, apiVehicles]);
+    /** Server applies search + operationalStatus — avoid double client-side filter. */
+    const filteredVehicles = apiVehicles;
 
     const isInitialLoading =
         isAuthLoading || (listQuery.isLoading && !listQuery.data);
@@ -312,7 +301,7 @@ export default function FleetDashboardPage() {
     /* ---------------------------------------------------------------------- */
 
     const handleClearFilters = () => {
-        setSearch("");
+        setSearchInput("");
         setActiveFilter("all");
         setPage(1);
     };
@@ -333,50 +322,11 @@ export default function FleetDashboardPage() {
             sortable: false,
             className: "w-[180px] max-w-[180px]",
             render: (vehicle: FleetVehicle) => (
-                <div className="group/asset relative w-[180px] max-w-full">
-                    <span className="block truncate">
-                        {vehicle.assetClass || "—"}
-                    </span>
-
-                    {vehicle.assetClass && (
-                        <div
-                            className="
-                                invisible pointer-events-none
-                                absolute left-0 top-full z-50
-                                w-max min-w-[260px] max-w-[360px]
-                                rounded-md border border-gray-200
-                                bg-white p-3 shadow-lg
-                                opacity-0 transition-opacity duration-150
-                                group-hover/asset:visible
-                                group-hover/asset:pointer-events-auto
-                                group-hover/asset:opacity-100
-                                group-focus-within/asset:visible
-                                group-focus-within/asset:pointer-events-auto
-                                group-focus-within/asset:opacity-100
-                            "
-                        >
-                            <div className="flex items-start gap-1">
-                                <span className="min-w-0 flex-1 whitespace-normal break-words text-xs text-gray-800">
-                                    {vehicle.assetClass}
-                                </span>
-
-                                <button
-                                    type="button"
-                                    onClick={() => void handleCopyAssetClass(vehicle.assetClass)}
-                                    className="shrink-0 rounded p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-900"
-                                    title="Copy full asset class name"
-                                    aria-label="Copy full asset class name"
-                                >
-                                    {copiedAssetClass === vehicle.assetClass ? (
-                                        <Check className="h-4 w-4 text-green-600" />
-                                    ) : (
-                                        <Copy className="h-4 w-4" />
-                                    )}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <DashboardAssetClassTableCell
+                    assetClass={vehicle.assetClass}
+                    copied={copiedAssetClass === vehicle.assetClass}
+                    onCopy={() => void handleCopyAssetClass(vehicle.assetClass)}
+                />
             ),
         },
         {
@@ -451,9 +401,12 @@ export default function FleetDashboardPage() {
                     />
 
                     <input
-                        type="text"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
+                        type="search"
+                        value={searchInput}
+                        maxLength={ASSET_REGISTER_VEHICLE_INPUT_LIMITS.listSearch}
+                        onChange={(event) =>
+                            onFleetListSearchChange(event.target.value)
+                        }
                         placeholder="Search by fleet code or registration number"
                         className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
                     />
@@ -486,20 +439,14 @@ export default function FleetDashboardPage() {
 
             {/* Empty / Table */}
             {listQuery.isError ? (
-                <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-                    Could not load fleet register.{" "}
-                    <button
-                        type="button"
-                        className="font-medium underline"
-                        onClick={() => void listQuery.refetch()}
-                    >
-                        Retry
-                    </button>
-                </div>
+                <DashboardDetailErrorShell
+                    title="Failed to load fleet register"
+                    error={listQuery.error}
+                    fallbackMessage="Could not load fleet register."
+                    onRetry={() => void listQuery.refetch()}
+                />
             ) : isInitialLoading ? (
-                <div className="rounded-lg border border-gray-200 bg-white p-8 text-center text-sm text-gray-500">
-                    Loading fleet register…
-                </div>
+                <DashboardListLoadingShell label="Loading fleet register…" />
             ) : isEmptyOrgList ? (
                 <DashboardEmptyState
                     icon={
@@ -553,6 +500,7 @@ export default function FleetDashboardPage() {
                                     : "active"
                             }
                             locationId={vehicle.id}
+                            navigationEntityId={vehicle.id}
                             viewHref={assetRegisterFleetDetailHref(vehicle.id)}
                             copyText={[
                                 `Vehicle ID: ${vehicle.id}`,

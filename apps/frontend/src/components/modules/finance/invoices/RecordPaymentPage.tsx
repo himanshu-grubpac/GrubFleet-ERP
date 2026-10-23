@@ -1,27 +1,28 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinancePaymentCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchFinanceInvoiceDetailApi,
   fetchFinancePaymentMethodCatalogApi,
   recordFinanceInvoicePaymentApi,
 } from "@/lib/api/finance/invoices";
+import { FINANCE_INVOICE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
   formatInrFromMinor,
   INR_RUPEE_INPUT_PLACEHOLDER,
   parseRupeeInputToMinor,
 } from "@/lib/format/money-format";
-import {
-  financeInvoiceDetailHref,
-  financeInvoicesListHref,
-} from "@/lib/navigation/finance-static-routes";
+import { financeInvoiceDetailHref } from "@/lib/navigation/finance-static-routes";
 import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
 import {
   showApiErrorToast,
@@ -69,12 +70,17 @@ export default function RecordPaymentPage() {
     if (amountMinor == null || amountMinor < 1) return false;
     if (amountMinor > maxPaymentMinor) return false;
     if (!paymentDate.trim()) return false;
+    const today = localTodayIsoDate();
+    const invoiceDate = invoice?.invoiceDate?.slice(0, 10) ?? "";
+    if (paymentDate > today) return false;
+    if (invoiceDate && paymentDate < invoiceDate) return false;
     if (!paymentMethod.trim()) return false;
     return true;
   }, [
     amountMinor,
     canUpdate,
     invoice?.availableActions.recordPayment,
+    invoice?.invoiceDate,
     maxPaymentMinor,
     paymentDate,
     paymentMethod,
@@ -98,11 +104,8 @@ export default function RecordPaymentPage() {
     },
     onSuccess: (detail) => {
       showFinanceInvoicePaymentRecordedToast(detail.invoiceNumber);
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoice-detail", organizationId, invoiceId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
-      router.push(financeInvoiceDetailHref(invoiceId!));
+      void invalidateFinancePaymentCaches(queryClient);
+      navigateToEntityShell(router, financeInvoiceDetailHref(invoiceId!), invoiceId!, 'push');
     },
     onError: (error) =>
       showApiErrorToast(error, "Could not record payment. Try again."),
@@ -164,7 +167,7 @@ export default function RecordPaymentPage() {
             variant="secondary"
             disabled={paymentMutation.isPending}
             onClick={() =>
-              router.push(financeInvoiceDetailHref(invoiceId))
+              navigateToEntityShell(router, financeInvoiceDetailHref(invoiceId), invoiceId, 'push')
             }
           >
             Cancel
@@ -232,6 +235,8 @@ export default function RecordPaymentPage() {
           </label>
           <input
             type="date"
+            max={localTodayIsoDate()}
+            min={invoice?.invoiceDate?.slice(0, 10) || undefined}
             className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
             value={paymentDate}
             onChange={(e) => setPaymentDate(e.target.value)}
@@ -245,7 +250,7 @@ export default function RecordPaymentPage() {
             restrictedKind="text"
             value={paymentReference}
             onChange={setPaymentReference}
-            maxLength={120}
+            maxLength={FINANCE_INVOICE_INPUT_LIMITS.paymentReference}
             placeholder="UTR, cheque number, etc."
           />
         </div>

@@ -1,5 +1,9 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import type { AssetRegisterAssetClassListItem } from "@/lib/api/asset-register/asset-classes";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
@@ -140,6 +144,22 @@ export async function fetchFinancePurchaseAssetClassesCatalogApi(
   });
 }
 
+export async function fetchAllFinancePurchaseAssetClassesCatalogApi(
+  token: string,
+  organizationId: string,
+): Promise<AssetRegisterAssetClassListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchFinancePurchaseAssetClassesCatalogApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        status: "active",
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
+  );
+}
+
 export async function fetchFinanceInvoicesApi(
   token: string,
   params: ListFinanceInvoicesParams,
@@ -157,6 +177,22 @@ export async function fetchFinanceInvoicesApi(
     method: "GET",
     ...orgHeaders(params.organizationId, token),
   });
+}
+
+export async function fetchAllFinancePurchaseInvoicesCatalogApi(
+  token: string,
+  organizationId: string,
+): Promise<FinanceInvoiceListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchFinanceInvoicesApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        invoiceType: "purchase",
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
+  );
 }
 
 export async function fetchFinanceInvoiceDetailApi(

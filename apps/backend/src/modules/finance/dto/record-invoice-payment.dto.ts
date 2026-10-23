@@ -10,6 +10,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsNotAfterLocalToday } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 import { FINANCE_INVOICE_PAYMENT_METHODS } from '../constants/payment-method.constants';
 
 export class RecordInvoicePaymentDto {
@@ -27,8 +28,12 @@ export class RecordInvoicePaymentDto {
   @Max(Number.MAX_SAFE_INTEGER)
   amountMinor!: number;
 
-  @ApiProperty({ format: 'date' })
+  @ApiProperty({
+    format: 'date',
+    description: 'Must not be after today',
+  })
   @IsDateString({ strict: true })
+  @IsNotAfterLocalToday()
   paymentDate!: string;
 
   @ApiPropertyOptional({ enum: FINANCE_INVOICE_PAYMENT_METHODS })

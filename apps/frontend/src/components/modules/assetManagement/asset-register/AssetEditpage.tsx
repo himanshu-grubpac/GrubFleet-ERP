@@ -1,15 +1,22 @@
 "use client";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   assetRegisterAssetClassDetailHref,
 } from "@/lib/navigation/asset-register-static-routes";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 
 import CreateAssetClassForm, {
   type AssetClassFormData,
 } from "@/components/modules/assetManagement/asset-register/AssetFormPage";
+import {
+  LoadingState,
+  RedirectingState,
+} from "@/components/states/async-states";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchAssetRegisterAssetClassApi,
@@ -27,6 +34,7 @@ import {
 
 export default function EditAssetClassPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
   const assetClassId = useAssetRegisterEntityId("assetClassId");
@@ -46,9 +54,17 @@ export default function EditAssetClassPage() {
     enabled: !!token && !!organizationId && !isAuthLoading,
   });
 
+  useEffect(() => {
+    const detail = detailQuery.data;
+    if (!detail || detail.isActive) return;
+    navigateToEntityShell(router, assetRegisterAssetClassDetailHref(assetClassId), assetClassId, 'replace');
+  }, [detailQuery.data, assetClassId, router]);
+
   if (isAuthLoading || detailQuery.isLoading) {
     return (
-      <div className="p-6 text-sm text-gray-500">Loading asset class…</div>
+      <div className="p-6">
+        <LoadingState label="Loading asset class…" />
+      </div>
     );
   }
 
@@ -61,14 +77,11 @@ export default function EditAssetClassPage() {
   }
 
   if (!detailQuery.data.isActive) {
-    router.replace(assetRegisterAssetClassDetailHref(assetClassId));
-    return (
-      <div className="p-6 text-sm text-gray-500">Redirecting…</div>
-    );
+    return <RedirectingState />;
   }
 
   const handleCancel = () => {
-    router.push(assetRegisterAssetClassDetailHref(assetClassId));
+    navigateToEntityShell(router, assetRegisterAssetClassDetailHref(assetClassId), assetClassId, 'push');
   };
 
   const handleSaved = async (data: AssetClassFormData) => {
@@ -83,7 +96,8 @@ export default function EditAssetClassPage() {
         body: assetClassFormToUpdatePayload(data),
       });
       showAssetClassUpdatedToast(updated.name);
-      router.push(assetRegisterAssetClassDetailHref(assetClassId));
+      await invalidateAssetClassCaches(queryClient);
+      navigateToEntityShell(router, assetRegisterAssetClassDetailHref(assetClassId), assetClassId, 'push');
     } catch (error) {
       showErrorToast(
         error instanceof Error ? error.message : ASSET_CLASS_SAVE_ERROR,
