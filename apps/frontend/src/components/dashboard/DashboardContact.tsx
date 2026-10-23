@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { Check, Mail, Phone } from "lucide-react";
 import { DashboardPortaledFlyout } from "@/components/dashboard/dashboard-portaled-flyout";
+import {
+    showCopiedToClipboardToast,
+    showCopyToClipboardErrorToast,
+} from "@/lib/toast/show-toast";
 
 type DashboardContactProps = {
     phone?: string;
@@ -25,12 +29,14 @@ export default function DashboardContact({
         try {
             await navigator.clipboard.writeText(value);
             setCopied(type);
+            showCopiedToClipboardToast();
 
             window.setTimeout(() => {
                 setCopied((current) => (current === type ? null : current));
             }, 1500);
         } catch {
             setCopied(null);
+            showCopyToClipboardErrorToast();
         }
     };
 
@@ -38,8 +44,9 @@ export default function DashboardContact({
         <div className="flex items-center gap-3">
             {phone && (
                 <DashboardPortaledFlyout
-                    forceOpen={copied === "phone"}
-                    content={copied === "phone" ? "Copied!" : phone}
+                    openOnHover={copied !== "phone"}
+                    role="tooltip"
+                    content={phone}
                     panelClassName={contactTooltipPanelClass}
                 >
                     <button
@@ -47,7 +54,7 @@ export default function DashboardContact({
                         aria-label="Copy phone number"
                         title="Click to copy phone number"
                         onClick={() => void handleCopy(phone, "phone")}
-                        className="text-gray-500 transition-colors hover:text-[#FE5720]"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-gray-500 transition-[color,opacity] duration-150 hover:text-[#FE5720]"
                     >
                         {copied === "phone" ? (
                             <Check
@@ -67,8 +74,9 @@ export default function DashboardContact({
 
             {email && (
                 <DashboardPortaledFlyout
-                    forceOpen={copied === "email"}
-                    content={copied === "email" ? "Copied!" : email}
+                    openOnHover={copied !== "email"}
+                    role="tooltip"
+                    content={email}
                     panelClassName={contactTooltipPanelClass}
                 >
                     <button
@@ -76,7 +84,7 @@ export default function DashboardContact({
                         aria-label="Copy email address"
                         title="Click to copy email address"
                         onClick={() => void handleCopy(email, "email")}
-                        className="text-gray-500 transition-colors hover:text-[#FE5720]"
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center text-gray-500 transition-[color,opacity] duration-150 hover:text-[#FE5720]"
                     >
                         {copied === "email" ? (
                             <Check

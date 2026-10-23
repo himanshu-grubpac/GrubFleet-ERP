@@ -40,6 +40,8 @@ type DashboardTableProps<T> = {
     /** When true, rows stay in API order — no client `compareValues` sort. */
     serverSorted?: boolean;
     renderActions?: (row: T) => React.ReactNode;
+    /** Header for the sticky actions column (default ACTIONS). */
+    actionsColumnLabel?: string;
     /**
      * @deprecated No longer has any effect. Row action menus render in a
      * portal (see DashboardRowActionsMenu), so the scroll container no
@@ -131,6 +133,7 @@ export default function DashboardTable<T>({
     onSortChange,
     serverSorted = false,
     renderActions,
+    actionsColumnLabel = "ACTIONS",
 }: DashboardTableProps<T>) {
     const [internalSort, setInternalSort] =
         useState<DashboardTableSortState | null>(null);
@@ -193,12 +196,12 @@ export default function DashboardTable<T>({
     }
 
     return (
-        <div className="overflow-visible rounded-lg border border-gray-200 bg-white">
+        <div className="min-w-0 overflow-hidden rounded-lg border border-gray-200 bg-white">
             {/*
-              Horizontal scroll only; vertical overflow is clipped by spec when
-              overflow-x is not visible — use DashboardPortaledFlyout for hovers.
+              Horizontal scroll contained here (not on main). Tooltips use
+              DashboardPortaledFlyout so they are not clipped by overflow-y.
             */}
-            <div className="w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="min-w-0 w-full max-w-full overflow-x-auto overflow-y-clip overscroll-x-contain [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                 <table className="w-full min-w-[900px] border-collapse">
                     <thead>
                         <tr className="border-b border-gray-200 bg-gray-50">
@@ -239,8 +242,8 @@ export default function DashboardTable<T>({
                             })}
 
                             {renderActions && (
-                                <th className="sticky right-0 z-10 whitespace-nowrap bg-gray-50 px-4 py-3 text-right text-xs font-semibold text-gray-600">
-                                    ACTIONS
+                                <th className="sticky right-0 z-10 w-[1%] whitespace-nowrap bg-gray-50 px-4 py-3 text-right text-xs font-semibold text-gray-600">
+                                    {actionsColumnLabel}
                                 </th>
                             )}
                         </tr>
@@ -271,7 +274,7 @@ export default function DashboardTable<T>({
                                 ))}
 
                                 {renderActions && (
-                                    <td className="sticky right-0 z-10 whitespace-nowrap bg-white px-4 py-3 group-hover:bg-gray-50">
+                                    <td className="sticky right-0 z-10 w-[1%] whitespace-nowrap bg-white px-4 py-3 group-hover:bg-gray-50">
                                         {renderActions(row)}
                                     </td>
                                 )}

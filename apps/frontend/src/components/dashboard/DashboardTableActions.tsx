@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, type ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { FaCopy } from "react-icons/fa";
 import { Edit, Power } from "lucide-react";
 import Link from "next/link";
@@ -12,10 +12,18 @@ import {
     DashboardRowActionsMenuItem,
 } from "./DashboardRowActionsMenu";
 import { dashboardRowMenuTriggerClassName } from "./dashboard-row-icon-button";
-import { DashboardPortaledFlyout } from "./dashboard-portaled-flyout";
+import { copyDashboardRowText } from "./DashboardRowCopyButton";
+import {
+    showCopiedToClipboardToast,
+    showCopyToClipboardErrorToast,
+} from "@/lib/toast/show-toast";
 
 import { organisationLocationDetailHref } from "@/lib/navigation/organisation-static-routes";
-import { prepareEntityNavigationForPath, pathnameFromHref } from "@/lib/navigation/secure-entity-navigation";
+import {
+    prepareEntityNavigationForPath,
+    pathnameFromHref,
+    type EntityNavigationLabelOptions,
+} from "@/lib/navigation/secure-entity-navigation";
 
 /**
  * Prevent empty fragments from opening an empty three-dot menu.
@@ -62,6 +70,9 @@ type DashboardTableActionsProps = {
     locationId?: string;
     /** Entity id for secure navigation when opening View (defaults to locationId). */
     navigationEntityId?: string;
+    /** Optional breadcrumb label priming (e.g. lease contract number). */
+    navigationDisplayLabel?: string;
+    navigationLabelOptions?: EntityNavigationLabelOptions;
     copyText?: string;
     viewHref?: string;
     allowEditWhenInactive?: boolean;
@@ -82,6 +93,8 @@ export default function DashboardTableActions({
     status,
     locationId,
     navigationEntityId,
+    navigationDisplayLabel,
+    navigationLabelOptions,
     copyText,
     viewHref,
     allowEditWhenInactive = false,
@@ -97,8 +110,6 @@ export default function DashboardTableActions({
     void alwaysShowOverflowMenu;
 
     const isActive = status === "active";
-
-    const [copied, setCopied] = useState(false);
 
     const showEdit =
         !hideEdit &&
@@ -126,6 +137,13 @@ export default function DashboardTableActions({
         prepareEntityNavigationForPath(
             pathnameFromHref(resolvedViewHref),
             entityIdForViewNavigation,
+            navigationLabelOptions ??
+                (navigationDisplayLabel?.trim()
+                    ? {
+                          displayLabel: navigationDisplayLabel.trim(),
+                          labelKind: "lease",
+                      }
+                    : undefined),
         );
     };
 
@@ -133,22 +151,20 @@ export default function DashboardTableActions({
      * Copy row data and display success feedback.
      */
     const handleCopy = async () => {
-        const text = copyText?.trim() || locationId;    
+        const text = copyText?.trim() || locationId?.trim() || "";
 
         if (!text) {
             return;
         }
 
-        try {
-            await navigator.clipboard.writeText(text);
-            setCopied(true);
+        const success = await copyDashboardRowText(text);
 
-            window.setTimeout(() => {
-                setCopied(false);
-            }, 2000);
-        } catch {
-            setCopied(false);
+        if (success) {
+            showCopiedToClipboardToast();
+            return;
         }
+
+        showCopyToClipboardErrorToast();
     };
 
     const hasActionableOverflowItems =
@@ -171,40 +187,25 @@ export default function DashboardTableActions({
             >
                 View
             </Link>
-            {/* Copy text and icon */}
-            <DashboardPortaledFlyout
-                forceOpen={copied}
-                panelClassName="
-                    relative whitespace-nowrap rounded-md
-                    border border-orange-100 bg-white px-3 py-1.5
-                    text-xs font-semibold text-[#FE5720] shadow-md
-                "
-                content={
-                    <>
-                        {copied ? "Copied!" : "Copy"}
-                        <span className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-white" />
-                    </>
-                }
-            >
-                <button
-                    type="button"
-                    onClick={() => void handleCopy()}
-                    disabled={!copyText?.trim() && !locationId}
-                    aria-label="Copy row"
-                    className="
+            <button
+                type="button"
+                onClick={() => void handleCopy()}
+                disabled={!copyText?.trim() && !locationId}
+                aria-label="Copy row"
+                title="Copy row details"
+                className="
             inline-flex h-8 shrink-0 items-center justify-center gap-1.5
             whitespace-nowrap rounded-md px-1.5 text-sm font-medium
-            text-gray-500 transition-colors
+            text-gray-500 transition-[color,background-color] duration-150
             hover:bg-gray-100 hover:text-gray-900
             disabled:cursor-not-allowed disabled:opacity-40
         "
-                >
-                    <span>Copy</span>
-                    <span className="text-[#FE5720]/40 text-base leading-none">
-                        <FaCopy />
-                    </span>
-                </button>
-            </DashboardPortaledFlyout>
+            >
+                <span>Copy</span>
+                <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center text-base leading-none text-[#FE5720]/40">
+                    <FaCopy />
+                </span>
+            </button>
 
 
             {showOverflowColumn ? (

@@ -12,6 +12,7 @@ import { invalidateDriverCaches } from "@/lib/query/invalidate-domain-caches";
 import { Users } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import { DashboardStatusPill } from "@/components/dashboard/dashboard-semantic-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
@@ -317,28 +318,23 @@ export default function DriverRegisterPage() {
       label: "Status",
       sortable: false,
       render: (driver: Driver) => {
-        const statusClasses = {
-          active: "bg-green-50 text-green-700",
-          inactive: "bg-gray-100 text-gray-500",
-          "license-expired": "bg-red-50 text-red-600",
-        };
-
         const statusLabels = {
           active: "Active",
           inactive: "Inactive",
           "license-expired": "License expired",
         };
 
+        const statusLevels = {
+          active: "success" as const,
+          inactive: "muted" as const,
+          "license-expired": "danger" as const,
+        };
+
         return (
-          <span
-            className={[
-              "inline-flex rounded-full px-2.5 py-1",
-              "text-xs font-medium",
-              statusClasses[driver.status],
-            ].join(" ")}
-          >
-            {statusLabels[driver.status]}
-          </span>
+          <DashboardStatusPill
+            level={statusLevels[driver.status]}
+            label={statusLabels[driver.status]}
+          />
         );
       },
     },

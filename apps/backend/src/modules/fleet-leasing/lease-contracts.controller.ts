@@ -26,6 +26,7 @@ import { ListLeaseContractsQueryDto } from './dto/list-lease-contracts-query.dto
 import { UpdateLeaseContractDto } from './dto/update-lease-contract.dto';
 import { LeaseContractsService } from './lease-contracts.service';
 import { RegisterReturnDto } from './dto/register-return.dto';
+import { InitiateReturnsDto } from './dto/initiate-returns.dto';
 import { UpdateContractAssetLinesDto } from './dto/update-contract-asset-lines.dto';
 import { UpdateContractTermsDto } from './dto/update-contract-terms.dto';
 import { DeactivateLeaseContractDto } from './dto/deactivate-lease-contract.dto';
@@ -342,6 +343,27 @@ export class LeaseContractsController {
   approveTerminationDeprecated() {
     throw new GoneException(
       'Two-step termination was removed. Use POST .../terminate instead.',
+    );
+  }
+
+  @Post(':id/initiate-returns')
+  @RequireOrganizationContext()
+  @RequireAnyPermissions(...FleetLeasingWriteAny.UPDATE)
+  @ApiOperation({
+    summary:
+      'End lease — initiate vehicle returns (return pending) and move contract to closing',
+  })
+  initiateReturns(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query('organizationId', ParseUUIDPipe) organizationId: string,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: InitiateReturnsDto,
+  ) {
+    return this.leaseContracts.initiateReturns(
+      user.userId,
+      organizationId,
+      id,
+      dto,
     );
   }
 

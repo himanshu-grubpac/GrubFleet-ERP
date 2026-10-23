@@ -8,6 +8,7 @@ import { PackageSearch } from "lucide-react";
 import DashboardAssetClassTableCell from "@/components/dashboard/DashboardAssetClassTableCell";
 
 import Button from "@/components/ui/GrubpacButton";
+import { DashboardStatusPill } from "@/components/dashboard/dashboard-semantic-cell";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
@@ -52,18 +53,14 @@ const STATUS_FILTERS: Array<"All" | ComplianceStatus> = [
 
 const PAGE_SIZE = 50;
 
-function getStatusClasses(status: ComplianceStatus) {
-    switch (status) {
-        case "Expired":
-            return "bg-red-50 text-red-700";
-        case "Expiring Soon":
-            return "bg-yellow-50 text-yellow-700";
-        case "Valid":
-            return "bg-green-50 text-green-700";
-        default:
-            return "bg-gray-100 text-gray-500";
-    }
-}
+const COMPLIANCE_STATUS_LEVEL = {
+    Valid: "success",
+    "Expiring Soon": "warning",
+    Expired: "danger",
+} as const satisfies Record<
+    ComplianceStatus,
+    "success" | "warning" | "danger"
+>;
 
 export default function ComplianceDashboardPage() {
     const router = useRouter();
@@ -232,14 +229,10 @@ export default function ComplianceDashboardPage() {
             label: "STATUS",
             sortable: false,
             render: (item: ComplianceItem) => (
-                <span
-                    className={[
-                        "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-                        getStatusClasses(item.status),
-                    ].join(" ")}
-                >
-                    {item.status}
-                </span>
+                <DashboardStatusPill
+                    level={COMPLIANCE_STATUS_LEVEL[item.status]}
+                    label={item.status}
+                />
             ),
         },
     ];

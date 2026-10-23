@@ -17,9 +17,12 @@ import {
 import { CheckCircle2 } from "lucide-react";
 
 import { useLeaseApi } from "@/lib/api/lease-contracts-context";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
+import { usePersistFleetLeaseDisplayLabel } from "@/lib/navigation/use-persist-fleet-lease-display-label";
 import {
   fleetLeaseContractChangeHistoryHref,
   fleetLeaseContractEditHref,
+  fleetLeaseContractEndLeaseHref,
 } from "@/lib/navigation/fleet-static-routes";
 import { organisationDriverDetailHref } from "@/lib/navigation/organisation-static-routes";
 import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
@@ -32,7 +35,6 @@ import {
     showLeaseContractBillingPausedToast,
     showLeaseContractDeactivatedToast,
     showLeaseContractReactivatedToast,
-    showLeaseContractTerminatedToast,
 } from "@/lib/toast/show-toast";
 import { canActivateLeaseContractByRawStatus } from "./lease-contract-list-row-actions";
 
@@ -225,6 +227,11 @@ export default function LeaseContractDetails() {
             Boolean(leaseId),
     });
 
+    usePersistFleetLeaseDisplayLabel(
+        leaseId,
+        contract?.contractNumber,
+    );
+
     const confirmationQuery = useQuery({
         queryKey: [
             "lease-contract-confirmation",
@@ -289,15 +296,6 @@ export default function LeaseContractDetails() {
         onError: statusMutationError,
     });
 
-    const terminate = useMutation({
-        mutationFn: () => api.terminate(leaseId),
-        onSuccess: () => {
-            refreshLeaseContractCaches();
-            showLeaseContractTerminatedToast();
-        },
-        onError: statusMutationError,
-    });
-
     const pauseBilling = useMutation({
         mutationFn: () => api.pauseBilling(leaseId),
         onSuccess: () => {
@@ -311,7 +309,6 @@ export default function LeaseContractDetails() {
         activate.isPending ||
         deactivate.isPending ||
         reactivate.isPending ||
-        terminate.isPending ||
         pauseBilling.isPending;
 
     if (isLoading) {
@@ -457,7 +454,18 @@ export default function LeaseContractDetails() {
                         contract.availableActions,
                         "terminate",
                     )
-                        ? () => terminate.mutate()
+                        ? () =>
+                            navigateToEntityShell(
+                                router,
+                                fleetLeaseContractEndLeaseHref(leaseId),
+                                leaseId,
+                                "push",
+                                {
+                                    displayLabel:
+                                        contract.contractNumber,
+                                    labelKind: "lease",
+                                },
+                            )
                         : undefined
                 }
                 onPauseBilling={

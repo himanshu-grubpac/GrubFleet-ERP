@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
+import { usePersistFleetLeaseDisplayLabel } from "@/lib/navigation/use-persist-fleet-lease-display-label";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
     invalidateClientCaches,
@@ -11,6 +12,7 @@ import {
 } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { DashboardPageLoadingShell } from "@/components/dashboard/dashboard-async-states";
 import SelectClientStep from "@/components/modules/fleet-leasing/NewContract/SelectClientStep";
 import AssetLinesStep, {
     type AssetLine,
@@ -173,13 +175,6 @@ export default function EditLeaseContractPage({
 
     const detailHref = fleetLeaseContractDetailHref(leaseId);
 
-    useEffect(() => {
-        if (isAuthLoading) return;
-        if (!canUpdate) {
-            navigateToEntityShell(router, detailHref, leaseId, "replace");
-        }
-    }, [canUpdate, detailHref, isAuthLoading, leaseId, router]);
-
     const contractQuery = useQuery({
         queryKey: ["lease-contract", organizationId, leaseId],
         queryFn: () => api.getById(leaseId),
@@ -189,6 +184,35 @@ export default function EditLeaseContractPage({
 
     const contract = contractQuery.data;
     const isDraft = contract?.rawStatus === "draft";
+
+    usePersistFleetLeaseDisplayLabel(
+        leaseId,
+        contract?.contractNumber,
+    );
+
+    const leaseNavLabelOptions = useMemo(
+        () =>
+            contract?.contractNumber
+                ? {
+                      displayLabel: contract.contractNumber,
+                      labelKind: "lease" as const,
+                  }
+                : undefined,
+        [contract?.contractNumber],
+    );
+
+    useEffect(() => {
+        if (isAuthLoading) return;
+        if (!canUpdate) {
+            navigateToEntityShell(
+                router,
+                detailHref,
+                leaseId,
+                "replace",
+                leaseNavLabelOptions,
+            );
+        }
+    }, [canUpdate, detailHref, isAuthLoading, leaseId, leaseNavLabelOptions, router]);
 
     const activeEditLineConstraints = useMemo(() => {
         if (isDraft || !contract) {
@@ -239,7 +263,13 @@ export default function EditLeaseContractPage({
     useEffect(() => {
         if (!contract || initialized) return;
         if (!isEditAllowed(contract)) {
-            navigateToEntityShell(router, detailHref, leaseId, "replace");
+            navigateToEntityShell(
+                router,
+                detailHref,
+                leaseId,
+                "replace",
+                leaseNavLabelOptions,
+            );
             return;
         }
         const clientId = contract.client?.id ?? "";
@@ -255,7 +285,15 @@ export default function EditLeaseContractPage({
                     : "select-client",
         );
         setInitialized(true);
-    }, [contract, detailHref, initialized, isDraft, leaseId, router]);
+    }, [
+        contract,
+        detailHref,
+        initialized,
+        isDraft,
+        leaseId,
+        leaseNavLabelOptions,
+        router,
+    ]);
 
     const persistClient = useCallback(
         async (clientId: string) => {
@@ -283,8 +321,20 @@ export default function EditLeaseContractPage({
     const finishNonDraftSave = useCallback(async () => {
         await invalidateContract();
         showLeaseContractUpdatedToast();
-        navigateToEntityShell(router, detailHref, leaseId);
-    }, [detailHref, invalidateContract, leaseId, router]);
+        navigateToEntityShell(
+            router,
+            detailHref,
+            leaseId,
+            "push",
+            leaseNavLabelOptions,
+        );
+    }, [
+        detailHref,
+        invalidateContract,
+        leaseId,
+        leaseNavLabelOptions,
+        router,
+    ]);
 
     const resolveDraftAssetLines = useCallback(
         async (
@@ -569,16 +619,9 @@ export default function EditLeaseContractPage({
         return (
             <OrganizationFormLayout
                 title="Edit lease contract"
-                description="Loading contract…"
                 contentVariant="plain"
-
             >
-                <div
-                    className="rounded-lg border border-gray-200 bg-white p-5 text-sm text-gray-600"
-                    aria-busy="true"
-                >
-                    Loading contract details…
-                </div>
+                <DashboardPageLoadingShell label="Loading contract…" />
             </OrganizationFormLayout>
         );
     }

@@ -39,7 +39,13 @@ export const financeInvoiceStatusEnum = pgEnum('finance_invoice_status', [
 
 export const financePurchaseLineKindEnum = pgEnum(
   'finance_purchase_line_kind',
-  ['vehicle', 'spare_parts', 'sale_vehicle', 'billing_lease'],
+  [
+    'vehicle',
+    'spare_parts',
+    'sale_vehicle',
+    'billing_lease',
+    'billing_recovery',
+  ],
 );
 
 export const financePurchaseTaxModeEnum = pgEnum('finance_purchase_tax_mode', [
@@ -154,6 +160,8 @@ export const financeInvoices = pgTable(
       .notNull()
       .default(false),
     purchaseLineKind: financePurchaseLineKindEnum('purchase_line_kind'),
+    /** FK to fleet_return_inspections — declared in SQL migration (avoid Drizzle circular import). */
+    fleetReturnInspectionId: uuid('fleet_return_inspection_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

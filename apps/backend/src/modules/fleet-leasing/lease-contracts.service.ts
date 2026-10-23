@@ -67,6 +67,7 @@ import type { ListRenewalsExtensionsQueryDto } from './dto/list-renewals-extensi
 import type { RenewLeaseContractDto } from './dto/renew-lease-contract.dto';
 import type { UpdateLeaseContractDto } from './dto/update-lease-contract.dto';
 import type { RegisterReturnDto } from './dto/register-return.dto';
+import type { InitiateReturnsDto } from './dto/initiate-returns.dto';
 import { RENEWABLE_CONTRACT_STATUSES } from './constants/lease-contract-status';
 import {
   classifyRenewOutcomeKind,
@@ -1440,7 +1441,9 @@ export class LeaseContractsService {
       damageRecordId: dto.damageRecordId ?? null,
       registeredReturn: true,
     });
-    await this.repo.updateVehicleStatus(dto.vehicleId, 'returned');
+    if (vehicle.status === 'return_pending' || vehicle.status === 'leased') {
+      await this.repo.updateVehicleStatus(dto.vehicleId, 'returned');
+    }
     await this.logEvent(
       contractId,
       organizationId,
@@ -1456,6 +1459,142 @@ export class LeaseContractsService {
       ids: { vehicleId: dto.vehicleId, leaseContractId: contractId },
     });
     return this.getById(organizationId, contractId);
+  }
+
+  async initiateReturns(
+    userId: string,
+    organizationId: string,
+    contractId: string,
+    dto: InitiateReturnsDto,
+  ) {
+    const contract = await this.requireContract(organizationId, contractId);
+    if (contract.status === 'closed' || contract.status === 'concluded') {
+      throw new BadRequestException('Contract is already closed');
+    }
+    if (
+      ![
+        'active',
+        'deactivated',
+        'billing_paused',
+        'pending_termination',
+      ].includes(contract.status)
+    ) {
+      throw new BadRequestException(
+        'Returns can only be initiated for active or on-hold contracts',
+      );
+    }
+    if (dto.returnMethod === 'client_depot') {
+      const depotLabel = dto.returnDepotLabel?.trim();
+      if (!dto.returnDepotLocationId && !depotLabel) {
+        throw new BadRequestException(
+          'Return depot is required when the client drops at depot',
+        );
+      }
+    }
+    const uniqueVehicleIds = [...new Set(dto.vehicleIds)];
+    const allocated = await this.repo.listContractAllocationVehicleIds(
+      organizationId,
+      contractId,
+    );
+    const allocatedSet = new Set(allocated);
+    for (const vehicleId of uniqueVehicleIds) {
+      if (!allocatedSet.has(vehicleId)) {
+        throw new BadRequestException(
+          'One or more vehicles are not allocated to this contract',
+        );
+      }
+    }
+    for (const vehicleId of uniqueVehicleIds) {
+      await this.repo.addContractVehicleIfMissing(contractId, vehicleId);
+    }
+    const vehicles = await this.repo.getVehiclesByIds(
+      organizationId,
+      uniqueVehicleIds,
+    );
+    const vehicleById = new Map(vehicles.map((v) => [v.id, v]));
+    for (const vehicleId of uniqueVehicleIds) {
+      const vehicle = vehicleById.get(vehicleId);
+      if (!vehicle) {
+        throw new BadRequestException('Vehicle not found');
+      }
+      if (vehicle.status !== 'leased' && vehicle.status !== 'return_pending') {
+        throw new BadRequestException(
+          `Vehicle ${vehicle.registrationNo} is not eligible for return initiation`,
+        );
+      }
+    }
+    const leaseEndDate = this.parseIsoCalendarDate(dto.leaseEndDate);
+    const expectedReturnBy = this.parseIsoCalendarDate(dto.expectedReturnBy);
+    if (expectedReturnBy.getTime() < leaseEndDate.getTime()) {
+      throw new BadRequestException(
+        'Expected return date cannot be before the lease end date',
+      );
+    }
+    const depotLabel = dto.returnDepotLabel?.trim() || null;
+    await this.repo.updateContract(contractId, organizationId, {
+      status: 'pending_termination',
+      onHold: true,
+      closingReason: dto.closingReason,
+      closingLeaseEndDate: leaseEndDate,
+      returnMethod: dto.returnMethod,
+      returnDepotLocationId: dto.returnDepotLocationId ?? null,
+      returnDepotLabel: depotLabel,
+      expectedReturnBy,
+      returnInitiationNotes: dto.notes?.trim() || null,
+      endDate: leaseEndDate,
+      updatedByUserId: userId,
+    });
+    const leaseKmAllowance =
+      contract.termMonths != null && contract.termMonths > 0
+        ? contract.termMonths * 5000
+        : null;
+    for (const vehicleId of uniqueVehicleIds) {
+      const vehicle = vehicleById.get(vehicleId)!;
+      await this.repo.insertReturnInspection({
+        organizationId,
+        contractId,
+        vehicleId,
+        odometerReading: vehicle.odometer,
+        conditionChecklist: {},
+        damageRecordId: null,
+        registeredReturn: false,
+        handoverOdometer: vehicle.odometer,
+        keysHandedOver: 2,
+        leaseKmAllowance,
+      });
+      await this.repo.updateVehicleStatus(vehicleId, 'return_pending');
+    }
+    await this.logEvent(
+      contractId,
+      organizationId,
+      userId,
+      'contract.returns_initiated',
+      `Return initiated for ${uniqueVehicleIds.length} vehicle(s) — contract closing.`,
+      {
+        closingReason: dto.closingReason,
+        vehicleCount: uniqueVehicleIds.length,
+        expectedReturnBy: dto.expectedReturnBy,
+        returnMethod: dto.returnMethod,
+      },
+    );
+    await this.audit.log({
+      organizationId,
+      userId,
+      action: 'lease_contract.initiate_returns',
+      resourceType: 'lease_contract',
+      resourceId: contractId,
+      status: 'SUCCESS',
+    });
+    await this.emitLeaseContractPoolChanged(organizationId, contractId);
+    return this.getById(organizationId, contractId);
+  }
+
+  private parseIsoCalendarDate(isoDate: string): Date {
+    const trimmed = isoDate.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      throw new BadRequestException('Invalid calendar date');
+    }
+    return new Date(`${trimmed}T00:00:00.000Z`);
   }
 
   private async requireContract(organizationId: string, contractId: string) {
@@ -1987,7 +2126,22 @@ export class LeaseContractsService {
       registrationNo: v.registrationNo,
       assetClass: v.assetClass,
       status: v.status,
+      odometer: v.odometer,
     }));
+    const closing =
+      contract.closingReason != null
+        ? {
+            reason: contract.closingReason,
+            leaseEndDate:
+              contract.closingLeaseEndDate?.toISOString().slice(0, 10) ?? null,
+            returnMethod: contract.returnMethod,
+            returnDepotLocationId: contract.returnDepotLocationId,
+            returnDepotLabel: contract.returnDepotLabel,
+            expectedReturnBy:
+              contract.expectedReturnBy?.toISOString().slice(0, 10) ?? null,
+            notes: contract.returnInitiationNotes,
+          }
+        : null;
     const actorIds = events
       .map((e) => e.actorUserId)
       .filter((id): id is string => Boolean(id));
@@ -2054,11 +2208,15 @@ export class LeaseContractsService {
     return {
       id: contract.id,
       contractNumber: contract.contractNumber,
-      status: this.toPublicStatus(rawStatus),
+      status:
+        rawStatus === 'pending_termination' && contract.closingReason
+          ? 'Closing'
+          : this.toPublicStatus(rawStatus),
       rawStatus: contract.status,
       subtitle,
       statusTags,
       statusBanner,
+      closing,
       client: client
         ? {
             id: client.client.id,

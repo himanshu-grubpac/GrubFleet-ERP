@@ -1599,6 +1599,33 @@
           "response": []
         },
         {
+          "name": "Initiate lease returns (end lease Screen 2)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"closingReason\": \"completed\",\n  \"leaseEndDate\": \"2026-10-31\",\n  \"vehicleIds\": [\"{{vehicleId}}\"],\n  \"returnMethod\": \"client_depot\",\n  \"returnDepotLabel\": \"Gurugram depot\",\n  \"expectedReturnBy\": \"2026-10-31\",\n  \"notes\": \"\"\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/lease-contracts/{{leaseContractId}}/initiate-returns?organizationId={{organizationId}}",
+            "description": "POST .../initiate-returns — move vehicles to return_pending and contract to closing (pending_termination)."
+          },
+          "response": []
+        },
+        {
           "name": "List vehicle allocations (hub)",
           "request": {
             "method": "GET",
@@ -1659,7 +1686,222 @@
               }
             ],
             "url": "{{baseUrl}}/fleet-leasing/returns?organizationId={{organizationId}}&page=1",
-            "description": "GET /fleet-leasing/returns — Flow 06 hub."
+            "description": "GET /fleet-leasing/returns — Flow 06 hub. Each list item includes nextSteps[] (actionKey including view_inspection_result, label, variant primary|secondary|ghost, enabled, optional reasonDisabled/workshopJobId). Optional contractId, pipelineTab (all_open|expected|overdue|to_inspect|in_inspection|workshop|closed), includeTabCounts=true (also returns depotFilterOptions), closingReason (completed|terminated_early|cancelled), returnDepotLocationId, returnDepotLabel, legacy vehicleStatus, search (max 120 chars on registration, contract number, client name), sortBy/sortOrder."
+          },
+          "response": []
+        },
+        {
+          "name": "Get return inspection",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}?organizationId={{organizationId}}",
+            "description": "GET /fleet-leasing/returns/{id} — return detail. Optional query: previewOdometer (integer), previewConditionAtGlance (looks_fine | visible_damage) for receive gate-in contextBanners. Response includes contextBanners, flowGuards, and inspectionResult.statusBanner when applicable."
+          },
+          "response": []
+        },
+        {
+          "name": "Receive return (gate-in)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receivedAt\": \"2026-10-31T10:40:00.000Z\",\n  \"broughtInBy\": \"Client driver\",\n  \"odometerReading\": 64540,\n  \"fuelLevel\": \"quarter\",\n  \"keysReceived\": 1,\n  \"documentsChecklist\": {\n    \"rcBook\": true,\n    \"insuranceCopy\": true,\n    \"pucCertificate\": true,\n    \"goodsPermit\": true\n  },\n  \"gatePhotos\": [],\n  \"conditionAtGlance\": \"looks_fine\",\n  \"inspectImmediately\": false\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/receive?organizationId={{organizationId}}",
+            "description": "POST /fleet-leasing/returns/{id}/receive — depot gate-in; sets vehicle returned and registeredReturn true."
+          },
+          "response": []
+        },
+        {
+          "name": "Save or complete return inspection (Screen 4)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentSectionIndex\": 9,\n  \"complete\": true,\n  \"sections\": {}\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/inspection?organizationId={{organizationId}}",
+            "description": "PATCH /fleet-leasing/returns/{id}/inspection — autosave worksheet; complete=true validates checklist and sets inspectionStatus ready_to_finalize."
+          },
+          "response": []
+        },
+        {
+          "name": "Save inspection finalize draft (Screen 4b)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disposition\": \"ready_to_lease\",\n  \"waiveAllRecovery\": false,\n  \"inspectorConfirmed\": false\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/inspection/finalize?organizationId={{organizationId}}",
+            "description": "PATCH /fleet-leasing/returns/{id}/inspection/finalize — save charges, disposition draft while status is ready_to_finalize."
+          },
+          "response": []
+        },
+        {
+          "name": "Complete inspection finalize (Screen 4b → 5)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"disposition\": \"ready_to_lease\",\n  \"waiveAllRecovery\": false,\n  \"inspectorConfirmed\": true\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/inspection/finalize?organizationId={{organizationId}}",
+            "description": "POST /fleet-leasing/returns/{id}/inspection/finalize — completes inspection, builds inspectionResult, updates vehicle status. When recoveryTotalMinor > 0, creates Finance billing invoice (BINV-*) linked via financeRecoveryInvoiceId; recoveryNote.displayNumber and financeInvoiceId reflect the real invoice."
+          },
+          "response": []
+        },
+        {
+          "name": "Resolve return hold (on_hold disposition)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/resolve-hold?organizationId={{organizationId}}",
+            "description": "POST /fleet-leasing/returns/{id}/resolve-hold — clears on_hold outcome; inspection status returns to ready_to_finalize."
+          },
+          "response": []
+        },
+        {
+          "name": "Close workshop repair (LEASE-09c gate)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/close-workshop-repair?organizationId={{organizationId}}",
+            "description": "POST /fleet-leasing/returns/{id}/close-workshop-repair — marks job card closed; enables re-inspection."
+          },
+          "response": []
+        },
+        {
+          "name": "Start re-inspection (Screen 6)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/re-inspection/start?organizationId={{organizationId}}",
+            "description": "POST /fleet-leasing/returns/{id}/re-inspection/start — builds worksheet from prior failed items."
+          },
+          "response": []
+        },
+        {
+          "name": "Save or complete re-inspection (Screen 6)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{accessToken}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "x-organization-id",
+                "value": "{{organizationId}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"items\": [],\n  \"poolChecklist\": {\n    \"roadTestDone\": true,\n    \"washedCleaned\": true,\n    \"fuelLevelChecked\": true,\n    \"insuranceValidAck\": true,\n    \"pucValidAck\": true\n  },\n  \"odometerAfterRoadTest\": 64562,\n  \"selectedOutcome\": \"ready_to_lease\",\n  \"complete\": true\n}"
+            },
+            "url": "{{baseUrl}}/fleet-leasing/returns/{{returnInspectionId}}/re-inspection?organizationId={{organizationId}}",
+            "description": "PATCH /fleet-leasing/returns/{id}/re-inspection — save draft or complete with complete=true (vehicle → available)."
           },
           "response": []
         }

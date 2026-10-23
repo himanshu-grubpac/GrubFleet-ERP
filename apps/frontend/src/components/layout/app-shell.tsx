@@ -78,7 +78,7 @@ export function AppShell({
         </Suspense>
 
         {/* Page Content */}
-        <main className="min-h-0 min-w-0 flex-1 overflow-auto overscroll-y-contain">
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-y-contain">
           <Suspense fallback={children}>
             <PortalSearchHighlightLayer>{children}</PortalSearchHighlightLayer>
           </Suspense>

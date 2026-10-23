@@ -16,6 +16,8 @@ import {
     approveLeaseContract,
     pauseBillingLeaseContract,
     terminateLeaseContract,
+    initiateLeaseContractReturns,
+    type InitiateLeaseReturnsPayload,
     fetchRenewalsExtensionsList,
     renewLeaseContract,
     createLeaseContract,
@@ -65,6 +67,10 @@ interface LeaseContractsContextValue {
         approve: (contractId: string) => ReturnType<typeof approveLeaseContract>;
         pauseBilling: (contractId: string) => ReturnType<typeof pauseBillingLeaseContract>;
         terminate: (contractId: string) => ReturnType<typeof terminateLeaseContract>;
+        initiateReturns: (
+            contractId: string,
+            payload: InitiateLeaseReturnsPayload,
+        ) => ReturnType<typeof initiateLeaseContractReturns>;
         renew: (
             contractId: string,
             payload: Parameters<typeof renewLeaseContract>[3],
@@ -114,6 +120,8 @@ export function LeaseContractsProvider({ children }: { children: React.ReactNode
                 approve: (id) => approveLeaseContract(t, o, id),
                 pauseBilling: (id) => pauseBillingLeaseContract(t, o, id),
                 terminate: (id) => terminateLeaseContract(t, o, id),
+                initiateReturns: (id, payload) =>
+                    initiateLeaseContractReturns(t, o, id, payload),
                 renew: (id, payload) => renewLeaseContract(t, o, id, payload),
             },
         };

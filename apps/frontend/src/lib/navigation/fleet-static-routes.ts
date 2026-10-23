@@ -33,6 +33,11 @@ export const fleetLeaseContractChangeHistoryHref = (leaseId: string) => {
   return `${LEASE_CONTRACTS_BASE}/detail/change-history/`;
 };
 
+export const fleetLeaseContractEndLeaseHref = (leaseId: string) => {
+  void leaseId;
+  return `${LEASE_CONTRACTS_BASE}/end-lease/`;
+};
+
 export const fleetRenewLeaseContractHref = (leaseId: string) => {
   void leaseId;
   return `${RENEWALS_BASE}/renew/`;

@@ -157,9 +157,21 @@ export default function ReviewStep({
                 draftContractId,
             );
             const contractId = result.contract?.id ?? draftContractId;
+            const contractNumber = result.contract?.contractNumber;
 
             showLeaseContractSubmittedToast();
-            navigateToEntityShell(router, fleetLeaseContractDetailHref(contractId), contractId, 'push');
+            navigateToEntityShell(
+                router,
+                fleetLeaseContractDetailHref(contractId),
+                contractId,
+                "push",
+                contractNumber
+                    ? {
+                          displayLabel: contractNumber,
+                          labelKind: "lease",
+                      }
+                    : undefined,
+            );
         } catch (err) {
             const message =
                 err instanceof ApiClientError

@@ -12,6 +12,7 @@ import {
 import { invalidateLocationCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
+import { DashboardStatusPill } from "@/components/dashboard/dashboard-semantic-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useAuth } from "@/providers/auth-provider";
@@ -336,18 +337,12 @@ export default function LocationsPage() {
       sortable: false,
 
       render: (location: Location) => (
-        <span
-          className={[
-            "inline-flex rounded-full px-2.5 py-1 text-xs font-medium",
-            location.status === "active"
-              ? "bg-green-50 text-green-700"
-              : "bg-gray-100 text-gray-500",
-          ].join(" ")}
-        >
-          {location.status === "active"
-            ? "Active"
-            : "Deactivated"}
-        </span>
+        <DashboardStatusPill
+          level={location.status === "active" ? "success" : "muted"}
+          label={
+            location.status === "active" ? "Active" : "Deactivated"
+          }
+        />
       ),
     },
   ];

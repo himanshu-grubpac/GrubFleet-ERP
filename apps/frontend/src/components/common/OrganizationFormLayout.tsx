@@ -17,10 +17,14 @@ type OrganizationFormLayoutProps = {
     description?: string;
     children: ReactNode;
     actions?: ReactNode;
+    /** Sticky bottom bar for plain layouts (e.g. inspection wizard). Overrides `actions` when set. */
+    footer?: ReactNode;
     infoText?: string;
     backLink?: OrganizationFormBackLink;
     /** Full-width block below back link (e.g. lease wizard stepper). */
     beforeHeader?: ReactNode;
+    /** Replaces default {@link DashboardHeader} when set (e.g. inspect progress header). */
+    header?: ReactNode;
     headerAction?: ReactNode;
     /**
      * form-card — white bordered card around children (default create/edit forms).
@@ -34,13 +38,16 @@ export default function OrganizationFormLayout({
     description,
     children,
     actions,
+    footer,
     infoText,
     backLink,
     beforeHeader,
+    header,
     headerAction,
     contentVariant = "form-card",
 }: OrganizationFormLayoutProps) {
     const backLinkClassName = "mb-3";
+    const plainFooter = footer ?? actions;
 
     return (
         <div className="w-full bg-[#f8f8f8]">
@@ -68,11 +75,13 @@ export default function OrganizationFormLayout({
             {beforeHeader}
 
             <div className="px-4 pt-4 pb-8 sm:px-6">
-                <DashboardHeader
-                    title={title}
-                    description={description}
-                    action={headerAction}
-                />
+                {header ?? (
+                    <DashboardHeader
+                        title={title}
+                        description={description}
+                        action={headerAction}
+                    />
+                )}
 
                 <div className="mt-5 w-full">
                     {contentVariant === "form-card" ? (
@@ -86,7 +95,16 @@ export default function OrganizationFormLayout({
                             ) : null}
                         </div>
                     ) : (
-                        children
+                        <>
+                            {children}
+                            {plainFooter ? (
+                                <div className="sticky bottom-0 z-10 -mx-4 mt-6 border-t border-gray-200 bg-[#f8f8f8] px-4 py-3 sm:-mx-6 sm:px-6">
+                                    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">
+                                        {plainFooter}
+                                    </div>
+                                </div>
+                            ) : null}
+                        </>
                     )}
 
                     {infoText ? (

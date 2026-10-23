@@ -13,6 +13,7 @@ import * as schema from '../schema';
 import {
   fleetVehicleAllocations,
   fleetVehicles,
+  leaseContractVehicles,
   leaseContracts,
 } from '../schema';
 import {
@@ -134,6 +135,16 @@ async function main(): Promise<void> {
       });
       allocationsInserted += 1;
     }
+
+    await db
+      .insert(leaseContractVehicles)
+      .values({ contractId, vehicleId })
+      .onConflictDoNothing({
+        target: [
+          leaseContractVehicles.contractId,
+          leaseContractVehicles.vehicleId,
+        ],
+      });
   }
 
   console.log(

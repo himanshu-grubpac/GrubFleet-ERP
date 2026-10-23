@@ -30,7 +30,13 @@ import {
 import { fleetClientStructuredAddressIn } from '../../../test/helpers/fleet-client-address.fixture';
 import { uniqueIntegrationPhone } from '../../../test/helpers/unique-integration-contact';
 import * as schema from '../../database/schema';
-import { fleetClients, organizations } from '../../database/schema';
+import {
+  fleetClients,
+  fleetVehicleAllocations,
+  fleetVehicles,
+  leaseContracts,
+  organizations,
+} from '../../database/schema';
 import { FleetClientsService } from './fleet-clients.service';
 
 type AuthLoginResponse = { accessToken: string };
@@ -76,6 +82,7 @@ type LeaseContractDetailResponse = {
   statusBanner?: { level: string; text: string } | null;
   assetLines: Array<{ lineStatusLabel?: string; availabilityCovered: boolean }>;
   hasFieldChangeHistory?: boolean;
+  closing?: { reason: string } | null;
 };
 type ConfirmLeaseContractResponse = {
   activatedStatus: string;
@@ -713,7 +720,12 @@ describe('Fleet leasing lease contracts (integration)', () => {
   async function seedAssetRegisterClassWithVehicle(
     modelName: string,
     unique: number,
-  ): Promise<{ assetClassName: string; assetClassId: string }> {
+  ): Promise<{
+    assetClassName: string;
+    assetClassId: string;
+    registrationNumber: string;
+    assetRegisterFleetCode: string;
+  }> {
     const classRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/asset-classes')
       .set('Authorization', `Bearer ${accessToken}`)
@@ -742,14 +754,15 @@ describe('Fleet leasing lease contracts (integration)', () => {
     const classId = classBody.id;
     const assetClassName = classBody.name;
 
-    await request(app.getHttpServer())
+    const registrationNumber = `AR-L05-${unique}`.slice(0, 32);
+    const vehicleRegisterRes = await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicles')
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .send({
         organizationId,
         assetClassId: classId,
-        registrationNumber: `AR-L05-${unique}`.slice(0, 32),
+        registrationNumber,
         chassisNumber: `CH-L05-${unique}`,
         modelYear: 2024,
         odometer: 0,
@@ -762,8 +775,231 @@ describe('Fleet leasing lease contracts (integration)', () => {
         warrantyEndDate: '2027-01-01',
       })
       .expect((res) => expect([200, 201]).toContain(res.status));
+    const assetRegisterFleetCode = (
+      vehicleRegisterRes.body as { fleetCode: string }
+    ).fleetCode;
 
-    return { assetClassName, assetClassId: classId };
+    return {
+      assetClassName,
+      assetClassId: classId,
+      registrationNumber,
+      assetRegisterFleetCode,
+    };
+  }
+
+  function allPassReturnInspectionSections() {
+    const markPass = (key: string) => ({ [key]: { rating: 'pass' } });
+    return {
+      documents_keys: {
+        ...markPass('rc_book'),
+        ...markPass('insurance'),
+        ...markPass('puc'),
+        ...markPass('keys_set'),
+      },
+      glass_mirrors_lights: {
+        ...markPass('windshield'),
+        ...markPass('side_mirrors'),
+        ...markPass('headlamps'),
+        ...markPass('tail_lamps'),
+      },
+      exterior_body: {
+        ...markPass('front_bumper'),
+        ...markPass('left_rear_door'),
+        ...markPass('right_side_panel'),
+        ...markPass('roof'),
+        ...markPass('paint_overall'),
+        ...markPass('rear_bumper_tow_hook'),
+      },
+      tyres_wheels: {
+        ...markPass('front_tyres'),
+        ...markPass('rear_tyres'),
+        ...markPass('spare_wheel'),
+      },
+      interior_cabin: {
+        ...markPass('seats'),
+        ...markPass('dashboard'),
+        ...markPass('ac_blower'),
+      },
+      cargo_box: {
+        ...markPass('load_body'),
+        ...markPass('tailgate'),
+      },
+      engine_fluids: {
+        ...markPass('engine_oil'),
+        ...markPass('coolant'),
+        ...markPass('leaks'),
+      },
+      brakes_suspension: {
+        ...markPass('brake_pedal'),
+        ...markPass('handbrake'),
+        ...markPass('suspension_noise'),
+      },
+      electricals_battery: {
+        ...markPass('battery'),
+        ...markPass('horn'),
+        ...markPass('wiring'),
+      },
+      branding_accessories: {
+        ...markPass('client_branding'),
+        ...markPass('toolkit'),
+        ...markPass('gps_telematics'),
+      },
+    };
+  }
+
+  async function createReturnInspectionReadyToFinalize(
+    label: string,
+  ): Promise<{ inspectionId: string; clientId: string }> {
+    const unique = Date.now() + Math.floor(Math.random() * 10_000);
+    const { assetClassName: assetClass, registrationNumber } =
+      await seedAssetRegisterClassWithVehicle(label, unique);
+
+    const vehicleRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/vehicles')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        vin: `VIN-${label}-${unique}`,
+        registrationNo: registrationNumber,
+        registrationExpiry: '2030-12-31',
+        insuranceExpiry: '2030-12-31',
+        assetClass,
+        odometer: 50000,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const vehicleId = (vehicleRes.body as { id: string }).id;
+
+    const clientId = await createFleetClientForIntegrationTest(
+      app,
+      organizationId,
+      accessToken,
+      `${label}-client`,
+    );
+
+    const draft = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      clientId,
+    });
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '20000.00',
+          },
+        ],
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/terms`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        startDate: '2026-01-01',
+        termMonths: 12,
+        securityDeposit: '10000.00',
+        billingFrequency: 'monthly',
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/confirm`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${draft.id}/vehicle-allocations`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        vehicleId,
+        notifiedStakeholders: [DEV_ADMIN_EMAIL],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${draft.id}/initiate-returns`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        closingReason: 'completed',
+        leaseEndDate: '2026-10-31',
+        vehicleIds: [vehicleId],
+        returnMethod: 'client_depot',
+        returnDepotLabel: 'Depot',
+        expectedReturnBy: '2026-10-31',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const returnsRes = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({ organizationId, contractId: draft.id, page: 1, pageSize: 5 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const inspectionId = (returnsRes.body as { items: Array<{ id: string }> })
+      .items[0]?.id;
+    expect(inspectionId).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/receive`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        receivedAt: '2026-10-31T10:00:00.000Z',
+        broughtInBy: 'Driver',
+        odometerReading: 50100,
+        fuelLevel: 'half',
+        keysReceived: 1,
+        documentsChecklist: {
+          rcBook: true,
+          insuranceCopy: true,
+          pucCertificate: true,
+          goodsPermit: true,
+        },
+        gatePhotos: [
+          {
+            slot: 'front',
+            capturedAt: '2026-10-31T10:01:00.000Z',
+          },
+        ],
+        conditionAtGlance: 'looks_fine',
+        inspectImmediately: false,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        currentSectionIndex: 9,
+        complete: true,
+        sections: allPassReturnInspectionSections(),
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    return { inspectionId, clientId };
   }
 
   it('LEASE-05: stepwise draft confirm activates contract (MVP)', async () => {
@@ -1404,6 +1640,1523 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .expect(200);
     expect((legacyClosed.body as LeaseContractDetailResponse).rawStatus).toBe(
       'closed',
+    );
+  });
+
+  it('LEASE-09: initiate returns moves contract to closing and vehicles to return_pending', async () => {
+    const unique = Date.now();
+    const {
+      assetClassName: assetClass,
+      registrationNumber,
+      assetRegisterFleetCode,
+    } = await seedAssetRegisterClassWithVehicle('EndLease', unique);
+
+    const vehicleRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/vehicles')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        vin: `VIN-END-${unique}`,
+        registrationNo: registrationNumber,
+        registrationExpiry: '2030-12-31',
+        insuranceExpiry: '2030-12-31',
+        assetClass,
+        odometer: 61950,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const vehicleId = (vehicleRes.body as { id: string }).id;
+
+    const clientRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        companyName: `EndLease Client ${unique}`,
+        ...fleetClientStructuredAddressIn(),
+        pointsOfContact: [
+          {
+            name: 'POC End',
+            contactNumber: uniqueIntegrationPhone(`end-${unique}`),
+            email: `end-${unique}@example.com`,
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const clientId = (clientRes.body as FleetClientResponse).id;
+
+    const draft = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      clientId,
+    });
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '25000.00',
+          },
+        ],
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/terms`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        startDate: '2026-01-01',
+        termMonths: 12,
+        securityDeposit: '40000.00',
+        billingFrequency: 'monthly',
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/confirm`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${draft.id}/vehicle-allocations`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        vehicleId,
+        notifiedStakeholders: [DEV_ADMIN_EMAIL],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const initiateRes = await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${draft.id}/initiate-returns`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        closingReason: 'completed',
+        leaseEndDate: '2026-10-31',
+        vehicleIds: [vehicleId],
+        returnMethod: 'client_depot',
+        returnDepotLabel: 'Gurugram depot',
+        expectedReturnBy: '2026-10-31',
+        notes: 'Batch return',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const detail = initiateRes.body as LeaseContractDetailResponse;
+    expect(detail.rawStatus).toBe('pending_termination');
+    expect(detail.status).toBe('Closing');
+    expect(detail.closing?.reason).toBe('completed');
+    expect(detail.availableActions.terminate?.allowed).toBe(true);
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'lease_contract.initiate_returns',
+      resourceId: draft.id,
+    });
+
+    const returnsList = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({ organizationId, contractId: draft.id })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const returnsBody = returnsList.body as {
+      items: Array<{
+        vehicleStatus: string;
+        registeredReturn: boolean;
+        registrationNo: string;
+        fleetCode: string;
+        nextSteps: Array<{
+          actionKey: string;
+          label: string;
+          variant: string;
+          enabled: boolean;
+          reasonDisabled?: string;
+        }>;
+      }>;
+    };
+    expect(returnsBody.items.length).toBeGreaterThanOrEqual(1);
+    expect(returnsBody.items[0]?.vehicleStatus).toBe('return_pending');
+    expect(returnsBody.items[0]?.registeredReturn).toBe(false);
+    expect(returnsBody.items[0]?.registrationNo).toBe(registrationNumber);
+    expect(returnsBody.items[0]?.fleetCode).toBe(assetRegisterFleetCode);
+    expect(returnsBody.items[0]?.nextSteps?.length).toBeGreaterThanOrEqual(1);
+    expect(returnsBody.items[0]?.nextSteps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionKey: 'receive',
+          label: 'Receive',
+          variant: 'secondary',
+          enabled: true,
+        }),
+      ]),
+    );
+    expect(
+      returnsBody.items[0]?.nextSteps?.some(
+        (s) => s.actionKey === 'remind_client',
+      ),
+    ).toBe(false);
+
+    const expectedTabList = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        pipelineTab: 'expected',
+        includeTabCounts: 'true',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const expectedTabBody = expectedTabList.body as {
+      items: Array<{ id: string }>;
+      total: number;
+      tabCounts: Record<string, number>;
+    };
+    expect(expectedTabBody.items.length).toBeGreaterThanOrEqual(1);
+    expect(expectedTabBody.tabCounts?.expected).toBeGreaterThanOrEqual(1);
+    expect(expectedTabBody.total).toBe(expectedTabBody.tabCounts?.expected);
+
+    const pipelineTabs = [
+      'all_open',
+      'expected',
+      'overdue',
+      'to_inspect',
+      'in_inspection',
+      'workshop',
+      'closed',
+    ] as const;
+    for (const pipelineTab of pipelineTabs) {
+      const tabRes = await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/returns')
+        .query({
+          organizationId,
+          contractId: draft.id,
+          pipelineTab,
+          includeTabCounts: 'true',
+          page: 1,
+          pageSize: 50,
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      const tabBody = tabRes.body as {
+        total: number;
+        tabCounts: Record<string, number>;
+      };
+      expect(tabBody.total).toBe(tabBody.tabCounts?.[pipelineTab] ?? -1);
+    }
+
+    const depotTabRes = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        pipelineTab: 'expected',
+        returnDepotLabel: 'Gurugram depot',
+        includeTabCounts: 'true',
+        page: 1,
+        pageSize: 50,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const depotTabBody = depotTabRes.body as {
+      total: number;
+      tabCounts: Record<string, number>;
+    };
+    expect(depotTabBody.total).toBe(depotTabBody.tabCounts?.expected);
+
+    const reasonTabRes = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        closingReason: 'completed',
+        pipelineTab: 'expected',
+        includeTabCounts: 'true',
+        page: 1,
+        pageSize: 50,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const reasonTabBody = reasonTabRes.body as {
+      total: number;
+      tabCounts: Record<string, number>;
+    };
+    expect(reasonTabBody.total).toBe(reasonTabBody.tabCounts?.expected);
+
+    const searchTabRes = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        pipelineTab: 'expected',
+        search: registrationNumber,
+        includeTabCounts: 'true',
+        page: 1,
+        pageSize: 50,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const searchTabBody = searchTabRes.body as {
+      items: unknown[];
+      total: number;
+      tabCounts: Record<string, number>;
+    };
+    expect(searchTabBody.items.length).toBeGreaterThanOrEqual(1);
+    expect(searchTabBody.total).toBe(searchTabBody.tabCounts?.expected);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        pipelineTab: 'not_a_pipeline_tab',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+
+    const depotFiltered = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        returnDepotLabel: 'Gurugram depot',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (depotFiltered.body as { items: unknown[] }).items.length,
+    ).toBeGreaterThanOrEqual(1);
+
+    const reasonFiltered = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        closingReason: 'completed',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (reasonFiltered.body as { items: unknown[] }).items.length,
+    ).toBeGreaterThanOrEqual(1);
+
+    const terminatedReasonOnCompleted = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        closingReason: 'terminated_early',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (terminatedReasonOnCompleted.body as { items: unknown[] }).items.length,
+    ).toBe(0);
+
+    const allOpenWithCompletedReason = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        pipelineTab: 'all_open',
+        closingReason: 'completed',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (allOpenWithCompletedReason.body as { items: unknown[] }).items.length,
+    ).toBeGreaterThanOrEqual(1);
+
+    await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        closingReason: 'not_a_closing_reason',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
+
+    const withFilterOptions = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        includeTabCounts: 'true',
+        page: 1,
+        pageSize: 5,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const filterBody = withFilterOptions.body as {
+      depotFilterOptions?: Array<{ label: string; value: string }>;
+    };
+    expect(filterBody.depotFilterOptions?.length).toBeGreaterThanOrEqual(1);
+
+    const inspectionId = (returnsBody.items as Array<{ id: string }>)[0]?.id;
+    expect(inspectionId).toBeTruthy();
+
+    const receiveRes = await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/receive`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        receivedAt: '2026-10-31T10:40:00.000Z',
+        broughtInBy: 'Client driver · Vikas',
+        odometerReading: 64540,
+        fuelLevel: 'quarter',
+        keysReceived: 1,
+        documentsChecklist: {
+          rcBook: true,
+          insuranceCopy: true,
+          pucCertificate: true,
+          goodsPermit: true,
+        },
+        gatePhotos: [
+          {
+            slot: 'front',
+            capturedAt: '2026-10-31T10:42:00.000Z',
+            label: 'Front',
+          },
+          {
+            slot: 'rear',
+            capturedAt: '2026-10-31T10:42:00.000Z',
+            label: 'Rear',
+          },
+        ],
+        conditionAtGlance: 'visible_damage',
+        gateNote: 'Front bumper cracked',
+        inspectImmediately: false,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const received = receiveRes.body as {
+      registeredReturn: boolean;
+      vehicleStatus: string;
+      odometerReading: number;
+    };
+    expect(received.registeredReturn).toBe(true);
+    expect(received.vehicleStatus).toBe('returned');
+    expect(received.odometerReading).toBe(64540);
+
+    const afterReceiveList = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({ organizationId, contractId: draft.id })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const afterReceiveItem = (
+      afterReceiveList.body as {
+        items: Array<{
+          id: string;
+          nextSteps: Array<{ actionKey: string; enabled: boolean }>;
+        }>;
+      }
+    ).items.find((i) => i.id === inspectionId);
+    expect(afterReceiveItem?.nextSteps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionKey: 'start_inspection',
+          enabled: true,
+        }),
+      ]),
+    );
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'fleet_return.receive',
+      resourceId: inspectionId,
+    });
+
+    const draftSaveRes = await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        currentSectionIndex: 2,
+        sections: {
+          exterior_body: {
+            front_bumper: {
+              rating: 'major',
+              attribution: 'client_damage',
+              note: 'Front bumper cracked and misaligned',
+              repairCostMinor: 12_000_00,
+            },
+            left_rear_door: {
+              rating: 'minor',
+              attribution: 'client_damage',
+              note: 'Door ding near handle',
+              repairCostMinor: 4_500_00,
+            },
+          },
+        },
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const draftSaved = draftSaveRes.body as {
+      inspectionSummary: {
+        majorCount: number;
+        minorCount: number;
+        repairEstimateMinor: number;
+      };
+    };
+    expect(draftSaved.inspectionSummary.majorCount).toBe(1);
+    expect(draftSaved.inspectionSummary.minorCount).toBe(1);
+    expect(draftSaved.inspectionSummary.repairEstimateMinor).toBe(16_500_00);
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        currentSectionIndex: 2,
+        sections: {
+          exterior_body: {
+            front_bumper: {
+              rating: 'major',
+              attribution: 'client_damage',
+              repairCostMinor: 12_000_00,
+            },
+          },
+        },
+      })
+      .expect(400);
+
+    const detailAfterDraft = await request(app.getHttpServer())
+      .get(`/api/v1/fleet-leasing/returns/${inspectionId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (detailAfterDraft.body as { inspectionSummary: { majorCount: number } })
+        .inspectionSummary.majorCount,
+    ).toBe(1);
+
+    const markPass = (key: string) => ({ [key]: { rating: 'pass' } });
+    const inspectionCompleteRes = await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        currentSectionIndex: 9,
+        complete: true,
+        sections: {
+          documents_keys: {
+            ...markPass('rc_book'),
+            ...markPass('insurance'),
+            ...markPass('puc'),
+            ...markPass('keys_set'),
+          },
+          glass_mirrors_lights: {
+            ...markPass('windshield'),
+            ...markPass('side_mirrors'),
+            ...markPass('headlamps'),
+            ...markPass('tail_lamps'),
+          },
+          exterior_body: {
+            ...markPass('front_bumper'),
+            ...markPass('left_rear_door'),
+            ...markPass('right_side_panel'),
+            ...markPass('roof'),
+            ...markPass('paint_overall'),
+            ...markPass('rear_bumper_tow_hook'),
+          },
+          tyres_wheels: {
+            ...markPass('front_tyres'),
+            ...markPass('rear_tyres'),
+            ...markPass('spare_wheel'),
+          },
+          interior_cabin: {
+            ...markPass('seats'),
+            ...markPass('dashboard'),
+            ...markPass('ac_blower'),
+          },
+          cargo_box: {
+            ...markPass('load_body'),
+            ...markPass('tailgate'),
+          },
+          engine_fluids: {
+            ...markPass('engine_oil'),
+            ...markPass('coolant'),
+            ...markPass('leaks'),
+          },
+          brakes_suspension: {
+            ...markPass('brake_pedal'),
+            ...markPass('handbrake'),
+            ...markPass('suspension_noise'),
+          },
+          electricals_battery: {
+            ...markPass('battery'),
+            ...markPass('horn'),
+            ...markPass('wiring'),
+          },
+          branding_accessories: {
+            ...markPass('client_branding'),
+            ...markPass('toolkit'),
+            ...markPass('gps_telematics'),
+          },
+        },
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const readyToFinalize = inspectionCompleteRes.body as {
+      inspectionStatus: string;
+      vehicleStatus: string;
+      inspectionResult?: unknown;
+    };
+    expect(readyToFinalize.inspectionStatus).toBe('ready_to_finalize');
+    expect(readyToFinalize.vehicleStatus).toBe('returned');
+    expect(readyToFinalize.inspectionResult).toBeFalsy();
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'fleet_return.ready_to_finalize_inspection',
+      resourceId: inspectionId,
+    });
+
+    const finalizeRes = await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection/finalize`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        disposition: 'ready_to_lease',
+        waiveAllRecovery: false,
+        inspectorConfirmed: true,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const completed = finalizeRes.body as {
+      inspectionStatus: string;
+      vehicleStatus: string;
+      inspectionResult?: {
+        outcome: string;
+        recoveryNote: { totalMinor: number };
+      };
+    };
+    expect(completed.inspectionStatus).toBe('completed');
+    expect(completed.vehicleStatus).toBe('available');
+    expect(completed.inspectionResult?.outcome).toBe('ready_to_lease');
+
+    const reasonOnlyAfterRelease = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        closingReason: 'completed',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (reasonOnlyAfterRelease.body as { items: unknown[] }).items.length,
+    ).toBeGreaterThanOrEqual(1);
+
+    const allOpenAfterReleaseWithReason = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        pipelineTab: 'all_open',
+        closingReason: 'completed',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (allOpenAfterReleaseWithReason.body as { items: unknown[] }).items.length,
+    ).toBe(0);
+
+    const closedTabAfterRelease = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        pipelineTab: 'closed',
+        closingReason: 'completed',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (closedTabAfterRelease.body as { items: unknown[] }).items.length,
+    ).toBeGreaterThanOrEqual(1);
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'fleet_return.complete_inspection',
+      resourceId: inspectionId,
+    });
+  });
+
+  it('LEASE-09-REASON: terminated_early closing reason lists return_pending rows', async () => {
+    const unique = Date.now() + 7;
+    const { assetClassName: assetClass, registrationNumber } =
+      await seedAssetRegisterClassWithVehicle('TermEarly', unique);
+
+    const vehicleRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/vehicles')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        vin: `VIN-TE-${unique}`,
+        registrationNo: registrationNumber,
+        registrationExpiry: '2030-12-31',
+        insuranceExpiry: '2030-12-31',
+        assetClass,
+        odometer: 5000,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const vehicleId = (vehicleRes.body as { id: string }).id;
+
+    const clientRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        companyName: `Term Early Client ${unique}`,
+        ...fleetClientStructuredAddressIn(),
+        pointsOfContact: [
+          {
+            name: 'POC TE',
+            contactNumber: uniqueIntegrationPhone(`te-${unique}`),
+            email: `te-${unique}@example.com`,
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const clientId = (clientRes.body as FleetClientResponse).id;
+
+    const draft = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      clientId,
+    });
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '25000.00',
+          },
+        ],
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/terms`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        startDate: '2026-01-01',
+        termMonths: 12,
+        securityDeposit: '40000.00',
+        billingFrequency: 'monthly',
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/lease-contracts/${draft.id}/confirm`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${draft.id}/vehicle-allocations`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        vehicleId,
+        notifiedStakeholders: [DEV_ADMIN_EMAIL],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await db
+      .update(schema.leaseContracts)
+      .set({ status: 'deactivated', onHold: true })
+      .where(eq(schema.leaseContracts.id, draft.id));
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${draft.id}/initiate-returns`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        closingReason: 'terminated_early',
+        leaseEndDate: '2026-10-31',
+        vehicleIds: [vehicleId],
+        returnMethod: 'client_depot',
+        returnDepotLabel: 'Term depot',
+        expectedReturnBy: '2026-11-15',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const terminatedReasonList = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({
+        organizationId,
+        contractId: draft.id,
+        closingReason: 'terminated_early',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const terminatedItems = (
+      terminatedReasonList.body as {
+        items: Array<{ contractClosingReason: string | null }>;
+      }
+    ).items;
+    expect(terminatedItems.length).toBeGreaterThanOrEqual(1);
+    expect(terminatedItems[0]?.contractClosingReason).toBe('terminated_early');
+  });
+
+  it('LEASE-09-ALLOC: initiate returns accepts allocation row without lease_contract_vehicles link', async () => {
+    const unique = Date.now();
+    const expiry = new Date('2028-12-31T00:00:00.000Z');
+    const [vehicle] = await db
+      .insert(fleetVehicles)
+      .values({
+        organizationId,
+        vin: `VIN-ALLOC-ONLY-${unique}`,
+        registrationNo: `VH-ALLOC-${unique}`,
+        registrationExpiry: expiry,
+        insuranceExpiry: expiry,
+        assetClass: 'Van — Integration',
+        status: 'leased',
+        odometer: 12000,
+      })
+      .returning();
+    const [contract] = await db
+      .insert(leaseContracts)
+      .values({
+        organizationId,
+        contractNumber: `LC-ALLOC-ONLY-${unique}`,
+        status: 'active',
+        startDate: new Date('2026-01-01T00:00:00.000Z'),
+        endDate: new Date('2027-12-31T00:00:00.000Z'),
+        termMonths: 24,
+      })
+      .returning();
+    await db.insert(fleetVehicleAllocations).values({
+      organizationId,
+      contractId: contract.id,
+      vehicleId: vehicle.id,
+    });
+
+    const initiateRes = await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${contract.id}/initiate-returns`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        closingReason: 'completed',
+        leaseEndDate: '2026-10-31',
+        vehicleIds: [vehicle.id],
+        returnMethod: 'collect_from_site',
+        expectedReturnBy: '2026-11-05',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const detail = initiateRes.body as LeaseContractDetailResponse;
+    expect(detail.rawStatus).toBe('pending_termination');
+    expect(detail.status).toBe('Closing');
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'lease_contract.initiate_returns',
+      resourceId: contract.id,
+    });
+  });
+
+  it('LEASE-09b: inspection with major damage completes to workshop result (Screen 5)', async () => {
+    const unique = Date.now() + 99;
+    const { assetClassName: assetClass, registrationNumber } =
+      await seedAssetRegisterClassWithVehicle('WorkshopResult', unique);
+
+    const vehicleRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/vehicles')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        vin: `VIN-WR-${unique}`,
+        registrationNo: registrationNumber,
+        registrationExpiry: '2030-12-31',
+        insuranceExpiry: '2030-12-31',
+        assetClass,
+        odometer: 64400,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const vehicleId = (vehicleRes.body as { id: string }).id;
+
+    const clientRes = await request(app.getHttpServer())
+      .post('/api/v1/fleet-leasing/clients')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        companyName: `Workshop Result Client ${unique}`,
+        ...fleetClientStructuredAddressIn(),
+        pointsOfContact: [
+          {
+            name: 'POC WR',
+            contactNumber: uniqueIntegrationPhone(`wr-${unique}`),
+            email: `wr-${unique}@example.com`,
+            isPrimary: true,
+          },
+        ],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const clientId = (clientRes.body as FleetClientResponse).id;
+
+    const draft = await createDraftLeaseContract(app, {
+      organizationId,
+      token: accessToken,
+      clientId,
+    });
+    const contractId = draft.id;
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${contractId}/asset-lines`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        assetLines: [
+          {
+            assetClass,
+            committedQuantity: 1,
+            ratePerVehicleMonth: '25000.00',
+          },
+        ],
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put(`/api/v1/fleet-leasing/lease-contracts/${contractId}/terms`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        startDate: '2026-01-01',
+        termMonths: 12,
+        securityDeposit: '40000.00',
+        billingFrequency: 'monthly',
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/lease-contracts/${contractId}/confirm`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${contractId}/vehicle-allocations`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        vehicleId,
+        notifiedStakeholders: [DEV_ADMIN_EMAIL],
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    await request(app.getHttpServer())
+      .post(
+        `/api/v1/fleet-leasing/lease-contracts/${contractId}/initiate-returns`,
+      )
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        closingReason: 'completed',
+        leaseEndDate: '2026-10-24',
+        vehicleIds: [vehicleId],
+        returnMethod: 'client_depot',
+        returnDepotLabel: 'Gurugram depot',
+        expectedReturnBy: '2026-10-31',
+        notes: 'Workshop result lattice',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const returnsRes = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({ organizationId, contractId, page: 1, pageSize: 10 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const inspectionId = (returnsRes.body as { items: Array<{ id: string }> })
+      .items[0]?.id;
+    expect(inspectionId).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/receive`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        receivedAt: '2026-10-31T10:40:00.000Z',
+        broughtInBy: 'Client driver',
+        odometerReading: 67860,
+        fuelLevel: 'half',
+        keysReceived: 1,
+        documentsChecklist: {
+          rcBook: true,
+          insuranceCopy: true,
+          pucCertificate: true,
+          goodsPermit: true,
+        },
+        gatePhotos: [
+          {
+            slot: 'front',
+            capturedAt: '2026-10-31T10:42:00.000Z',
+          },
+        ],
+        conditionAtGlance: 'visible_damage',
+        inspectImmediately: false,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const markPass = (key: string) => ({ [key]: { rating: 'pass' } });
+    const completeRes = await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        currentSectionIndex: 9,
+        complete: true,
+        sections: {
+          documents_keys: {
+            ...markPass('rc_book'),
+            ...markPass('insurance'),
+            ...markPass('puc'),
+            ...markPass('keys_set'),
+          },
+          glass_mirrors_lights: {
+            ...markPass('windshield'),
+            ...markPass('side_mirrors'),
+            ...markPass('headlamps'),
+            ...markPass('tail_lamps'),
+          },
+          exterior_body: {
+            front_bumper: {
+              rating: 'major',
+              attribution: 'client_damage',
+              note: 'Front bumper needs replacement',
+              repairCostMinor: 1850000,
+            },
+            ...markPass('left_rear_door'),
+            ...markPass('right_side_panel'),
+            ...markPass('roof'),
+            ...markPass('paint_overall'),
+            ...markPass('rear_bumper_tow_hook'),
+          },
+          tyres_wheels: {
+            ...markPass('front_tyres'),
+            ...markPass('rear_tyres'),
+            ...markPass('spare_wheel'),
+          },
+          interior_cabin: {
+            ...markPass('seats'),
+            ...markPass('dashboard'),
+            ...markPass('ac_blower'),
+          },
+          cargo_box: {
+            ...markPass('load_body'),
+            ...markPass('tailgate'),
+          },
+          engine_fluids: {
+            ...markPass('engine_oil'),
+            ...markPass('coolant'),
+            ...markPass('leaks'),
+          },
+          brakes_suspension: {
+            ...markPass('brake_pedal'),
+            ...markPass('handbrake'),
+            ...markPass('suspension_noise'),
+          },
+          electricals_battery: {
+            ...markPass('battery'),
+            ...markPass('horn'),
+            ...markPass('wiring'),
+          },
+          branding_accessories: {
+            ...markPass('client_branding'),
+            ...markPass('toolkit'),
+            ...markPass('gps_telematics'),
+          },
+        },
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const readyBody = completeRes.body as { inspectionStatus: string };
+    expect(readyBody.inspectionStatus).toBe('ready_to_finalize');
+
+    const finalizeRes = await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection/finalize`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        disposition: 'send_to_workshop',
+        inspectorConfirmed: true,
+        issueCharges: [
+          {
+            sectionId: 'exterior_body',
+            itemKey: 'front_bumper',
+            chargeClient: true,
+          },
+        ],
+        workshopPriority: 'normal',
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const body = finalizeRes.body as {
+      vehicleStatus: string;
+      inspectionResult: {
+        outcome: string;
+        jobCard: {
+          tasks: unknown[];
+          displayNumber: string;
+          workshopJobId: string | null;
+        } | null;
+        recoveryNote: { lines: unknown[]; totalMinor: number };
+        availableActions: Array<{
+          actionKey: string;
+          enabled: boolean;
+          workshopJobId?: string | null;
+        }>;
+      };
+    };
+    expect(body.vehicleStatus).toBe('workshop');
+    expect(body.inspectionResult.outcome).toBe('sent_to_workshop');
+    expect(body.inspectionResult.jobCard?.tasks.length).toBeGreaterThan(0);
+    expect(body.inspectionResult.recoveryNote.totalMinor).toBeGreaterThan(0);
+    expect(body.inspectionResult.recoveryNote.displayNumber).toMatch(
+      /^BINV-\d{4}-\d{4}$/,
+    );
+    expect(body.inspectionResult.recoveryNote.financeInvoiceId).toEqual(
+      expect.any(String),
+    );
+    expect(body.inspectionResult.recoveryNote.status).toBe(
+      'waiting_for_finance',
+    );
+    const finalizeBody = finalizeRes.body as {
+      financeRecoveryInvoiceId?: string | null;
+    };
+    expect(finalizeBody.financeRecoveryInvoiceId).toEqual(
+      body.inspectionResult.recoveryNote.financeInvoiceId,
+    );
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'finance.invoice.create',
+      resourceId: body.inspectionResult.recoveryNote.financeInvoiceId as string,
+    });
+
+    const [fleetClientRow] = await db
+      .select({ organisationClientId: fleetClients.organisationClientId })
+      .from(fleetClients)
+      .where(eq(fleetClients.id, clientId))
+      .limit(1);
+    expect(fleetClientRow?.organisationClientId).toEqual(expect.any(String));
+
+    const statementRes = await request(app.getHttpServer())
+      .get(
+        `/api/v1/finance/client-statements/${fleetClientRow.organisationClientId}`,
+      )
+      .query({
+        organizationId,
+        periodStart: '2026-01-01',
+        periodEnd: '2026-12-31',
+        page: 1,
+        pageSize: 10,
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    expect(
+      (statementRes.body as { billingInvoiceCount: number })
+        .billingInvoiceCount,
+    ).toBeGreaterThanOrEqual(1);
+
+    expect(body.inspectionResult.jobCard?.workshopJobId).toEqual(
+      expect.any(String),
+    );
+    expect(body.inspectionResult.jobCard?.displayNumber).toMatch(/^WO-/);
+    const openWorkshop = body.inspectionResult.availableActions.find(
+      (a) => a.actionKey === 'open_workshop',
+    );
+    expect(openWorkshop?.enabled).toBe(true);
+    expect(openWorkshop?.workshopJobId).toEqual(
+      body.inspectionResult.jobCard?.workshopJobId,
+    );
+    expect(
+      body.inspectionResult.availableActions.some(
+        (a) => a.actionKey === 'close_workshop_repair',
+      ),
+    ).toBe(false);
+
+    const workshopJobId = body.inspectionResult.jobCard?.workshopJobId;
+    expect(workshopJobId).toEqual(expect.any(String));
+
+    await request(app.getHttpServer())
+      .patch(`/api/v1/workshop/work-orders/${workshopJobId}/status`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({ action: 'close' })
+      .expect(200);
+
+    const afterWoClose = await request(app.getHttpServer())
+      .get(`/api/v1/fleet-leasing/returns/${inspectionId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+
+    const afterCloseBody = afterWoClose.body as {
+      workshopRepairClosedAt: string | null;
+      reInspection: { eligible: boolean };
+      inspectionResult: {
+        jobCard: { status: string } | null;
+        timeline: Array<{ key: string; state: string }>;
+      };
+    };
+    expect(afterCloseBody.workshopRepairClosedAt).toEqual(expect.any(String));
+    expect(afterCloseBody.reInspection.eligible).toBe(true);
+    expect(afterCloseBody.inspectionResult.jobCard?.status).toBe('closed');
+    expect(
+      afterCloseBody.inspectionResult.timeline.find((s) => s.key === 'workshop')
+        ?.state,
+    ).toBe('done');
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'fleet_return.close_workshop_repair',
+      resourceId: inspectionId,
+    });
+
+    const openWorkshopAction = (
+      finalizeRes.body as {
+        inspectionResult: {
+          availableActions: Array<{
+            actionKey: string;
+            enabled: boolean;
+            workshopJobId?: string | null;
+          }>;
+        };
+      }
+    ).inspectionResult.availableActions.find(
+      (a) => a.actionKey === 'open_workshop',
+    );
+    expect(openWorkshopAction?.enabled).toBe(true);
+    expect(openWorkshopAction?.workshopJobId).toEqual(
+      expect.stringMatching(
+        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i,
+      ),
+    );
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/re-inspection/start`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const reComplete = await request(app.getHttpServer())
+      .patch(`/api/v1/fleet-leasing/returns/${inspectionId}/re-inspection`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        items: [
+          {
+            itemKey: 'exterior_body:front_bumper',
+            sectionId: 'exterior_body',
+            rating: 'pass',
+          },
+        ],
+        poolChecklist: {
+          roadTestDone: true,
+          washedCleaned: true,
+          fuelLevelChecked: true,
+          insuranceValidAck: true,
+          pucValidAck: true,
+        },
+        odometerAfterRoadTest: 67880,
+        selectedOutcome: 'ready_to_lease',
+        complete: true,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const reBody = reComplete.body as {
+      vehicleStatus: string;
+      assetRegisterVehicleId: string | null;
+      reInspection: { status: string };
+      inspectionResult: {
+        outcome: string;
+        assignmentPoolBanner: { contractsWaitingCount: number } | null;
+        contractClosingProgress: {
+          returnedCount: number;
+          totalCount: number;
+        } | null;
+        timeline: Array<{ label: string; key: string }>;
+        availableActions: Array<{
+          actionKey: string;
+          enabled: boolean;
+        }>;
+      };
+    };
+    expect(reBody.vehicleStatus).toBe('available');
+    expect(reBody.reInspection.status).toBe('completed');
+    expect(reBody.inspectionResult.outcome).toBe('ready_to_lease');
+    expect(reBody.assetRegisterVehicleId).toEqual(expect.any(String));
+    expect(
+      reBody.inspectionResult.contractClosingProgress?.totalCount,
+    ).toBeGreaterThanOrEqual(1);
+    expect(
+      reBody.inspectionResult.assignmentPoolBanner?.contractsWaitingCount,
+    ).toEqual(expect.any(Number));
+    expect(
+      reBody.inspectionResult.timeline.some((s) =>
+        s.label.includes('Re-inspected'),
+      ),
+    ).toBe(true);
+    const assignAction = reBody.inspectionResult.availableActions.find(
+      (a) => a.actionKey === 'assign_contract',
+    );
+    expect(assignAction?.enabled).toBe(true);
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'fleet_return.complete_re_inspection',
+      resourceId: inspectionId,
+    });
+  });
+
+  it('LEASE-09-HOLD: resolve hold reopens finalize then completes to available', async () => {
+    const { inspectionId } =
+      await createReturnInspectionReadyToFinalize('HoldResolve');
+
+    const onHoldRes = await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection/finalize`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        disposition: 'on_hold',
+        waiveAllRecovery: true,
+        inspectorConfirmed: true,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const onHoldBody = onHoldRes.body as {
+      vehicleStatus: string;
+      inspectionStatus: string;
+      inspectionResult: { outcome: string };
+    };
+    expect(onHoldBody.vehicleStatus).toBe('returned');
+    expect(onHoldBody.inspectionStatus).toBe('completed');
+    expect(onHoldBody.inspectionResult.outcome).toBe('on_hold');
+
+    const onHoldList = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({ organizationId, page: 1, pageSize: 50 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const onHoldRow = (
+      onHoldList.body as {
+        items: Array<{
+          id: string;
+          nextSteps: Array<{ actionKey: string; enabled: boolean }>;
+        }>;
+      }
+    ).items.find((i) => i.id === inspectionId);
+    expect(onHoldRow?.nextSteps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ actionKey: 'resolve_hold', enabled: true }),
+      ]),
+    );
+
+    const resolveRes = await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/resolve-hold`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({ resolutionNote: 'Ops cleared hold' })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const resolved = resolveRes.body as {
+      inspectionStatus: string;
+      vehicleStatus: string;
+      inspectionResult: unknown;
+      inspectionFinalizeDraft: { disposition: string | null };
+    };
+    expect(resolved.inspectionStatus).toBe('ready_to_finalize');
+    expect(resolved.vehicleStatus).toBe('returned');
+    expect(resolved.inspectionResult).toBeFalsy();
+    expect(resolved.inspectionFinalizeDraft.disposition).toBeNull();
+
+    await expectAuditLog(db, {
+      organizationId,
+      action: 'fleet_return.resolve_hold',
+      resourceId: inspectionId,
+    });
+
+    const afterResolveList = await request(app.getHttpServer())
+      .get('/api/v1/fleet-leasing/returns')
+      .query({ organizationId, page: 1, pageSize: 50 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+    const afterRow = (
+      afterResolveList.body as {
+        items: Array<{
+          id: string;
+          nextSteps: Array<{ actionKey: string; enabled: boolean }>;
+        }>;
+      }
+    ).items.find((i) => i.id === inspectionId);
+    expect(afterRow?.nextSteps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          actionKey: 'finalize_inspection',
+          enabled: true,
+        }),
+      ]),
+    );
+
+    const completeRes = await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection/finalize`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        disposition: 'ready_to_lease',
+        waiveAllRecovery: true,
+        inspectorConfirmed: true,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const completeBody = completeRes.body as {
+      vehicleStatus: string;
+      inspectionResult: { outcome: string };
+    };
+    expect(completeBody.vehicleStatus).toBe('available');
+    expect(completeBody.inspectionResult.outcome).toBe('ready_to_lease');
+  });
+
+  it('LEASE-09-RETIRE: finalize retire sets fleet vehicle retired', async () => {
+    const { inspectionId } =
+      await createReturnInspectionReadyToFinalize('RetireDisp');
+
+    const retireRes = await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/returns/${inspectionId}/inspection/finalize`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        disposition: 'retire',
+        waiveAllRecovery: true,
+        inspectorConfirmed: true,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const body = retireRes.body as {
+      vehicleStatus: string;
+      inspectionResult: { outcome: string };
+    };
+    expect(body.vehicleStatus).toBe('retired');
+    expect(body.inspectionResult.outcome).toBe('retired');
+
+    const retireAudit = await expectAuditLog(db, {
+      organizationId,
+      action: 'fleet_return.complete_inspection',
+      resourceId: inspectionId,
+    });
+    expect(retireAudit.metadata).toEqual(
+      expect.objectContaining({
+        disposition: 'retire',
+        vehicleStatus: 'retired',
+      }),
     );
   });
 
@@ -2358,5 +4111,77 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', organizationId)
       .expect(400);
+  });
+
+  describe('Fleet returns hub RBAC', () => {
+    const ASSET_REGISTER_VIEW_ONLY_USER = {
+      email: 'fleet-returns.assetview@grubpac.local',
+      password: 'AssetViewOnly123!',
+      fullName: 'Fleet Returns Asset View',
+      roleName: 'Fleet Returns Asset View Only',
+      permissionKeys: ['asset_register.view'],
+    } as const;
+
+    const NO_RETURNS_PERMISSION_USER = {
+      email: 'fleet-returns.noperm@grubpac.local',
+      password: 'NoPermTest123!',
+      fullName: 'No Returns Permission',
+      roleName: 'No Returns Permission',
+      permissionKeys: ['administration.view'],
+    } as const;
+
+    it('returns 401 without JWT on GET returns list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/returns')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .expect(401);
+    });
+
+    it('returns 403 without fleet_leasing or asset_register view', async () => {
+      await ensureUserWithPermissions(
+        db,
+        organizationId,
+        NO_RETURNS_PERMISSION_USER,
+      );
+      const token = await loginAs(
+        app,
+        NO_RETURNS_PERMISSION_USER.email,
+        NO_RETURNS_PERMISSION_USER.password,
+      );
+      await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/returns')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-organization-id', organizationId)
+        .expect(403);
+    });
+
+    it('allows fleet_leasing.view on GET returns list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/returns')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${fleetViewOnlyToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+    });
+
+    it('allows asset_register.view on GET returns list', async () => {
+      await ensureUserWithPermissions(
+        db,
+        organizationId,
+        ASSET_REGISTER_VIEW_ONLY_USER,
+      );
+      const token = await loginAs(
+        app,
+        ASSET_REGISTER_VIEW_ONLY_USER.email,
+        ASSET_REGISTER_VIEW_ONLY_USER.password,
+      );
+      await request(app.getHttpServer())
+        .get('/api/v1/fleet-leasing/returns')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${token}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+    });
   });
 });

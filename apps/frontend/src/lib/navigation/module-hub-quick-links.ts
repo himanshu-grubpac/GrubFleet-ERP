@@ -17,8 +17,6 @@ const MODULE_HUB_LINK_DESCRIPTIONS: Record<string, string> = {
     "Create and manage lease contracts, client details, leased assets, and contract terms.",
   [normalizeNavPath("/fleet-leasing/renewals-extensions/")]:
     "Review upcoming contract expiries and manage lease renewals and extensions.",
-  [normalizeNavPath("/fleet-leasing/returns-inspections/")]:
-    "Manage returned leased assets and track return inspections and vehicle condition.",
   [normalizeNavPath("/fleet-leasing/support/")]:
     "Access fleet leasing support workflows such as vehicle replacement for active contracts.",
 
@@ -28,6 +26,8 @@ const MODULE_HUB_LINK_DESCRIPTIONS: Record<string, string> = {
     "View and manage fleet vehicles, registration details, and vehicle information.",
   [normalizeNavPath("/asset-register/asset-assign/")]:
     "Manage asset assignments and track assets allocated to employees or locations.",
+  [normalizeNavPath("/asset-register/vehicle-returns/")]:
+    "Receive returned vehicles, run inspections, and move assets back into the available pool.",
   [normalizeNavPath("/asset-register/compliance-renewals/")]:
     "Track vehicle compliance, insurance renewals, and important expiry dates.",
 
@@ -72,9 +72,9 @@ const MODULE_HUB_LINK_DESCRIPTIONS: Record<string, string> = {
 /** Portal home — top-level module hubs (labels/icons from filtered `mainNavItems`). */
 const PORTAL_MAIN_MODULE_DESCRIPTIONS: Record<string, string> = {
   [normalizeNavPath("/fleet-leasing/")]:
-    "Manage lease contracts, renewals, returns, inspections, and fleet leasing support.",
+    "Manage lease contracts, renewals, extensions, and fleet leasing support.",
   [normalizeNavPath("/asset-register/")]:
-    "Manage asset classes, fleet register, assignments, and compliance renewals.",
+    "Manage asset classes, fleet register, assignments, vehicle returns, and compliance renewals.",
   [normalizeNavPath("/workshop/")]:
     "Manage work orders, service packages, and AMC maintenance schedules.",
   [normalizeNavPath("/inventory/")]:

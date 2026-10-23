@@ -565,6 +565,39 @@ export class WorkshopRepository {
     return { rows, total: Number(totalRow[0]?.total ?? 0) };
   }
 
+  async findOpenWorkOrderIdForVehicle(
+    organizationId: string,
+    vehicleId: string,
+  ): Promise<string | null> {
+    const row = await this.findOpenWorkOrderForVehicle(
+      organizationId,
+      vehicleId,
+    );
+    return row?.id ?? null;
+  }
+
+  async findOpenWorkOrderForVehicle(
+    organizationId: string,
+    vehicleId: string,
+  ): Promise<{ id: string; workOrderNumber: string } | null> {
+    const [row] = await this.db
+      .select({
+        id: workshopWorkOrders.id,
+        workOrderNumber: workshopWorkOrders.workOrderNumber,
+      })
+      .from(workshopWorkOrders)
+      .where(
+        and(
+          eq(workshopWorkOrders.organizationId, organizationId),
+          eq(workshopWorkOrders.vehicleId, vehicleId),
+          inArray(workshopWorkOrders.status, ['open', 'in_progress']),
+        ),
+      )
+      .orderBy(desc(workshopWorkOrders.createdAt))
+      .limit(1);
+    return row ?? null;
+  }
+
   async getWorkOrderInOrg(
     organizationId: string,
     id: string,

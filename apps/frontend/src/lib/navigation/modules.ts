@@ -61,11 +61,6 @@ export const mainNavItems: NavItem[] = [
         icon: RefreshCw,
       },
       {
-        label: "Returns & Inspections",
-        href: "/fleet-leasing/returns-inspections/",
-        icon: ClipboardCheck,
-      },
-      {
         label: "Support",
         href: "/fleet-leasing/support/",
         icon: LifeBuoy,
@@ -101,6 +96,11 @@ export const mainNavItems: NavItem[] = [
       {
         label: "Asset Assignment",
         href: "/asset-register/asset-assign/",
+        icon: ArrowLeftRight,
+      },
+      {
+        label: "Vehicle Returns",
+        href: "/asset-register/vehicle-returns/",
         icon: ArrowLeftRight,
       },
       {

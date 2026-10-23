@@ -1,13 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import {
   showCopiedToClipboardToast,
   showCopyToClipboardErrorToast,
 } from "@/lib/toast/show-toast";
 import { dashboardRowCopyButtonClassName } from "./dashboard-row-icon-button";
-import { DashboardPortaledFlyout } from "./dashboard-portaled-flyout";
 
 type DashboardRowCopyButtonProps = {
   text: string;
@@ -33,18 +31,6 @@ export default function DashboardRowCopyButton({
   text,
   ariaLabel = "Copy row details",
 }: DashboardRowCopyButtonProps) {
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (!copied) return;
-
-    const timeoutId = window.setTimeout(() => {
-      setCopied(false);
-    }, 1500);
-
-    return () => window.clearTimeout(timeoutId);
-  }, [copied]);
-
   if (!text.trim()) {
     return null;
   }
@@ -53,30 +39,15 @@ export default function DashboardRowCopyButton({
     const success = await copyDashboardRowText(text);
 
     if (success) {
-      setCopied(true);
       showCopiedToClipboardToast();
       return;
     }
 
-    setCopied(false);
     showCopyToClipboardErrorToast();
   };
 
   return (
-    <DashboardPortaledFlyout
-      forceOpen={copied}
-      role="status"
-      panelClassName="
-        relative whitespace-nowrap rounded-md border border-orange-100
-        bg-white px-3 py-1.5 text-xs font-semibold text-[#FE5720] shadow-md
-      "
-      content={
-        <>
-          Copied!
-          <span className="absolute left-1/2 top-full -translate-x-1/2 border-[5px] border-transparent border-t-white" />
-        </>
-      }
-    >
+    <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center">
       <button
         type="button"
         onClick={() => void handleCopy()}
@@ -84,8 +55,8 @@ export default function DashboardRowCopyButton({
         title={ariaLabel}
         aria-label={ariaLabel}
       >
-        <Copy className="h-4 w-4" strokeWidth={1.75} />
+        <Copy className="h-4 w-4 shrink-0" strokeWidth={1.75} />
       </button>
-    </DashboardPortaledFlyout>
+    </span>
   );
 }

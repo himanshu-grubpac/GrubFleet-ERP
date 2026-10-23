@@ -233,21 +233,31 @@ export function DashboardRowActionsMenu({
     menuRef,
   });
 
+  const resolvedMenuPosition: FixedMenuPosition | null =
+    menuPosition ??
+    (triggerRef.current
+      ? computeFixedMenuPosition(
+          triggerRef.current.getBoundingClientRect(),
+          DASHBOARD_ROW_MENU_MIN_WIDTH,
+          DASHBOARD_ROW_MENU_MIN_HEIGHT_ESTIMATE,
+        )
+      : null);
+
   const menuPanel = open ? (
     <div
       ref={menuRef}
       role="menu"
       className={cn(
         "fixed z-50 w-40 min-w-[160px] max-h-[calc(100vh-16px)] overflow-y-auto rounded-md border border-gray-200 bg-white py-1 shadow-lg",
-        !menuPosition && "pointer-events-none invisible",
+        !resolvedMenuPosition && "pointer-events-none invisible",
       )}
       style={
-        menuPosition
+        resolvedMenuPosition
           ? {
-            top: menuPosition.top,
-            left: menuPosition.left,
-          }
-          : undefined
+              top: resolvedMenuPosition.top,
+              left: resolvedMenuPosition.left,
+            }
+          : { top: -9999, left: -9999 }
       }
     >
       {children({ close })}

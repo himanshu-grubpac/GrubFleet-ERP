@@ -11,13 +11,25 @@ import { resolveInventoryBreadcrumbs } from "@/lib/navigation/inventory-breadcru
 import { resolveFinanceBreadcrumbs } from "@/lib/navigation/finance-breadcrumb-resolver";
 import { resolveAdministrationBreadcrumbs } from "@/lib/navigation/fleet-breadcrumb-resolver";
 import { resolveWorkshopBreadcrumbs } from "@/lib/navigation/fleet-breadcrumb-resolver";
+import {
+    isFleetLeaseContractEntityPath,
+    useFleetLeaseBreadcrumbContext,
+} from "@/lib/navigation/use-fleet-lease-breadcrumb-label";
 
 export default function ModuleSubHeader() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
+    const fleetLeaseBreadcrumb = useFleetLeaseBreadcrumbContext();
 
     const breadcrumbs = pathname.startsWith("/fleet-leasing")
-        ? resolveFleetBreadcrumbs(pathname, searchParams)
+        ? resolveFleetBreadcrumbs(pathname, searchParams, {
+            leaseContractLabel: isFleetLeaseContractEntityPath(pathname)
+                ? fleetLeaseBreadcrumb.leaseContractLabel
+                : undefined,
+            leaseId: isFleetLeaseContractEntityPath(pathname)
+                ? fleetLeaseBreadcrumb.leaseId
+                : undefined,
+        })
         : pathname.startsWith("/inventory")
             ? resolveInventoryBreadcrumbs(pathname, searchParams)
             : pathname.startsWith("/organisation")
@@ -27,11 +39,16 @@ export default function ModuleSubHeader() {
                     : pathname.startsWith("/administration")
                         ? resolveAdministrationBreadcrumbs(pathname)
                         : pathname.startsWith("/workshop")
-                            ? (
-                                resolveWorkshopBreadcrumbs(pathname).length > 0
-                                    ? resolveWorkshopBreadcrumbs(pathname)
-                                    : resolveBreadcrumbs(pathname, searchParams)
-                            )
+                            ? (() => {
+                                const workshopTrail =
+                                    resolveWorkshopBreadcrumbs(pathname);
+                                return workshopTrail.length > 0
+                                    ? workshopTrail
+                                    : resolveBreadcrumbs(
+                                        pathname,
+                                        searchParams,
+                                    );
+                            })()
                             : resolveBreadcrumbs(pathname, searchParams);
 
     return (
