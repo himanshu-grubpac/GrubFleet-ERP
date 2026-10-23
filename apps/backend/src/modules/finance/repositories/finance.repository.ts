@@ -258,6 +258,23 @@ export class FinanceRepository {
     return { invoice, lines };
   }
 
+  async findInvoiceByFleetReturnInspectionId(
+    organizationId: string,
+    fleetReturnInspectionId: string,
+  ): Promise<InvoiceRow | null> {
+    const [invoice] = await this.db
+      .select()
+      .from(financeInvoices)
+      .where(
+        and(
+          eq(financeInvoices.organizationId, organizationId),
+          eq(financeInvoices.fleetReturnInspectionId, fleetReturnInspectionId),
+        ),
+      )
+      .limit(1);
+    return invoice ?? null;
+  }
+
   async deleteInvoiceHard(
     organizationId: string,
     invoiceId: string,

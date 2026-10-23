@@ -10,7 +10,7 @@ export default function LeaseContractsPage() {
     return (
         <DashboardLayout
             title="Fleet & Leasing"
-            description="Manage lease contracts, renewals, extensions, returns, and inspections."
+            description="Manage lease contracts, renewals, extensions, and fleet leasing support."
         >
             <div className="space-y-6">
                 <section className="rounded-lg border border-gray-200 bg-white p-5">
@@ -26,8 +26,8 @@ export default function LeaseContractsPage() {
 
                             <p className="mt-1 text-sm text-gray-500">
                                 Manage client leases, track contract
-                                renewals, and coordinate asset returns
-                                and inspections from one place.
+                                renewals, and open support workflows
+                                from one place.
                             </p>
                         </div>
                     </div>

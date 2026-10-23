@@ -4,13 +4,15 @@
     "apps/frontend/src/components/modules/assetManagement/assest-assignment/bulk-assign/ReviewStep.tsx:351": "G-ASG: optional bulk-assign notes textarea — maxLength + sanitizeTextValue; no RestrictedInput textarea kind",
     "apps/frontend/src/components/modules/assetManagement/assest-assignment/AssetViewPage.tsx:702": "G-ASG: single-assign notes textarea — same max + sanitizeTextValue as bulk ReviewStep",
     "apps/frontend/src/components/modules/inventory/StockRegister/StockViewPage.tsx:624": "G-INV: deactivate reason textarea — ReasonRequiredDialog pattern deferred; ORGANISATION_DEACTIVATE_REASON_MAX on wire",
-    "apps/frontend/src/components/modules/organization/employees/DeactivateEmployeeModal.tsx:136": "G-ORG-EMP-01: optional deactivate comment — reasonType chips required by API; shared deactivate max + sanitizer"
+    "apps/frontend/src/components/modules/organization/employees/DeactivateEmployeeModal.tsx:136": "G-ORG-EMP-01: optional deactivate comment — reasonType chips required by API; shared deactivate max + sanitizer",
+    "apps/frontend/src/components/modules/assetManagement/vehicle-returns/ReceiveReturnedVehiclePage.tsx:429": "G-FLEET-RET: received-on datetime-local — rule 24 native datetime exception; no RestrictedInput kind without UX change"
   },
   "files": [],
   "lines": [
     "apps/frontend/src/components/modules/assetManagement/assest-assignment/bulk-assign/ReviewStep.tsx:351",
     "apps/frontend/src/components/modules/assetManagement/assest-assignment/AssetViewPage.tsx:702",
     "apps/frontend/src/components/modules/inventory/StockRegister/StockViewPage.tsx:624",
-    "apps/frontend/src/components/modules/organization/employees/DeactivateEmployeeModal.tsx:136"
+    "apps/frontend/src/components/modules/organization/employees/DeactivateEmployeeModal.tsx:136",
+    "apps/frontend/src/components/modules/assetManagement/vehicle-returns/ReceiveReturnedVehiclePage.tsx:429"
   ]
 }

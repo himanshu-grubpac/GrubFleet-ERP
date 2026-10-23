@@ -1776,6 +1776,34 @@ paths:
       responses:
         '410':
           description: Removed — use POST .../terminate
+  /fleet-leasing/lease-contracts/{id}/initiate-returns:
+    post:
+      tags: [fleet-leasing]
+      summary: End lease — initiate vehicle returns (return pending)
+      operationId: initiateLeaseContractReturns
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiateReturnsBody'
+      responses:
+        '200':
+          description: Updated contract detail after returns initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaseContractDetail'
   /fleet-leasing/lease-contracts/{id}/register-return:
     post:
       tags: [fleet-leasing]
@@ -2118,9 +2146,61 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: vehicleStatus
+          in: query
+          description: Filter by linked fleet vehicle lifecycle status (legacy; use pipelineTab when possible)
+          schema:
+            type: string
+            maxLength: 32
+        - name: pipelineTab
+          in: query
+          description: Figma pipeline tab filter (takes precedence over vehicleStatus)
+          schema:
+            type: string
+            enum:
+              - all_open
+              - expected
+              - overdue
+              - to_inspect
+              - in_inspection
+              - workshop
+              - closed
+        - name: includeTabCounts
+          in: query
+          description: When true, includes tabCounts for all pipeline tabs (org-wide, ignores search)
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          description: Case-insensitive match on registration, contract number, or client name
+          schema:
+            type: string
+            maxLength: 120
+        - name: closingReason
+          in: query
+          description: Filter by lease closing reason (Figma “Any reason” dropdown)
+          schema:
+            type: string
+            enum: [completed, terminated_early, cancelled]
+        - name: returnDepotLocationId
+          in: query
+          description: Filter by return depot organisation location id
+          schema:
+            type: string
+            format: uuid
+        - name: returnDepotLabel
+          in: query
+          description: Filter by return depot label when no location id was stored on the contract
+          schema:
+            type: string
+            maxLength: 120
       responses:
         '200':
-          description: Paginated return inspections
+          description: Paginated return inspections; optional tabCounts and depotFilterOptions when includeTabCounts=true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFleetReturnList'
   /fleet-leasing/returns/{id}:
     get:
       tags: [fleet-leasing]
@@ -2136,9 +2216,226 @@ paths:
           schema:
             type: string
             format: uuid
+        - name: previewOdometer
+          in: query
+          required: false
+          description: Gate-in preview — odometer for excess-km context banner (receive screen)
+          schema:
+            type: integer
+            minimum: 0
+        - name: previewConditionAtGlance
+          in: query
+          required: false
+          description: Gate-in preview — condition at glance for damage context banner
+          schema:
+            type: string
+            enum: [looks_fine, visible_damage]
       responses:
         '200':
           description: Inspection detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FleetReturnInspectionDetail'
+  /fleet-leasing/returns/{id}/receive:
+    post:
+      tags: [fleet-leasing]
+      summary: Gate-in — receive returned vehicle at depot
+      operationId: receiveFleetReturn
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReceiveReturnRequest'
+      responses:
+        '200':
+          description: Return inspection after gate-in
+        '400':
+          description: Validation or invalid vehicle state
+  /fleet-leasing/returns/{id}/inspection:
+    patch:
+      tags: [fleet-leasing]
+      summary: Save or complete detailed return inspection (Screen 4)
+      operationId: saveFleetReturnInspection
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveReturnInspectionRequest'
+      responses:
+        '200':
+          description: Inspection detail after save or completion
+        '400':
+          description: Validation, incomplete checklist, or invalid vehicle state
+  /fleet-leasing/returns/{id}/inspection/finalize:
+    patch:
+      tags: [fleet-leasing]
+      summary: Save inspection finalize draft (Screen 4b)
+      operationId: saveFleetReturnInspectionFinalize
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeReturnInspectionRequest'
+      responses:
+        '200':
+          description: Return inspection after finalize draft save
+        '400':
+          description: Invalid inspection state or validation error
+    post:
+      tags: [fleet-leasing]
+      summary: Complete inspection after finalize review (Screen 4b → 5)
+      operationId: completeFleetReturnInspectionFinalize
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizeReturnInspectionRequest'
+      responses:
+        '200':
+          description: Completed inspection with inspectionResult
+        '400':
+          description: Missing disposition, confirm flag, or invalid state
+  /fleet-leasing/returns/{id}/resolve-hold:
+    post:
+      tags: [fleet-leasing]
+      summary: Clear return hold and reopen finalize (on_hold disposition only)
+      operationId: resolveFleetReturnHold
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                resolutionNote:
+                  type: string
+                  maxLength: 500
+      responses:
+        '200':
+          description: Return inspection reopened to ready_to_finalize
+        '400':
+          description: Return is not on hold or invalid state
+  /fleet-leasing/returns/{id}/close-workshop-repair:
+    post:
+      tags: [fleet-leasing]
+      summary: Mark workshop repair complete (LEASE-09c gate before re-inspection)
+      operationId: closeFleetReturnWorkshopRepair
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Return inspection after workshop repair closed
+        '400':
+          description: Invalid vehicle or inspection state
+  /fleet-leasing/returns/{id}/re-inspection/start:
+    post:
+      tags: [fleet-leasing]
+      summary: Start post-workshop re-inspection (Screen 6)
+      operationId: startFleetReturnReInspection
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Return inspection with re-inspection worksheet
+        '400':
+          description: Re-inspection not eligible
+  /fleet-leasing/returns/{id}/re-inspection:
+    patch:
+      tags: [fleet-leasing]
+      summary: Save or complete re-inspection (Screen 6)
+      operationId: saveFleetReturnReInspection
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/OrganizationIdQuery'
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SaveReInspectionRequest'
+      responses:
+        '200':
+          description: Return inspection after save or completion
+        '400':
+          description: Validation or incomplete re-inspection
   /fleet-leasing/clients:
     get:
       tags: [fleet-leasing]
@@ -7270,6 +7567,183 @@ components:
           type: string
           enum: [clerical, material]
           description: Flow 03 edit audit classification (defaults to clerical)
+    InitiateReturnsBody:
+      type: object
+      required:
+        - closingReason
+        - leaseEndDate
+        - vehicleIds
+        - returnMethod
+        - expectedReturnBy
+      properties:
+        closingReason:
+          type: string
+          enum: [completed, terminated_early, cancelled]
+        leaseEndDate:
+          type: string
+          format: date
+        vehicleIds:
+          type: array
+          minItems: 1
+          maxItems: 50
+          items:
+            type: string
+            format: uuid
+        returnMethod:
+          type: string
+          enum: [client_depot, collect_from_site]
+        returnDepotLocationId:
+          type: string
+          format: uuid
+        returnDepotLabel:
+          type: string
+          maxLength: 120
+        expectedReturnBy:
+          type: string
+          format: date
+        notes:
+          type: string
+          maxLength: 2000
+    FleetReturnNextStepPresentation:
+      type: object
+      required: [actionKey, label, variant, enabled]
+      properties:
+        actionKey:
+          type: string
+          enum:
+            - remind_client
+            - receive
+            - start_inspection
+            - continue_inspection
+            - reinspect
+            - view_inspection_result
+            - view_job
+            - resolve_hold
+        label:
+          type: string
+          maxLength: 64
+        variant:
+          type: string
+          enum: [primary, secondary, ghost]
+        enabled:
+          type: boolean
+        reasonDisabled:
+          type: string
+          maxLength: 255
+        workshopJobId:
+          type: string
+          format: uuid
+          nullable: true
+    FleetReturnListItem:
+      type: object
+      required:
+        - id
+        - organizationId
+        - contractId
+        - contractNumber
+        - contractStatus
+        - clientName
+        - vehicleId
+        - registrationNo
+        - fleetCode
+        - vehicleStatus
+        - inspectionStatus
+        - odometerReading
+        - registeredReturn
+        - createdAt
+        - nextSteps
+      properties:
+        id:
+          type: string
+          format: uuid
+        organizationId:
+          type: string
+          format: uuid
+        contractId:
+          type: string
+          format: uuid
+        contractNumber:
+          type: string
+        contractStatus:
+          type: string
+        contractClosingReason:
+          type: string
+          nullable: true
+        contractEndDate:
+          type: string
+          format: date
+          nullable: true
+        expectedReturnDueDate:
+          type: string
+          format: date
+          nullable: true
+        clientName:
+          type: string
+        vehicleId:
+          type: string
+          format: uuid
+        registrationNo:
+          type: string
+        fleetCode:
+          type: string
+        assetClass:
+          type: string
+        vehicleStatus:
+          type: string
+        inspectionStatus:
+          type: string
+          enum: [not_started, in_progress, completed]
+        odometerReading:
+          type: integer
+        registeredReturn:
+          type: boolean
+        receivedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        nextSteps:
+          type: array
+          items:
+            $ref: '#/components/schemas/FleetReturnNextStepPresentation'
+    PaginatedFleetReturnList:
+      type: object
+      required: [items, total, page, pageSize, totalPages]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FleetReturnListItem'
+        total:
+          type: integer
+        page:
+          type: integer
+        pageSize:
+          type: integer
+        totalPages:
+          type: integer
+        tabCounts:
+          type: object
+          additionalProperties:
+            type: integer
+        depotFilterOptions:
+          type: array
+          items:
+            type: object
+            properties:
+              value:
+                type: string
+              label:
+                type: string
+              returnDepotLocationId:
+                type: string
+                format: uuid
+                nullable: true
+              returnDepotLabel:
+                type: string
+                nullable: true
     RegisterReturnBody:
       type: object
       required: [vehicleId, odometerReading, conditionChecklist]
@@ -7289,6 +7763,317 @@ components:
           type: string
           format: uuid
           description: Optional link to fleet_damage_records stub when Asset module not shipped
+    ReceiveReturnRequest:
+      type: object
+      required:
+        - receivedAt
+        - broughtInBy
+        - odometerReading
+        - fuelLevel
+        - keysReceived
+        - documentsChecklist
+        - gatePhotos
+        - conditionAtGlance
+        - inspectImmediately
+      properties:
+        receivedAt:
+          type: string
+          format: date-time
+        receivedByEmployeeId:
+          type: string
+          format: uuid
+        broughtInBy:
+          type: string
+          maxLength: 120
+        odometerReading:
+          type: integer
+          minimum: 0
+          maximum: 9999999
+        fuelLevel:
+          type: string
+          enum: [empty, quarter, half, three_quarter, full]
+        keysReceived:
+          type: integer
+          minimum: 0
+          maximum: 99
+        documentsChecklist:
+          type: object
+          required: [rcBook, insuranceCopy, pucCertificate, goodsPermit]
+          properties:
+            rcBook:
+              type: boolean
+            insuranceCopy:
+              type: boolean
+            pucCertificate:
+              type: boolean
+            goodsPermit:
+              type: boolean
+        gatePhotos:
+          type: array
+          maxItems: 8
+          items:
+            type: object
+            required: [slot, capturedAt]
+            properties:
+              slot:
+                type: string
+                enum: [front, rear, left, right]
+              capturedAt:
+                type: string
+                format: date-time
+              label:
+                type: string
+                maxLength: 64
+        conditionAtGlance:
+          type: string
+          enum: [looks_fine, visible_damage]
+        gateNote:
+          type: string
+          maxLength: 2000
+        inspectImmediately:
+          type: boolean
+    FleetReturnInspectionResultPresentation:
+      type: object
+      description: Screen 5 — post-inspection outcome (persisted on complete; included on GET detail when inspection completed)
+      properties:
+        outcome:
+          type: string
+          enum: [sent_to_workshop, ready_to_lease]
+        generatedAt:
+          type: string
+          format: date-time
+        jobCard:
+          type: object
+          nullable: true
+        recoveryNote:
+          type: object
+          properties:
+            displayNumber:
+              type: string
+            status:
+              type: string
+              enum:
+                - none
+                - waiting_for_finance
+                - unpaid
+                - partially_paid
+                - paid
+                - cancelled
+            financeInvoiceId:
+              type: string
+              format: uuid
+              nullable: true
+            financeInvoiceStatus:
+              type: string
+              enum: [unpaid, partially_paid, paid, cancelled]
+              nullable: true
+            totalMinor:
+              type: integer
+              minimum: 0
+        timeline:
+          type: array
+          items:
+            type: object
+        metrics:
+          type: object
+        statusBanner:
+          type: object
+          nullable: true
+        contractClosingProgress:
+          type: object
+          nullable: true
+          properties:
+            returnedCount:
+              type: integer
+              minimum: 0
+            totalCount:
+              type: integer
+              minimum: 0
+        assignmentPoolBanner:
+          type: object
+          nullable: true
+          properties:
+            contractsWaitingCount:
+              type: integer
+              minimum: 0
+            assetClassName:
+              type: string
+        availableActions:
+          type: array
+          items:
+            type: object
+    FleetReturnContextBanner:
+      type: object
+      description: Context banner for receive gate-in preview (GET detail with preview query params)
+      required: [level, message]
+      properties:
+        level:
+          type: string
+          enum: [info, warning]
+        message:
+          type: string
+    FleetReturnFlowGuards:
+      type: object
+      description: Flow guard messages for inspect / result / re-inspect screens
+      properties:
+        inspectWorksheetView:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/FleetReturnContextBanner'
+        inspectResultView:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/FleetReturnContextBanner'
+        reInspectView:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/FleetReturnContextBanner'
+    FleetReturnInspectionDetail:
+      type: object
+      description: Return inspection detail (GET /fleet-leasing/returns/{id})
+      properties:
+        assetRegisterVehicleId:
+          type: string
+          format: uuid
+          nullable: true
+        assetClassId:
+          type: string
+          format: uuid
+          nullable: true
+        financeRecoveryInvoiceId:
+          type: string
+          format: uuid
+          nullable: true
+          description: Billing invoice created when inspection completes with client recovery charges
+        contextBanners:
+          type: array
+          description: Live gate-in context banners (damage, excess km); empty after receive
+          items:
+            $ref: '#/components/schemas/FleetReturnContextBanner'
+        flowGuards:
+          $ref: '#/components/schemas/FleetReturnFlowGuards'
+        inspectionResult:
+          $ref: '#/components/schemas/FleetReturnInspectionResultPresentation'
+    SaveReturnInspectionRequest:
+      type: object
+      required: [currentSectionIndex, sections]
+      properties:
+        currentSectionIndex:
+          type: integer
+          minimum: 0
+          maximum: 9
+        complete:
+          type: boolean
+          description: When true, validates full checklist and sets inspection status to ready_to_finalize
+        sections:
+          type: object
+          additionalProperties:
+            type: object
+            additionalProperties:
+              type: object
+              required: [rating]
+              properties:
+                rating:
+                  type: string
+                  enum: [unchecked, pass, minor, major]
+                note:
+                  type: string
+                  maxLength: 500
+                attribution:
+                  type: string
+                  enum: [client_damage, wear_tear, pre_existing, missing]
+                repairCostMinor:
+                  type: integer
+                  minimum: 0
+                  maximum: 999999999
+                photoCount:
+                  type: integer
+                  minimum: 0
+                  maximum: 20
+    FinalizeReturnInspectionRequest:
+      type: object
+      properties:
+        disposition:
+          type: string
+          enum: [ready_to_lease, send_to_workshop, on_hold, retire]
+        issueCharges:
+          type: array
+          maxItems: 200
+          items:
+            type: object
+            required: [sectionId, itemKey, chargeClient]
+            properties:
+              sectionId:
+                type: string
+              itemKey:
+                type: string
+                maxLength: 64
+              chargeClient:
+                type: boolean
+        waiveAllRecovery:
+          type: boolean
+        inspectorConfirmed:
+          type: boolean
+        wearAndTearNote:
+          type: string
+          maxLength: 2000
+        workshopPriority:
+          type: string
+          enum: [normal, high, urgent]
+        workshopTargetDate:
+          type: string
+          pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+        complete:
+          type: boolean
+          description: PATCH only — when true, same as POST complete (prefer POST)
+    SaveReInspectionRequest:
+      type: object
+      required: [items, poolChecklist, odometerAfterRoadTest]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [itemKey, sectionId, rating]
+            properties:
+              itemKey:
+                type: string
+                maxLength: 128
+              sectionId:
+                type: string
+              rating:
+                type: string
+                enum: [pass, minor, major]
+        poolChecklist:
+          type: object
+          required:
+            - roadTestDone
+            - washedCleaned
+            - fuelLevelChecked
+            - insuranceValidAck
+            - pucValidAck
+          properties:
+            roadTestDone:
+              type: boolean
+            washedCleaned:
+              type: boolean
+            fuelLevelChecked:
+              type: boolean
+            insuranceValidAck:
+              type: boolean
+            pucValidAck:
+              type: boolean
+        odometerAfterRoadTest:
+          type: integer
+          minimum: 1
+        selectedOutcome:
+          type: string
+          enum: [ready_to_lease, back_to_workshop]
+        workshopActualCostMinor:
+          type: integer
+          minimum: 0
+        complete:
+          type: boolean
     CreateVehicleAllocationBody:
       type: object
       required: [vehicleId, notifiedStakeholders]

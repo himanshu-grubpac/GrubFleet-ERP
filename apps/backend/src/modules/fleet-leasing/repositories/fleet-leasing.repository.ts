@@ -36,12 +36,14 @@ import {
   assetRegisterAssetClasses,
   assetRegisterVehicleAssignments,
   assetRegisterVehicles,
+  workshopWorkOrders,
 } from '../../../database/schema';
 import {
   ALLOCATION_ELIGIBLE_CONTRACT_STATUSES,
   ASSET_POOL_COMMITMENT_CONTRACT_STATUSES,
   type LeaseContractStatus,
 } from '../constants/lease-contract-status';
+import { assetRegisterFleetVehicleMatchSql } from '../utils/fleet-asset-register-vehicle-link.util';
 import {
   FLEET_RETURN_LIST_DEFAULT_SORT,
   type FleetReturnListSortField,
@@ -58,6 +60,44 @@ import {
   buildListOrderBy,
   type ResolvedListSort,
 } from '../../../common/utils/list-sort.util';
+import {
+  FLEET_RETURN_LIST_PIPELINE_TABS,
+  type FleetReturnListPipelineTab,
+  type FleetReturnListTabCounts,
+} from '../constants/fleet-return-list-pipeline.constants';
+
+const FLEET_RETURN_TERMINAL_VEHICLE_STATUSES = [
+  'available',
+  'sold',
+  'retired',
+] as const;
+
+const fleetReturnDueAt = sql`coalesce(${leaseContracts.expectedReturnBy}, ${leaseContracts.endDate})`;
+
+const fleetReturnStartOfUtcDay = sql`date_trunc('day', (now() at time zone 'UTC'))`;
+
+function fleetReturnPipelineTabCondition(tab: FleetReturnListPipelineTab) {
+  switch (tab) {
+    case 'all_open':
+      return notInArray(fleetVehicles.status, [
+        ...FLEET_RETURN_TERMINAL_VEHICLE_STATUSES,
+      ]);
+    case 'expected':
+      return sql`${fleetVehicles.status} = 'return_pending' and ${fleetReturnDueAt} >= ${fleetReturnStartOfUtcDay}`;
+    case 'overdue':
+      return sql`${fleetVehicles.status} = 'return_pending' and ${fleetReturnDueAt} < ${fleetReturnStartOfUtcDay}`;
+    case 'to_inspect':
+      return sql`${fleetVehicles.status} = 'returned' and ${fleetReturnInspections.inspectionStatus} = 'not_started'`;
+    case 'in_inspection':
+      return sql`${fleetVehicles.status} = 'returned' and ${fleetReturnInspections.inspectionStatus} in ('in_progress', 'ready_to_finalize')`;
+    case 'workshop':
+      return eq(fleetVehicles.status, 'workshop');
+    case 'closed':
+      return eq(fleetVehicles.status, 'available');
+    default:
+      return sql`true`;
+  }
+}
 
 const LEASE_CONTRACT_LIST_SORT_COLUMNS: Record<
   LeaseContractListSortField,
@@ -335,6 +375,23 @@ export class FleetLeasingRepository {
       .select({ vehicleId: leaseContractVehicles.vehicleId })
       .from(leaseContractVehicles)
       .where(eq(leaseContractVehicles.contractId, contractId));
+    return rows.map((r) => r.vehicleId);
+  }
+
+  /** Handed-over vehicles on contract (fleet_vehicle_allocations — matches end-lease UI). */
+  async listContractAllocationVehicleIds(
+    organizationId: string,
+    contractId: string,
+  ): Promise<string[]> {
+    const rows = await this.db
+      .select({ vehicleId: fleetVehicleAllocations.vehicleId })
+      .from(fleetVehicleAllocations)
+      .where(
+        and(
+          eq(fleetVehicleAllocations.organizationId, organizationId),
+          eq(fleetVehicleAllocations.contractId, contractId),
+        ),
+      );
     return rows.map((r) => r.vehicleId);
   }
 
@@ -1409,11 +1466,22 @@ export class FleetLeasingRepository {
 
   async updateVehicleStatus(
     vehicleId: string,
-    status: 'available' | 'leased' | 'returned',
+    status: 'available' | 'leased' | 'return_pending' | 'returned',
   ) {
     await this.db
       .update(fleetVehicles)
       .set({ status, updatedAt: new Date() })
+      .where(eq(fleetVehicles.id, vehicleId));
+  }
+
+  async updateVehicleOdometerAndStatus(
+    vehicleId: string,
+    odometer: number,
+    status: 'returned',
+  ) {
+    await this.db
+      .update(fleetVehicles)
+      .set({ odometer, status, updatedAt: new Date() })
       .where(eq(fleetVehicles.id, vehicleId));
   }
 
@@ -1432,7 +1500,10 @@ export class FleetLeasingRepository {
           odometerReading: values.odometerReading,
           conditionChecklist: values.conditionChecklist,
           damageRecordId: values.damageRecordId ?? null,
-          registeredReturn: true,
+          registeredReturn: values.registeredReturn,
+          handoverOdometer: values.handoverOdometer ?? undefined,
+          keysHandedOver: values.keysHandedOver ?? undefined,
+          leaseKmAllowance: values.leaseKmAllowance ?? undefined,
         },
       })
       .returning();
@@ -1681,8 +1752,16 @@ export class FleetLeasingRepository {
           allocation: fleetVehicleAllocations,
           contractNumber: leaseContracts.contractNumber,
           registrationNo: fleetVehicles.registrationNo,
+          assetRegisterFleetCode: sql<string | null>`(
+            SELECT ${assetRegisterVehicles.fleetCode}
+            FROM ${assetRegisterVehicles}
+            WHERE ${assetRegisterVehicles.organizationId} = ${fleetVehicleAllocations.organizationId}
+              AND lower(trim(${assetRegisterVehicles.registrationNumber})) = lower(trim(${fleetVehicles.registrationNo}))
+            LIMIT 1
+          )`,
           vehicleStatus: fleetVehicles.status,
           assetClass: fleetVehicles.assetClass,
+          odometer: fleetVehicles.odometer,
         })
         .from(fleetVehicleAllocations)
         .innerJoin(
@@ -1720,8 +1799,16 @@ export class FleetLeasingRepository {
         allocation: fleetVehicleAllocations,
         contractNumber: leaseContracts.contractNumber,
         registrationNo: fleetVehicles.registrationNo,
+        assetRegisterFleetCode: sql<string | null>`(
+          SELECT ${assetRegisterVehicles.fleetCode}
+          FROM ${assetRegisterVehicles}
+          WHERE ${assetRegisterVehicles.organizationId} = ${fleetVehicleAllocations.organizationId}
+            AND lower(trim(${assetRegisterVehicles.registrationNumber})) = lower(trim(${fleetVehicles.registrationNo}))
+          LIMIT 1
+        )`,
         vehicleStatus: fleetVehicles.status,
         assetClass: fleetVehicles.assetClass,
+        odometer: fleetVehicles.odometer,
       })
       .from(fleetVehicleAllocations)
       .innerJoin(
@@ -1773,28 +1860,297 @@ export class FleetLeasingRepository {
       .offset(offset);
   }
 
-  async listReturnInspections(params: {
+  private buildFleetReturnListConditions(params: {
     organizationId: string;
-    page: number;
-    pageSize: number;
     contractId?: string;
-    sort?: ResolvedListSort<FleetReturnListSortField>;
+    vehicleStatus?: string;
+    pipelineTab?: FleetReturnListPipelineTab;
+    search?: string;
+    closingReason?: string;
+    returnDepotLocationId?: string;
+    returnDepotLabel?: string;
   }) {
-    const { organizationId, page, pageSize, contractId, sort } = params;
-    const offset = (page - 1) * pageSize;
+    const {
+      organizationId,
+      contractId,
+      vehicleStatus,
+      pipelineTab,
+      search,
+      closingReason,
+      returnDepotLocationId,
+      returnDepotLabel,
+    } = params;
     const conditions = [
       eq(fleetReturnInspections.organizationId, organizationId),
     ];
     if (contractId) {
       conditions.push(eq(fleetReturnInspections.contractId, contractId));
     }
-    const where = and(...conditions);
+    // Closing reason filter is org-wide; pipeline tabs slice by vehicle stage only.
+    // When both are sent, apply AND — but callers should omit pipelineTab for reason-only views.
+    if (pipelineTab) {
+      conditions.push(fleetReturnPipelineTabCondition(pipelineTab));
+    } else if (vehicleStatus) {
+      conditions.push(
+        eq(
+          fleetVehicles.status,
+          vehicleStatus as (typeof fleetVehicles.$inferSelect)['status'],
+        ),
+      );
+    }
+    if (closingReason) {
+      conditions.push(eq(leaseContracts.closingReason, closingReason));
+    }
+    if (returnDepotLocationId) {
+      conditions.push(
+        eq(leaseContracts.returnDepotLocationId, returnDepotLocationId),
+      );
+    } else if (returnDepotLabel?.trim()) {
+      conditions.push(
+        eq(leaseContracts.returnDepotLabel, returnDepotLabel.trim()),
+      );
+    }
+    if (search?.trim()) {
+      const pattern = `%${search.trim()}%`;
+      conditions.push(
+        sql`(
+          ${fleetVehicles.registrationNo} ilike ${pattern}
+          or ${leaseContracts.contractNumber} ilike ${pattern}
+          or coalesce(${organisationClients.name}, ${fleetClients.companyName}) ilike ${pattern}
+        )`,
+      );
+    }
+    return and(...conditions);
+  }
+
+  async listReturnDepotFilterOptions(organizationId: string) {
+    const rows = await this.db
+      .selectDistinct({
+        returnDepotLocationId: leaseContracts.returnDepotLocationId,
+        returnDepotLabel: leaseContracts.returnDepotLabel,
+      })
+      .from(fleetReturnInspections)
+      .innerJoin(
+        leaseContracts,
+        eq(fleetReturnInspections.contractId, leaseContracts.id),
+      )
+      .where(
+        and(
+          eq(fleetReturnInspections.organizationId, organizationId),
+          sql`(
+            ${leaseContracts.returnDepotLocationId} is not null
+            or nullif(trim(${leaseContracts.returnDepotLabel}), '') is not null
+          )`,
+        ),
+      )
+      .orderBy(leaseContracts.returnDepotLabel);
+    const seen = new Set<string>();
+    const options: Array<{
+      value: string;
+      label: string;
+      returnDepotLocationId: string | null;
+      returnDepotLabel: string | null;
+    }> = [];
+    for (const row of rows) {
+      const label =
+        row.returnDepotLabel?.trim() ||
+        (row.returnDepotLocationId ? 'Depot location' : '');
+      if (!label && !row.returnDepotLocationId) continue;
+      const value = row.returnDepotLocationId
+        ? `loc:${row.returnDepotLocationId}`
+        : `lbl:${row.returnDepotLabel?.trim() ?? ''}`;
+      if (seen.has(value)) continue;
+      seen.add(value);
+      options.push({
+        value,
+        label: label || 'Depot',
+        returnDepotLocationId: row.returnDepotLocationId,
+        returnDepotLabel: row.returnDepotLabel?.trim() ?? null,
+      });
+    }
+    return options;
+  }
+
+  async countReturnInspectionPipelineTabs(params: {
+    organizationId: string;
+    contractId?: string;
+    search?: string;
+    closingReason?: string;
+    returnDepotLocationId?: string;
+    returnDepotLabel?: string;
+  }): Promise<FleetReturnListTabCounts> {
+    const {
+      organizationId,
+      contractId,
+      search,
+      closingReason,
+      returnDepotLocationId,
+      returnDepotLabel,
+    } = params;
+    const baseConditions = this.buildFleetReturnListConditions({
+      organizationId,
+      contractId,
+      search,
+      closingReason,
+      returnDepotLocationId,
+      returnDepotLabel,
+    });
+    const tabCountSelect = Object.fromEntries(
+      FLEET_RETURN_LIST_PIPELINE_TABS.map((tab) => [
+        tab,
+        sql<number>`coalesce(sum(case when ${fleetReturnPipelineTabCondition(tab)} then 1 else 0 end), 0)::int`,
+      ]),
+    ) as Record<FleetReturnListPipelineTab, ReturnType<typeof sql<number>>>;
+    const [row] = await this.db
+      .select(tabCountSelect)
+      .from(fleetReturnInspections)
+      .innerJoin(
+        leaseContracts,
+        eq(fleetReturnInspections.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
+      )
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(baseConditions);
+    const tabCounts = {} as FleetReturnListTabCounts;
+    for (const tab of FLEET_RETURN_LIST_PIPELINE_TABS) {
+      tabCounts[tab] = row?.[tab] ?? 0;
+    }
+    return tabCounts;
+  }
+
+  async countReturnReleasedThisMonth(params: {
+    organizationId: string;
+    contractId?: string;
+  }): Promise<number> {
+    const { organizationId, contractId } = params;
+    const baseConditions = this.buildFleetReturnListConditions({
+      organizationId,
+      contractId,
+    });
+    const monthStartUtc = sql`date_trunc('month', (now() at time zone 'UTC'))`;
+    const releasedAt = sql`coalesce(${fleetReturnInspections.reInspectionCompletedAt}, ${fleetReturnInspections.inspectionCompletedAt})`;
+    const [row] = await this.db
+      .select({
+        count: sql<number>`count(*)::int`,
+      })
+      .from(fleetReturnInspections)
+      .innerJoin(
+        leaseContracts,
+        eq(fleetReturnInspections.contractId, leaseContracts.id),
+      )
+      .innerJoin(
+        fleetVehicles,
+        eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
+      )
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
+      .where(
+        and(
+          baseConditions,
+          eq(fleetVehicles.status, 'available'),
+          sql`${releasedAt} >= ${monthStartUtc}`,
+        ),
+      );
+    return row?.count ?? 0;
+  }
+
+  async listReturnInspections(params: {
+    organizationId: string;
+    page: number;
+    pageSize: number;
+    contractId?: string;
+    vehicleStatus?: string;
+    pipelineTab?: FleetReturnListPipelineTab;
+    search?: string;
+    closingReason?: string;
+    returnDepotLocationId?: string;
+    returnDepotLabel?: string;
+    sort?: ResolvedListSort<FleetReturnListSortField>;
+  }) {
+    const {
+      organizationId,
+      page,
+      pageSize,
+      contractId,
+      vehicleStatus,
+      pipelineTab,
+      search,
+      closingReason,
+      returnDepotLocationId,
+      returnDepotLabel,
+      sort,
+    } = params;
+    const offset = (page - 1) * pageSize;
+    const where = this.buildFleetReturnListConditions({
+      organizationId,
+      contractId,
+      vehicleStatus,
+      pipelineTab,
+      search,
+      closingReason,
+      returnDepotLocationId,
+      returnDepotLabel,
+    });
     const [rows, countRows] = await Promise.all([
       this.db
         .select({
           inspection: fleetReturnInspections,
           contractNumber: leaseContracts.contractNumber,
+          contractStatus: leaseContracts.status,
+          contractEndDate: leaseContracts.endDate,
+          contractExpectedReturnBy: leaseContracts.expectedReturnBy,
+          contractClosingReason: leaseContracts.closingReason,
           registrationNo: fleetVehicles.registrationNo,
+          assetRegisterFleetCode: sql<string | null>`(
+            SELECT ${assetRegisterVehicles.fleetCode}
+            FROM ${assetRegisterVehicles}
+            WHERE ${assetRegisterVehicles.organizationId} = ${fleetReturnInspections.organizationId}
+              AND lower(trim(${assetRegisterVehicles.registrationNumber})) = lower(trim(${fleetVehicles.registrationNo}))
+            LIMIT 1
+          )`,
+          workshopJobId: sql<string | null>`(
+            SELECT ${workshopWorkOrders.id}::text
+            FROM ${workshopWorkOrders}
+            INNER JOIN ${assetRegisterVehicles} ON ${workshopWorkOrders.vehicleId} = ${assetRegisterVehicles.id}
+            WHERE ${assetRegisterVehicles.organizationId} = ${fleetReturnInspections.organizationId}
+              AND lower(trim(${assetRegisterVehicles.registrationNumber})) = lower(trim(${fleetVehicles.registrationNo}))
+              AND ${workshopWorkOrders.organizationId} = ${fleetReturnInspections.organizationId}
+              AND ${workshopWorkOrders.status} NOT IN ('closed', 'cancelled')
+            ORDER BY ${workshopWorkOrders.createdAt} DESC
+            LIMIT 1
+          )`,
+          workshopExpectedCompletionDate: sql<string | null>`(
+            SELECT ${workshopWorkOrders.expectedCompletionDate}::text
+            FROM ${workshopWorkOrders}
+            INNER JOIN ${assetRegisterVehicles} ON ${workshopWorkOrders.vehicleId} = ${assetRegisterVehicles.id}
+            WHERE ${assetRegisterVehicles.organizationId} = ${fleetReturnInspections.organizationId}
+              AND lower(trim(${assetRegisterVehicles.registrationNumber})) = lower(trim(${fleetVehicles.registrationNo}))
+              AND ${workshopWorkOrders.organizationId} = ${fleetReturnInspections.organizationId}
+              AND ${workshopWorkOrders.status} NOT IN ('closed', 'cancelled')
+            ORDER BY ${workshopWorkOrders.createdAt} DESC
+            LIMIT 1
+          )`,
+          inspectorDisplayName: sql<string | null>`(
+            SELECT ${users.fullName}
+            FROM ${users}
+            WHERE ${users.id} = ${fleetReturnInspections.inspectedByUserId}
+            LIMIT 1
+          )`,
+          vehicleStatus: fleetVehicles.status,
+          assetClass: fleetVehicles.assetClass,
+          clientName: sql<
+            string | null
+          >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
         })
         .from(fleetReturnInspections)
         .innerJoin(
@@ -1805,8 +2161,15 @@ export class FleetLeasingRepository {
           fleetVehicles,
           eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
         )
+        .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+        .leftJoin(
+          organisationClients,
+          eq(fleetClients.organisationClientId, organisationClients.id),
+        )
         .where(where)
         .orderBy(
+          sql`case when ${fleetVehicles.status} = 'return_pending' and ${fleetReturnDueAt} < ${fleetReturnStartOfUtcDay} then 0 else 1 end`,
+          sql`case when ${fleetVehicles.status} = 'return_pending' and ${fleetReturnDueAt} < ${fleetReturnStartOfUtcDay} then ${fleetReturnDueAt} end asc nulls last`,
           ...buildListOrderBy(
             FLEET_RETURN_LIST_SORT_COLUMNS,
             sort ?? FLEET_RETURN_LIST_DEFAULT_SORT,
@@ -1818,6 +2181,19 @@ export class FleetLeasingRepository {
       this.db
         .select({ count: sql<number>`count(*)::int` })
         .from(fleetReturnInspections)
+        .innerJoin(
+          leaseContracts,
+          eq(fleetReturnInspections.contractId, leaseContracts.id),
+        )
+        .innerJoin(
+          fleetVehicles,
+          eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
+        )
+        .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+        .leftJoin(
+          organisationClients,
+          eq(fleetClients.organisationClientId, organisationClients.id),
+        )
         .where(where),
     ]);
     return { rows, total: countRows[0]?.count ?? 0 };
@@ -1831,8 +2207,79 @@ export class FleetLeasingRepository {
       .select({
         inspection: fleetReturnInspections,
         contractNumber: leaseContracts.contractNumber,
+        contractStatus: leaseContracts.status,
+        contractClosingReason: leaseContracts.closingReason,
+        contractExpectedReturnBy: leaseContracts.expectedReturnBy,
+        contractReturnDepotLabel: leaseContracts.returnDepotLabel,
+        contractEndDate: leaseContracts.endDate,
+        clientName: sql<
+          string | null
+        >`coalesce(${organisationClients.name}, ${fleetClients.companyName})`,
+        organisationClientId: fleetClients.organisationClientId,
+        contractId: fleetReturnInspections.contractId,
         registrationNo: fleetVehicles.registrationNo,
+        assetRegisterFleetCode: sql<string | null>`(
+          SELECT ${assetRegisterVehicles.fleetCode}
+          FROM ${assetRegisterVehicles}
+          WHERE ${assetRegisterFleetVehicleMatchSql(
+            fleetReturnInspections.organizationId,
+            fleetVehicles.registrationNo,
+            fleetVehicles.vin,
+          )}
+          LIMIT 1
+        )`,
         assetClass: fleetVehicles.assetClass,
+        assetRegisterVehicleId: sql<string | null>`(
+          SELECT ${assetRegisterVehicles.id}::text
+          FROM ${assetRegisterVehicles}
+          WHERE ${assetRegisterFleetVehicleMatchSql(
+            fleetReturnInspections.organizationId,
+            fleetVehicles.registrationNo,
+            fleetVehicles.vin,
+          )}
+          LIMIT 1
+        )`,
+        assetClassId: sql<string | null>`(
+          SELECT ${assetRegisterVehicles.assetClassId}::text
+          FROM ${assetRegisterVehicles}
+          WHERE ${assetRegisterFleetVehicleMatchSql(
+            fleetReturnInspections.organizationId,
+            fleetVehicles.registrationNo,
+            fleetVehicles.vin,
+          )}
+          LIMIT 1
+        )`,
+        vehicleStatus: fleetVehicles.status,
+        vehicleOdometer: fleetVehicles.odometer,
+        vehicleVin: fleetVehicles.vin,
+        workshopJobId: sql<string | null>`(
+          SELECT ${workshopWorkOrders.id}::text
+          FROM ${workshopWorkOrders}
+          INNER JOIN ${assetRegisterVehicles} ON ${workshopWorkOrders.vehicleId} = ${assetRegisterVehicles.id}
+          WHERE ${assetRegisterFleetVehicleMatchSql(
+            fleetReturnInspections.organizationId,
+            fleetVehicles.registrationNo,
+            fleetVehicles.vin,
+          )}
+            AND ${workshopWorkOrders.organizationId} = ${fleetReturnInspections.organizationId}
+            AND ${workshopWorkOrders.status} NOT IN ('closed', 'cancelled')
+          ORDER BY ${workshopWorkOrders.createdAt} DESC
+          LIMIT 1
+        )`,
+        workshopWorkOrderNumber: sql<string | null>`(
+          SELECT ${workshopWorkOrders.workOrderNumber}
+          FROM ${workshopWorkOrders}
+          INNER JOIN ${assetRegisterVehicles} ON ${workshopWorkOrders.vehicleId} = ${assetRegisterVehicles.id}
+          WHERE ${assetRegisterFleetVehicleMatchSql(
+            fleetReturnInspections.organizationId,
+            fleetVehicles.registrationNo,
+            fleetVehicles.vin,
+          )}
+            AND ${workshopWorkOrders.organizationId} = ${fleetReturnInspections.organizationId}
+            AND ${workshopWorkOrders.status} NOT IN ('closed', 'cancelled')
+          ORDER BY ${workshopWorkOrders.createdAt} DESC
+          LIMIT 1
+        )`,
       })
       .from(fleetReturnInspections)
       .innerJoin(
@@ -1843,6 +2290,11 @@ export class FleetLeasingRepository {
         fleetVehicles,
         eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
       )
+      .leftJoin(fleetClients, eq(leaseContracts.clientId, fleetClients.id))
+      .leftJoin(
+        organisationClients,
+        eq(fleetClients.organisationClientId, organisationClients.id),
+      )
       .where(
         and(
           eq(fleetReturnInspections.id, inspectionId),
@@ -1851,6 +2303,403 @@ export class FleetLeasingRepository {
       )
       .limit(1);
     return row ?? null;
+  }
+
+  /** Resolve asset register vehicle when list/detail subquery missed (fleet code hint, VIN). */
+  async findAssetRegisterVehicleByFleetIdentity(params: {
+    organizationId: string;
+    registrationNo: string;
+    vin: string | null | undefined;
+    fleetCodeHint?: string | null;
+  }): Promise<{
+    id: string;
+    assetClassId: string;
+    fleetCode: string;
+  } | null> {
+    const registrationNo = params.registrationNo.trim();
+    if (!registrationNo) return null;
+    const vin = params.vin?.trim() ?? '';
+    const fleetCodeHint = params.fleetCodeHint?.trim() ?? '';
+    const fleetCodeHintMatch =
+      fleetCodeHint.length > 0 &&
+      fleetCodeHint.toLowerCase() !== registrationNo.toLowerCase()
+        ? sql`OR lower(trim(${assetRegisterVehicles.fleetCode})) = lower(trim(${fleetCodeHint}))`
+        : sql``;
+
+    const [found] = await this.db
+      .select({
+        id: assetRegisterVehicles.id,
+        assetClassId: assetRegisterVehicles.assetClassId,
+        fleetCode: assetRegisterVehicles.fleetCode,
+      })
+      .from(assetRegisterVehicles)
+      .where(
+        and(
+          eq(assetRegisterVehicles.organizationId, params.organizationId),
+          sql`(
+            lower(trim(${assetRegisterVehicles.registrationNumber})) = lower(trim(${registrationNo}))
+            OR regexp_replace(lower(trim(${assetRegisterVehicles.registrationNumber})), E'\\s+', '', 'g')
+              = regexp_replace(lower(trim(${registrationNo})), E'\\s+', '', 'g')
+            OR lower(trim(${assetRegisterVehicles.fleetCode})) = lower(trim(${registrationNo}))
+            OR (
+              length(trim(${vin})) > 0
+              AND lower(trim(${assetRegisterVehicles.chassisNumber})) = lower(trim(${vin}))
+            )
+            ${fleetCodeHintMatch}
+          )`,
+        ),
+      )
+      .limit(1);
+    if (!found) return null;
+    return {
+      id: found.id,
+      assetClassId: found.assetClassId,
+      fleetCode: found.fleetCode,
+    };
+  }
+
+  /** Open return inspection linked to a lease-return work order (by vehicle + job id). */
+  async findReturnInspectionIdForLeaseReturnWorkOrder(
+    organizationId: string,
+    workOrderId: string,
+  ): Promise<string | null> {
+    const [row] = await this.db
+      .select({ id: fleetReturnInspections.id })
+      .from(fleetReturnInspections)
+      .innerJoin(
+        fleetVehicles,
+        eq(fleetReturnInspections.vehicleId, fleetVehicles.id),
+      )
+      .innerJoin(
+        workshopWorkOrders,
+        and(
+          eq(workshopWorkOrders.id, workOrderId),
+          eq(workshopWorkOrders.organizationId, organizationId),
+          eq(workshopWorkOrders.workOrderSource, 'lease_return'),
+        ),
+      )
+      .innerJoin(
+        assetRegisterVehicles,
+        and(
+          eq(workshopWorkOrders.vehicleId, assetRegisterVehicles.id),
+          eq(assetRegisterVehicles.organizationId, organizationId),
+          sql`lower(trim(${assetRegisterVehicles.registrationNumber})) = lower(trim(${fleetVehicles.registrationNo}))`,
+        ),
+      )
+      .where(
+        and(
+          eq(fleetReturnInspections.organizationId, organizationId),
+          isNull(fleetReturnInspections.workshopRepairClosedAt),
+          eq(fleetReturnInspections.inspectionStatus, 'completed'),
+          sql`coalesce(${fleetReturnInspections.inspectionResult}->'jobCard'->>'workshopJobId', '') = ${workOrderId}`,
+        ),
+      )
+      .orderBy(desc(fleetReturnInspections.inspectionCompletedAt))
+      .limit(1);
+    return row?.id ?? null;
+  }
+
+  async saveReturnInspectionWorksheet(params: {
+    inspectionId: string;
+    organizationId: string;
+    worksheet: unknown;
+    summary: unknown;
+    inspectionStatus: 'in_progress' | 'ready_to_finalize';
+    lastSavedAt: Date;
+  }) {
+    const { inspectionId, organizationId, worksheet, summary, lastSavedAt } =
+      params;
+    await this.db
+      .update(fleetReturnInspections)
+      .set({
+        inspectionWorksheet: worksheet,
+        inspectionSummary: summary,
+        inspectionStatus: params.inspectionStatus,
+        inspectionLastSavedAt: lastSavedAt,
+      })
+      .where(
+        and(
+          eq(fleetReturnInspections.id, inspectionId),
+          eq(fleetReturnInspections.organizationId, organizationId),
+        ),
+      );
+  }
+
+  async saveReturnInspectionFinalizeDraft(params: {
+    inspectionId: string;
+    organizationId: string;
+    finalizeDraft: unknown;
+    lastSavedAt: Date;
+  }) {
+    const { inspectionId, organizationId, finalizeDraft, lastSavedAt } = params;
+    await this.db
+      .update(fleetReturnInspections)
+      .set({
+        inspectionFinalizeDraft: finalizeDraft,
+        inspectionLastSavedAt: lastSavedAt,
+      })
+      .where(
+        and(
+          eq(fleetReturnInspections.id, inspectionId),
+          eq(fleetReturnInspections.organizationId, organizationId),
+        ),
+      );
+  }
+
+  async completeReturnInspection(params: {
+    inspectionId: string;
+    organizationId: string;
+    vehicleId: string;
+    worksheet: unknown;
+    summary: unknown;
+    inspectionResult: unknown;
+    finalizeDraft: unknown;
+    inspectedByUserId: string;
+    completedAt: Date;
+    vehicleStatus: 'workshop' | 'available' | 'returned' | 'retired';
+    financeRecoveryInvoiceId?: string | null;
+    tx?: AppDatabase;
+  }) {
+    const {
+      inspectionId,
+      organizationId,
+      vehicleId,
+      worksheet,
+      summary,
+      inspectionResult,
+      finalizeDraft,
+      inspectedByUserId,
+      completedAt,
+      vehicleStatus,
+      financeRecoveryInvoiceId,
+      tx: externalTx,
+    } = params;
+
+    const run = async (tx: AppDatabase) => {
+      const [updated] = await tx
+        .update(fleetReturnInspections)
+        .set({
+          inspectionWorksheet: worksheet,
+          inspectionSummary: summary,
+          inspectionResult,
+          inspectionFinalizeDraft: finalizeDraft,
+          inspectionStatus: 'completed',
+          inspectionCompletedAt: completedAt,
+          inspectedByUserId,
+          inspectionLastSavedAt: completedAt,
+          ...(financeRecoveryInvoiceId !== undefined
+            ? { financeRecoveryInvoiceId }
+            : {}),
+        })
+        .where(
+          and(
+            eq(fleetReturnInspections.id, inspectionId),
+            eq(fleetReturnInspections.organizationId, organizationId),
+          ),
+        )
+        .returning({ id: fleetReturnInspections.id });
+      if (!updated) return;
+      await tx
+        .update(fleetVehicles)
+        .set({ status: vehicleStatus, updatedAt: new Date() })
+        .where(eq(fleetVehicles.id, vehicleId));
+    };
+
+    if (externalTx) {
+      await run(externalTx);
+    } else {
+      await this.db.transaction(run);
+    }
+  }
+
+  /**
+   * Clears on_hold completion — reopens Screen 4b finalize without undoing gate-in or worksheet.
+   */
+  async reopenReturnInspectionAfterHoldResolved(params: {
+    inspectionId: string;
+    organizationId: string;
+    finalizeDraft: unknown;
+    reopenedAt: Date;
+  }) {
+    const { inspectionId, organizationId, finalizeDraft, reopenedAt } = params;
+    await this.db
+      .update(fleetReturnInspections)
+      .set({
+        inspectionStatus: 'ready_to_finalize',
+        inspectionCompletedAt: null,
+        inspectedByUserId: null,
+        inspectionResult: null,
+        inspectionFinalizeDraft: finalizeDraft,
+        inspectionLastSavedAt: reopenedAt,
+      })
+      .where(
+        and(
+          eq(fleetReturnInspections.id, inspectionId),
+          eq(fleetReturnInspections.organizationId, organizationId),
+        ),
+      );
+  }
+
+  async patchReturnInspectionResult(params: {
+    organizationId: string;
+    inspectionId: string;
+    inspectionResult: unknown;
+  }) {
+    const { organizationId, inspectionId, inspectionResult } = params;
+    await this.db
+      .update(fleetReturnInspections)
+      .set({ inspectionResult })
+      .where(
+        and(
+          eq(fleetReturnInspections.id, inspectionId),
+          eq(fleetReturnInspections.organizationId, organizationId),
+        ),
+      );
+  }
+
+  async closeReturnWorkshopRepair(params: {
+    inspectionId: string;
+    organizationId: string;
+    closedAt: Date;
+    inspectionResult: unknown;
+  }) {
+    const { inspectionId, organizationId, closedAt, inspectionResult } = params;
+    await this.db
+      .update(fleetReturnInspections)
+      .set({
+        workshopRepairClosedAt: closedAt,
+        inspectionResult,
+      })
+      .where(
+        and(
+          eq(fleetReturnInspections.id, inspectionId),
+          eq(fleetReturnInspections.organizationId, organizationId),
+        ),
+      );
+  }
+
+  async startReturnReInspection(params: {
+    inspectionId: string;
+    organizationId: string;
+    worksheet: unknown;
+    startedAt: Date;
+  }) {
+    const { inspectionId, organizationId, worksheet, startedAt } = params;
+    await this.db
+      .update(fleetReturnInspections)
+      .set({
+        reInspectionStatus: 'in_progress',
+        reInspectionWorksheet: worksheet,
+        reInspectionCompletedAt: null,
+        inspectionLastSavedAt: startedAt,
+      })
+      .where(
+        and(
+          eq(fleetReturnInspections.id, inspectionId),
+          eq(fleetReturnInspections.organizationId, organizationId),
+        ),
+      );
+  }
+
+  async saveReturnReInspection(params: {
+    inspectionId: string;
+    organizationId: string;
+    worksheet: unknown;
+    status: 'in_progress' | 'completed';
+    completedAt: Date | null;
+    odometerReading?: number;
+    inspectionResult?: unknown;
+    vehicleId?: string;
+    vehicleStatus?: 'available' | 'workshop';
+  }) {
+    const {
+      inspectionId,
+      organizationId,
+      worksheet,
+      status,
+      completedAt,
+      odometerReading,
+      inspectionResult,
+      vehicleId,
+      vehicleStatus,
+    } = params;
+    await this.db.transaction(async (tx) => {
+      const patch: Partial<typeof fleetReturnInspections.$inferInsert> = {
+        reInspectionWorksheet: worksheet,
+        reInspectionStatus: status,
+        reInspectionCompletedAt: completedAt,
+        inspectionLastSavedAt: completedAt ?? new Date(),
+      };
+      if (inspectionResult !== undefined) {
+        patch.inspectionResult = inspectionResult;
+      }
+      if (odometerReading !== undefined) {
+        patch.odometerReading = odometerReading;
+      }
+      const [updated] = await tx
+        .update(fleetReturnInspections)
+        .set(patch)
+        .where(
+          and(
+            eq(fleetReturnInspections.id, inspectionId),
+            eq(fleetReturnInspections.organizationId, organizationId),
+          ),
+        )
+        .returning({ id: fleetReturnInspections.id });
+      if (!updated) return;
+      if (vehicleId && vehicleStatus) {
+        const vehiclePatch: {
+          status: 'available' | 'workshop';
+          updatedAt: Date;
+          odometer?: number;
+        } = { status: vehicleStatus, updatedAt: new Date() };
+        if (odometerReading !== undefined) {
+          vehiclePatch.odometer = odometerReading;
+        }
+        await tx
+          .update(fleetVehicles)
+          .set(vehiclePatch)
+          .where(eq(fleetVehicles.id, vehicleId));
+      }
+    });
+  }
+
+  async completeReturnGateIn(params: {
+    inspectionId: string;
+    organizationId: string;
+    values: Partial<typeof fleetReturnInspections.$inferInsert>;
+    vehicleId: string;
+    odometerReading: number;
+  }) {
+    const { inspectionId, organizationId, values, vehicleId, odometerReading } =
+      params;
+    await this.db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(fleetReturnInspections)
+        .set({
+          ...values,
+          odometerReading,
+          registeredReturn: true,
+        })
+        .where(
+          and(
+            eq(fleetReturnInspections.id, inspectionId),
+            eq(fleetReturnInspections.organizationId, organizationId),
+          ),
+        )
+        .returning({ id: fleetReturnInspections.id });
+      if (!updated) {
+        return;
+      }
+      await tx
+        .update(fleetVehicles)
+        .set({
+          odometer: odometerReading,
+          status: 'returned',
+          updatedAt: new Date(),
+        })
+        .where(eq(fleetVehicles.id, vehicleId));
+    });
   }
 
   async markVehiclesLeased(vehicleIds: string[]) {

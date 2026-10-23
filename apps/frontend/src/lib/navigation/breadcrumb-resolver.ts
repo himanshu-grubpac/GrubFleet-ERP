@@ -158,6 +158,8 @@ function getNavigationBreadcrumbs(
         return [];
     }
 
+    const onMatchedListPage = path === match.href;
+
     const breadcrumbs: BreadcrumbItem[] = [
         ...match.ancestors.map((item) => ({
             label: item.label,
@@ -165,11 +167,15 @@ function getNavigationBreadcrumbs(
         })),
         {
             label: match.item.label,
+            href: onMatchedListPage
+                ? undefined
+                : normalizeHref(match.item.href),
         },
     ];
 
-    const remainingPath =
-        path === match.href ? "" : path.slice(match.href.length);
+    const remainingPath = onMatchedListPage
+        ? ""
+        : path.slice(match.href.length);
 
     const segments = remainingPath.split("/").filter(Boolean);
     let currentPath = match.href;
@@ -201,6 +207,76 @@ export function resolveBreadcrumbs(
         "/asset-register/fleetregister/detail/lease-history"
     ) {
         return getLeaseHistoryBreadcrumbs(searchParams);
+    }
+
+    if (path.endsWith("/vehicle-returns/receive")) {
+        return [
+            {
+                label: "Asset Management",
+                href: "/asset-register/",
+            },
+            {
+                label: "Vehicle Returns",
+                href: "/asset-register/vehicle-returns/",
+            },
+            { label: "Receive vehicle" },
+        ];
+    }
+
+    if (path.endsWith("/vehicle-returns/inspect")) {
+        return [
+            {
+                label: "Asset Management",
+                href: "/asset-register/",
+            },
+            {
+                label: "Vehicle Returns",
+                href: "/asset-register/vehicle-returns/",
+            },
+            { label: "Inspect vehicle" },
+        ];
+    }
+
+    if (path.endsWith("/vehicle-returns/inspect-finalize")) {
+        return [
+            {
+                label: "Asset Management",
+                href: "/asset-register/",
+            },
+            {
+                label: "Vehicle Returns",
+                href: "/asset-register/vehicle-returns/",
+            },
+            { label: "Finalize inspection" },
+        ];
+    }
+
+    if (path.endsWith("/vehicle-returns/inspect-result")) {
+        return [
+            {
+                label: "Asset Management",
+                href: "/asset-register/",
+            },
+            {
+                label: "Vehicle Returns",
+                href: "/asset-register/vehicle-returns/",
+            },
+            { label: "Inspection result" },
+        ];
+    }
+
+    if (path.endsWith("/vehicle-returns/re-inspect")) {
+        return [
+            {
+                label: "Asset Management",
+                href: "/asset-register/",
+            },
+            {
+                label: "Vehicle Returns",
+                href: "/asset-register/vehicle-returns/",
+            },
+            { label: "Re-inspect vehicle" },
+        ];
     }
 
     // Asset Assignment: override generic "View Details".

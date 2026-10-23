@@ -587,6 +587,169 @@ export class InvoicesService {
     return this.getById(dto.organizationId, created.id);
   }
 
+  /**
+   * Lease return inspection finalize — client recovery as a billing invoice (one per inspection).
+   */
+  async createFleetReturnRecoveryInvoice(
+    params: {
+      organizationId: string;
+      fleetReturnInspectionId: string;
+      leaseContractId: string;
+      contractNumber: string;
+      fleetCode: string;
+      partyName: string;
+      organisationClientId: string | null;
+      invoiceDate: string;
+      recoveryLines: Array<{ label: string; amountMinor: number }>;
+      totalAmountMinor: number;
+    },
+    userId: string | undefined,
+    tx?: AppDatabase,
+  ): Promise<{
+    id: string;
+    invoiceNumber: string;
+    status: FinanceInvoiceStatus;
+  }> {
+    if (params.totalAmountMinor <= 0 || params.recoveryLines.length === 0) {
+      throw new BadRequestException(
+        'Recovery invoice requires a positive total and at least one line',
+      );
+    }
+
+    const existing = await this.repo.findInvoiceByFleetReturnInspectionId(
+      params.organizationId,
+      params.fleetReturnInspectionId,
+    );
+    if (existing) {
+      return {
+        id: existing.id,
+        invoiceNumber: existing.invoiceNumber,
+        status: existing.status,
+      };
+    }
+
+    const contract = await this.fleetLeasingRepo.findContractInOrg(
+      params.organizationId,
+      params.leaseContractId,
+    );
+    if (!contract) throw new NotFoundException('Lease contract not found');
+
+    let organisationClientId = params.organisationClientId;
+    if (!organisationClientId && contract.clientId) {
+      const fleetClient = await this.fleetLeasingRepo.getClientInOrg(
+        params.organizationId,
+        contract.clientId,
+      );
+      organisationClientId = fleetClient?.organisationClientId ?? null;
+    }
+
+    let clientId: string | null = null;
+    if (organisationClientId) {
+      try {
+        const clientDetail = await this.clients.getById(
+          params.organizationId,
+          organisationClientId,
+        );
+        if (!clientDetail.isActive) {
+          throw new BadRequestException(
+            'Inactive organisation client cannot be billed for return recovery',
+          );
+        }
+        clientId = organisationClientId;
+      } catch (err) {
+        if (err instanceof NotFoundException) {
+          throw new BadRequestException(
+            'Linked organisation client not found for recovery billing',
+          );
+        }
+        throw err;
+      }
+    }
+
+    const invoiceDate = params.invoiceDate.slice(0, 10);
+    const year = Number(invoiceDate.slice(0, 4));
+    const description = `Return recovery — ${params.contractNumber} (${params.fleetCode})`;
+    const billingPeriod = 'Lease return recovery';
+    const notes = `Fleet return inspection ${params.fleetReturnInspectionId}`;
+
+    const run = async (runner: AppDatabase) => {
+      const invoiceNumber = await this.repo.allocateInvoiceNumber(
+        runner,
+        params.organizationId,
+        year,
+        'billing',
+      );
+      return this.repo.insertInvoiceWithLines(
+        runner,
+        {
+          organizationId: params.organizationId,
+          invoiceNumber,
+          invoiceType: 'billing',
+          status: 'unpaid',
+          supplierId: null,
+          partyName: params.partyName.trim() || '—',
+          description,
+          totalAmountMinor: params.totalAmountMinor,
+          amountPaidMinor: 0,
+          invoiceDate,
+          notes,
+          purchaseLineKind: null,
+          clientId,
+          leaseContractId: params.leaseContractId,
+          billingPeriod,
+          fleetReturnInspectionId: params.fleetReturnInspectionId,
+        },
+        params.recoveryLines.map((line) => ({
+          lineKind: 'billing_recovery' as const,
+          quantity: 1,
+          lineAmountMinor: line.amountMinor,
+          assetClassName: line.label.slice(0, 120),
+        })),
+      );
+    };
+
+    const created = tx ? await run(tx) : await this.db.transaction(run);
+
+    await this.audit.log({
+      organizationId: params.organizationId,
+      userId,
+      action: 'finance.invoice.create',
+      resourceType: 'finance_invoice',
+      resourceId: created.id,
+      status: 'SUCCESS',
+      metadata: {
+        invoiceNumber: created.invoiceNumber,
+        invoiceType: 'billing',
+        leaseContractId: params.leaseContractId,
+        fleetReturnInspectionId: params.fleetReturnInspectionId,
+        source: 'fleet_return_recovery',
+      },
+    });
+
+    return {
+      id: created.id,
+      invoiceNumber: created.invoiceNumber,
+      status: created.status,
+    };
+  }
+
+  async getRecoveryInvoiceSummaryForReturn(
+    organizationId: string,
+    invoiceId: string,
+  ): Promise<{
+    invoiceId: string;
+    invoiceNumber: string;
+    status: FinanceInvoiceStatus;
+  } | null> {
+    const detail = await this.repo.getInvoiceInOrg(organizationId, invoiceId);
+    if (!detail) return null;
+    return {
+      invoiceId: detail.invoice.id,
+      invoiceNumber: detail.invoice.invoiceNumber,
+      status: detail.invoice.status,
+    };
+  }
+
   async updateUnpaid(
     organizationId: string,
     invoiceId: string,

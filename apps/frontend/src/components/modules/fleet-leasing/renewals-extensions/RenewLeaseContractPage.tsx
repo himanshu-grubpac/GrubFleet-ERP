@@ -8,6 +8,7 @@ import { invalidateLeaseDomainCaches } from "@/lib/query/invalidate-domain-cache
 import { Info } from "lucide-react";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { DashboardPageLoadingShell } from "@/components/dashboard/dashboard-async-states";
 import DetailField from "@/components/common/DetailField";
 import OrganizationDetailCard, {
   OrganizationDetailFieldGrid,
@@ -305,6 +306,17 @@ export default function RenewLeaseContractPage() {
     );
   }
 
+  if (detailQuery.isLoading || !detail) {
+    return (
+      <OrganizationFormLayout
+        title="Renew contract"
+        description="Update the contract term and start date. Security deposit carries forward."
+      >
+        <DashboardPageLoadingShell label="Loading contract…" />
+      </OrganizationFormLayout>
+    );
+  }
+
   return (
     <>
       <OrganizationFormLayout
@@ -312,11 +324,6 @@ export default function RenewLeaseContractPage() {
         description="Update the contract term and start date. Security deposit carries forward."
         actions={footerActions}
       >
-        {detailQuery.isLoading || !detail ? (
-          <p className="text-sm text-slate-500">
-            Loading contract…
-          </p>
-        ) : (
           <div className="space-y-8">
 
 
@@ -456,7 +463,6 @@ export default function RenewLeaseContractPage() {
               </div>
             </div>
           </div>
-        )}
       </OrganizationFormLayout>
 
       <ConfirmDialog

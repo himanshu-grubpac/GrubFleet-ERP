@@ -38,6 +38,7 @@ describe('contract-detail.presentation.util', () => {
       expect(active.reactivate.allowed).toBe(false);
       expect(active.editContract.allowed).toBe(true);
       expect(active.terminate.allowed).toBe(false);
+      expect(active.terminate.disabledReason).toMatch(/deactivated\/on-hold/i);
     });
 
     it('allows terminate from deactivated without approval path', () => {

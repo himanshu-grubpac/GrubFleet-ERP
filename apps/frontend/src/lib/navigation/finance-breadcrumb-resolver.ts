@@ -238,12 +238,20 @@ export function resolveFinanceBreadcrumbs(
         });
     }
 
-    breadcrumbs.push({ label: match.item.label });
+    const onMatchedListPage = path === match.href;
+
+    breadcrumbs.push({
+        label: match.item.label,
+        href: onMatchedListPage
+            ? undefined
+            : normalizeHref(match.item.href),
+    });
 
     let currentPath = match.href;
 
-    const remainingPath =
-        path === match.href ? "" : path.slice(match.href.length);
+    const remainingPath = onMatchedListPage
+        ? ""
+        : path.slice(match.href.length);
 
     const segments = remainingPath.split("/").filter(Boolean);
 

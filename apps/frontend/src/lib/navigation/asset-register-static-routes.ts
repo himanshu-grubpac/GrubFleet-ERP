@@ -10,6 +10,7 @@ const MODULE_BASE = {
   fleetRegister: "/asset-register/fleetregister",
   assetAssign: "/asset-register/asset-assign",
   complianceRenewals: "/asset-register/compliance-renewals",
+  vehicleReturns: "/asset-register/vehicle-returns",
 } as const;
 
 function detailHref(base: string): string {
@@ -56,4 +57,39 @@ export const assetRegisterBulkAssignHref = () =>
 export const assetRegisterComplianceRenewalDetailHref = (vehicleId: string) => {
   void vehicleId;
   return detailHref(MODULE_BASE.complianceRenewals);
+};
+
+export const assetRegisterVehicleReturnReceiveHref = (
+  _returnInspectionId: string,
+) => {
+  void _returnInspectionId;
+  return `${MODULE_BASE.vehicleReturns}/receive/`;
+};
+
+export const assetRegisterVehicleReturnInspectHref = (
+  _returnInspectionId: string,
+) => {
+  void _returnInspectionId;
+  return `${MODULE_BASE.vehicleReturns}/inspect/`;
+};
+
+export const assetRegisterVehicleReturnInspectFinalizeHref = (
+  _returnInspectionId: string,
+) => {
+  void _returnInspectionId;
+  return `${MODULE_BASE.vehicleReturns}/inspect-finalize/`;
+};
+
+export const assetRegisterVehicleReturnInspectResultHref = (
+  _returnInspectionId: string,
+) => {
+  void _returnInspectionId;
+  return `${MODULE_BASE.vehicleReturns}/inspect-result/`;
+};
+
+export const assetRegisterVehicleReturnReInspectHref = (
+  _returnInspectionId: string,
+) => {
+  void _returnInspectionId;
+  return `${MODULE_BASE.vehicleReturns}/re-inspect/`;
 };

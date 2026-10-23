@@ -77,6 +77,24 @@ export interface ContractVehicle {
     registrationNo: string;
     assetClass: string;
     status: string;
+    odometer?: number;
+}
+
+export type LeaseClosingReason =
+    | 'completed'
+    | 'terminated_early'
+    | 'cancelled';
+
+export type LeaseReturnMethod = 'client_depot' | 'collect_from_site';
+
+export interface LeaseContractClosingSummary {
+    reason: string;
+    leaseEndDate: string | null;
+    returnMethod: string | null;
+    returnDepotLocationId: string | null;
+    returnDepotLabel: string | null;
+    expectedReturnBy: string | null;
+    notes: string | null;
 }
 
 export interface LeaseContractDetail {
@@ -138,6 +156,8 @@ export interface LeaseContractDetail {
         companyName: string;
         pocs?: unknown[];
     } | null;
+
+    closing?: LeaseContractClosingSummary | null;
 
     statusBanner?: {
         level: 'success' | 'info' | 'warning';
@@ -913,6 +933,80 @@ export const terminateLeaseContract = (
         contractId,
         'terminate',
     );
+
+export interface InitiateLeaseReturnsPayload {
+    closingReason: LeaseClosingReason;
+    leaseEndDate: string;
+    vehicleIds: string[];
+    returnMethod: LeaseReturnMethod;
+    returnDepotLocationId?: string;
+    returnDepotLabel?: string;
+    expectedReturnBy: string;
+    notes?: string;
+}
+
+export async function initiateLeaseContractReturns(
+    token: string,
+    organizationId: string,
+    contractId: string,
+    payload: InitiateLeaseReturnsPayload,
+): Promise<LeaseContractDetail> {
+    return apiFetch<LeaseContractDetail>(
+        `/fleet-leasing/lease-contracts/${contractId}/initiate-returns?${orgQuery(
+            organizationId,
+        )}`,
+        {
+            method: 'POST',
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+            body: JSON.stringify(payload),
+        },
+    );
+}
+
+export interface ContractVehicleAllocationRow {
+    id: string;
+    vehicleId: string;
+    fleetCode: string;
+    registrationNo: string;
+    assetClass: string;
+    vehicleStatus: string;
+    odometer: number;
+    createdAt: string;
+}
+
+export interface PaginatedContractVehicleAllocations {
+    items: ContractVehicleAllocationRow[];
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+}
+
+export async function fetchContractVehicleAllocations(
+    token: string,
+    organizationId: string,
+    contractId: string,
+    page = 1,
+    pageSize = 50,
+): Promise<PaginatedContractVehicleAllocations> {
+    const params = new URLSearchParams({
+        organizationId,
+        page: String(page),
+        pageSize: String(pageSize),
+    });
+    return apiFetch<PaginatedContractVehicleAllocations>(
+        `/fleet-leasing/lease-contracts/${contractId}/vehicle-allocations?${params.toString()}`,
+        {
+            token,
+            headers: {
+                'x-organization-id': organizationId,
+            },
+        },
+    );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // POST create lease contract

@@ -12,6 +12,7 @@ import {
 import { invalidateEmployeeCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
+import { DashboardStatusPill } from "@/components/dashboard/dashboard-semantic-cell";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import EmployeeTableActions from "./EmployeeTableActions";
 import DeactivateEmployeeModal from "./DeactivateEmployeeModal";
@@ -365,17 +366,10 @@ export default function EmployeesPage() {
       key: "status",
       label: "STATUS",
       render: (employee: Employee) => (
-        <span
-          className={[
-            "inline-flex rounded-full px-2.5 py-1",
-            "text-xs font-medium",
-            employee.status === "active"
-              ? "bg-green-50 text-green-700"
-              : "bg-gray-100 text-gray-500",
-          ].join(" ")}
-        >
-          {employee.status === "active" ? "Active" : "Inactive"}
-        </span>
+        <DashboardStatusPill
+          level={employee.status === "active" ? "success" : "muted"}
+          label={employee.status === "active" ? "Active" : "Inactive"}
+        />
       ),
     },
   ];

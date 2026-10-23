@@ -18,6 +18,9 @@ import { cn } from "@/lib/utils";
 
 const FLYOUT_GAP = 8;
 const VIEWPORT_PADDING = 8;
+/** Fallback size before first layout measure (copy / short tooltips). */
+const FLYOUT_FALLBACK_WIDTH = 88;
+const FLYOUT_FALLBACK_HEIGHT = 36;
 
 export type DashboardFlyoutPlacement = "above" | "below";
 
@@ -108,6 +111,8 @@ type DashboardPortaledFlyoutProps = {
   preferredPlacement?: DashboardFlyoutPlacement;
   align?: "center" | "start";
   interactive?: boolean;
+  /** When false, flyout opens only via {@link forceOpen} (avoids hover scroll churn in tables). */
+  openOnHover?: boolean;
   /** Keeps the flyout open regardless of hover (e.g. copy feedback). */
   forceOpen?: boolean;
   panelClassName?: string;
@@ -120,6 +125,7 @@ export function DashboardPortaledFlyout({
   preferredPlacement = "above",
   align = "center",
   interactive = false,
+  openOnHover = true,
   forceOpen = false,
   panelClassName,
   role = "tooltip",
@@ -127,11 +133,18 @@ export function DashboardPortaledFlyout({
   const [hoverOpen, setHoverOpen] = useState(false);
   const triggerRef = useRef<HTMLElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const positionCacheRef = useRef<FixedFlyoutPosition | null>(null);
+  const positionFrameRef = useRef<number | null>(null);
+  const positionMeasureRetriesRef = useRef(0);
+  const MAX_POSITION_MEASURE_RETRIES = 12;
   const [position, setPosition] = useState<FixedFlyoutPosition | null>(
     null,
   );
 
-  const open = forceOpen || hoverOpen;
+  const open = forceOpen || (openOnHover && hoverOpen);
+  const trackViewportMotion = openOnHover || interactive;
+
+  const schedulePositionUpdateRef = useRef<() => void>(() => {});
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -139,24 +152,60 @@ export function DashboardPortaledFlyout({
 
     const rect = trigger.getBoundingClientRect();
     const panel = panelRef.current;
-    const width = panel?.offsetWidth ?? 0;
-    const height = panel?.offsetHeight ?? 0;
+    const measuredWidth = panel?.offsetWidth ?? 0;
+    const measuredHeight = panel?.offsetHeight ?? 0;
 
-    if (width === 0 || height === 0) return;
+    if (measuredWidth === 0 || measuredHeight === 0) {
+      if (positionMeasureRetriesRef.current < MAX_POSITION_MEASURE_RETRIES) {
+        positionMeasureRetriesRef.current += 1;
+        schedulePositionUpdateRef.current();
+      }
+    } else {
+      positionMeasureRetriesRef.current = 0;
+    }
 
-    setPosition(
-      computeFixedFlyoutPosition(
-        rect,
-        width,
-        height,
-        preferredPlacement,
-        align,
-      ),
+    const width = measuredWidth || FLYOUT_FALLBACK_WIDTH;
+    const height = measuredHeight || FLYOUT_FALLBACK_HEIGHT;
+
+    const next = computeFixedFlyoutPosition(
+      rect,
+      width,
+      height,
+      preferredPlacement,
+      align,
     );
+
+    const prev = positionCacheRef.current;
+    if (
+      prev &&
+      prev.top === next.top &&
+      prev.left === next.left &&
+      prev.placement === next.placement
+    ) {
+      return;
+    }
+
+    positionCacheRef.current = next;
+    setPosition(next);
   }, [align, preferredPlacement]);
+
+  const schedulePositionUpdate = useCallback(() => {
+    if (positionFrameRef.current != null) {
+      return;
+    }
+
+    positionFrameRef.current = window.requestAnimationFrame(() => {
+      positionFrameRef.current = null;
+      updatePosition();
+    });
+  }, [updatePosition]);
+
+  schedulePositionUpdateRef.current = schedulePositionUpdate;
 
   useLayoutEffect(() => {
     if (!open) {
+      positionCacheRef.current = null;
+      positionMeasureRetriesRef.current = 0;
       setPosition(null);
       return;
     }
@@ -167,21 +216,38 @@ export function DashboardPortaledFlyout({
     let resizeObserver: ResizeObserver | null = null;
 
     if (panel && typeof ResizeObserver !== "undefined") {
-      resizeObserver = new ResizeObserver(updatePosition);
+      resizeObserver = new ResizeObserver(schedulePositionUpdate);
       resizeObserver.observe(panel);
     }
 
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
+    if (trackViewportMotion) {
+      window.addEventListener("scroll", schedulePositionUpdate, true);
+      window.addEventListener("resize", schedulePositionUpdate);
+    }
 
     return () => {
+      if (positionFrameRef.current != null) {
+        window.cancelAnimationFrame(positionFrameRef.current);
+        positionFrameRef.current = null;
+      }
       resizeObserver?.disconnect();
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
+      if (trackViewportMotion) {
+        window.removeEventListener("scroll", schedulePositionUpdate, true);
+        window.removeEventListener("resize", schedulePositionUpdate);
+      }
     };
-  }, [open, updatePosition, content]);
+  }, [
+    open,
+    updatePosition,
+    schedulePositionUpdate,
+    content,
+    trackViewportMotion,
+  ]);
 
-  const openFlyout = () => setHoverOpen(true);
+  const openFlyout = () => {
+    if (!openOnHover) return;
+    setHoverOpen(true);
+  };
   const closeFlyout = () => setHoverOpen(false);
 
   const trigger = isValidElement(children)
@@ -196,15 +262,33 @@ export function DashboardPortaledFlyout({
           children.props.onMouseLeave?.(event);
         },
         onFocus: (event: FocusEvent<HTMLElement>) => {
-          openFlyout();
+          if (openOnHover) openFlyout();
           children.props.onFocus?.(event);
         },
         onBlur: (event: FocusEvent<HTMLElement>) => {
-          if (!interactive) closeFlyout();
+          if (openOnHover && !interactive) closeFlyout();
           children.props.onBlur?.(event);
         },
       })
     : children;
+
+  /**
+   * Fixed panels portaled to `document.body` MUST always have explicit
+   * top/left. Without insets, browsers use the static position at the end of
+   * the document, which expands page scroll width/height (table “shift”).
+   */
+  const resolvedPosition: FixedFlyoutPosition | null = (() => {
+    if (position) return position;
+    const trigger = triggerRef.current;
+    if (!trigger) return null;
+    return computeFixedFlyoutPosition(
+      trigger.getBoundingClientRect(),
+      FLYOUT_FALLBACK_WIDTH,
+      FLYOUT_FALLBACK_HEIGHT,
+      preferredPlacement,
+      align,
+    );
+  })();
 
   const panel =
     open && typeof document !== "undefined" ? (
@@ -212,15 +296,15 @@ export function DashboardPortaledFlyout({
         ref={panelRef}
         role={role}
         className={cn(
-          "fixed z-[100] pointer-events-none",
+          "fixed z-[100] pointer-events-none transition-none",
           interactive && "pointer-events-auto",
-          !position && "invisible",
+          !resolvedPosition && "invisible",
           panelClassName,
         )}
         style={
-          position
-            ? { top: position.top, left: position.left }
-            : undefined
+          resolvedPosition
+            ? { top: resolvedPosition.top, left: resolvedPosition.left }
+            : { top: -9999, left: -9999 }
         }
         onMouseEnter={interactive ? openFlyout : undefined}
         onMouseLeave={interactive ? closeFlyout : undefined}

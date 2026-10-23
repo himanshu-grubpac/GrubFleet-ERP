@@ -60,8 +60,94 @@ export function setPendingEntityNavigation(
   }
 }
 
-export function prepareEntityNavigationForPath(pathname: string, id: string): void {
-  setPendingEntityNavigation(entityNavigationScopeFromPath(pathname), id);
+export type EntityNavigationLabelKind = "lease";
+
+export type EntityNavigationLabelOptions = {
+  displayLabel?: string | null;
+  labelKind?: EntityNavigationLabelKind;
+};
+
+function entityLabelStorageKey(
+  kind: EntityNavigationLabelKind,
+  entityId: string,
+): string {
+  return `gf-erp-nav:entity-label:${kind}:${entityId.trim()}`;
+}
+
+/** Persist human-readable entity label for breadcrumbs (keyed by kind + id). */
+export function setEntityNavigationDisplayLabel(
+  kind: EntityNavigationLabelKind,
+  entityId: string,
+  displayLabel: string,
+): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const trimmedId = entityId.trim();
+  const trimmedLabel = displayLabel.trim();
+  if (!trimmedId || !trimmedLabel) {
+    return;
+  }
+  try {
+    sessionStorage.setItem(
+      entityLabelStorageKey(kind, trimmedId),
+      JSON.stringify({
+        label: trimmedLabel,
+        exp: Date.now() + TTL_MS,
+      }),
+    );
+  } catch {
+    /* quota / private mode */
+  }
+}
+
+export function resolveEntityNavigationDisplayLabel(
+  kind: EntityNavigationLabelKind,
+  entityId: string,
+): string {
+  const trimmedId = entityId.trim();
+  if (!trimmedId || typeof window === "undefined") {
+    return "";
+  }
+  try {
+    const raw = sessionStorage.getItem(entityLabelStorageKey(kind, trimmedId));
+    if (!raw) {
+      return "";
+    }
+    const parsed = JSON.parse(raw) as { label?: string; exp?: number };
+    if (!parsed.label?.trim() || !parsed.exp || parsed.exp <= Date.now()) {
+      sessionStorage.removeItem(entityLabelStorageKey(kind, trimmedId));
+      return "";
+    }
+    return parsed.label.trim();
+  } catch {
+    return "";
+  }
+}
+
+function persistEntityNavigationLabel(
+  entityId: string,
+  options?: EntityNavigationLabelOptions,
+): void {
+  const label = options?.displayLabel?.trim();
+  const kind = options?.labelKind;
+  if (!label || !kind) {
+    return;
+  }
+  setEntityNavigationDisplayLabel(kind, entityId, label);
+}
+
+export function prepareEntityNavigationForPath(
+  pathname: string,
+  id: string,
+  options?: EntityNavigationLabelOptions,
+): void {
+  const trimmed = id.trim();
+  if (!trimmed) {
+    return;
+  }
+  setPendingEntityNavigation(entityNavigationScopeFromPath(pathname), trimmed);
+  persistEntityNavigationLabel(trimmed, options);
 }
 
 export function pathnameFromHref(href: string): string {
@@ -178,10 +264,11 @@ export function navigateToEntityShell(
   href: string,
   entityId: string,
   method: "push" | "replace" = "push",
+  options?: EntityNavigationLabelOptions,
 ): void {
   const trimmed = entityId.trim();
   if (trimmed) {
-    prepareEntityNavigationForPath(pathnameFromHref(href), trimmed);
+    prepareEntityNavigationForPath(pathnameFromHref(href), trimmed, options);
   }
   router[method](href);
 }
