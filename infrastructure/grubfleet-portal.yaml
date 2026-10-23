@@ -82,16 +82,48 @@ Resources:
           }
           var entityRoutes = [
             { prefix: '/fleet-leasing/lease-contracts/', q: 'leaseId' },
+            { prefix: '/organisation/locations/', q: 'locationId' },
+            { prefix: '/organisation/suppliers/', q: 'supplierId' },
+            { prefix: '/organisation/employees/', q: 'employeeId' },
+            { prefix: '/organisation/clients/', q: 'clientId' },
+            { prefix: '/organisation/driver-register/', q: 'driverId' },
             { prefix: '/organization/locations/', q: 'locationId' },
             { prefix: '/organization/suppliers/', q: 'supplierId' },
             { prefix: '/organization/employees/', q: 'employeeId' },
             { prefix: '/organization/clients/', q: 'clientId' },
             { prefix: '/organization/driver-register/', q: 'driverId' },
+            { prefix: '/finance/invoices/', q: 'invoiceId' },
+            { prefix: '/finance/vendor-payments/', q: 'paymentId' },
+            { prefix: '/finance/client-statements/', q: 'clientId' },
+            { prefix: '/inventory/Stock-register/', q: 'partId' },
+            { prefix: '/inventory/stock-receipt/', q: 'receiptId' },
+            { prefix: '/inventory/parts-requests/', q: 'partsRequestId' },
+            { prefix: '/inventory/stock-balance/', q: 'partId' },
+            { prefix: '/workshop/work-order/', q: 'workOrderId' },
+            { prefix: '/workshop/service-packages/', q: 'laborJobCardId' },
+            {
+              prefix: '/workshop/amc-maintenance/tiers/',
+              q: 'tierId',
+              detailPrefix: '/workshop/amc-maintenance/tier/',
+            },
+            { prefix: '/workshop/amc-maintenance/tier/', q: 'tierId' },
+            {
+              prefix: '/workshop/amc-maintenance/schedules/',
+              q: 'scheduleId',
+              detailPrefix: '/workshop/amc-maintenance/schedule/',
+            },
+            { prefix: '/workshop/amc-maintenance/schedule/', q: 'scheduleId' },
+            {
+              prefix: '/workshop/amc-maintenance/subscribers/',
+              q: 'subscriberCode',
+              detailPrefix: '/workshop/amc-maintenance/subscriber/',
+            },
+            { prefix: '/administration/roles/', q: 'roleId' },
             { prefix: '/asset-register/assestclass/', q: 'assetClassId' },
             { prefix: '/asset-register/asset-master/', q: 'assetMasterId' },
             { prefix: '/asset-register/fleetregister/', q: 'vehicleId' },
             { prefix: '/asset-register/asset-assign/', q: 'vehicleId' },
-            { prefix: '/asset-register/compliance-renewals/', q: 'vehicleId' }
+            { prefix: '/asset-register/compliance-renewals/', q: 'vehicleId' },
           ];
           for (var i = 0; i < entityRoutes.length; i++) {
             var route = entityRoutes[i];
@@ -109,15 +141,16 @@ Resources:
             if (!entityId) {
               continue;
             }
+            var detailBase = route.detailPrefix || route.prefix;
             if (subPath === 'edit') {
-              request.uri = route.prefix + 'edit/index.html';
+              request.uri = detailBase + 'edit/index.html';
             } else if (
               subPath === 'lease-history' &&
               route.prefix.indexOf('/asset-register/fleetregister/') === 0
             ) {
-              request.uri = route.prefix + 'detail/lease-history/index.html';
+              request.uri = detailBase + 'detail/lease-history/index.html';
             } else if (!subPath) {
-              request.uri = route.prefix + 'detail/index.html';
+              request.uri = detailBase + 'detail/index.html';
             } else {
               continue;
             }
