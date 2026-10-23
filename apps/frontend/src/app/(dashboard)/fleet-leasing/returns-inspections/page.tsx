@@ -1,5 +1,17 @@
-import ReturnsInspectionsTable from "@/components/modules/fleet-leasing/returns-inspections/ReturnsInspectionsTable";
+"use client";
 
-export default function ReturnsInspectionsPage() {
-  return <ReturnsInspectionsTable />;
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+import { RedirectingState } from "@/components/states/async-states";
+
+/** Legacy fleet nav — vehicle returns live under Asset Management. */
+export default function FleetReturnsInspectionsLegacyRedirectPage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/asset-register/vehicle-returns/");
+  }, [router]);
+
+  return <RedirectingState />;
 }

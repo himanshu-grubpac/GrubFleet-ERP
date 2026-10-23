@@ -272,6 +272,56 @@ export const FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS = {
   search: 120,
 } as const;
 
+/** End lease & return vehicles (Screen 2) — InitiateReturnsDto notes @MaxLength(2000). */
+export const FLEET_END_LEASE_INPUT_LIMITS = {
+  notes: 2000,
+  returnDepotLabel: 120,
+} as const;
+
+/** Vehicle return gate-in (Screen 3) — ReceiveReturnDto limits. */
+export const FLEET_RETURN_RECEIVE_INPUT_LIMITS = {
+  broughtInBy: 120,
+  gateNote: 2000,
+  odometerMax: 9_999_999,
+  odometerMaxDigits: ASSET_REGISTER_VEHICLE_INPUT_LIMITS.odometerMaxDigits,
+  gatePhotoLabel: 64,
+} as const;
+
+/** Vehicle return detailed inspection (Screen 4). */
+export const FLEET_RETURN_INSPECTION_INPUT_LIMITS = {
+  lineNote: 500,
+  repairCostMinorMax: 999_999_999,
+} as const;
+
+/** Inspection finalize (Screen 4b) — FinalizeReturnInspectionDto. */
+export const FLEET_RETURN_INSPECTION_FINALIZE_INPUT_LIMITS = {
+  wearAndTearNote: 2000,
+  itemKey: 64,
+} as const;
+
+/** Vehicle return re-inspection — SaveReInspectionDto odometerAfterRoadTest @Min(1). */
+export const FLEET_RETURN_RE_INSPECTION_INPUT_LIMITS = {
+  odometerMin: 1,
+  odometerMaxDigits: ASSET_REGISTER_VEHICLE_INPUT_LIMITS.odometerMaxDigits,
+} as const;
+
+/** Vehicle return hold / remind (UI — API pending). */
+export const FLEET_RETURN_HOLD_INPUT_LIMITS = {
+  reason: 2000,
+  resolutionNote: 2000,
+  remindMessage: 2000,
+} as const;
+
+/** Vehicle returns + end-lease — limits registry barrel (rule 24). */
+export const VEHICLE_RETURN_INPUT_LIMITS = {
+  endLease: FLEET_END_LEASE_INPUT_LIMITS,
+  receive: FLEET_RETURN_RECEIVE_INPUT_LIMITS,
+  inspection: FLEET_RETURN_INSPECTION_INPUT_LIMITS,
+  inspectionFinalize: FLEET_RETURN_INSPECTION_FINALIZE_INPUT_LIMITS,
+  reInspection: FLEET_RETURN_RE_INSPECTION_INPUT_LIMITS,
+  hold: FLEET_RETURN_HOLD_INPUT_LIMITS,
+} as const;
+
 /** ITU E.164 maximum significant digits (excludes leading +). */
 export const ORG_PHONE_MAX_DIGITS = 15;
 

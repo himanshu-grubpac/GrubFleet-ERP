@@ -788,6 +788,34 @@ export const breadcrumbConfig: Record<
         },
     ],
 
+    "/workshop/work-order/detail": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "Work Orders",
+            href: "/workshop/work-order",
+        },
+        {
+            label: "View Details",
+        },
+    ],
+
+    "/workshop/work-order/edit": [
+        {
+            label: "Workshop",
+            href: "/workshop",
+        },
+        {
+            label: "Work Orders",
+            href: "/workshop/work-order",
+        },
+        {
+            label: "Edit",
+        },
+    ],
+
     // Asset Class View
     "/asset-register/assestclass/detail": [
         {

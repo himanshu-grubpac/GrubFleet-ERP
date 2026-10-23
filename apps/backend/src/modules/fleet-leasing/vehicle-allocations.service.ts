@@ -245,6 +245,7 @@ export class VehicleAllocationsService {
       registrationNo: vehicle.registrationNo,
       vehicleStatus: 'leased',
       assetClass: vehicle.assetClass,
+      odometer: vehicle.odometer,
     });
   }
 
@@ -260,18 +261,24 @@ export class VehicleAllocationsService {
     };
     contractNumber: string;
     registrationNo: string;
+    assetRegisterFleetCode?: string | null;
     vehicleStatus: string;
     assetClass: string;
+    odometer: number;
   }) {
+    const fleetCodeFromRegister = row.assetRegisterFleetCode?.trim();
+    const fleetCode = fleetCodeFromRegister || row.registrationNo;
     return {
       id: row.allocation.id,
       organizationId: row.allocation.organizationId,
       contractId: row.allocation.contractId,
       contractNumber: row.contractNumber,
       vehicleId: row.allocation.vehicleId,
+      fleetCode,
       registrationNo: row.registrationNo,
       assetClass: row.assetClass,
       vehicleStatus: row.vehicleStatus,
+      odometer: row.odometer,
       reassignmentConfirmation: row.allocation.reassignmentConfirmation,
       notifiedStakeholders: row.allocation.notifiedStakeholders,
       createdAt: row.allocation.createdAt.toISOString(),

@@ -1,6 +1,7 @@
 "use client";
 
 import { useFleetEntityId } from "@/lib/navigation/use-fleet-entity-id";
+import { usePersistFleetLeaseDisplayLabel } from "@/lib/navigation/use-persist-fleet-lease-display-label";
 import { useQuery } from "@tanstack/react-query";
 
 import DashboardTable from "@/components/dashboard/DashboardTable";
@@ -47,6 +48,11 @@ export default function LeaseContractChangeHistoryPage() {
         enabled: Boolean(token && organizationId && leaseId),
         ...dashboardListQueryOptions,
     });
+
+    usePersistFleetLeaseDisplayLabel(
+        leaseId,
+        historyQuery.data?.contractNumber,
+    );
 
     const rows: HistoryRow[] =
         historyQuery.data?.items.map((item) => ({

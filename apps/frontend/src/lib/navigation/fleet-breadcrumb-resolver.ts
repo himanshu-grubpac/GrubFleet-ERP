@@ -1,6 +1,7 @@
 import type { BreadcrumbItem } from "@/config/breadcrumb-config";
 import { mainNavItems, type NavItem } from "@/lib/navigation/modules";
 import { fleetLeaseContractDetailHref } from "@/lib/navigation/fleet-static-routes";
+import { workshopWorkOrderListHref } from "@/lib/navigation/workshop-static-routes";
 
 function normalizePath(path: string): string {
     const normalized = path.split("?")[0].replace(/\/+$/, "");
@@ -22,8 +23,6 @@ const PAGE_LABELS: Record<string, string> = {
     "change-history": "Change History",
     renew: "Renew",
     extend: "Extend",
-    "return-inspection": "Return Inspection",
-    "returns-inspections": "Returns & Inspections",
     "renewals-extensions": "Renewals & Extensions",
     "lease-contracts": "Lease Contracts",
     "vehicle-replacement": "Vehicle Replacement",
@@ -87,7 +86,7 @@ export function resolveWorkshopBreadcrumbs(
     const path = normalizePath(pathname);
 
     const workshopRoot = "/workshop";
-    const workOrdersPath = `${workshopRoot}/work-orders`;
+    const workOrdersPath = normalizePath(workshopWorkOrderListHref);
     const servicePackagesPath = `${workshopRoot}/service-packages`;
 
     // Workshop landing page
@@ -120,10 +119,19 @@ export function resolveWorkshopBreadcrumbs(
             ];
         }
 
+        const lastSegment = remainingPath[remainingPath.length - 1];
+        let currentLabel = "View Details";
+
+        if (lastSegment === "edit") {
+            currentLabel = "Edit";
+        } else if (lastSegment === "detail" || lastSegment === "view") {
+            currentLabel = "View Details";
+        }
+
         return [
             { label: "Workshop", href: `${workshopRoot}/` },
             { label: "Work Orders", href: `${workOrdersPath}/` },
-            { label: "View Details" },
+            { label: currentLabel },
         ];
     }
 
@@ -289,14 +297,51 @@ export function resolveAdministrationBreadcrumbs(
     return [];
 }
 
+function leaseContractEntityLabel(
+    resolvedLabel?: string | null,
+    leaseId?: string | null,
+): string {
+    const trimmed = resolvedLabel?.trim();
+    if (trimmed) {
+        return trimmed;
+    }
+    if (leaseId?.trim()) {
+        return "…";
+    }
+    return "Lease contract";
+}
+
+export type ResolveFleetBreadcrumbsOptions = {
+    /** Contract number (or other stable entity label) for the open lease. */
+    leaseContractLabel?: string | null;
+    /** Resolved lease id (secure nav store or legacy query). */
+    leaseId?: string | null;
+};
+
 export function resolveFleetBreadcrumbs(
     pathname: string,
     searchParams: URLSearchParams,
+    options?: ResolveFleetBreadcrumbsOptions,
 ): BreadcrumbItem[] {
     const path = normalizePath(pathname);
-    const leaseId = searchParams.get("leaseId");
+    const leaseId =
+        options?.leaseId?.trim() ||
+        searchParams.get("leaseId")?.trim() ||
+        "";
+    const entityLabel = leaseContractEntityLabel(
+        options?.leaseContractLabel,
+        leaseId,
+    );
 
-    // Contract details
+    const leaseDetailCrumb = (linkToDetail: boolean): BreadcrumbItem => ({
+        label: entityLabel,
+        href:
+            linkToDetail && leaseId
+                ? fleetLeaseContractDetailHref(leaseId)
+                : undefined,
+    });
+
+    // Contract details (exact path — not change-history)
     if (path.endsWith("/lease-contracts/detail")) {
         return [
             { label: "Fleet & Leasing", href: "/fleet-leasing" },
@@ -304,7 +349,7 @@ export function resolveFleetBreadcrumbs(
                 label: "Lease Contracts",
                 href: "/fleet-leasing/lease-contracts",
             },
-            { label: "View Details" },
+            { label: entityLabel },
         ];
     }
 
@@ -316,30 +361,33 @@ export function resolveFleetBreadcrumbs(
                 label: "Lease Contracts",
                 href: "/fleet-leasing/lease-contracts",
             },
-            {
-                label: "View Details",
-                href: leaseId
-                    ? fleetLeaseContractDetailHref(leaseId)
-                    : "/fleet-leasing/lease-contracts",
-            },
+            leaseDetailCrumb(true),
             { label: "Change History" },
         ];
     }
 
-    // Contract edit
-    if (path.endsWith("/lease-contracts/detail/edit")) {
+    // End lease & return vehicle
+    if (path.endsWith("/lease-contracts/end-lease")) {
         return [
             { label: "Fleet & Leasing", href: "/fleet-leasing" },
             {
                 label: "Lease Contracts",
                 href: "/fleet-leasing/lease-contracts",
             },
+            leaseDetailCrumb(true),
+            { label: "End lease & return vehicle" },
+        ];
+    }
+
+    // Contract edit (static-export shell)
+    if (path.endsWith("/lease-contracts/edit")) {
+        return [
+            { label: "Fleet & Leasing", href: "/fleet-leasing" },
             {
-                label: "View Details",
-                href: leaseId
-                    ? fleetLeaseContractDetailHref(leaseId)
-                    : "/fleet-leasing/lease-contracts",
+                label: "Lease Contracts",
+                href: "/fleet-leasing/lease-contracts",
             },
+            leaseDetailCrumb(true),
             { label: "Edit" },
         ];
     }

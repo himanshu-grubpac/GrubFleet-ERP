@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 
+import { ChevronRight } from "lucide-react";
+
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
@@ -40,7 +42,6 @@ export default function LeaseContractHeader({
     const [activateOpen, setActivateOpen] = useState(false);
     const [deactivateOpen, setDeactivateOpen] = useState(false);
     const [reactivateOpen, setReactivateOpen] = useState(false);
-    const [terminateOpen, setTerminateOpen] = useState(false);
     const [pauseBillingOpen, setPauseBillingOpen] = useState(false);
 
     const statusPillClass = leaseStatusPillClass(statusLabel);
@@ -50,7 +51,6 @@ export default function LeaseContractHeader({
         setActivateOpen(false);
         setDeactivateOpen(false);
         setReactivateOpen(false);
-        setTerminateOpen(false);
         setPauseBillingOpen(false);
     };
 
@@ -113,11 +113,16 @@ export default function LeaseContractHeader({
                     {onTerminate ? (
                         <Button
                             type="button"
-                            variant="secondary"
-                            onClick={() => setTerminateOpen(true)}
+                            variant="danger"
+                            onClick={() => onTerminate()}
                             disabled={isActionPending}
+                            className="inline-flex items-center gap-1"
                         >
                             Terminate
+                            <ChevronRight
+                                className="h-4 w-4 shrink-0"
+                                aria-hidden
+                            />
                         </Button>
                     ) : null}
 
@@ -199,20 +204,6 @@ export default function LeaseContractHeader({
                 onConfirm={() => {
                     onReactivate?.();
                     setReactivateOpen(false);
-                }}
-            />
-
-            <ConfirmDialog
-                open={terminateOpen}
-                title="Terminate contract?"
-                message={`${contractNumber} will be closed and the security deposit settled immediately.`}
-                confirmLabel="Terminate"
-                variant="destructive"
-                isConfirmPending={isActionPending}
-                onClose={closeAll}
-                onConfirm={() => {
-                    onTerminate?.();
-                    setTerminateOpen(false);
                 }}
             />
 

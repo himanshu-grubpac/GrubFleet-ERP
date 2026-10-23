@@ -1,7 +1,9 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { AuditModule } from '../audit/audit.module';
+import { FinanceModule } from '../finance/finance.module';
 import { OrganisationModule } from '../organisation/organisation.module';
 import { AssetRegisterModule } from '../asset-register/asset-register.module';
+import { WorkshopModule } from '../workshop/workshop.module';
 import { AssetClassesController } from './asset-classes.controller';
 import { FleetClientsController } from './fleet-clients.controller';
 import { FleetClientsService } from './fleet-clients.service';
@@ -20,8 +22,10 @@ import { SupportVehicleReplacementService } from './support-vehicle-replacement.
 @Module({
   imports: [
     AuditModule,
+    forwardRef(() => FinanceModule),
     forwardRef(() => OrganisationModule),
     forwardRef(() => AssetRegisterModule),
+    forwardRef(() => WorkshopModule),
   ],
   controllers: [
     LeaseContractsController,
@@ -46,6 +50,7 @@ import { SupportVehicleReplacementService } from './support-vehicle-replacement.
     FleetClientsService,
     FleetLeasingRepository,
     VehicleAllocationsService,
+    FleetReturnsService,
   ],
 })
 export class FleetLeasingModule {}

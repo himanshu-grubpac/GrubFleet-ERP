@@ -1,4 +1,5 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
+import { FleetLeasingModule } from '../fleet-leasing/fleet-leasing.module';
 import { AuditModule } from '../audit/audit.module';
 import { AssetRegisterModule } from '../asset-register/asset-register.module';
 import { InventoryModule } from '../inventory/inventory.module';
@@ -18,6 +19,7 @@ import { WorkshopTechniciansController } from './workshop-technicians.controller
     InventoryModule,
     AssetRegisterModule,
     OrganisationModule,
+    forwardRef(() => FleetLeasingModule),
   ],
   controllers: [
     LaborJobCardsController,

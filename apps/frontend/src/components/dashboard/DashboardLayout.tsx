@@ -20,6 +20,9 @@ type DashboardPaginationProps = {
     totalItems: number;
     pageSize: number;
     onPageChange: (page: number) => void;
+    /** Appended to the "Showing X–Y of Z" line (e.g. sort hint). */
+    rangeSummarySuffix?: string;
+    previousButtonLabel?: string;
 };
 
 type DashboardLayoutProps = {
@@ -43,6 +46,8 @@ function DashboardPagination({
     totalItems,
     pageSize,
     onPageChange,
+    rangeSummarySuffix,
+    previousButtonLabel = "Prev",
 }: DashboardPaginationProps) {
     const safeTotalPages = Math.max(1, totalPages);
 
@@ -66,6 +71,7 @@ function DashboardPagination({
             {/* Showing Count */}
             <p className="text-xs text-gray-500">
                 Showing {startItem}–{endItem} of {totalItems}
+                {rangeSummarySuffix ? ` · ${rangeSummarySuffix}` : null}
             </p>
 
             {/* Pagination Controls */}
@@ -95,7 +101,7 @@ function DashboardPagination({
                         disabled:opacity-50
                     "
                 >
-                    Prev
+                    {previousButtonLabel}
                 </button>
 
                 {/* Current Page */}
@@ -262,6 +268,8 @@ export default function DashboardLayout({
                         totalItems={pagination.totalItems}
                         pageSize={pagination.pageSize}
                         onPageChange={pagination.onPageChange}
+                        rangeSummarySuffix={pagination.rangeSummarySuffix}
+                        previousButtonLabel={pagination.previousButtonLabel}
                     />
                 )}
             </main>

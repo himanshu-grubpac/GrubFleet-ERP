@@ -1,0 +1,14 @@
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "received_at" timestamp with time zone;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "received_by_user_id" uuid;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "received_by_employee_id" uuid;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "brought_in_by" varchar(120);
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "fuel_level" varchar(16);
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "keys_received" integer;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "keys_handed_over" integer;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "handover_odometer" integer;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "lease_km_allowance" integer;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "documents_checklist" jsonb;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "gate_photos" jsonb;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "condition_at_glance" varchar(32);
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "gate_note" text;
+ALTER TABLE "fleet_return_inspections" ADD COLUMN IF NOT EXISTS "inspect_immediately" boolean;

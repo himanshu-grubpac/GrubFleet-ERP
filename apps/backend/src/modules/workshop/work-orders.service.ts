@@ -5,9 +5,12 @@ import {
 import {
   BadRequestException,
   ForbiddenException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
+import { FleetReturnsService } from '../fleet-leasing/fleet-returns.service';
 import { AssetRegisterRepository } from '../asset-register/repositories/asset-register.repository';
 import { AuthorizationService } from '../auth/authorization/authorization.service';
 import { InventoryRepository } from '../inventory/repositories/inventory.repository';
@@ -43,6 +46,8 @@ export class WorkOrdersService {
     private readonly organisationRepo: OrganisationRepository,
     private readonly audit: AuditService,
     private readonly authorizationService: AuthorizationService,
+    @Inject(forwardRef(() => FleetReturnsService))
+    private readonly fleetReturnsService: FleetReturnsService,
   ) {}
 
   async list(query: ListWorkOrdersQueryDto) {
@@ -99,6 +104,18 @@ export class WorkOrdersService {
       openWorkOrderCount: row.openWorkOrderCount,
     }));
     return toPaginatedResult(items, page, pageSize, total);
+  }
+
+  async getWorkOrderNumberInOrg(
+    organizationId: string,
+    workOrderId: string,
+  ): Promise<{ workOrderNumber: string } | null> {
+    const row = await this.workshopRepo.getWorkOrderInOrg(
+      organizationId,
+      workOrderId,
+    );
+    if (!row) return null;
+    return { workOrderNumber: row.workOrderNumber };
   }
 
   async create(dto: CreateWorkOrderDto) {
@@ -258,6 +275,78 @@ export class WorkOrdersService {
     );
 
     return this.getById(dto.organizationId, inserted.id);
+  }
+
+  /** Idempotent: reuse open WO for vehicle or create lease-return job. */
+  async ensureLeaseReturnWorkOrder(input: {
+    organizationId: string;
+    userId: string;
+    assetRegisterVehicleId: string;
+    odometerReading: number;
+    issueDescription: string;
+    expectedCompletionDate?: string | null;
+    reportedBy?: string | null;
+  }): Promise<{ id: string; workOrderNumber: string }> {
+    const existing = await this.workshopRepo.findOpenWorkOrderForVehicle(
+      input.organizationId,
+      input.assetRegisterVehicleId,
+    );
+    if (existing) return existing;
+
+    const vehicle = await this.assetRegisterRepo.getVehicleInOrg(
+      input.organizationId,
+      input.assetRegisterVehicleId,
+    );
+    if (!vehicle) {
+      throw new NotFoundException('Fleet register vehicle not found');
+    }
+    if (!vehicle.isActive) {
+      throw new BadRequestException(
+        'Inactive fleet register vehicle cannot be used on a work order',
+      );
+    }
+
+    const workOrderNumber = await this.workshopRepo.nextWorkOrderNumber(
+      input.organizationId,
+    );
+
+    const { order: inserted } = await this.workshopRepo.insertWorkOrder(
+      {
+        organizationId: input.organizationId,
+        workOrderNumber,
+        status: 'open',
+        workOrderType: 'return_inspection',
+        workOrderSource: 'lease_return',
+        vehicleId: input.assetRegisterVehicleId,
+        laborJobCardId: null,
+        technicianEmployeeId: null,
+        expectedCompletionDate: input.expectedCompletionDate ?? null,
+        reportedBy: input.reportedBy?.trim() || 'Lease return inspection',
+        odometerReading: input.odometerReading,
+        issueDescription: input.issueDescription.trim(),
+        notes: null,
+        partsTotalMinor: 0,
+        laborTotalMinor: 0,
+        netTotalMinor: 0,
+      },
+      [],
+      [],
+    );
+
+    await this.audit.log({
+      organizationId: input.organizationId,
+      userId: input.userId,
+      action: 'workshop.work_order.create_lease_return',
+      resourceType: 'workshop_work_order',
+      resourceId: inserted.id,
+      status: 'SUCCESS',
+      metadata: {
+        assetRegisterVehicleId: input.assetRegisterVehicleId,
+        workOrderNumber,
+      },
+    });
+
+    return { id: inserted.id, workOrderNumber };
   }
 
   async createAutoPmFromMaintenanceSchedule(input: {
@@ -509,6 +598,19 @@ export class WorkOrdersService {
       status: nextStatus,
       ...(closedAt !== undefined ? { closedAt } : {}),
     });
+
+    if (
+      dto.action === 'close' &&
+      existing.workOrderSource === 'lease_return' &&
+      closedAt
+    ) {
+      await this.fleetReturnsService.syncWorkshopRepairClosedFromWorkOrder({
+        organizationId,
+        userId,
+        workOrderId: id,
+        closedAt,
+      });
+    }
 
     if (dto.action === 'start') {
       await this.issueReservedParts(

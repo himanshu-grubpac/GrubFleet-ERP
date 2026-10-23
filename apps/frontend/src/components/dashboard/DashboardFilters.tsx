@@ -354,9 +354,45 @@ export default function DashboardFilters({
 
                         }
 
-                        className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                        className={[
+
+                            "h-9 w-full rounded-md border border-gray-200 bg-white pl-9 text-sm text-gray-900 outline-none transition placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
+
+                            searchValue.trim()
+
+                                ? "pr-9"
+
+                                : "pr-3",
+
+                        ].join(" ")}
 
                     />
+
+                    {searchValue.trim() ? (
+
+                        <button
+
+                            type="button"
+
+                            aria-label="Clear search"
+
+                            onClick={() => onSearchChange("")}
+
+                            className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+
+                        >
+
+                            <X
+
+                                className="h-3.5 w-3.5"
+
+                                strokeWidth={2}
+
+                            />
+
+                        </button>
+
+                    ) : null}
 
                 </div>
 
@@ -423,6 +459,12 @@ export default function DashboardFilters({
 
                             filter.key;
 
+                        const hasFilterSelection = Boolean(
+
+                            filterValues[filter.key],
+
+                        );
+
 
 
                         return (
@@ -443,35 +485,13 @@ export default function DashboardFilters({
 
 
 
-                                <button
-
-                                    type="button"
-
-                                    onClick={() =>
-
-                                        setOpenFilter(
-
-                                            isOpen
-
-                                                ? null
-
-                                                : filter.key
-
-                                        )
-
-                                    }
+                                <div
 
                                     className={[
 
-                                        "flex h-9 min-w-[165px] items-center justify-between",
+                                        "flex h-9 min-w-[165px] items-stretch overflow-hidden",
 
-                                        "rounded-md border px-3",
-
-                                        "text-sm font-medium",
-
-                                        "outline-none",
-
-                                        "transition-all",
+                                        "rounded-md border text-sm font-medium",
 
                                         "border-[#FE5720]/30",
 
@@ -479,69 +499,117 @@ export default function DashboardFilters({
 
                                         "text-[#FE5720]",
 
-                                        "hover:bg-[#FE5720]/10",
-
-                                        "focus:border-[#FE5720]",
-
-                                        "focus:ring-1",
-
-                                        "focus:ring-[#FE5720]/20",
-
-                                    ].join(
-
-                                        " "
-
-                                    )}
+                                    ].join(" ")}
 
                                 >
 
-                                    <span className="truncate">
+                                    <button
 
-                                        {
+                                        type="button"
 
-                                            filterTitle
+                                        onClick={() =>
 
-                                        }
+                                            setOpenFilter(
 
-                                        :{" "}
+                                                isOpen
 
-                                        {
+                                                    ? null
 
-                                            displayValue
+                                                    : filter.key,
 
-                                        }
-
-                                    </span>
-
-
-
-                                    <ChevronDown
-
-                                        className={[
-
-                                            "ml-2 h-4 w-4 shrink-0 transition-transform",
-
-                                            isOpen
-
-                                                ? "rotate-180"
-
-                                                : "",
-
-                                        ].join(
-
-                                            " "
-
-                                        )}
-
-                                        strokeWidth={
-
-                                            2
+                                            )
 
                                         }
 
-                                    />
+                                        className="flex min-w-0 flex-1 items-center truncate px-3 text-left outline-none transition hover:bg-[#FE5720]/10 focus-visible:ring-1 focus-visible:ring-[#FE5720]/20"
 
-                                </button>
+                                    >
+
+                                        {filterTitle}: {displayValue}
+
+                                    </button>
+
+                                    {hasFilterSelection ? (
+
+                                        <button
+
+                                            type="button"
+
+                                            aria-label={`Clear ${filterTitle} filter`}
+
+                                            onClick={() => {
+
+                                                onFilterChange?.(
+
+                                                    filter.key,
+
+                                                    "",
+
+                                                );
+
+                                                setOpenFilter(null);
+
+                                            }}
+
+                                            className="flex w-8 shrink-0 items-center justify-center text-[#FE5720]/80 transition hover:bg-[#FE5720]/15 hover:text-[#FE5720]"
+
+                                        >
+
+                                            <X
+
+                                                className="h-3.5 w-3.5"
+
+                                                strokeWidth={2}
+
+                                            />
+
+                                        </button>
+
+                                    ) : null}
+
+                                    <button
+
+                                        type="button"
+
+                                        aria-label={`Open ${filterTitle} filter`}
+
+                                        aria-expanded={isOpen}
+
+                                        onClick={() =>
+
+                                            setOpenFilter(
+
+                                                isOpen
+
+                                                    ? null
+
+                                                    : filter.key,
+
+                                            )
+
+                                        }
+
+                                        className="flex w-8 shrink-0 items-center justify-center outline-none transition hover:bg-[#FE5720]/10 focus-visible:ring-1 focus-visible:ring-[#FE5720]/20"
+
+                                    >
+
+                                        <ChevronDown
+
+                                            className={[
+
+                                                "h-4 w-4 transition-transform",
+
+                                                isOpen ? "rotate-180" : "",
+
+                                            ].join(" ")}
+
+                                            strokeWidth={2}
+
+                                        />
+
+                                    </button>
+
+                                </div>
 
 
 
@@ -563,7 +631,7 @@ export default function DashboardFilters({
 
                                             "min-w-full w-max",
 
-                                            "overflow-hidden",
+                                            "max-h-60 overflow-y-auto overscroll-y-contain",
 
                                             "rounded-md",
 
@@ -580,6 +648,12 @@ export default function DashboardFilters({
                                             " "
 
                                         )}
+
+                                        onWheel={(event) => {
+
+                                            event.stopPropagation();
+
+                                        }}
 
                                     >
 

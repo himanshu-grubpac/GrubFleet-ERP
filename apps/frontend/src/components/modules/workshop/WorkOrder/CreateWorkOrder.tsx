@@ -58,8 +58,8 @@ import { useAuth } from "@/providers/auth-provider";
 
 type AdditionalPartRow = {
   partId: string;
-  name: string;
-  quantity: number;
+    name: string;
+    quantity: number;
   unitCostMinor: number;
   onHand: number;
 };
@@ -116,10 +116,10 @@ export default function WorkForm() {
   const [laborJobCardId, setLaborJobCardId] = useState("");
   const [technicianEmployeeId, setTechnicianEmployeeId] = useState("");
   const [expectedCompletionDate, setExpectedCompletionDate] = useState("");
-  const [reportedBy, setReportedBy] = useState("");
+    const [reportedBy, setReportedBy] = useState("");
   const [odometerReading, setOdometerReading] = useState("");
   const [issueDescription, setIssueDescription] = useState("");
-  const [notes, setNotes] = useState("");
+    const [notes, setNotes] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -325,7 +325,7 @@ export default function WorkForm() {
     expectedCompletionDate,
     expectedCompletionMin,
     isAddingPart,
-    selectedPartId,
+                    selectedPartId,
     isAddingLabor,
     newLaborDescription,
     newLaborAmount,
@@ -533,11 +533,11 @@ export default function WorkForm() {
     );
   }
 
-  return (
-    <OrganizationFormLayout
+    return (
+        <OrganizationFormLayout
       title={isEditMode ? "Edit work order" : "Log Work Order"}
-      description="Creates a General work order. PM, Service, and Return Inspection work orders are generated automatically by Maintenance Schedules and Asset Register."
-    >
+            description="Creates a General work order. PM, Service, and Return Inspection work orders are generated automatically by Maintenance Schedules and Asset Register."
+        >
       {(vehiclesQuery.isError ||
         laborJobCardsQuery.isError ||
         techniciansQuery.isError ||
@@ -571,15 +571,15 @@ export default function WorkForm() {
         </div>
       )}
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-lg border border-gray-200 bg-white p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <div className="sm:col-span-2">
-            <label
+                        <label
               htmlFor="fleet-vehicle"
-              className="mb-1 block text-xs font-semibold text-gray-700"
-            >
+                            className="mb-1 block text-xs font-semibold text-gray-700"
+                        >
               Fleet vehicle {!isEditMode && <span className="text-red-500">*</span>}
-            </label>
+                        </label>
             {!isEditMode ? (
               <select
                 id="fleet-vehicle"
@@ -643,7 +643,7 @@ export default function WorkForm() {
             <select
               id="technician"
               value={technicianEmployeeId}
-              onChange={(event) =>
+                            onChange={(event) =>
                 setTechnicianEmployeeId(event.target.value)
               }
               className={inputClassName}
@@ -659,27 +659,27 @@ export default function WorkForm() {
             {techniciansQuery.isError && (
               <p className="mt-1 text-xs text-red-600" role="alert">
                 Could not load technicians. Use Retry above or refresh the page.
-              </p>
-            )}
+                                </p>
+                            )}
             {!techniciansQuery.isLoading &&
               !techniciansQuery.isError &&
               technicians.length === 0 && (
-                <p className="mt-1 text-xs text-gray-500">
+                                <p className="mt-1 text-xs text-gray-500">
                   No active workshop technicians yet. In Organisation → Employees,
                   edit an active employee and enable &quot;Workshop technician&quot;
                   (inactive employees are not listed).
-                </p>
-              )}
-          </div>
+                                </p>
+                            )}
+                    </div>
 
-          <div>
-            <label
+                    <div>
+                        <label
               htmlFor="expected-completion"
-              className="mb-1 block text-xs font-semibold text-gray-700"
-            >
+                            className="mb-1 block text-xs font-semibold text-gray-700"
+                        >
               Expected completion date <span className="font-normal text-gray-400">(optional)</span>
-            </label>
-            <input
+                        </label>
+                        <input
               id="expected-completion"
               type="date"
               min={expectedCompletionMin}
@@ -707,27 +707,27 @@ export default function WorkForm() {
               Reported by <span className="font-normal text-gray-400">(optional)</span>
             </label>
             <RestrictedInput
-              id="reported-by"
+                            id="reported-by"
               restrictedKind="name"
               maxLength={WORKSHOP_INPUT_LIMITS.workOrderReportedBy}
-              value={reportedBy}
+                            value={reportedBy}
               onChange={(value) => setReportedBy(value)}
               className={`${inputClassName} ${getFieldError("reportedBy") ? "border-red-500 focus:border-red-500 focus:ring-red-500/20" : ""}`}
             />
             {getFieldError("reportedBy") && (
               <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("reportedBy")}</p>
             )}
-          </div>
+                    </div>
 
-          <div>
-            <label
-              htmlFor="odometer-reading"
-              className="mb-1 block text-xs font-semibold text-gray-700"
-            >
+                    <div>
+                        <label
+                            htmlFor="odometer-reading"
+                            className="mb-1 block text-xs font-semibold text-gray-700"
+                        >
               Odometer reading (km) <span className="font-normal text-gray-400">(optional)</span>
-            </label>
+                        </label>
             <RestrictedInput
-              id="odometer-reading"
+                            id="odometer-reading"
               restrictedKind="digits"
               maxLength={WORKSHOP_INPUT_LIMITS.workOrderOdometerMaxDigits}
               value={odometerReading}
@@ -738,42 +738,42 @@ export default function WorkForm() {
             {getFieldError("odometerReading") && (
               <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("odometerReading")}</p>
             )}
-          </div>
-        </div>
+                    </div>
+                </div>
 
-        <div className="mt-3">
-          <label
-            htmlFor="issue-description"
-            className="mb-1 block text-xs font-semibold text-gray-700"
-          >
+                <div className="mt-3">
+                    <label
+                        htmlFor="issue-description"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
             Issue description <span className="font-normal text-gray-400">(optional)</span>
-          </label>
+                    </label>
           <RestrictedInput
-            id="issue-description"
+                        id="issue-description"
             restrictedKind="text"
             maxLength={WORKSHOP_INPUT_LIMITS.workOrderIssueDescription}
             value={issueDescription}
             onChange={(value) => setIssueDescription(value)}
             className={inputClassName}
-          />
-        </div>
+                    />
+                </div>
 
-        <div className="mt-3">
-          <label
-            htmlFor="work-order-notes"
-            className="mb-1 block text-xs font-semibold text-gray-700"
-          >
+                <div className="mt-3">
+                    <label
+                        htmlFor="work-order-notes"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
             Notes <span className="font-normal text-gray-400">(optional)</span>
-          </label>
+                    </label>
           <RestrictedInput
-            id="work-order-notes"
+                        id="work-order-notes"
             restrictedKind="text"
             maxLength={WORKSHOP_INPUT_LIMITS.workOrderNotes}
-            value={notes}
+                        value={notes}
             onChange={(value) => setNotes(value)}
             className={inputClassName}
-          />
-        </div>
+                    />
+                </div>
 
         {!isEditMode && (
           <div className="mt-3">
@@ -827,11 +827,11 @@ export default function WorkForm() {
             )}
           </div>
         )}
-      </div>
+            </div>
 
       {(isEditMode || !isEditMode) && (
         <>
-          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
               {isEditMode ? "Add parts" : "Additional parts"}
             </p>
@@ -854,7 +854,7 @@ export default function WorkForm() {
                 >
                   Retry
                 </button>
-              </div>
+                </div>
             )}
             {additionalParts.map((part) => (
               <div
@@ -862,44 +862,44 @@ export default function WorkForm() {
                 className="grid grid-cols-[1fr_125px_160px] items-center border-b border-gray-100 py-2 text-sm"
               >
                 <span>{part.name}</span>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
+                            <div className="flex items-center gap-1">
+                                <button
+                                    type="button"
                     onClick={() => updatePartQuantity(part.partId, -1)}
                     className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300"
-                    aria-label={`Decrease ${part.name} quantity`}
-                  >
+                                    aria-label={`Decrease ${part.name} quantity`}
+                                >
                     <Minus size={14} />
-                  </button>
+                                </button>
                   <span className="w-8 text-center">{part.quantity}</span>
-                  <button
-                    type="button"
+                                <button
+                                    type="button"
                     onClick={() => updatePartQuantity(part.partId, 1)}
                     disabled={part.quantity >= part.onHand}
                     className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 disabled:opacity-40"
-                    aria-label={`Increase ${part.name} quantity`}
-                  >
+                                    aria-label={`Increase ${part.name} quantity`}
+                                >
                     <Plus size={14} />
-                  </button>
-                </div>
+                                </button>
+                            </div>
                 <span className="text-xs text-green-700">
                   {part.onHand} in stock
-                </span>
-              </div>
-            ))}
-            {isAddingPart && (
+                            </span>
+                        </div>
+                    ))}
+                {isAddingPart && (
               <div className="mt-3 flex gap-2">
-                <select
+                        <select
                   value={selectedPartId}
                   onChange={(event) => setSelectedPartId(event.target.value)}
                   className="h-9 flex-1 rounded-md border border-gray-300 px-3 text-sm"
-                  disabled={
+                            disabled={
                     !vehicleId ||
                     partsCatalogQuery.isLoading ||
                     partsCatalogQuery.isError
                   }
-                >
-                  <option value="">
+                        >
+                            <option value="">
                     {!vehicleId
                       ? "Select fleet vehicle first"
                       : partsCatalogQuery.isLoading
@@ -907,34 +907,34 @@ export default function WorkForm() {
                         : selectableParts.length === 0
                           ? "No inventory parts available"
                           : "Select part"}
-                  </option>
+                            </option>
                   {selectableParts.map((part) => (
                     <option key={part.id} value={part.id}>
                       {part.partName} ({stockOnHand(part)} in stock)
-                    </option>
+                                    </option>
                   ))}
-                </select>
+                        </select>
                 <Button
-                  type="button"
+                            type="button"
                   disabled={!selectedPartId}
                   onClick={handleAddPart}
                 >
                   Add
                 </Button>
                 <Button
-                  type="button"
+                            type="button"
                   variant="secondary"
                   onClick={() => setIsAddingPart(false)}
-                >
-                  Cancel
+                        >
+                            Cancel
                 </Button>
-              </div>
-            )}
+                    </div>
+                )}
             {getFieldError("selectedPartId") && (
               <p className="mt-1 text-xs text-red-600" role="alert">{getFieldError("selectedPartId")}</p>
             )}
             <button
-              type="button"
+                type="button"
               onClick={() => setIsAddingPart(true)}
               disabled={!vehicleId || !canViewInventoryParts}
               className="mt-2 text-xs font-semibold text-[#FE5720] disabled:cursor-not-allowed disabled:opacity-40"
@@ -943,7 +943,7 @@ export default function WorkForm() {
             </button>
           </div>
 
-          <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
+            <div className="mt-4 rounded-lg border border-gray-200 bg-white p-4">
             <p className="mb-2 text-xs font-bold uppercase tracking-wide text-gray-500">
               Additional labor
             </p>
@@ -955,21 +955,21 @@ export default function WorkForm() {
                 <span className="min-w-0 flex-1 break-words">{line.description}</span>
                 <div className="flex shrink-0 items-center gap-3">
                   <span>{line.amountInput || "—"}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
+                                    <button
+                                        type="button"
+                                        onClick={() =>
                       setAdditionalLabor((previous) =>
                         previous.filter((item) => item.key !== line.key),
-                      )
-                    }
+                                            )
+                                        }
                     aria-label={`Remove additional labor: ${line.description}`}
                     title="Remove labor line"
                     className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-red-200 bg-white text-red-500 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200"
-                  >
+                                    >
                     <Trash2 className="h-4 w-4" strokeWidth={1.75} />
-                  </button>
-                </div>
-              </div>
+                                    </button>
+                                </div>
+                            </div>
             ))}
             {isAddingLabor && (
               <div className="mt-3">
@@ -988,7 +988,7 @@ export default function WorkForm() {
                         {getFieldError("newLaborDescription")}
                       </p>
                     )}
-                  </div>
+                        </div>
 
                   <div className="min-w-0 flex-1">
                     <RestrictedInput
@@ -1008,27 +1008,27 @@ export default function WorkForm() {
                   </div>
 
                   <Button
-                    type="button"
+                            type="button"
                     onClick={handleAddLaborRow}
                     className="shrink-0"
                   >
                     Add
                   </Button>
 
-                  <button
-                    type="button"
+                        <button
+                            type="button"
                     onClick={() => setIsAddingLabor(false)}
                     aria-label="Cancel adding labor"
                     title="Cancel"
                     className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-md text-gray-500 transition hover:bg-red-50 hover:text-red-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FE5720]/30"
                   >
                     <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
+                        </button>
+                    </div>
+            </div>
             )}
             <button
-              type="button"
+                type="button"
               onClick={() => setIsAddingLabor(true)}
               className="mt-2 text-xs font-semibold text-[#FE5720]"
             >
@@ -1038,16 +1038,16 @@ export default function WorkForm() {
         </>
       )}
 
-      <div className="mt-4 flex items-start gap-3 rounded-md border border-gray-300 bg-gray-100 px-4 py-3">
-        <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-800 text-[11px] font-semibold text-white">
-          i
-        </span>
-        <p className="text-xs leading-5 text-gray-600">
+            <div className="mt-4 flex items-start gap-3 rounded-md border border-gray-300 bg-gray-100 px-4 py-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-gray-800 text-[11px] font-semibold text-white">
+                    i
+                </span>
+                <p className="text-xs leading-5 text-gray-600">
           {isEditMode
             ? `New lines add to the work order total (${formatInrFromMinor(estimatedMinor)} for lines above).`
             : `Estimated net total: ${formatInrFromMinor(estimatedMinor)} (service package + additional lines). Recorded when created.`}
-        </p>
-      </div>
+                </p>
+            </div>
 
       <FormActions
         hasAttemptedSubmit={hasAttemptedSubmit}
@@ -1070,6 +1070,6 @@ export default function WorkForm() {
         saveLabel={isEditMode ? "Save changes" : "Log work order"}
         savingLabel={isEditMode ? "Saving..." : "Creating..."}
       />
-    </OrganizationFormLayout>
-  );
+        </OrganizationFormLayout>
+    );
 }

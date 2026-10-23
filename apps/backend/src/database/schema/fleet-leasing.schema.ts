@@ -14,6 +14,7 @@ import {
   varchar,
 } from 'drizzle-orm/pg-core';
 import { assetRegisterAssetClasses } from './asset-register.schema';
+import { financeInvoices } from './finance.schema';
 import { organisationClients } from './organisation.schema';
 
 /** Flow 00 + Figma list/detail (Completed → closed/concluded). */
@@ -41,6 +42,7 @@ export const fleetVehicleStatusEnum = pgEnum('fleet_vehicle_status', [
   'inbound',
   'reserved',
   'leased',
+  'return_pending',
   'returned',
   'workshop',
   'sold',
@@ -193,6 +195,16 @@ export const leaseContracts = pgTable(
     requiresEditReview: boolean('requires_edit_review')
       .notNull()
       .default(false),
+    /** End-lease wizard (Screen 2) — contract closing context. */
+    closingReason: varchar('closing_reason', { length: 32 }),
+    closingLeaseEndDate: timestamp('closing_lease_end_date', {
+      withTimezone: true,
+    }),
+    returnMethod: varchar('return_method', { length: 32 }),
+    returnDepotLocationId: uuid('return_depot_location_id'),
+    returnDepotLabel: varchar('return_depot_label', { length: 120 }),
+    expectedReturnBy: timestamp('expected_return_by', { withTimezone: true }),
+    returnInitiationNotes: text('return_initiation_notes'),
     createdByUserId: uuid('created_by_user_id'),
     updatedByUserId: uuid('updated_by_user_id'),
     createdAt: timestamp('created_at', { withTimezone: true })
@@ -390,6 +402,52 @@ export const fleetReturnInspections = pgTable(
     damageRecordId: uuid('damage_record_id'),
     /** Logged as physically back — not fully inspected (Figma footer). */
     registeredReturn: boolean('registered_return').notNull().default(true),
+    receivedAt: timestamp('received_at', { withTimezone: true }),
+    receivedByUserId: uuid('received_by_user_id'),
+    receivedByEmployeeId: uuid('received_by_employee_id'),
+    broughtInBy: varchar('brought_in_by', { length: 120 }),
+    fuelLevel: varchar('fuel_level', { length: 16 }),
+    keysReceived: integer('keys_received'),
+    keysHandedOver: integer('keys_handed_over'),
+    handoverOdometer: integer('handover_odometer'),
+    leaseKmAllowance: integer('lease_km_allowance'),
+    documentsChecklist: jsonb('documents_checklist'),
+    gatePhotos: jsonb('gate_photos'),
+    conditionAtGlance: varchar('condition_at_glance', { length: 32 }),
+    gateNote: text('gate_note'),
+    inspectImmediately: boolean('inspect_immediately'),
+    inspectionStatus: varchar('inspection_status', { length: 24 })
+      .notNull()
+      .default('not_started'),
+    inspectionWorksheet: jsonb('inspection_worksheet'),
+    inspectionSummary: jsonb('inspection_summary'),
+    inspectionCompletedAt: timestamp('inspection_completed_at', {
+      withTimezone: true,
+    }),
+    inspectedByUserId: uuid('inspected_by_user_id'),
+    inspectionLastSavedAt: timestamp('inspection_last_saved_at', {
+      withTimezone: true,
+    }),
+    /** Screen 4b — review & disposition before complete (charge toggles, disposition). */
+    inspectionFinalizeDraft: jsonb('inspection_finalize_draft'),
+    /** Screen 5 — persisted outcome snapshot at inspection complete. */
+    inspectionResult: jsonb('inspection_result'),
+    /** Billing invoice created when inspection completes with client recovery charges. */
+    financeRecoveryInvoiceId: uuid('finance_recovery_invoice_id').references(
+      () => financeInvoices.id,
+      { onDelete: 'set null' },
+    ),
+    /** When depot/workshop marks repair complete — gates re-inspection (Screen 6). */
+    workshopRepairClosedAt: timestamp('workshop_repair_closed_at', {
+      withTimezone: true,
+    }),
+    reInspectionStatus: varchar('re_inspection_status', { length: 24 })
+      .notNull()
+      .default('not_started'),
+    reInspectionWorksheet: jsonb('re_inspection_worksheet'),
+    reInspectionCompletedAt: timestamp('re_inspection_completed_at', {
+      withTimezone: true,
+    }),
     createdAt: timestamp('created_at', { withTimezone: true })
       .notNull()
       .defaultNow(),

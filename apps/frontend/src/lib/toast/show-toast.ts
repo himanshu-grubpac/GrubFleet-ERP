@@ -218,6 +218,57 @@ export function showLeaseContractTerminatedToast(): void {
   );
 }
 
+export function showLeaseContractReturnsInitiatedToast(count: number): void {
+  const label = count === 1 ? "1 vehicle" : `${count} vehicles`;
+  showSuccessToast(`Return initiated for ${label}.`);
+}
+
+export function showVehicleReturnReceivedToast(
+  registrationNo: string,
+  inspectImmediately: boolean,
+): void {
+  if (inspectImmediately) {
+    showSuccessToast(
+      `${registrationNo} received — start detailed inspection when ready.`,
+    );
+    return;
+  }
+  showSuccessToast(
+    `${registrationNo} received and queued for inspection.`,
+  );
+}
+
+export function showVehicleReturnReInspectionCompletedToast(
+  fleetCode: string,
+): void {
+  showSuccessToast(
+    `${fleetCode} re-inspection complete — back in the Available pool.`,
+  );
+}
+
+export function showVehicleReturnWorkshopRepairClosedToast(
+  fleetCode: string,
+): void {
+  showSuccessToast(
+    `${fleetCode} workshop repair marked complete — re-inspect from Vehicle Returns when ready.`,
+  );
+}
+
+export function showVehicleReturnInspectionCompletedToast(
+  registrationNo: string,
+  sentToWorkshop: boolean,
+): void {
+  if (sentToWorkshop) {
+    showSuccessToast(
+      `${registrationNo} inspection complete — sent to workshop for repair.`,
+    );
+    return;
+  }
+  showSuccessToast(
+    `${registrationNo} inspection complete — ready for available pool.`,
+  );
+}
+
 export function showLeaseContractBillingPausedToast(): void {
   showSuccessToast("Billing paused.");
 }

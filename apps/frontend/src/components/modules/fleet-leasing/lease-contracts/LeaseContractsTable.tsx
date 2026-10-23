@@ -252,7 +252,16 @@ export default function LeaseContractsTable() {
   });
 
   const handleEdit = (contract: LeaseContractListItem) => {
-    navigateToEntityShell(router, fleetLeaseContractEditHref(contract.id), contract.id, 'push');
+    navigateToEntityShell(
+      router,
+      fleetLeaseContractEditHref(contract.id),
+      contract.id,
+      "push",
+      {
+        displayLabel: contract.contractNumber,
+        labelKind: "lease",
+      },
+    );
   };
 
   const handleConfirmActivate = () => {
@@ -354,6 +363,7 @@ export default function LeaseContractsTable() {
       <DashboardTableActions
         status={listRowStatus}
         navigationEntityId={row.id}
+        navigationDisplayLabel={row.contractNumber}
         viewHref={fleetLeaseContractDetailHref(row.id)}
         copyText={formatLeaseContractRowCopyText(row)}
         allowEditWhenInactive
