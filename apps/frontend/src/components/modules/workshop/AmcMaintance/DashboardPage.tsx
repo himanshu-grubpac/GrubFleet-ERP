@@ -100,8 +100,14 @@ export default function AmcMaintenancePage() {
     ...dashboardListQueryOptions,
   });
 
-  const tiers = tiersQuery.data?.items ?? [];
-  const schedules = schedulesQuery.data?.items ?? [];
+  const tiers = useMemo(
+    () => tiersQuery.data?.items ?? [],
+    [tiersQuery.data?.items],
+  );
+  const schedules = useMemo(
+    () => schedulesQuery.data?.items ?? [],
+    [schedulesQuery.data?.items],
+  );
 
   const summary = useMemo(() => {
     const activeTiers = tiers.filter((tier) => tier.status === "active").length;

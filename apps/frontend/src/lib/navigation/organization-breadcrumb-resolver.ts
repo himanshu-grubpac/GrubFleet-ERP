@@ -65,8 +65,9 @@ function getPageLabel(segment: string): string {
 
 export function resolveOrganizationBreadcrumbs(
     pathname: string,
-    _searchParams: URLSearchParams,
+    searchParams: URLSearchParams,
 ): BreadcrumbItem[] {
+    void searchParams;
     const path = normalizePath(pathname);
 
     if (path === "/organisation") {

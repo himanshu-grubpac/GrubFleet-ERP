@@ -22,10 +22,7 @@ import {
   INR_RUPEE_INPUT_PLACEHOLDER,
   parseRupeeInputToMinor,
 } from "@/lib/format/money-format";
-import {
-  financeInvoiceDetailHref,
-  financeInvoicesListHref,
-} from "@/lib/navigation/finance-static-routes";
+import { financeInvoiceDetailHref } from "@/lib/navigation/finance-static-routes";
 import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
 import {
   showApiErrorToast,

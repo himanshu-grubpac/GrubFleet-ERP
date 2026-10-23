@@ -215,7 +215,10 @@ export default function WorkForm() {
     ...dashboardCatalogQueryOptions,
   });
 
-  const vehicles = vehiclesQuery.data ?? [];
+  const vehicles = useMemo(
+    () => vehiclesQuery.data ?? [],
+    [vehiclesQuery.data],
+  );
   const laborJobCards = laborJobCardsQuery.data ?? [];
   const partsCatalog = partsCatalogQuery.data ?? [];
   const technicians = techniciansQuery.data ?? [];

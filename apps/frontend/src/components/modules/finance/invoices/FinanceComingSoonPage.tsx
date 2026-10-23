@@ -1,7 +1,6 @@
 "use client";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
-import { financeInvoicesListHref } from "@/lib/navigation/finance-static-routes";
 
 type FinanceComingSoonPageProps = {
   title: string;

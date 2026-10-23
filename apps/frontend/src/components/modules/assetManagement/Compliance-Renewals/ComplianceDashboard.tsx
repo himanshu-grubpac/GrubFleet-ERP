@@ -1,8 +1,7 @@
-
-import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { PackageSearch } from "lucide-react";

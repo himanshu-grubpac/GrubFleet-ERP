@@ -1,8 +1,7 @@
-
-import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { useRouter } from "next/navigation";
 import { useFinanceEntityId } from "@/lib/navigation/use-finance-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -198,7 +197,7 @@ export default function NewBillingInvoicePage() {
     }
   }, [contractOptions, leaseContractId]);
 
-  const validateForm = (): InvoiceValidationErrors => {
+  const validateForm = useCallback((): InvoiceValidationErrors => {
     const errors: InvoiceValidationErrors = {};
     const parsedAmount = parseRupeeInputToMinor(amount);
 
@@ -227,12 +226,9 @@ export default function NewBillingInvoicePage() {
     }
 
     return errors;
-  };
+  }, [amount, billingPeriod, clientId, invoiceDate, leaseContractId]);
 
-  const liveErrors = useMemo(
-    () => validateForm(),
-    [clientId, leaseContractId, billingPeriod, amount, invoiceDate],
-  );
+  const liveErrors = useMemo(() => validateForm(), [validateForm]);
 
   const displayedErrors: InvoiceValidationErrors = hasAttemptedSubmit
     ? liveErrors

@@ -638,10 +638,6 @@ export default function AddLocationForm({
         locationDetailQuery.isLoading,
         locationDetailQuery.isError,
         locationDetailQuery.data?.isActive,
-        form.name,
-        form.contactInformation.email,
-        matchedLocationType,
-        form.address,
     ]);
 
     /* ---------------------------------------------------------------------- */

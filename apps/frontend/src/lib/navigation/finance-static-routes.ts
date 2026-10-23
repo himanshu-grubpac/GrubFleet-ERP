@@ -10,16 +10,14 @@ const INVOICES_BASE = "/finance/invoices";
 const CLIENT_STATEMENTS_BASE = "/finance/client-statements";
 const VENDOR_PAYMENTS_BASE = "/finance/vendor-payments";
 
-function detailHref(
-  base: string,
-  _queryKey: FinanceEntityQueryKey,
-  _id: string,
-): string {
+function detailHref(base: string): string {
   return `${base}/detail/`;
 }
 
-export const financeInvoiceDetailHref = (invoiceId: string) =>
-  detailHref(INVOICES_BASE, "invoiceId", invoiceId);
+export const financeInvoiceDetailHref = (invoiceId: string) => {
+  void invoiceId;
+  return detailHref(INVOICES_BASE);
+};
 
 export const financeInvoicesListHref = `${INVOICES_BASE}/`;
 export const financeInvoiceNewTypeHref = `${INVOICES_BASE}/new/`;
@@ -27,11 +25,15 @@ export const financeInvoiceNewPurchaseHref = `${INVOICES_BASE}/new/purchase/`;
 export const financeInvoiceNewSaleHref = `${INVOICES_BASE}/new/sale/`;
 export const financeInvoiceNewBillingHref = `${INVOICES_BASE}/new/billing/`;
 
-export const financeInvoiceEditSaleHref = (invoiceId: string) =>
-  financeInvoiceNewSaleHref;
+export const financeInvoiceEditSaleHref = (invoiceId: string) => {
+  void invoiceId;
+  return financeInvoiceNewSaleHref;
+};
 
-export const financeInvoiceEditBillingHref = (invoiceId: string) =>
-  financeInvoiceNewBillingHref;
+export const financeInvoiceEditBillingHref = (invoiceId: string) => {
+  void invoiceId;
+  return financeInvoiceNewBillingHref;
+};
 
 export const financeInvoiceRecordPaymentHref = (invoiceId: string) => {
   void invoiceId;
@@ -43,8 +45,10 @@ export const financeClientStatementsListHref = `${CLIENT_STATEMENTS_BASE}/`;
 export const financeVendorPaymentsListHref = `${VENDOR_PAYMENTS_BASE}/`;
 export const financeVendorPaymentRecordHref = `${VENDOR_PAYMENTS_BASE}/record/`;
 
-export const financeVendorPaymentDetailHref = (paymentId: string) =>
-  detailHref(VENDOR_PAYMENTS_BASE, "paymentId", paymentId);
+export const financeVendorPaymentDetailHref = (paymentId: string) => {
+  void paymentId;
+  return detailHref(VENDOR_PAYMENTS_BASE);
+};
 
 export function financeClientStatementDetailHref(
   clientId: string,

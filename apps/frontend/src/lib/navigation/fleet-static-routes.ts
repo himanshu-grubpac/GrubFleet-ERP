@@ -10,28 +10,23 @@ export type FleetEntityQueryKey = "leaseId";
 const LEASE_CONTRACTS_BASE = "/fleet-leasing/lease-contracts";
 const RENEWALS_BASE = "/fleet-leasing/renewals-extensions";
 
-function detailHref(
-  base: string,
-  _queryKey: FleetEntityQueryKey,
-  _id: string,
-  detailSegment = "detail",
-): string {
+function detailHref(base: string, detailSegment = "detail"): string {
   return `${base}/${detailSegment}/`;
 }
 
-function editHref(
-  base: string,
-  _queryKey: FleetEntityQueryKey,
-  _id: string,
-): string {
+function editHref(base: string): string {
   return `${base}/edit/`;
 }
 
-export const fleetLeaseContractDetailHref = (leaseId: string) =>
-  detailHref(LEASE_CONTRACTS_BASE, "leaseId", leaseId);
+export const fleetLeaseContractDetailHref = (leaseId: string) => {
+  void leaseId;
+  return detailHref(LEASE_CONTRACTS_BASE);
+};
 
-export const fleetLeaseContractEditHref = (leaseId: string) =>
-  editHref(LEASE_CONTRACTS_BASE, "leaseId", leaseId);
+export const fleetLeaseContractEditHref = (leaseId: string) => {
+  void leaseId;
+  return editHref(LEASE_CONTRACTS_BASE);
+};
 
 export const fleetLeaseContractChangeHistoryHref = (leaseId: string) => {
   void leaseId;

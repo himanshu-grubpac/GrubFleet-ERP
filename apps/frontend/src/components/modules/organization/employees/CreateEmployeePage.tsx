@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -449,7 +449,7 @@ export default function CreateEmployeePage({
     router.push("/organisation/employees");
   };
 
-  const validateForm = (): ValidationErrors => {
+  const validateForm = useCallback((): ValidationErrors => {
     const errors: ValidationErrors = {};
 
     const fullNameError = validateRequired(form.fullName, "Full name");
@@ -463,7 +463,6 @@ export default function CreateEmployeePage({
 
     const locationError = validateRequired(form.locationId, "Location");
     if (locationError) errors.location = "Please select a location.";
-
 
     const employmentTypeError = validateRequired(
       form.employmentTypeUi,
@@ -489,7 +488,7 @@ export default function CreateEmployeePage({
     if (emailError) errors.email = emailError;
 
     return errors;
-  };
+  }, [form]);
 
   const handleSave = async () => {
     if (isSubmittingRef.current) return;
@@ -558,7 +557,7 @@ export default function CreateEmployeePage({
     }
   };
 
-  const liveErrors = useMemo(() => validateForm(), [form]);
+  const liveErrors = useMemo(() => validateForm(), [validateForm]);
   const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
   const validationSummary = Object.values(displayedErrors).filter(
     (message): message is string => Boolean(message),

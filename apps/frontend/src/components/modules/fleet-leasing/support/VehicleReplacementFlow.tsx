@@ -9,9 +9,7 @@ import {
 } from "@/lib/query/invalidate-domain-caches";
 import { Loader2, Search } from "lucide-react";
 
-import OrganizationFormLayout, {
-    type OrganizationFormBackLink,
-} from "@/components/common/OrganizationFormLayout";
+import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import DetailField from "@/components/common/DetailField";
 import OrganizationDetailCard, {
     OrganizationDetailFieldGrid,

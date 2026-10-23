@@ -92,7 +92,10 @@ export default function NewSaleInvoicePage() {
     enabled: catalogEnabled && !editInvoiceId,
   });
 
-  const vehicles = vehiclesQuery.data ?? [];
+  const vehicles = useMemo(
+    () => vehiclesQuery.data ?? [],
+    [vehiclesQuery.data],
+  );
 
   const vehicleOptions = useMemo(() => {
     if (editInvoiceId && editQuery.data?.vehicleId && editQuery.data.vehicleLabel) {

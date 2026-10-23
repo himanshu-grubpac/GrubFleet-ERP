@@ -12,7 +12,6 @@ import DetailField from "@/components/common/DetailField";
 import OrganizationDetailCard, {
   OrganizationDetailFieldGrid,
 } from "@/components/common/OrganizationDetailCard";
-import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { formatCalendarDateEnIn } from "@/lib/format/date-format";

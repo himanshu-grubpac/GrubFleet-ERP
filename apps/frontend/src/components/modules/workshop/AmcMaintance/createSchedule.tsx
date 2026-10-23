@@ -1,8 +1,7 @@
-
-import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 "use client";
 
 import { useRouter } from "next/navigation";
+import { navigateToEntityShell } from "@/lib/navigation/secure-entity-navigation";
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 

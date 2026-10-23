@@ -11,7 +11,6 @@ import OrganizationDetailCard from "@/components/common/OrganizationDetailCard";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { SubPageBackLink } from "@/components/ui/SubPageBackLink";
 import DashboardTable from "@/components/dashboard/DashboardTable";
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -25,7 +24,6 @@ import {
 } from "@/lib/finance/client-statement-periods";
 import {
   financeClientStatementDetailHref,
-  financeClientStatementsListHref,
   financeInvoiceDetailHref,
 } from "@/lib/navigation/finance-static-routes";
 import {

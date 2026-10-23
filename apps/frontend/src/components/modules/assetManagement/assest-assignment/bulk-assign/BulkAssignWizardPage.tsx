@@ -149,7 +149,10 @@ export default function BulkAssignWizardPage() {
     });
 
     const clients = clientsQuery.data?.clients ?? [];
-    const contracts = contractsQuery.data?.contracts ?? [];
+    const contracts = useMemo(
+        () => contractsQuery.data?.contracts ?? [],
+        [contractsQuery.data?.contracts],
+    );
 
     const selectedContract = useMemo(
         () =>
@@ -259,7 +262,10 @@ export default function BulkAssignWizardPage() {
         ...assetAssignmentQueryOptions,
     });
 
-    const vehicleRows = vehiclesQuery.data?.items ?? [];
+    const vehicleRows = useMemo(
+        () => vehiclesQuery.data?.items ?? [],
+        [vehiclesQuery.data?.items],
+    );
     const vehicleTotal = vehiclesQuery.data?.total ?? 0;
     const vehicleTotalPages = Math.max(
         1,

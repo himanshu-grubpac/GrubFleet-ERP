@@ -14,7 +14,6 @@ import { ApiClientError } from "@/lib/api/client";
 import {
   fetchWorkshopWorkOrderApi,
   updateWorkshopWorkOrderStatusApi,
-  type WorkshopWorkOrderDetail,
   type WorkshopWorkOrderStatus,
 } from "@/lib/api/workshop/work-orders";
 import { formatInrFromMinor } from "@/lib/format/money-format";

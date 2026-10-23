@@ -164,7 +164,8 @@ async function sendRequest(
   init: ApiFetchOptions,
   token?: string,
 ): Promise<Response> {
-  const { token: _originalToken, ...requestInit } = init;
+  const requestInit: ApiFetchOptions = { ...init };
+  delete requestInit.token;
 
   const headers = new Headers(requestInit.headers);
 

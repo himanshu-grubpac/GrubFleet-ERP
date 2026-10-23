@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -330,10 +330,13 @@ export default function CreateFleetVehicleForm({
     /* Save                                                                   */
     /* ---------------------------------------------------------------------- */
 
-    const validateForm = (): ValidationErrors =>
-        validateFleetVehicleFormFields(form, { isSaving: false });
+    const validateForm = useCallback(
+        (): ValidationErrors =>
+            validateFleetVehicleFormFields(form, { isSaving: false }),
+        [form],
+    );
 
-    const liveErrors = useMemo(() => validateForm(), [form]);
+    const liveErrors = useMemo(() => validateForm(), [validateForm]);
     const { canSubmit: formCanSubmit } = useMemo(
         () => validateFleetVehicleFormForSubmit(form, { isSaving }),
         [form, isSaving],

@@ -231,7 +231,10 @@ export default function AssetAssignmentViewPage() {
         ];
     }, [catalogContractsQuery.data?.items]);
 
-    const contractItems = contractsQuery.data?.items ?? [];
+    const contractItems = useMemo(
+        () => contractsQuery.data?.items ?? [],
+        [contractsQuery.data?.items],
+    );
     const hiddenOtherActiveCount =
         contractsQuery.data?.hiddenOtherActiveCount ?? 0;
     const showNoDemandEmptyState =
