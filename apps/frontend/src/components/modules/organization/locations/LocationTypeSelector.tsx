@@ -3,6 +3,8 @@
 import { Plus, X } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { ORGANISATION_LOCATION_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 
 export type LocationType = {
     id: string;
@@ -114,12 +116,11 @@ export default function LocationTypeSelector({
 
             {showAddType && (
                 <div className="mt-3 flex max-w-md items-center gap-2">
-                    <input
-                        type="text"
+                    <RestrictedInput
+                        restrictedKind="name"
+                        maxLength={ORGANISATION_LOCATION_INPUT_LIMITS.locationTypeName}
                         value={newType}
-                        onChange={(event) =>
-                            onNewTypeChange(event.target.value)
-                        }
+                        onChange={onNewTypeChange}
                         onKeyDown={(event) => {
                             if (event.key === "Enter") {
                                 event.preventDefault();

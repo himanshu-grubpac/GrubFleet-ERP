@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2 } from "lucide-react";
 import {
@@ -19,7 +19,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ORGANISATION_CLIENT_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   CLIENT_STATUS_UPDATE_ERROR,
   showClientActivatedToast,
@@ -72,8 +76,20 @@ export default function ClientDashboardPage() {
     permissions.has("organisation.update") ||
     permissions.has("organisation.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onClientListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ORGANISATION_CLIENT_INPUT_LIMITS.clientListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [page, setPage] = useState(1);
 
   const {
@@ -180,7 +196,7 @@ export default function ClientDashboardPage() {
   };
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
   };
 
   const handleActivate = (client: Client) => {
@@ -299,9 +315,11 @@ export default function ClientDashboardPage() {
         {/* Search */}
         <div className="min-w-0 flex-1">
           <input
-            type="text"
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            type="search"
+            value={searchInput}
+            onChange={(event) =>
+              onClientListSearchChange(event.target.value)
+            }
             placeholder="Search by company or point of contact name"
             className="
                             h-9

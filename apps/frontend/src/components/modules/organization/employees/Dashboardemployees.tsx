@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { UserRound } from "lucide-react";
 import {
@@ -23,7 +23,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ORGANISATION_EMPLOYEE_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { ApiClientError } from "@/lib/api/client";
 import {
   fetchOrganisationEmployeeDepartmentsApi,
@@ -114,8 +118,20 @@ export default function EmployeesPage() {
     permissions.has("organisation.update") ||
     permissions.has("organisation.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onEmployeeListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ORGANISATION_EMPLOYEE_INPUT_LIMITS.employeeListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [filters, setFilters] = useState<Record<string, string>>({
     department: "",
     status: "",
@@ -259,7 +275,7 @@ export default function EmployeesPage() {
   };
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
     setFilters({
       department: "",
       status: "",
@@ -423,9 +439,9 @@ export default function EmployeesPage() {
       }
     >
       <DashboardFilters
-        searchValue={search}
+        searchValue={searchInput}
         searchPlaceholder="Search by name, designation, or department"
-        onSearchChange={setSearch}
+        onSearchChange={onEmployeeListSearchChange}
         selectFilters={[
           {
             key: "department",

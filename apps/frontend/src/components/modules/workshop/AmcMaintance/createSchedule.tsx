@@ -181,14 +181,19 @@ export default function CreateAmcSchedulePage() {
         router.push(workshopAmcMaintenanceListHref);
     };
 
+    const canSubmit = useMemo(() => {
+        if (!canCreate || createMutation.isPending) {
+            return false;
+        }
+        return !hasValidationErrors(validationErrors);
+    }, [canCreate, createMutation.isPending, validationErrors]);
+
     const formActions = (
         <FormActions
             hasAttemptedSubmit={hasAttemptedSubmit}
             validationSummary={validationSummary}
             isSaving={createMutation.isPending}
-            // Match the shared form flow: keep Save enabled until submission
-            // starts so clicking it can display validation errors/summary.
-            canSubmit={!createMutation.isPending}
+            canSubmit={canSubmit}
             onCancel={handleCancel}
             onSave={handleSave}
             saveLabel="Save schedule"
@@ -303,6 +308,11 @@ export default function CreateAmcSchedulePage() {
                         >
                             <RestrictedInput
                                 restrictedKind="digits"
+                                maxLength={
+                                    form.intervalType === "Odometer"
+                                        ? WORKSHOP_INPUT_LIMITS.workOrderOdometerMaxDigits
+                                        : 4
+                                }
                                 value={form.intervalValue}
                                 onChange={(value) =>
                                     updateField("intervalValue", value)

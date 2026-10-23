@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
@@ -31,6 +31,10 @@ import {
 } from "@/lib/hooks/dashboard-list-search-ui";
 import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
 import {
+  FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
+import {
   fleetLeaseContractDetailHref,
   fleetRenewLeaseContractHref,
 } from "@/lib/navigation/fleet-static-routes";
@@ -52,6 +56,17 @@ export default function RenewalsExtensionsTable() {
 
   const { searchInput, setSearchInput, debouncedSearch } =
     useDashboardListSearch();
+
+  const onRenewalsListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: FLEET_LEASE_CONTRACT_LIST_INPUT_LIMITS.search,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
 
   const [page, setPage] = useState(1);
 
@@ -198,7 +213,7 @@ export default function RenewalsExtensionsTable() {
             <DashboardFilters
               searchValue={searchInput}
               searchPlaceholder="Search contract ID or client"
-              onSearchChange={setSearchInput}
+              onSearchChange={onRenewalsListSearchChange}
               onClear={handleClearSearch}
             />
           )}

@@ -6,6 +6,15 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
+import {
+  WORKSHOP_MAINTENANCE_SCHEDULE_ASSET_CLASS_LABEL_MAX,
+  WORKSHOP_MAINTENANCE_SCHEDULE_DESCRIPTION_MAX,
+  WORKSHOP_MAINTENANCE_SCHEDULE_INTERVAL_LABEL_MAX,
+  WORKSHOP_MAINTENANCE_SCHEDULE_INTERVAL_TYPE_MAX,
+  WORKSHOP_MAINTENANCE_SCHEDULE_MAINTENANCE_TYPE_MAX,
+  WORKSHOP_MAINTENANCE_SCHEDULE_NAME_MAX,
+  WORKSHOP_MAINTENANCE_SCHEDULE_VEHICLE_APPLICABILITY_MAX,
+} from '../constants/workshop-field.constants';
 
 export class CreateMaintenanceScheduleDto {
   @ApiProperty()
@@ -15,13 +24,13 @@ export class CreateMaintenanceScheduleDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)
-  @MaxLength(255)
+  @MaxLength(WORKSHOP_MAINTENANCE_SCHEDULE_NAME_MAX)
   name!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(255)
+  @MaxLength(WORKSHOP_MAINTENANCE_SCHEDULE_ASSET_CLASS_LABEL_MAX)
   assetClassLabel?: string;
 
   @ApiPropertyOptional({
@@ -29,30 +38,30 @@ export class CreateMaintenanceScheduleDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(WORKSHOP_MAINTENANCE_SCHEDULE_INTERVAL_LABEL_MAX)
   intervalLabel?: string;
 
   @ApiPropertyOptional({ example: 'Preventive Maintenance' })
   @IsOptional()
   @IsString()
-  @MaxLength(64)
+  @MaxLength(WORKSHOP_MAINTENANCE_SCHEDULE_MAINTENANCE_TYPE_MAX)
   maintenanceType?: string;
 
   @ApiPropertyOptional({ example: 'Odometer' })
   @IsOptional()
   @IsString()
-  @MaxLength(32)
+  @MaxLength(WORKSHOP_MAINTENANCE_SCHEDULE_INTERVAL_TYPE_MAX)
   intervalType?: string;
 
   @ApiPropertyOptional({ example: 'Leased' })
   @IsOptional()
   @IsString()
-  @MaxLength(32)
+  @MaxLength(WORKSHOP_MAINTENANCE_SCHEDULE_VEHICLE_APPLICABILITY_MAX)
   vehicleApplicability?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(2000)
+  @MaxLength(WORKSHOP_MAINTENANCE_SCHEDULE_DESCRIPTION_MAX)
   description?: string;
 }

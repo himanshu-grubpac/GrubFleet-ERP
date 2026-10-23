@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CarFront, Search, Check, Copy } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
@@ -13,7 +13,11 @@ import {
     listSortQueryKeyPart,
     useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+    ASSET_REGISTER_VEHICLE_INPUT_LIMITS,
+    sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
 import {
     assetRegisterFleetDetailHref,
@@ -168,8 +172,19 @@ export default function FleetDashboardPage() {
     /* State                                                                  */
     /* ---------------------------------------------------------------------- */
 
-    const [search, setSearch] = useState("");
-    const debouncedSearch = useDebouncedValue(search, 300);
+    const { searchInput, setSearchInput, debouncedSearch } =
+        useDashboardListSearch();
+
+    const onFleetListSearchChange = useCallback(
+        (value: string) => {
+            setSearchInput(
+                sanitizeRestrictedInputValue("text", value, {
+                    maxLength: ASSET_REGISTER_VEHICLE_INPUT_LIMITS.listSearch,
+                }),
+            );
+        },
+        [setSearchInput],
+    );
 
     const [activeFilter, setActiveFilter] =
         useState<FleetFilter>("all");
@@ -262,40 +277,8 @@ export default function FleetDashboardPage() {
     /* Filtering                                                              */
     /* ---------------------------------------------------------------------- */
 
-    const filteredVehicles = useMemo(() => {
-        const searchValue = debouncedSearch.trim().toLowerCase();
-
-        return apiVehicles.filter((vehicle) => {
-            const matchesSearch =
-                !searchValue ||
-                vehicle.fleetCode.toLowerCase().includes(searchValue) ||
-                vehicle.assetClass.toLowerCase().includes(searchValue) ||
-                vehicle.registrationNumber.toLowerCase().includes(searchValue);
-
-            let matchesFilter = true;
-
-            switch (activeFilter) {
-                case "available":
-                    matchesFilter = vehicle.status === "available";
-                    break;
-                case "leased":
-                    matchesFilter = vehicle.status === "leased";
-                    break;
-                case "workshop":
-                    matchesFilter = vehicle.status === "workshop";
-                    break;
-                case "sold":
-                    matchesFilter = vehicle.status === "sold";
-                    break;
-                case "all":
-                default:
-                    matchesFilter = true;
-                    break;
-            }
-
-            return matchesSearch && matchesFilter;
-        });
-    }, [debouncedSearch, activeFilter, apiVehicles]);
+    /** Server applies search + operationalStatus — avoid double client-side filter. */
+    const filteredVehicles = apiVehicles;
 
     const isInitialLoading =
         isAuthLoading || (listQuery.isLoading && !listQuery.data);
@@ -312,7 +295,7 @@ export default function FleetDashboardPage() {
     /* ---------------------------------------------------------------------- */
 
     const handleClearFilters = () => {
-        setSearch("");
+        setSearchInput("");
         setActiveFilter("all");
         setPage(1);
     };
@@ -451,9 +434,12 @@ export default function FleetDashboardPage() {
                     />
 
                     <input
-                        type="text"
-                        value={search}
-                        onChange={(event) => setSearch(event.target.value)}
+                        type="search"
+                        value={searchInput}
+                        maxLength={ASSET_REGISTER_VEHICLE_INPUT_LIMITS.listSearch}
+                        onChange={(event) =>
+                            onFleetListSearchChange(event.target.value)
+                        }
                         placeholder="Search by fleet code or registration number"
                         className="h-9 w-full rounded-md border border-gray-200 bg-white pl-9 pr-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-300 focus:ring-1 focus:ring-gray-200"
                     />

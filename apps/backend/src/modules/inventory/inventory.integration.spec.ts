@@ -85,6 +85,22 @@ describe('Inventory module (integration)', () => {
     return (res.body as { id: string }).id;
   }
 
+  function buildStockReceiptPayload(
+    partId: string,
+    overrides: Record<string, unknown> = {},
+  ) {
+    return {
+      organizationId,
+      partId,
+      locationId,
+      purchaseDate: '2026-02-01',
+      quantityReceived: 10,
+      quantityUnitCostMinor: 50000,
+      batchLotReference: 'LOT-INT-1',
+      ...overrides,
+    };
+  }
+
   describe('security lattice', () => {
     it('returns 401 without JWT on list and create', async () => {
       await request(app.getHttpServer())
@@ -172,15 +188,7 @@ describe('Inventory module (integration)', () => {
         .post('/api/v1/inventory/stock-receipts')
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
-        .send({
-          organizationId,
-          partId,
-          locationId,
-          purchaseDate: '2026-02-01',
-          quantityReceived: 10,
-          quantityUnitCostMinor: 50000,
-          batchLotReference: 'LOT-INT-1',
-        })
+        .send(buildStockReceiptPayload(partId))
         .expect(201);
 
       const receiptId = (receiptRes.body as { id: string }).id;
@@ -204,14 +212,50 @@ describe('Inventory module (integration)', () => {
     });
   });
 
-  describe('parts requests read', () => {
-    it('lists parts requests', async () => {
+  describe('parts requests list boundaries', () => {
+    it('lists parts requests for org', async () => {
       await request(app.getHttpServer())
         .get('/api/v1/inventory/parts-requests')
         .query({ organizationId, page: 1, pageSize: 10 })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
         .expect(200);
+    });
+
+    it('returns 403 without inventory permission on list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/parts-requests')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${viewerToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(403);
+    });
+
+    it('returns 400 for invalid sortBy on parts requests list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/parts-requests')
+        .query({ organizationId, sortBy: 'notAColumn' })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/parts-requests')
+        .query({ organizationId, search: 'x'.repeat(121) })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
+    it('returns 400 for invalid requestStatus filter', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/parts-requests')
+        .query({ organizationId, requestStatus: 'notAStatus' })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
     });
   });
 
@@ -222,6 +266,142 @@ describe('Inventory module (integration)', () => {
         .query({ organizationId, sortBy: 'notAColumn' })
         .set('Authorization', `Bearer ${accessToken}`)
         .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+  });
+
+  describe('stock receipts list boundaries', () => {
+    it('lists stock receipts for org', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-receipts')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+    });
+
+    it('returns 403 without inventory permission on list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-receipts')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${viewerToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(403);
+    });
+
+    it('returns 400 for invalid sortBy on stock receipts list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-receipts')
+        .query({ organizationId, sortBy: 'notAColumn' })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-receipts')
+        .query({ organizationId, search: 'x'.repeat(121) })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+  });
+
+  describe('stock balance list boundaries', () => {
+    it('lists stock balance for org', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-balance')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+    });
+
+    it('returns 403 without inventory permission on list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-balance')
+        .query({ organizationId, page: 1, pageSize: 10 })
+        .set('Authorization', `Bearer ${viewerToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(403);
+    });
+
+    it('returns 400 for invalid sortBy on stock balance list', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-balance')
+        .query({ organizationId, sortBy: 'notAColumn' })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-balance')
+        .query({ organizationId, search: 'x'.repeat(121) })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+  });
+
+  describe('input validation boundaries', () => {
+    it('returns 400 when list search exceeds max length on stock register', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/inventory/stock-register')
+        .query({ organizationId, search: 'x'.repeat(121) })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
+    it('returns 400 when spare part name exceeds max length on create', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/inventory/stock-register')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildPartPayload({
+            name: 'n'.repeat(256),
+          }),
+        )
+        .expect(400);
+    });
+
+    it('returns 400 when stock receipt notes exceed max length on create', async () => {
+      if (!locationId) {
+        expect(locationId).toBeDefined();
+        return;
+      }
+      const partId = await createPartAsAdmin();
+      await request(app.getHttpServer())
+        .post('/api/v1/inventory/stock-receipts')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildStockReceiptPayload(partId, {
+            notes: 'n'.repeat(2001),
+          }),
+        )
+        .expect(400);
+    });
+
+    it('returns 400 when stock receipt batch lot reference exceeds max length on create', async () => {
+      if (!locationId) {
+        expect(locationId).toBeDefined();
+        return;
+      }
+      const partId = await createPartAsAdmin();
+      await request(app.getHttpServer())
+        .post('/api/v1/inventory/stock-receipts')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildStockReceiptPayload(partId, {
+            batchLotReference: 'b'.repeat(121),
+          }),
+        )
         .expect(400);
     });
   });

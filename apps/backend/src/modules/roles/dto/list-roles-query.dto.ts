@@ -1,6 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsUUID } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsUUID, MaxLength } from 'class-validator';
 import { PaginationQueryDto } from '../../../common/dto/pagination-query.dto';
+import { ORGANISATION_LIST_SEARCH_MAX_LENGTH } from '../../organisation/constants/organisation-field.constants';
 import {
   ROLE_LIST_SORT_FIELDS,
   type RoleListSortField,
@@ -13,4 +14,9 @@ export class ListRolesQueryDto extends PaginationQueryDto {
   organizationId!: string;
   @SortByQuery(ROLE_LIST_SORT_FIELDS)
   sortBy?: RoleListSortField;
+
+  @ApiPropertyOptional({ maxLength: ORGANISATION_LIST_SEARCH_MAX_LENGTH })
+  @IsOptional()
+  @MaxLength(ORGANISATION_LIST_SEARCH_MAX_LENGTH)
+  search?: string;
 }

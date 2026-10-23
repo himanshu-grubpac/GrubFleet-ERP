@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 import {
@@ -24,7 +24,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  INVENTORY_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   fetchStockRegisterListApi,
   updateSparePartStatusApi,
@@ -57,8 +61,23 @@ export default function StockDashboardPage() {
     permissions.has("inventory.create") ||
     permissions.has("inventory.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const canUpdate =
+    permissions.has("inventory.update") ||
+    permissions.has("inventory.manage");
+
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: INVENTORY_INPUT_LIMITS.listSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
   const [filters, setFilters] = useState<Record<string, string>>({
     compatibleClass: "",
     unit: "",
@@ -226,9 +245,9 @@ export default function StockDashboardPage() {
         }}
       >
         <DashboardFilters
-          searchValue={search}
+          searchValue={searchInput}
           searchPlaceholder="Search by part name or part number"
-          onSearchChange={setSearch}
+          onSearchChange={onListSearchChange}
           selectFilters={[
             {
               key: "compatibleClass",
@@ -253,7 +272,7 @@ export default function StockDashboardPage() {
             }));
           }}
           onClear={() => {
-            setSearch("");
+            clearSearch();
             setFilters({ compatibleClass: "", unit: "" });
             setCurrentPage(1);
           }}
@@ -288,7 +307,7 @@ export default function StockDashboardPage() {
                 router.push(inventoryStockRegisterCreateHref);
                 return;
               }
-              setSearch("");
+              clearSearch();
               setFilters({ compatibleClass: "", unit: "" });
             }}
           />
@@ -314,21 +333,25 @@ export default function StockDashboardPage() {
                   `Status: ${part.status}`,
                 ].join("\n")}
                 onEdit={
-                  part.availableActions.edit
+                  canUpdate && part.availableActions.edit
                     ? () =>
                       router.push(
                         inventoryStockRegisterEditHref(part.id),
                       )
                     : undefined
                 }
-                onToggleStatus={() => {
-                  setStatusTarget(part);
-                  if (part.status === "active") {
-                    setDeactivateOpen(true);
-                  } else {
-                    setActivateOpen(true);
-                  }
-                }}
+                onToggleStatus={
+                  canUpdate
+                    ? () => {
+                        setStatusTarget(part);
+                        if (part.status === "active") {
+                          setDeactivateOpen(true);
+                        } else {
+                          setActivateOpen(true);
+                        }
+                      }
+                    : undefined
+                }
               />
             )}
           />

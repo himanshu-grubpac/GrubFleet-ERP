@@ -40,6 +40,7 @@ export default function StockEditPage() {
         stockId,
         {
           name: data.name.trim(),
+          brand: data.brand.trim() || undefined,
           compatibleAssetClasses: data.compatibleAssetClasses,
           unitOfMeasure: data.unitOfMeasure.trim(),
           retailMarkupPercent: Number(data.retailMarkup) || 0,
@@ -83,6 +84,7 @@ export default function StockEditPage() {
       mode="edit"
       initialData={{
         name: stock.partName,
+        brand: stock.brand ?? "",
         compatibleAssetClasses: stock.compatibleAssetClasses,
         unitOfMeasure: stock.unitOfMeasure,
         retailMarkup: stock.retailMarkup,

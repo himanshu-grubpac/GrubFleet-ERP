@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import {
@@ -19,7 +19,11 @@ import {
   listSortQueryKeyPart,
   useDashboardTableListSort,
 } from "@/lib/query/dashboard-table-list-sort";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  ORGANISATION_LOCATION_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 import {
   LOCATION_STATUS_UPDATE_ERROR,
   showErrorToast,
@@ -85,8 +89,20 @@ export default function LocationsPage() {
   /* State                                                                    */
   /* ------------------------------------------------------------------------ */
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const { searchInput, setSearchInput, debouncedSearch, clearSearch } =
+    useDashboardListSearch();
+
+  const onLocationListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: ORGANISATION_LOCATION_INPUT_LIMITS.locationListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
+
   const [page, setPage] = useState(1);
 
   const {
@@ -260,7 +276,7 @@ export default function LocationsPage() {
   /* ------------------------------------------------------------------------ */
 
   const handleClearFilters = () => {
-    setSearch("");
+    clearSearch();
 
     setFilters({
       type: "",
@@ -410,9 +426,9 @@ export default function LocationsPage() {
 
       {locationsTotal > 0 && (
         <DashboardFilters
-          searchValue={search}
+          searchValue={searchInput}
           searchPlaceholder="Search locations..."
-          onSearchChange={setSearch}
+          onSearchChange={onLocationListSearchChange}
           selectFilters={[
             {
               key: "type",

@@ -69,6 +69,7 @@ export async function fetchRolesApi(
   page = 1,
   pageSize = 50,
   sort?: ListSortParams,
+  search?: string,
 ): Promise<PaginatedResponse<Role>> {
   const query = new URLSearchParams({
     organizationId,
@@ -76,6 +77,10 @@ export async function fetchRolesApi(
     pageSize: String(pageSize),
   });
   appendListSortSearchParams(query, sort);
+  const trimmedSearch = search?.trim();
+  if (trimmedSearch) {
+    query.set('search', trimmedSearch);
+  }
 
   return apiFetch<PaginatedResponse<Role>>(`/roles?${query.toString()}`, {
     method: 'GET',

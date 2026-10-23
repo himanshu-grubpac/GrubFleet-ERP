@@ -9,6 +9,13 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import {
+  INVENTORY_STOCK_RECEIPT_BATCH_LOT_REF_MAX,
+  INVENTORY_STOCK_RECEIPT_NOTES_MAX,
+  INVENTORY_STOCK_RECEIPT_PURCHASE_INVOICE_REF_MAX,
+  INVENTORY_STOCK_RECEIPT_QUANTITY_RECEIVED_MAX,
+  INVENTORY_STOCK_RECEIPT_QUANTITY_RECEIVED_MIN,
+} from '../constants/inventory-field.constants';
 
 export class UpdateStockReceiptDto {
   @ApiPropertyOptional()
@@ -24,7 +31,7 @@ export class UpdateStockReceiptDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(255)
+  @MaxLength(INVENTORY_STOCK_RECEIPT_PURCHASE_INVOICE_REF_MAX)
   purchaseInvoiceReference?: string;
 
   @ApiPropertyOptional()
@@ -45,8 +52,8 @@ export class UpdateStockReceiptDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsInt()
-  @Min(1)
-  @Max(9999999)
+  @Min(INVENTORY_STOCK_RECEIPT_QUANTITY_RECEIVED_MIN)
+  @Max(INVENTORY_STOCK_RECEIPT_QUANTITY_RECEIVED_MAX)
   quantityReceived?: number;
 
   @ApiPropertyOptional()
@@ -58,12 +65,12 @@ export class UpdateStockReceiptDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(120)
+  @MaxLength(INVENTORY_STOCK_RECEIPT_BATCH_LOT_REF_MAX)
   batchLotReference?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(2000)
+  @MaxLength(INVENTORY_STOCK_RECEIPT_NOTES_MAX)
   notes?: string;
 }

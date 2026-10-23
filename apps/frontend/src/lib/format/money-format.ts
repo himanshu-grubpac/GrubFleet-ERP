@@ -1,3 +1,9 @@
+import {
+  DECIMAL_MONEY_PATTERN,
+  decimalMoneyAmountToPatternText,
+  isValidDecimalMoneyNumber,
+} from "@grubpac/validation";
+
 /** Max digits in the major (rupee) part before the decimal — ERP-wide money inputs. */
 export const INR_MONEY_MAX_MAJOR_DIGITS = 12;
 
@@ -136,4 +142,110 @@ export function parseRupeeInputToMajorNumber(value: string): number {
   }
   const parsed = Number(normalized);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+/** Fleet lease contract write amounts — decimal string for API (security deposit, line rates). */
+export function normalizeDecimalMoneyForLeaseApi(value: string): string {
+  const normalized = stripRupeeInputGrouping(value.trim());
+  if (!normalized) {
+    return "";
+  }
+
+  const withoutTrailingSeparators = normalized.replace(/\.+$/, "");
+  const candidates = [
+    normalized,
+    ...(withoutTrailingSeparators !== normalized
+      ? [withoutTrailingSeparators]
+      : []),
+  ];
+
+  for (const candidate of candidates) {
+    if (!DECIMAL_MONEY_PATTERN.test(candidate)) {
+      continue;
+    }
+    const major = Number(candidate);
+    if (!Number.isFinite(major)) {
+      continue;
+    }
+    return decimalMoneyAmountToPatternText(major);
+  }
+
+  const coercedMajor = Number(withoutTrailingSeparators);
+  if (
+    Number.isFinite(coercedMajor) &&
+    coercedMajor >= 0 &&
+    isValidDecimalMoneyNumber(coercedMajor)
+  ) {
+    return decimalMoneyAmountToPatternText(coercedMajor);
+  }
+
+  return withoutTrailingSeparators || normalized;
+}
+
+/**
+ * Line rates on asset-lines step may be blank until terms — backend requires DECIMAL_MONEY.
+ * Persist `0.00` until the user enters rates on the terms step.
+ */
+export function normalizeLeaseLineRateForApi(value: string): string {
+  const normalized = normalizeDecimalMoneyForLeaseApi(value);
+  if (normalized && DECIMAL_MONEY_PATTERN.test(normalized)) {
+    return normalized;
+  }
+  return "0.00"; // LEASE_WIZARD_DRAFT_ASSET_LINE_RATE_PLACEHOLDER
+}
+
+export type LeaseDecimalMoneyValidationOptions = {
+  label?: string;
+  required?: boolean;
+  min?: number;
+};
+
+/** Client save validation — mirrors DECIMAL_MONEY_PATTERN + optional minimum. */
+export function validateLeaseDecimalMoneyInput(
+  value: string,
+  options: LeaseDecimalMoneyValidationOptions = {},
+): string | undefined {
+  const {
+    label = "Amount",
+    required = true,
+    min = 0,
+  } = options;
+  const stripped = stripRupeeInputGrouping(String(value ?? "").trim());
+
+  if (!stripped) {
+    return required ? `${label} is required.` : undefined;
+  }
+
+  if (!DECIMAL_MONEY_PATTERN.test(stripped)) {
+    return `Enter a valid ${label.toLowerCase()}.`;
+  }
+
+  const numeric = Number(stripped);
+  if (!Number.isFinite(numeric)) {
+    return `Enter a valid ${label.toLowerCase()}.`;
+  }
+
+  if (numeric < min) {
+    return `${label} must be at least ${min}.`;
+  }
+
+  return undefined;
+}
+
+/** Format API/DB decimal money for controlled inrRupee inputs. */
+export function formatLeaseDecimalMoneyForInput(
+  value: string | number | null | undefined,
+): string {
+  if (value == null) {
+    return "";
+  }
+  const text = String(value).trim();
+  if (!text) {
+    return "";
+  }
+  const major = coerceInrMajorUnits(text);
+  if (major == null) {
+    return "";
+  }
+  return formatRupeeInputDisplay(decimalMoneyAmountToPatternText(major));
 }

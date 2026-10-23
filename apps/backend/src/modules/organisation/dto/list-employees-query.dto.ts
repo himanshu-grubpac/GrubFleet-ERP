@@ -7,8 +7,10 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { ORGANISATION_LIST_SEARCH_MAX_LENGTH } from '../constants/organisation-field.constants';
 import {
   DEFAULT_PAGE,
   type ListSortOrder,
@@ -45,9 +47,10 @@ export class ListEmployeesQueryDto {
   @Max(EMPLOYEE_LIST_MAX_PAGE_SIZE)
   pageSize?: number = 50;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: ORGANISATION_LIST_SEARCH_MAX_LENGTH })
   @IsOptional()
   @IsString()
+  @MaxLength(ORGANISATION_LIST_SEARCH_MAX_LENGTH)
   search?: string;
 
   @ApiPropertyOptional()

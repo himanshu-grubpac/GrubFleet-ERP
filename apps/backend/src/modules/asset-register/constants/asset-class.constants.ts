@@ -36,6 +36,9 @@ export const ASSET_CLASS_INTAKE_ITEM_MAX_LENGTH = 500;
 
 export const ASSET_CLASS_DEACTIVATE_REASON_MAX_LENGTH = 500;
 
+/** ListAssetClassesQueryDto.search — aligned with fleet list search cap. */
+export const ASSET_CLASS_LIST_SEARCH_MAX_LENGTH = 120;
+
 /** Global seed catalog for intake checklist dropdown on create (2026-10-12 meeting). */
 export const ASSET_CLASS_INTAKE_CATALOG_ITEMS = [
   'Registration documents verified',

@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Banknote } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -24,7 +24,11 @@ import {
 } from "@/lib/api/finance/vendor-payments";
 
 import { formatInrFromMinor } from "@/lib/format/money-format";
-import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
+import { useDashboardListSearch } from "@/lib/hooks/use-dashboard-list-search";
+import {
+  FINANCE_VENDOR_PAYMENT_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 
 import {
   financeVendorPaymentDetailHref,
@@ -67,8 +71,24 @@ export default function VendorPaymentsPage() {
     permissions.has("finance.delete") ||
     permissions.has("finance.manage");
 
-  const [search, setSearch] = useState("");
-  const debouncedSearch = useDebouncedValue(search, 300);
+  const {
+    searchInput,
+    setSearchInput,
+    debouncedSearch,
+    clearSearch,
+  } = useDashboardListSearch();
+
+  const onVendorPaymentListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength:
+            FINANCE_VENDOR_PAYMENT_INPUT_LIMITS.vendorPaymentListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
 
   const [page, setPage] = useState(1);
 
@@ -188,8 +208,8 @@ export default function VendorPaymentsPage() {
 
         {/* Search */}
         <DashboardFilters
-          searchValue={search}
-          onSearchChange={setSearch}
+          searchValue={searchInput}
+          onSearchChange={onVendorPaymentListSearchChange}
           searchPlaceholder="Payment ID, invoice number, or vendor"
         />
 
@@ -250,7 +270,7 @@ export default function VendorPaymentsPage() {
               description="Try changing your search to find vendor payments."
               buttonLabel="Clear search"
               onButtonClick={() => {
-                setSearch("");
+                clearSearch();
                 setPage(1);
               }}
             />

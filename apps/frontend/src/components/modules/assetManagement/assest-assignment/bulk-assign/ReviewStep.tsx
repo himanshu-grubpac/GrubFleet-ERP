@@ -5,9 +5,10 @@ import { X } from "lucide-react";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import Button from "@/components/ui/GrubpacButton";
 import type { BulkAssignVehicleValidationRow } from "@/lib/api/asset-register/assignments";
-
-const BULK_ASSIGN_HANDOVER_LOCATION_MAX = 255;
-const BULK_ASSIGN_NOTES_MAX = 2000;
+import {
+    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS,
+    sanitizeTextValue,
+} from "@/lib/forms/restricted-input";
 const REVIEW_VEHICLE_PREVIEW = 6;
 
 type ReviewVehicleRow = {
@@ -326,7 +327,9 @@ export default function ReviewStep({
                         <RestrictedInput
                             id="bulk-handover-location"
                             restrictedKind="text"
-                            maxLength={BULK_ASSIGN_HANDOVER_LOCATION_MAX}
+                            maxLength={
+                                ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.handoverLocation
+                            }
                             value={handoverLocation}
                             onChange={onHandoverLocationChange}
                             className="h-9 text-xs"
@@ -345,10 +348,15 @@ export default function ReviewStep({
                         </label>
                         <textarea
                             id="bulk-assign-notes"
-                            maxLength={BULK_ASSIGN_NOTES_MAX}
+                            maxLength={ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.notes}
                             value={notes}
                             onChange={(event) =>
-                                onNotesChange(event.target.value)
+                                onNotesChange(
+                                    sanitizeTextValue(
+                                        event.target.value,
+                                        ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.notes,
+                                    ),
+                                )
                             }
                             rows={3}
                             placeholder="Handover or assignment notes"

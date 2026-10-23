@@ -317,6 +317,20 @@ describe('Finance invoices (integration)', () => {
         )
         .expect(400);
     });
+
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/finance/invoices')
+        .query({
+          organizationId,
+          page: 1,
+          pageSize: 10,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
   });
 
   describe('purchase invoices — happy path', () => {
@@ -884,6 +898,37 @@ describe('Finance invoices (integration)', () => {
           invoiceDate: '2026-04-01',
         })
         .expect(404);
+    });
+
+    it('returns 400 when sale buyerName exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/invoices/sale')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vehicleId: fakeUuid,
+          buyerName: 'x'.repeat(256),
+          totalAmountMinor: 100_00,
+          invoiceDate: '2026-04-01',
+        })
+        .expect(400);
+    });
+
+    it('returns 400 when billing period exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/invoices/billing/lease')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          clientId: fakeUuid,
+          leaseContractId: fakeUuid,
+          billingPeriod: 'x'.repeat(121),
+          totalAmountMinor: 50_000_00,
+          invoiceDate: '2026-04-01',
+        })
+        .expect(400);
     });
   });
 

@@ -18,7 +18,10 @@ import {
   type ValidationErrors,
 } from "@/components/common/Commonvalidation";
 import { useAuth } from "@/providers/auth-provider";
-import { ASSET_REGISTER_CLASS_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import {
+  ASSET_REGISTER_CLASS_INPUT_LIMITS,
+  sanitizeNonNegativeDecimalInput,
+} from "@/lib/forms/restricted-input";
 import { fetchAssetRegisterIntakeCatalogApi } from "@/lib/api/asset-register/catalog";
 import {
   type AssetClassFormFieldErrors,
@@ -26,6 +29,19 @@ import {
   validateAssetClassFormFields,
   validateAssetClassFormForSubmit,
 } from "@/lib/api/asset-register/mappers";
+
+const ASSET_CLASS_SPEC_DECIMAL_SANITIZE = {
+  maxIntegerDigits: ASSET_REGISTER_CLASS_INPUT_LIMITS.specDecimalMaxIntegerDigits,
+  maxDecimalPlaces:
+    ASSET_REGISTER_CLASS_INPUT_LIMITS.specDecimalMaxFractionDigits,
+} as const;
+
+const ASSET_CLASS_RATED_LOAD_DECIMAL_SANITIZE = {
+  maxIntegerDigits:
+    ASSET_REGISTER_CLASS_INPUT_LIMITS.ratedLoadMaxIntegerDigits,
+  maxDecimalPlaces:
+    ASSET_REGISTER_CLASS_INPUT_LIMITS.specDecimalMaxFractionDigits,
+} as const;
 
 
 export type AssetClassFormData = {
@@ -61,7 +77,7 @@ const VEHICLE_TYPES = ["2-Wheeler", "3-Wheeler", "4-Wheeler"];
 
 const FUEL_TYPES = ["Petrol", "Diesel", "CNG", "Electric"];
 
-const MILEAGE_UNITS = ["km/L", "L/100 km", "km/kWh"];
+const MILEAGE_UNITS = ["km/L", "km/kg", "km/kWh"] as const;
 
 const labelClass = "mb-1 block text-xs font-semibold text-gray-700";
 
@@ -206,7 +222,7 @@ export default function CreateAssetClassForm({
 
   const selectedIntakeSet = useMemo(
     () => new Set(form.intakeChecklistItems),
-    [form.intakeChecklistItems],
+    [form.intakeChecklistItems],  
   );
 
   const fuelTypeOptions = useMemo(() => {
@@ -218,11 +234,12 @@ export default function CreateAssetClassForm({
   }, [form.fuelType]);
 
   const mileageUnitOptions = useMemo(() => {
+    const allowed = [...MILEAGE_UNITS];
     const unit = form.mileageUnit.trim();
-    if (unit && !MILEAGE_UNITS.includes(unit)) {
-      return [...MILEAGE_UNITS, unit];
+    if (unit && !allowed.includes(unit as (typeof MILEAGE_UNITS)[number])) {
+      return allowed;
     }
-    return MILEAGE_UNITS;
+    return allowed;
   }, [form.mileageUnit]);
 
   const clearValidationError = (field: AssetClassFormFieldKey) => {
@@ -322,6 +339,10 @@ export default function CreateAssetClassForm({
   };
 
   const liveErrors = useMemo(() => validateForm(), [form]);
+  const { canSubmit } = useMemo(
+    () => validateAssetClassFormForSubmit(form, { isSaving }),
+    [form, isSaving],
+  );
   const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
   const validationSummary = Object.values(displayedErrors).filter(
     (message): message is string => Boolean(message),
@@ -395,7 +416,7 @@ export default function CreateAssetClassForm({
             <Button
               type="button"
               onClick={() => void handleSave()}
-              disabled={isSaving}
+              disabled={!canSubmit || isSaving}
               className="h-10 px-5"
             >
               {isSaving
@@ -487,7 +508,7 @@ export default function CreateAssetClassForm({
           <RestrictedInput
             id="manufacturing-year"
             restrictedKind="digits"
-            maxLength={4}
+            maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.manufacturingYearDigits}
             value={form.manufacturingYear}
             placeholder="e.g. 2025"
             onChange={(value) => updateForm("manufacturingYear", value)}
@@ -568,8 +589,13 @@ export default function CreateAssetClassForm({
             value={form.colorCode}
             placeholder="e.g. #FFFFFF"
             onChange={(value) => updateForm("colorCode", value)}
-            className={inputClassName}
+            aria-invalid={Boolean(displayedErrors.colorCode)}
+            className={mergeFormControlBorderClass(
+              Boolean(displayedErrors.colorCode),
+              inputClassName,
+            )}
           />
+          <FormFieldInlineError message={displayedErrors.colorCode} />
         </div>
       </div>
 
@@ -581,7 +607,9 @@ export default function CreateAssetClassForm({
           <RestrictedInput
             id="engine-displacement"
             restrictedKind="digits"
-            maxLength={5}
+            maxLength={
+              ASSET_REGISTER_CLASS_INPUT_LIMITS.engineDisplacementCcMaxDigits
+            }
             value={form.engineDisplacementCc}
             placeholder="e.g. 110"
             onChange={(value) => updateForm("engineDisplacementCc", value)}
@@ -612,13 +640,18 @@ export default function CreateAssetClassForm({
               <span className="shrink-0 border-r border-gray-200 px-2 text-xs text-gray-500">
                 From
               </span>
-              <input
+              <RestrictedInput
                 id="mileage-from"
-                type="number"
-                min="0"
+                restrictedKind="text"
                 value={form.mileageFrom}
-                onChange={(event) =>
-                  updateForm("mileageFrom", event.target.value)
+                onChange={(value) =>
+                  updateForm(
+                    "mileageFrom",
+                    sanitizeNonNegativeDecimalInput(
+                      value,
+                      ASSET_CLASS_SPEC_DECIMAL_SANITIZE,
+                    ),
+                  )
                 }
                 placeholder="40"
                 aria-invalid={Boolean(displayedErrors.mileageFrom)}
@@ -629,13 +662,18 @@ export default function CreateAssetClassForm({
               <span className="shrink-0 border-r border-gray-200 px-2 text-xs text-gray-500">
                 To
               </span>
-              <input
+              <RestrictedInput
                 id="mileage-to"
-                type="number"
-                min="0"
+                restrictedKind="text"
                 value={form.mileageTo}
-                onChange={(event) =>
-                  updateForm("mileageTo", event.target.value)
+                onChange={(value) =>
+                  updateForm(
+                    "mileageTo",
+                    sanitizeNonNegativeDecimalInput(
+                      value,
+                      ASSET_CLASS_SPEC_DECIMAL_SANITIZE,
+                    ),
+                  )
                 }
                 placeholder="50"
                 aria-invalid={Boolean(displayedErrors.mileageTo)}
@@ -688,14 +726,18 @@ export default function CreateAssetClassForm({
               <span className="shrink-0 border-r border-gray-200 px-2 text-xs text-gray-500">
                 From
               </span>
-              <input
+              <RestrictedInput
                 id="rated-load-capacity-from"
-                type="number"
-                min="0"
-                step="1"
+                restrictedKind="text"
                 value={form.ratedLoadCapacityFrom}
-                onChange={(event) =>
-                  updateForm("ratedLoadCapacityFrom", event.target.value)
+                onChange={(value) =>
+                  updateForm(
+                    "ratedLoadCapacityFrom",
+                    sanitizeNonNegativeDecimalInput(
+                      value,
+                      ASSET_CLASS_RATED_LOAD_DECIMAL_SANITIZE,
+                    ),
+                  )
                 }
                 placeholder="150"
                 aria-invalid={Boolean(displayedErrors.ratedLoadCapacityFrom)}
@@ -706,14 +748,18 @@ export default function CreateAssetClassForm({
               <span className="shrink-0 border-r border-gray-200 px-2 text-xs text-gray-500">
                 To
               </span>
-              <input
+              <RestrictedInput
                 id="rated-load-capacity-to"
-                type="number"
-                min="0"
-                step="1"
+                restrictedKind="text"
                 value={form.ratedLoadCapacityTo}
-                onChange={(event) =>
-                  updateForm("ratedLoadCapacityTo", event.target.value)
+                onChange={(value) =>
+                  updateForm(
+                    "ratedLoadCapacityTo",
+                    sanitizeNonNegativeDecimalInput(
+                      value,
+                      ASSET_CLASS_RATED_LOAD_DECIMAL_SANITIZE,
+                    ),
+                  )
                 }
                 placeholder="250"
                 aria-invalid={Boolean(displayedErrors.ratedLoadCapacityTo)}
@@ -742,14 +788,18 @@ export default function CreateAssetClassForm({
               compositeShellClass,
             )}
           >
-            <input
+            <RestrictedInput
               id="fuel-tank-capacity"
-              type="number"
-              min="0"
-              step="0.1"
+              restrictedKind="text"
               value={form.fuelTankCapacity}
-              onChange={(event) =>
-                updateForm("fuelTankCapacity", event.target.value)
+              onChange={(value) =>
+                updateForm(
+                  "fuelTankCapacity",
+                  sanitizeNonNegativeDecimalInput(
+                    value,
+                    ASSET_CLASS_SPEC_DECIMAL_SANITIZE,
+                  ),
+                )
               }
               placeholder="e.g. 5.5"
               aria-invalid={Boolean(displayedErrors.fuelTankCapacity)}
@@ -867,14 +917,14 @@ export default function CreateAssetClassForm({
                       submitIntakeCustomAdd(intakeCustomValue);
                     }}
                   >
-                    <input
+                    <RestrictedInput
                       autoFocus
-                      type="text"
-                      value={intakeCustomValue}
+                      restrictedKind="text"
                       maxLength={ASSET_REGISTER_CLASS_INPUT_LIMITS.intakeItem}
+                      value={intakeCustomValue}
                       placeholder="Enter custom checklist item"
                       disabled={isSaving}
-                      onChange={(event) => setIntakeCustomValue(event.target.value)}
+                      onChange={setIntakeCustomValue}
                       className="h-10 min-w-0 flex-1 rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20 disabled:bg-gray-50"
                       aria-label="Custom checklist item"
                     />

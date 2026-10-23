@@ -52,6 +52,7 @@ import {
     buildCompleteTermsApiPayload,
     buildPartialTermsPatch,
     computeLeaseEndDateIso,
+    mapWizardAssetLinesToApi,
     termsAreComplete,
 } from "@/lib/lease-contract/lease-contract-wizard.util";
 
@@ -85,14 +86,6 @@ function wizardTitle(screen: Screen, clientName: string): string {
         default:
             return "New lease contract";
     }
-}
-
-function mapAssetLinesToApi(lines: AssetLine[]) {
-    return lines.map((line) => ({
-        assetClass: line.assetClass,
-        committedQuantity: Number(line.committedQuantity),
-        ratePerVehicleMonth: String(line.ratePerVehicleMonth || "0"),
-    }));
 }
 
 function wizardDescription(screen: Screen): string | undefined {
@@ -188,7 +181,7 @@ export default function NewLeaseContractPage() {
                 clientId: selectedClientId,
             };
             if (lines.length > 0) {
-                payload.assetLines = mapAssetLinesToApi(lines);
+                payload.assetLines = mapWizardAssetLinesToApi(lines);
             }
             if (termsAreComplete(nextTerms)) {
                 payload.startDate = nextTerms.startDate;
@@ -314,7 +307,7 @@ export default function NewLeaseContractPage() {
                     organizationId,
                     contractId,
                     {
-                        assetLines: mapAssetLinesToApi(linesToPersist),
+                        assetLines: mapWizardAssetLinesToApi(linesToPersist),
                     },
                 );
             }
@@ -554,19 +547,28 @@ export default function NewLeaseContractPage() {
 
                     setIsPersistingStep(true);
                     try {
-                        // Explicit Continue creates/updates draft with client + lines
-                        // (no auto-draft on client selection alone).
-                        await persistWizardDraft({
-                            lines,
-                            nextTerms: terms,
-                            requireFullLines: true,
-                        });
+                        // Draft shell only — rates are collected on terms; lines persist there.
+                        if (draftContractId) {
+                            await updateLeaseContract(
+                                token,
+                                organizationId,
+                                draftContractId,
+                                { clientId: selectedClientId },
+                            );
+                        } else {
+                            const created = await createLeaseContract(
+                                token,
+                                organizationId,
+                                { clientId: selectedClientId },
+                            );
+                            setDraftContractId(created.id);
+                        }
                         setScreen("terms");
                     } catch (err) {
                         const message =
                             err instanceof Error
                                 ? err.message
-                                : "Could not save asset lines.";
+                                : "Could not save draft contract.";
                         setWizardError(message);
                         showErrorToast(message);
                     } finally {

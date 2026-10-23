@@ -6,7 +6,13 @@ import { useQuery } from "@tanstack/react-query";
 
 import FormActions from "@/components/common/FormActions";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import {
+    FormFieldInlineError,
+    mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { INVENTORY_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useAuth } from "@/providers/auth-provider";
 
@@ -16,6 +22,7 @@ import { useAuth } from "@/providers/auth-provider";
 
 export type PartFormData = {
     name: string;
+    brand: string;
     compatibleAssetClasses: string[];
     unitOfMeasure: string;
     retailMarkup: string;
@@ -37,6 +44,15 @@ function getPartFormValidationErrors(form: PartFormData): string[] {
 
     if (!form.name.trim()) {
         errors.push("Part name is required.");
+    } else if (form.name.trim().length > INVENTORY_INPUT_LIMITS.sparePartName) {
+        errors.push(`Part name must be at most ${INVENTORY_INPUT_LIMITS.sparePartName} characters.`);
+    }
+
+    if (
+        form.brand.trim() &&
+        form.brand.trim().length > INVENTORY_INPUT_LIMITS.sparePartBrand
+    ) {
+        errors.push(`Brand must be at most ${INVENTORY_INPUT_LIMITS.sparePartBrand} characters.`);
     }
 
     if (form.compatibleAssetClasses.length === 0) {
@@ -115,7 +131,7 @@ export default function CreatePartForm({
                 token: token!,
                 organizationId: organizationId!,
                 page: 1,
-                pageSize: 50,
+                pageSize: 200,
                 status: "active",
             }),
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -137,8 +153,21 @@ export default function CreatePartForm({
     /* Form                                                                   */
     /* ---------------------------------------------------------------------- */
 
+    const [assetClassFilter, setAssetClassFilter] = useState("");
+
+    const filteredAssetClassOptions = useMemo(() => {
+        const query = assetClassFilter.trim().toLowerCase();
+        if (!query) {
+            return assetClassOptions;
+        }
+        return assetClassOptions.filter((label) =>
+            label.toLowerCase().includes(query),
+        );
+    }, [assetClassFilter, assetClassOptions]);
+
     const [form, setForm] = useState<PartFormData>({
         name: initialData?.name ?? "",
+        brand: initialData?.brand ?? "",
         compatibleAssetClasses:
             initialData?.compatibleAssetClasses ?? [],
         unitOfMeasure:
@@ -166,9 +195,11 @@ export default function CreatePartForm({
         [form],
     );
 
-    // Keep Save enabled for an invalid form so the first click can reveal errors.
-    // Submission itself is blocked by handleSave until validation passes.
-    const canSubmit = canSave && !isSaving && !catalogLoading;
+    const canSubmit =
+        canSave &&
+        !isSaving &&
+        !catalogLoading &&
+        validationSummary.length === 0;
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -266,6 +297,7 @@ export default function CreatePartForm({
 
             const part: PartFormData = {
                 name: form.name.trim(),
+                brand: form.brand.trim(),
                 compatibleAssetClasses: form.compatibleAssetClasses,
                 unitOfMeasure: form.unitOfMeasure.trim(),
                 retailMarkup: form.retailMarkup.trim(),
@@ -338,24 +370,45 @@ export default function CreatePartForm({
                     </span>
                 </label>
 
-                <input
+                <RestrictedInput
                     id="part-name"
-                    type="text"
+                    restrictedKind="name"
+                    maxLength={INVENTORY_INPUT_LIMITS.sparePartName}
                     value={form.name}
-                    onChange={(event) =>
-                        updateForm(
-                            "name",
-                            event.target.value,
-                        )
-                    }
+                    onChange={(value) => updateForm("name", value)}
                     placeholder="e.g. Fuel Filter"
-                    className={`${inputClassName} ${hasAttemptedSubmit && !form.name.trim() ? "border-red-500" : ""}`}
+                    className={mergeFormControlBorderClass(
+                        hasAttemptedSubmit && !form.name.trim(),
+                        inputClassName,
+                    )}
+                    aria-invalid={hasAttemptedSubmit && !form.name.trim()}
                 />
-                {hasAttemptedSubmit && !form.name.trim() && (
-                    <p className="mt-1 text-xs text-red-600" role="alert">
-                        Part name is required.
-                    </p>
-                )}
+                <FormFieldInlineError
+                    message={
+                        hasAttemptedSubmit && !form.name.trim()
+                            ? "Part name is required."
+                            : undefined
+                    }
+                />
+            </div>
+
+            <div className="mt-4">
+                <label
+                    htmlFor="part-brand"
+                    className="mb-1 block text-xs font-semibold text-gray-700"
+                >
+                    Brand <span className="font-normal text-gray-500">(optional)</span>
+                </label>
+
+                <RestrictedInput
+                    id="part-brand"
+                    restrictedKind="text"
+                    maxLength={INVENTORY_INPUT_LIMITS.sparePartBrand}
+                    value={form.brand}
+                    onChange={(value) => updateForm("brand", value)}
+                    placeholder="e.g. OEM manufacturer"
+                    className={inputClassName}
+                />
             </div>
 
             {/* ================================================================ */}
@@ -414,18 +467,29 @@ export default function CreatePartForm({
 
                     {isAssetClassDropdownOpen && (
                         <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
+                            <div className="border-b border-gray-100 p-2">
+                                <RestrictedInput
+                                    restrictedKind="text"
+                                    maxLength={INVENTORY_INPUT_LIMITS.listSearch}
+                                    value={assetClassFilter}
+                                    onChange={setAssetClassFilter}
+                                    placeholder="Search asset classes…"
+                                    className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm"
+                                />
+                            </div>
                             <div className="max-h-56 overflow-y-auto py-1" role="listbox" aria-multiselectable="true" aria-labelledby="compatible-asset-classes">
                                 {catalogLoading ? (
                                     <p className="px-3 py-2 text-sm text-gray-500">
                                         Loading asset classes…
                                     </p>
-                                ) : assetClassOptions.length === 0 ? (
+                                ) : filteredAssetClassOptions.length === 0 ? (
                                     <p className="px-3 py-2 text-sm text-gray-500">
-                                        No active asset classes found. Add asset
-                                        classes in Asset Register first.
+                                        {assetClassOptions.length === 0
+                                            ? "No active asset classes found. Add asset classes in Asset Register first."
+                                            : "No asset classes match your search."}
                                     </p>
                                 ) : (
-                                    assetClassOptions.map((assetClass) => {
+                                    filteredAssetClassOptions.map((assetClass) => {
                                         const isSelected =
                                             form.compatibleAssetClasses.includes(
                                                 assetClass,
@@ -469,11 +533,14 @@ export default function CreatePartForm({
                         </div>
                     )}
                 </div>
-                {hasAttemptedSubmit && form.compatibleAssetClasses.length === 0 && (
-                    <p className="mt-1 text-xs text-red-600" role="alert">
-                        At least one compatible asset class is required.
-                    </p>
-                )}
+                <FormFieldInlineError
+                    message={
+                        hasAttemptedSubmit &&
+                        form.compatibleAssetClasses.length === 0
+                            ? "At least one compatible asset class is required."
+                            : undefined
+                    }
+                />
 
                 {/* Selected asset classes */}
 
@@ -542,11 +609,13 @@ export default function CreatePartForm({
                             </option>
                         ))}
                     </select>
-                    {hasAttemptedSubmit && !form.unitOfMeasure.trim() && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Unit of measure is required.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit && !form.unitOfMeasure.trim()
+                                ? "Unit of measure is required."
+                                : undefined
+                        }
+                    />
                 </div>
 
                 {/* Retail Markup */}
@@ -559,26 +628,31 @@ export default function CreatePartForm({
                         Retail markup %
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="retail-markup"
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        restrictedKind="digits"
+                        maxLength={INVENTORY_INPUT_LIMITS.markupPercentMaxDigits}
                         value={form.retailMarkup}
-                        onChange={(event) =>
-                            updateForm(
-                                "retailMarkup",
-                                event.target.value,
-                            )
-                        }
+                        onChange={(value) => updateForm("retailMarkup", value)}
                         placeholder="e.g. 20 — over latest batch cost"
-                        className={`${inputClassName} ${hasAttemptedSubmit && form.retailMarkup.trim() && (!Number.isFinite(Number(form.retailMarkup)) || Number(form.retailMarkup) < 0) ? "border-red-500" : ""}`}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                form.retailMarkup.trim() !== "" &&
+                                (!Number.isFinite(Number(form.retailMarkup)) ||
+                                    Number(form.retailMarkup) < 0),
+                            inputClassName,
+                        )}
                     />
-                    {hasAttemptedSubmit && form.retailMarkup.trim() && (!Number.isFinite(Number(form.retailMarkup)) || Number(form.retailMarkup) < 0) && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Retail markup must be a valid number greater than or equal to zero.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit &&
+                            form.retailMarkup.trim() &&
+                            (!Number.isFinite(Number(form.retailMarkup)) ||
+                                Number(form.retailMarkup) < 0)
+                                ? "Retail markup must be a valid number greater than or equal to zero."
+                                : undefined
+                        }
+                    />
                 </div>
             </div>
 
@@ -597,26 +671,31 @@ export default function CreatePartForm({
                         Wholesale markup %
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="wholesale-markup"
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        restrictedKind="digits"
+                        maxLength={INVENTORY_INPUT_LIMITS.markupPercentMaxDigits}
                         value={form.wholesaleMarkup}
-                        onChange={(event) =>
-                            updateForm(
-                                "wholesaleMarkup",
-                                event.target.value,
-                            )
-                        }
+                        onChange={(value) => updateForm("wholesaleMarkup", value)}
                         placeholder="e.g. 10 — over latest batch cost"
-                        className={`${inputClassName} ${hasAttemptedSubmit && form.wholesaleMarkup.trim() && (!Number.isFinite(Number(form.wholesaleMarkup)) || Number(form.wholesaleMarkup) < 0) ? "border-red-500" : ""}`}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                form.wholesaleMarkup.trim() !== "" &&
+                                (!Number.isFinite(Number(form.wholesaleMarkup)) ||
+                                    Number(form.wholesaleMarkup) < 0),
+                            inputClassName,
+                        )}
                     />
-                    {hasAttemptedSubmit && form.wholesaleMarkup.trim() && (!Number.isFinite(Number(form.wholesaleMarkup)) || Number(form.wholesaleMarkup) < 0) && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Wholesale markup must be a valid number greater than or equal to zero.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit &&
+                            form.wholesaleMarkup.trim() &&
+                            (!Number.isFinite(Number(form.wholesaleMarkup)) ||
+                                Number(form.wholesaleMarkup) < 0)
+                                ? "Wholesale markup must be a valid number greater than or equal to zero."
+                                : undefined
+                        }
+                    />
                 </div>
 
                 {/* Threshold */}
@@ -632,31 +711,33 @@ export default function CreatePartForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="threshold"
-                        type="number"
-                        min="0"
-                        step="1"
+                        restrictedKind="digits"
+                        maxLength={INVENTORY_INPUT_LIMITS.reorderThresholdMaxDigits}
                         value={form.threshold}
-                        onChange={(event) =>
-                            updateForm(
-                                "threshold",
-                                event.target.value,
-                            )
-                        }
+                        onChange={(value) => updateForm("threshold", value)}
                         placeholder="e.g. 10 — minimum stock level"
-                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.threshold.trim() || !Number.isFinite(Number(form.threshold)) || Number(form.threshold) < 0) ? "border-red-500" : ""}`}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                (!form.threshold.trim() ||
+                                    !Number.isFinite(Number(form.threshold)) ||
+                                    Number(form.threshold) < 0),
+                            inputClassName,
+                        )}
                     />
-                    {hasAttemptedSubmit && !form.threshold.trim() && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Threshold is required.
-                        </p>
-                    )}
-                    {hasAttemptedSubmit && form.threshold.trim() && (!Number.isFinite(Number(form.threshold)) || Number(form.threshold) < 0) && (
-                        <p className="mt-1 text-xs text-red-600" role="alert">
-                            Threshold must be a valid number greater than or equal to zero.
-                        </p>
-                    )}
+                    <FormFieldInlineError
+                        message={
+                            hasAttemptedSubmit && !form.threshold.trim()
+                                ? "Threshold is required."
+                                : hasAttemptedSubmit &&
+                                    form.threshold.trim() &&
+                                    (!Number.isFinite(Number(form.threshold)) ||
+                                        Number(form.threshold) < 0)
+                                  ? "Threshold must be a valid number greater than or equal to zero."
+                                  : undefined
+                        }
+                    />
                 </div>
             </div>
 

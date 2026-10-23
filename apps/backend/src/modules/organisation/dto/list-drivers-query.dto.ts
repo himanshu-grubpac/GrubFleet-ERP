@@ -7,8 +7,10 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
 } from 'class-validator';
+import { ORGANISATION_LIST_SEARCH_MAX_LENGTH } from '../constants/organisation-field.constants';
 import {
   DEFAULT_PAGE,
   DEFAULT_PAGE_SIZE,
@@ -46,9 +48,10 @@ export class ListDriversQueryDto {
   @Max(DRIVER_LIST_MAX_PAGE_SIZE)
   pageSize?: number = DEFAULT_PAGE_SIZE;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ maxLength: ORGANISATION_LIST_SEARCH_MAX_LENGTH })
   @IsOptional()
   @IsString()
+  @MaxLength(ORGANISATION_LIST_SEARCH_MAX_LENGTH)
   search?: string;
 
   @ApiPropertyOptional({

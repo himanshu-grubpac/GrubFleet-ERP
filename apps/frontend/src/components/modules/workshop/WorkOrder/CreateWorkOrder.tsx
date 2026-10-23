@@ -319,6 +319,17 @@ export default function WorkForm() {
     [validationErrors],
   );
 
+  const isCoreFormValid = useMemo(() => {
+    const inlineAddKeys = new Set([
+      "selectedPartId",
+      "newLaborDescription",
+      "newLaborAmount",
+    ]);
+    return !Object.entries(validationErrors).some(
+      ([key, message]) => message && !inlineAddKeys.has(key),
+    );
+  }, [validationErrors]);
+
   const getFieldError = (field: string) =>
     hasAttemptedSubmit ? validationErrors[field] : undefined;
 
@@ -689,6 +700,7 @@ export default function WorkForm() {
             <RestrictedInput
               id="odometer-reading"
               restrictedKind="digits"
+              maxLength={WORKSHOP_INPUT_LIMITS.workOrderOdometerMaxDigits}
               value={odometerReading}
               onChange={(value) => setOdometerReading(value)}
               placeholder="e.g. 45000"
@@ -1003,11 +1015,14 @@ export default function WorkForm() {
         isSaving={isSubmitting || saveMutation.isPending}
         canSubmit={
           canSave &&
+          isCoreFormValid &&
           !isAuthLoading &&
           !isSubmitting &&
           !saveMutation.isPending &&
           (!isEditMode
-            ? !vehiclesQuery.isLoading && !laborJobCardsQuery.isLoading
+            ? !vehiclesQuery.isLoading &&
+              !laborJobCardsQuery.isLoading &&
+              !!vehicleId.trim()
             : !existingQuery.isLoading)
         }
         onCancel={() => router.push(workshopWorkOrderListHref)}

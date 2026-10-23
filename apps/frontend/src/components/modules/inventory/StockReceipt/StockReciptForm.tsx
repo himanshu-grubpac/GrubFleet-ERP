@@ -3,9 +3,21 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 
+import { inventoryStockReceiptListHref } from "@/lib/navigation/inventory-static-routes";
+
 import FormActions from "@/components/common/FormActions";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
+import { parseRupeeInputToMinor } from "@/lib/format/money-format";
+import { INVENTORY_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+
+/** Select value when receipt is not linked to a Finance purchase invoice. */
+export const STOCK_RECEIPT_MANUAL_INVOICE = "__manual_unlinked__";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -14,11 +26,15 @@ import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 export type StockFormData = {
     part: string;
     purchaseInvoice: string;
+    purchaseDate: string;
+    expiryDate: string;
     destinationLocation: string;
     quantityReceived: string;
     unitCost: string;
     batchLotReference: string;
     notes: string;
+    /** Optional free-text ref when purchase invoice is manual / unlinked. */
+    purchaseInvoiceManualRef: string;
 };
 
 export type SelectOption = { value: string; label: string };
@@ -40,6 +56,7 @@ function getStockReceiptValidationErrors(form: StockFormData): string[] {
 
     if (!form.part.trim()) errors.push("Part is required.");
     if (!form.purchaseInvoice.trim()) errors.push("Purchase invoice is required.");
+    if (!form.purchaseDate.trim()) errors.push("Purchase date is required.");
     if (!form.destinationLocation.trim()) errors.push("Destination location is required.");
 
     if (!form.quantityReceived.trim()) {
@@ -53,11 +70,8 @@ function getStockReceiptValidationErrors(form: StockFormData): string[] {
 
     if (!form.unitCost.trim()) {
         errors.push("Unit cost is required.");
-    } else {
-        const unitCost = Number(form.unitCost);
-        if (!Number.isFinite(unitCost) || unitCost < 0) {
-            errors.push("Unit cost must be a valid number greater than or equal to zero.");
-        }
+    } else if (parseRupeeInputToMinor(form.unitCost) === null) {
+        errors.push("Unit cost must be a valid amount.");
     }
 
     return errors;
@@ -93,6 +107,10 @@ export default function CreateStockForm({
     const [form, setForm] = useState<StockFormData>({
         part: initialData?.part ?? "",
         purchaseInvoice: initialData?.purchaseInvoice ?? "",
+        purchaseDate:
+            initialData?.purchaseDate ??
+            new Date().toISOString().slice(0, 10),
+        expiryDate: initialData?.expiryDate ?? "",
         destinationLocation:
             initialData?.destinationLocation ?? "",
         quantityReceived:
@@ -101,7 +119,42 @@ export default function CreateStockForm({
         batchLotReference:
             initialData?.batchLotReference ?? "",
         notes: initialData?.notes ?? "",
+        purchaseInvoiceManualRef:
+            initialData?.purchaseInvoiceManualRef ?? "",
     });
+
+    const [partPickerOpen, setPartPickerOpen] = useState(false);
+    const [partPickerFilter, setPartPickerFilter] = useState("");
+    const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
+    const [invoicePickerFilter, setInvoicePickerFilter] = useState("");
+
+    const filteredPartOptions = useMemo(() => {
+        const q = partPickerFilter.trim().toLowerCase();
+        if (!q) return partOptions;
+        return partOptions.filter((option) =>
+            option.label.toLowerCase().includes(q),
+        );
+    }, [partOptions, partPickerFilter]);
+
+    const filteredInvoiceOptions = useMemo(() => {
+        const q = invoicePickerFilter.trim().toLowerCase();
+        if (!q) return purchaseInvoiceOptions;
+        return purchaseInvoiceOptions.filter((option) =>
+            option.label.toLowerCase().includes(q),
+        );
+    }, [purchaseInvoiceOptions, invoicePickerFilter]);
+
+    const selectedPartLabel =
+        partOptions.find((option) => option.value === form.part)?.label ??
+        "Select part";
+
+    const selectedInvoiceLabel =
+        purchaseInvoiceOptions.find(
+            (option) => option.value === form.purchaseInvoice,
+        )?.label ?? "Select purchase invoice";
+
+    const isManualPurchaseInvoice =
+        form.purchaseInvoice === STOCK_RECEIPT_MANUAL_INVOICE;
 
     const [error, setError] = useState("");
     const [isSaving, setIsSaving] = useState(false);
@@ -113,8 +166,11 @@ export default function CreateStockForm({
         [form],
     );
 
-    // Keep Save enabled until the first attempt so users can see validation errors.
-    const canSubmit = canSave && !isSaving && !isCatalogLoading;
+    const canSubmit =
+        canSave &&
+        !isSaving &&
+        !isCatalogLoading &&
+        validationSummary.length === 0;
 
     /* ---------------------------------------------------------------------- */
     /* Update Form                                                            */
@@ -142,7 +198,7 @@ export default function CreateStockForm({
             return;
         }
 
-        router.push("/inventory/stock-receipt");
+        router.push(inventoryStockReceiptListHref);
     };
 
     /* ---------------------------------------------------------------------- */
@@ -177,6 +233,8 @@ export default function CreateStockForm({
                 part: form.part.trim(),
                 purchaseInvoice:
                     form.purchaseInvoice.trim(),
+                purchaseDate: form.purchaseDate.trim(),
+                expiryDate: form.expiryDate.trim(),
                 destinationLocation:
                     form.destinationLocation.trim(),
                 quantityReceived:
@@ -186,12 +244,14 @@ export default function CreateStockForm({
                 batchLotReference:
                     form.batchLotReference.trim(),
                 notes: form.notes.trim(),
+                purchaseInvoiceManualRef:
+                    form.purchaseInvoiceManualRef.trim(),
             };
 
             if (onSaved) {
                 await onSaved(stock);
             } else {
-                router.push("/inventory/stock-receipt");
+                router.push(inventoryStockReceiptListHref);
             }
         } catch {
             setError(
@@ -254,32 +314,95 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <select
-                        id="part"
-                        value={form.part}
-                        onChange={(event) =>
-                            updateForm(
-                                "part",
-                                event.target.value,
-                            )
-                        }
-                        className={`${selectClassName} ${hasAttemptedSubmit && !form.part.trim() ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && !form.part.trim()}
-                    >
-                        <option value="">
-                            Select part
-                        </option>
-
-                        {partOptions.map((part) => (
-                            <option
-                                key={part.value}
-                                value={part.value}
+                    <div className="relative">
+                        <div
+                            className={mergeFormControlBorderClass(
+                                hasAttemptedSubmit && !form.part.trim(),
+                                `flex min-h-10 w-full items-center rounded-md border bg-white transition focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20 ${hasAttemptedSubmit && !form.part.trim() ? "" : "border-gray-300"}`,
+                            )}
+                        >
+                            <button
+                                id="part"
+                                type="button"
+                                onClick={() =>
+                                    setPartPickerOpen((previous) => !previous)
+                                }
+                                aria-expanded={partPickerOpen}
+                                aria-haspopup="listbox"
+                                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 outline-none"
                             >
-                                {part.label}
-                            </option>
-                        ))}
-                    </select>
-                    {hasAttemptedSubmit && !form.part.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Part is required.</p>}
+                                <span
+                                    className={
+                                        form.part.trim()
+                                            ? "text-gray-900"
+                                            : "text-gray-400"
+                                    }
+                                >
+                                    {form.part.trim()
+                                        ? selectedPartLabel
+                                        : "Select part"}
+                                </span>
+                            </button>
+                        </div>
+                        {partPickerOpen ? (
+                            <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
+                                <div className="border-b border-gray-100 p-2">
+                                    <RestrictedInput
+                                        restrictedKind="text"
+                                        maxLength={
+                                            INVENTORY_INPUT_LIMITS.listSearch
+                                        }
+                                        value={partPickerFilter}
+                                        onChange={setPartPickerFilter}
+                                        placeholder="Search parts…"
+                                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm"
+                                    />
+                                </div>
+                                <div
+                                    className="max-h-56 overflow-y-auto py-1"
+                                    role="listbox"
+                                    aria-labelledby="part"
+                                >
+                                    {isCatalogLoading ? (
+                                        <p className="px-3 py-2 text-sm text-gray-500">
+                                            Loading parts…
+                                        </p>
+                                    ) : filteredPartOptions.length === 0 ? (
+                                        <p className="px-3 py-2 text-sm text-gray-500">
+                                            {partOptions.length === 0
+                                                ? "No active parts found."
+                                                : "No parts match your search."}
+                                        </p>
+                                    ) : (
+                                        filteredPartOptions.map((part) => (
+                                            <button
+                                                key={part.value}
+                                                type="button"
+                                                role="option"
+                                                aria-selected={
+                                                    form.part === part.value
+                                                }
+                                                onClick={() => {
+                                                    updateForm(
+                                                        "part",
+                                                        part.value,
+                                                    );
+                                                    setPartPickerOpen(false);
+                                                    setPartPickerFilter("");
+                                                }}
+                                                className="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                            >
+                                                {part.label}
+                                            </button>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+                    {hasAttemptedSubmit && !form.part.trim() ? (
+                        <FormFieldInlineError message="Part is required." />
+                    ) : null}
                 </div>
 
                 {/* Purchase Invoice */}
@@ -295,34 +418,191 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <select
-                        id="purchase-invoice"
-                        value={form.purchaseInvoice}
-                        onChange={(event) =>
-                            updateForm(
-                                "purchaseInvoice",
-                                event.target.value,
-                            )
-                        }
-                        className={`${selectClassName} ${hasAttemptedSubmit && !form.purchaseInvoice.trim() ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && !form.purchaseInvoice.trim()}
-                    >
-                        <option value="">
-                            Select purchase invoice
-                        </option>
-
-                        {purchaseInvoiceOptions.map(
-                            (invoice) => (
-                                <option
-                                    key={invoice.value}
-                                    value={invoice.value}
+                    <div className="relative">
+                        <div
+                            className={mergeFormControlBorderClass(
+                                hasAttemptedSubmit &&
+                                    !form.purchaseInvoice.trim(),
+                                `flex min-h-10 w-full items-center rounded-md border bg-white transition focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20 ${hasAttemptedSubmit && !form.purchaseInvoice.trim() ? "" : "border-gray-300"}`,
+                            )}
+                        >
+                            <button
+                                id="purchase-invoice"
+                                type="button"
+                                onClick={() =>
+                                    setInvoicePickerOpen(
+                                        (previous) => !previous,
+                                    )
+                                }
+                                aria-expanded={invoicePickerOpen}
+                                aria-haspopup="listbox"
+                                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 outline-none"
+                            >
+                                <span
+                                    className={
+                                        form.purchaseInvoice.trim()
+                                            ? "text-gray-900"
+                                            : "text-gray-400"
+                                    }
                                 >
-                                    {invoice.label}
-                                </option>
-                            ),
+                                    {form.purchaseInvoice.trim()
+                                        ? selectedInvoiceLabel
+                                        : "Select purchase invoice"}
+                                </span>
+                            </button>
+                        </div>
+                        {invoicePickerOpen ? (
+                            <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
+                                <div className="border-b border-gray-100 p-2">
+                                    <RestrictedInput
+                                        restrictedKind="text"
+                                        maxLength={
+                                            INVENTORY_INPUT_LIMITS.listSearch
+                                        }
+                                        value={invoicePickerFilter}
+                                        onChange={setInvoicePickerFilter}
+                                        placeholder="Search invoices…"
+                                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm"
+                                    />
+                                </div>
+                                <div
+                                    className="max-h-56 overflow-y-auto py-1"
+                                    role="listbox"
+                                    aria-labelledby="purchase-invoice"
+                                >
+                                    {isCatalogLoading ? (
+                                        <p className="px-3 py-2 text-sm text-gray-500">
+                                            Loading invoices…
+                                        </p>
+                                    ) : filteredInvoiceOptions.length === 0 ? (
+                                        <p className="px-3 py-2 text-sm text-gray-500">
+                                            {purchaseInvoiceOptions.length === 0
+                                                ? "No purchase invoices found."
+                                                : "No invoices match your search."}
+                                        </p>
+                                    ) : (
+                                        filteredInvoiceOptions.map(
+                                            (invoice) => (
+                                                <button
+                                                    key={invoice.value}
+                                                    type="button"
+                                                    role="option"
+                                                    aria-selected={
+                                                        form.purchaseInvoice ===
+                                                        invoice.value
+                                                    }
+                                                    onClick={() => {
+                                                        updateForm(
+                                                            "purchaseInvoice",
+                                                            invoice.value,
+                                                        );
+                                                        if (
+                                                            invoice.value !==
+                                                            STOCK_RECEIPT_MANUAL_INVOICE
+                                                        ) {
+                                                            updateForm(
+                                                                "purchaseInvoiceManualRef",
+                                                                "",
+                                                            );
+                                                        }
+                                                        setInvoicePickerOpen(
+                                                            false,
+                                                        );
+                                                        setInvoicePickerFilter(
+                                                            "",
+                                                        );
+                                                    }}
+                                                    className="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
+                                                >
+                                                    {invoice.label}
+                                                </button>
+                                            ),
+                                        )
+                                    )}
+                                </div>
+                            </div>
+                        ) : null}
+                    </div>
+                    {hasAttemptedSubmit && !form.purchaseInvoice.trim() ? (
+                        <FormFieldInlineError message="Purchase invoice is required." />
+                    ) : null}
+                </div>
+            </div>
+
+            {isManualPurchaseInvoice ? (
+                <div className="mt-4">
+                    <label
+                        htmlFor="manual-purchase-invoice-ref"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Manual invoice reference
+                        <span className="ml-1 font-normal text-gray-400">
+                            (optional)
+                        </span>
+                    </label>
+                    <RestrictedInput
+                        id="manual-purchase-invoice-ref"
+                        restrictedKind="text"
+                        maxLength={
+                            INVENTORY_INPUT_LIMITS.stockReceiptPurchaseInvoiceRef
+                        }
+                        value={form.purchaseInvoiceManualRef}
+                        onChange={(value) =>
+                            updateForm("purchaseInvoiceManualRef", value)
+                        }
+                        placeholder="e.g. vendor invoice no. if not in Finance"
+                        className={inputClassName}
+                    />
+                </div>
+            ) : null}
+
+            <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                    <label
+                        htmlFor="purchase-date"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Purchase date
+                        <span className="ml-1 text-red-500">*</span>
+                    </label>
+                    <input
+                        id="purchase-date"
+                        type="date"
+                        value={form.purchaseDate}
+                        onChange={(event) =>
+                            updateForm("purchaseDate", event.target.value)
+                        }
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit && !form.purchaseDate.trim(),
+                            inputClassName,
                         )}
-                    </select>
-                    {hasAttemptedSubmit && !form.purchaseInvoice.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Purchase invoice is required.</p>}
+                        aria-invalid={
+                            hasAttemptedSubmit && !form.purchaseDate.trim()
+                        }
+                    />
+                    {hasAttemptedSubmit && !form.purchaseDate.trim() && (
+                        <FormFieldInlineError message="Purchase date is required." />
+                    )}
+                </div>
+                <div>
+                    <label
+                        htmlFor="expiry-date"
+                        className="mb-1 block text-xs font-semibold text-gray-700"
+                    >
+                        Expiry date
+                        <span className="ml-1 font-normal text-gray-400">
+                            (optional)
+                        </span>
+                    </label>
+                    <input
+                        id="expiry-date"
+                        type="date"
+                        value={form.expiryDate}
+                        onChange={(event) =>
+                            updateForm("expiryDate", event.target.value)
+                        }
+                        className={inputClassName}
+                    />
                 </div>
             </div>
 
@@ -353,8 +633,15 @@ export default function CreateStockForm({
                                 event.target.value,
                             )
                         }
-                        className={`${selectClassName} ${hasAttemptedSubmit && !form.destinationLocation.trim() ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && !form.destinationLocation.trim()}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                !form.destinationLocation.trim(),
+                            selectClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            !form.destinationLocation.trim()
+                        }
                     >
                         <option value="">
                             Select location
@@ -371,7 +658,9 @@ export default function CreateStockForm({
                             ),
                         )}
                     </select>
-                    {hasAttemptedSubmit && !form.destinationLocation.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Destination location is required.</p>}
+                    {hasAttemptedSubmit && !form.destinationLocation.trim() ? (
+                        <FormFieldInlineError message="Destination location is required." />
+                    ) : null}
                 </div>
 
                 {/* Quantity Received */}
@@ -387,24 +676,42 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="quantity-received"
-                        type="number"
-                        min="1"
-                        step="1"
+                        restrictedKind="digits"
+                        maxLength={
+                            INVENTORY_INPUT_LIMITS.stockReceiptQuantityMaxDigits
+                        }
                         value={form.quantityReceived}
-                        onChange={(event) =>
-                            updateForm(
-                                "quantityReceived",
-                                event.target.value,
-                            )
+                        onChange={(value) =>
+                            updateForm("quantityReceived", value)
                         }
                         placeholder="e.g. 20"
-                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.quantityReceived.trim() || !Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0) ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && (!form.quantityReceived.trim() || !Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0)}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                (!form.quantityReceived.trim() ||
+                                    !Number.isFinite(
+                                        Number(form.quantityReceived),
+                                    ) ||
+                                    Number(form.quantityReceived) <= 0),
+                            inputClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            (!form.quantityReceived.trim() ||
+                                !Number.isFinite(Number(form.quantityReceived)) ||
+                                Number(form.quantityReceived) <= 0)
+                        }
                     />
-                    {hasAttemptedSubmit && !form.quantityReceived.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Quantity received is required.</p>}
-                    {hasAttemptedSubmit && form.quantityReceived.trim() && (!Number.isFinite(Number(form.quantityReceived)) || Number(form.quantityReceived) <= 0) && <p className="mt-1 text-xs text-red-600" role="alert">Quantity received must be a valid number greater than 0.</p>}
+                    {hasAttemptedSubmit && !form.quantityReceived.trim() ? (
+                        <FormFieldInlineError message="Quantity received is required." />
+                    ) : null}
+                    {hasAttemptedSubmit &&
+                    form.quantityReceived.trim() &&
+                    (!Number.isFinite(Number(form.quantityReceived)) ||
+                        Number(form.quantityReceived) <= 0) ? (
+                        <FormFieldInlineError message="Quantity received must be a valid number greater than 0." />
+                    ) : null}
                 </div>
             </div>
 
@@ -426,24 +733,33 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="unit-cost"
-                        type="number"
-                        min="0"
-                        step="0.01"
+                        restrictedKind="inrRupee"
                         value={form.unitCost}
-                        onChange={(event) =>
-                            updateForm(
-                                "unitCost",
-                                event.target.value,
-                            )
+                        onChange={(value) => updateForm("unitCost", value)}
+                        placeholder="e.g. 340"
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                (!form.unitCost.trim() ||
+                                    parseRupeeInputToMinor(form.unitCost) ===
+                                        null),
+                            inputClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            (!form.unitCost.trim() ||
+                                parseRupeeInputToMinor(form.unitCost) === null)
                         }
-                        placeholder="e.g. Rs. 340"
-                        className={`${inputClassName} ${hasAttemptedSubmit && (!form.unitCost.trim() || !Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0) ? "border-red-500" : ""}`}
-                        aria-invalid={hasAttemptedSubmit && (!form.unitCost.trim() || !Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0)}
                     />
-                    {hasAttemptedSubmit && !form.unitCost.trim() && <p className="mt-1 text-xs text-red-600" role="alert">Unit cost is required.</p>}
-                    {hasAttemptedSubmit && form.unitCost.trim() && (!Number.isFinite(Number(form.unitCost)) || Number(form.unitCost) < 0) && <p className="mt-1 text-xs text-red-600" role="alert">Unit cost must be a valid number greater than or equal to zero.</p>}
+                    {hasAttemptedSubmit && !form.unitCost.trim() && (
+                        <FormFieldInlineError message="Unit cost is required." />
+                    )}
+                    {hasAttemptedSubmit &&
+                        form.unitCost.trim() &&
+                        parseRupeeInputToMinor(form.unitCost) === null && (
+                            <FormFieldInlineError message="Unit cost must be a valid amount." />
+                        )}
                 </div>
 
                 {/* Batch / Lot Reference */}
@@ -459,15 +775,13 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="batch-lot-reference"
-                        type="text"
+                        restrictedKind="text"
+                        maxLength={INVENTORY_INPUT_LIMITS.stockReceiptBatchLot}
                         value={form.batchLotReference}
-                        onChange={(event) =>
-                            updateForm(
-                                "batchLotReference",
-                                event.target.value,
-                            )
+                        onChange={(value) =>
+                            updateForm("batchLotReference", value)
                         }
                         placeholder="e.g. vendor's dispatch no."
                         className={inputClassName}
@@ -490,16 +804,12 @@ export default function CreateStockForm({
                     </span>
                 </label>
 
-                <input
+                <RestrictedInput
                     id="notes"
-                    type="text"
+                    restrictedKind="text"
+                    maxLength={INVENTORY_INPUT_LIMITS.stockReceiptNotes}
                     value={form.notes}
-                    onChange={(event) =>
-                        updateForm(
-                            "notes",
-                            event.target.value,
-                        )
-                    }
+                    onChange={(value) => updateForm("notes", value)}
                     placeholder="e.g. Partial delivery, balance expected next week"
                     className={inputClassName}
                 />

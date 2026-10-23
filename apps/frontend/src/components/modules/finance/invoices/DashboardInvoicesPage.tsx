@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText } from "lucide-react";
 import {
@@ -33,6 +33,10 @@ import {
   isDashboardCatalogEmptyState,
   shouldShowDashboardListFilters,
 } from "@/lib/hooks/dashboard-list-search-ui";
+import {
+  FINANCE_INVOICE_INPUT_LIMITS,
+  sanitizeRestrictedInputValue,
+} from "@/lib/forms/restricted-input";
 
 import { formatInrFromMinor } from "@/lib/format/money-format";
 
@@ -117,7 +121,19 @@ export default function DashboardInvoicesPage() {
     searchInput,
     setSearchInput,
     debouncedSearch,
+    clearSearch,
   } = useDashboardListSearch();
+
+  const onInvoiceListSearchChange = useCallback(
+    (value: string) => {
+      setSearchInput(
+        sanitizeRestrictedInputValue("text", value, {
+          maxLength: FINANCE_INVOICE_INPUT_LIMITS.invoiceListSearch,
+        }),
+      );
+    },
+    [setSearchInput],
+  );
 
   const [statusFilter, setStatusFilter] = useState("");
   const [typeTab, setTypeTab] = useState<InvoiceTypeTab>("all");
@@ -204,7 +220,7 @@ export default function DashboardInvoicesPage() {
   });
 
   const handleClearFilters = () => {
-    setSearchInput("");
+    clearSearch();
     setStatusFilter("");
     setTypeTab("all");
     setPage(1);
@@ -396,7 +412,7 @@ export default function DashboardInvoicesPage() {
           <DashboardFilters
             searchValue={searchInput}
             searchPlaceholder="Invoice number or party name"
-            onSearchChange={setSearchInput}
+            onSearchChange={onInvoiceListSearchChange}
             filterValues={{
               status: statusFilter,
               invoiceType: typeTab === "all" ? "" : typeTab,

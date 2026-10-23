@@ -4,11 +4,10 @@ import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import Button from "@/components/ui/GrubpacButton";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { useAuth } from "@/providers/auth-provider";
 import {
-    validateRequired,
     hasValidationErrors,
     type ValidationErrors,
 } from "@/components/common/Commonvalidation";
@@ -21,6 +20,7 @@ import {
     fetchAssetRegisterAssetClassesApi,
 } from "@/lib/api/asset-register/asset-classes";
 import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
+import { fetchFinanceInvoicesApi } from "@/lib/api/finance/invoices";
 import {
     formatMileageRangeFromSpec,
     formatRatedLoadRange,
@@ -28,9 +28,15 @@ import {
 } from "@/lib/api/asset-register/mappers";
 import FormActions from "@/components/common/FormActions";
 import {
-    getVehicleRegistrationValidationError,
-    normalizeVehicleRegistrationNumber,
-} from "@grubpac/validation";
+    ASSET_REGISTER_VEHICLE_INPUT_LIMITS,
+    sanitizeChassisVinInput,
+    sanitizeTextValue,
+    sanitizeVehicleRegistrationInput,
+} from "@/lib/forms/restricted-input";
+import {
+    validateFleetVehicleFormFields,
+    validateFleetVehicleFormForSubmit,
+} from "@/lib/api/asset-register/mappers";
 
 /* -------------------------------------------------------------------------- */
 /* Types                                                                      */
@@ -125,6 +131,28 @@ export default function CreateFleetVehicleForm({
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardListQueryOptions,
+    });
+
+    const purchaseInvoicesQuery = useQuery({
+        queryKey: [
+            "finance",
+            "invoices",
+            "purchase-catalog",
+            organizationId,
+        ],
+        queryFn: () => {
+            if (!token || !organizationId) {
+                throw new Error("Missing auth context");
+            }
+            return fetchFinanceInvoicesApi(token, {
+                organizationId,
+                page: 1,
+                pageSize: 50,
+                invoiceType: "purchase",
+            });
+        },
+        enabled: !!token && !!organizationId && !isAuthLoading,
+        ...dashboardCatalogQueryOptions,
     });
 
     const insuranceSuppliersQuery = useQuery({
@@ -308,63 +336,14 @@ export default function CreateFleetVehicleForm({
     /* Save                                                                   */
     /* ---------------------------------------------------------------------- */
 
-    const validateForm = (): ValidationErrors => {
-        const errors: ValidationErrors = {};
-        const requiredFields: Array<[keyof FleetVehicleFormData, string]> = [
-            ["assetClassId", "Asset class"],
-            ["registrationNumber", "Registration number"],
-            ["chassisNumber", "Chassis number"],
-            ["modelYear", "Model year"],
-            ["odometerReading", "Odometer reading"],
-            ["registrationStartDate", "Registration start date"],
-            ["registrationEndDate", "Registration end date"],
-            ["insurancePremium", "Insurance premium"],
-            ["insuranceStartDate", "Insurance start date"],
-            ["insuranceEndDate", "Insurance end date"],
-            ["warrantyStartDate", "Warranty start date"],
-            ["warrantyEndDate", "Warranty end date"],
-        ];
-
-        for (const [field, label] of requiredFields) {
-            const message = validateRequired(String(form[field] ?? ""), label);
-            if (message) errors[field] = message;
-        }
-
-        if (form.registrationNumber.trim()) {
-            const regError = getVehicleRegistrationValidationError(
-                form.registrationNumber,
-            );
-            if (regError) errors.registrationNumber = regError;
-        }
-
-        if (form.modelYear.trim()) {
-            const year = Number(form.modelYear.trim());
-
-            if (!/^\d{4}$/.test(form.modelYear.trim()) || year < 1900 || year > 2100) {
-                errors.modelYear = "Enter a valid model year between 1900 and 2100.";
-            }
-        }
-        if (form.odometerReading.trim()) {
-            const reading = Number(form.odometerReading);
-            if (!Number.isFinite(reading) || reading < 0) errors.odometerReading = "Odometer reading must be a non-negative number.";
-        }
-        if (form.insurancePremium.trim()) {
-            const premium = Number(form.insurancePremium);
-            if (!Number.isFinite(premium) || premium < 0) errors.insurancePremium = "Insurance premium must be a non-negative number.";
-        }
-        if (form.registrationStartDate && form.registrationEndDate && form.registrationStartDate > form.registrationEndDate) {
-            errors.registrationEndDate = "Registration end date cannot be before registration start date.";
-        }
-        if (form.insuranceStartDate && form.insuranceEndDate && form.insuranceStartDate > form.insuranceEndDate) {
-            errors.insuranceEndDate = "Insurance end date cannot be before insurance start date.";
-        }
-        if (form.warrantyStartDate && form.warrantyEndDate && form.warrantyStartDate > form.warrantyEndDate) {
-            errors.warrantyEndDate = "Warranty end date cannot be before warranty start date.";
-        }
-        return errors;
-    };
+    const validateForm = (): ValidationErrors =>
+        validateFleetVehicleFormFields(form, { isSaving: false });
 
     const liveErrors = useMemo(() => validateForm(), [form]);
+    const { canSubmit: formCanSubmit } = useMemo(
+        () => validateFleetVehicleFormForSubmit(form, { isSaving }),
+        [form, isSaving],
+    );
     const displayedErrors = hasAttemptedSubmit ? liveErrors : validationErrors;
     const validationSummary = Object.values(displayedErrors).filter(
         (message): message is string => Boolean(message),
@@ -385,9 +364,7 @@ export default function CreateFleetVehicleForm({
                 assetClassId: form.assetClassId.trim(),
                 vehicleName: form.vehicleName.trim(),
                 purchaseInvoiceId: form.purchaseInvoiceId.trim(),
-                registrationNumber: normalizeVehicleRegistrationNumber(
-                    form.registrationNumber,
-                ),
+                registrationNumber: form.registrationNumber.trim(),
                 chassisNumber: form.chassisNumber.trim(),
                 modelYear: form.modelYear.trim(),
                 odometerReading: form.odometerReading.trim(),
@@ -420,7 +397,9 @@ export default function CreateFleetVehicleForm({
     const selectClassName =
         "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
 
-    const canSubmit = !isSaving;    /* UI                                                                     */
+    const canSubmit = formCanSubmit && !isSaving;
+
+    /* UI                                                                     */
     /* ---------------------------------------------------------------------- */
 
     return (
@@ -566,6 +545,39 @@ export default function CreateFleetVehicleForm({
             )}
 
             {/* ============================================================ */}
+            {/* PURCHASE INVOICE (optional)                                  */}
+            {/* ============================================================ */}
+
+            <div className="mt-4">
+                <label
+                    htmlFor="purchase-invoice-id"
+                    className="mb-1 block text-xs font-semibold text-gray-700"
+                >
+                    Finance purchase invoice
+                    <span className="ml-1 font-normal text-gray-400">
+                        (optional)
+                    </span>
+                </label>
+                <select
+                    id="purchase-invoice-id"
+                    value={form.purchaseInvoiceId}
+                    onChange={(event) =>
+                        updateForm("purchaseInvoiceId", event.target.value)
+                    }
+                    className={selectClassName}
+                >
+                    <option value="">Not linked</option>
+                    {(purchaseInvoicesQuery.data?.items ?? []).map(
+                        (invoice) => (
+                            <option key={invoice.id} value={invoice.id}>
+                                {invoice.invoiceNumber?.trim() || invoice.id}
+                            </option>
+                        ),
+                    )}
+                </select>
+            </div>
+
+            {/* ============================================================ */}
             {/* REGISTRATION NUMBER + ODOMETER                               */}
             {/* ============================================================ */}
 
@@ -582,14 +594,17 @@ export default function CreateFleetVehicleForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="registration-number"
-                        type="text"
+                        restrictedKind="text"
+                        maxLength={
+                            ASSET_REGISTER_VEHICLE_INPUT_LIMITS.registrationNumber
+                        }
                         value={form.registrationNumber}
-                        onChange={(event) =>
+                        onChange={(value) =>
                             updateForm(
                                 "registrationNumber",
-                                event.target.value,
+                                sanitizeVehicleRegistrationInput(value),
                             )
                         }
                         placeholder="e.g. MH04 AB 1011"
@@ -613,16 +628,15 @@ export default function CreateFleetVehicleForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="odometer-reading"
-                        type="number"
-                        min="0"
+                        restrictedKind="digits"
+                        maxLength={
+                            ASSET_REGISTER_VEHICLE_INPUT_LIMITS.odometerMaxDigits
+                        }
                         value={form.odometerReading}
-                        onChange={(event) =>
-                            updateForm(
-                                "odometerReading",
-                                event.target.value,
-                            )
+                        onChange={(value) =>
+                            updateForm("odometerReading", value)
                         }
                         placeholder="e.g. 12500"
                         className={inputClassName}
@@ -720,18 +734,14 @@ export default function CreateFleetVehicleForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="model-year"
-                        type="number"
-                        min="1900"
-                        max="2100"
-                        value={form.modelYear}
-                        onChange={(event) =>
-                            updateForm(
-                                "modelYear",
-                                event.target.value,
-                            )
+                        restrictedKind="digits"
+                        maxLength={
+                            ASSET_REGISTER_VEHICLE_INPUT_LIMITS.modelYearDigits
                         }
+                        value={form.modelYear}
+                        onChange={(value) => updateForm("modelYear", value)}
                         placeholder="e.g. 2026"
                         className={inputClassName}
                     />
@@ -753,14 +763,17 @@ export default function CreateFleetVehicleForm({
                         </span>
                     </label>
 
-                    <input
+                    <RestrictedInput
                         id="chassis-number"
-                        type="text"
+                        restrictedKind="text"
+                        maxLength={
+                            ASSET_REGISTER_VEHICLE_INPUT_LIMITS.chassisNumber
+                        }
                         value={form.chassisNumber}
-                        onChange={(event) =>
+                        onChange={(value) =>
                             updateForm(
                                 "chassisNumber",
-                                event.target.value,
+                                sanitizeChassisVinInput(value),
                             )
                         }
                         placeholder="e.g. MD2A1XX..."
@@ -831,14 +844,12 @@ export default function CreateFleetVehicleForm({
                             ₹
                         </span>
 
-                        <input
+                        <RestrictedInput
                             id="insurance-premium"
-                            type="number"
-                            min="0"
-                            step="0.01"
+                            restrictedKind="inrRupee"
                             value={form.insurancePremium}
-                            onChange={(event) =>
-                                updateForm("insurancePremium", event.target.value)
+                            onChange={(value) =>
+                                updateForm("insurancePremium", value)
                             }
                             placeholder="e.g. 3200"
                             className="h-full min-w-0 flex-1 border-0 bg-transparent px-3 text-sm text-gray-900 outline-none"
@@ -1006,18 +1017,22 @@ export default function CreateFleetVehicleForm({
                     </span>
                 </label>
 
-                <textarea
+                <RestrictedInput
                     id="vehicle-notes"
+                    restrictedKind="text"
+                    maxLength={ASSET_REGISTER_VEHICLE_INPUT_LIMITS.specialNotes}
                     value={form.notes}
-                    onChange={(event) =>
+                    onChange={(value) =>
                         updateForm(
                             "notes",
-                            event.target.value,
+                            sanitizeTextValue(
+                                value,
+                                ASSET_REGISTER_VEHICLE_INPUT_LIMITS.specialNotes,
+                            ),
                         )
                     }
                     placeholder="e.g. Vendor: Kedar Motors, quote ref KM-2026-0148"
-                    rows={3}
-                    className="w-full resize-none rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20"
+                    className={inputClassName}
                 />
 
             </div>

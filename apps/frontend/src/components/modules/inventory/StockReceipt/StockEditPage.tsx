@@ -8,6 +8,7 @@ import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
 import { useMutation, useQuery } from "@tanstack/react-query";
 
 import StockReciptForm, {
+  STOCK_RECEIPT_MANUAL_INVOICE,
   type StockFormData,
 } from "@/components/modules/inventory/StockReceipt/StockReciptForm";
 import { useAuth } from "@/providers/auth-provider";
@@ -21,6 +22,10 @@ import {
   showApiErrorToast,
   showStockReceiptUpdatedToast,
 } from "@/lib/toast/show-toast";
+import {
+  formatRupeeInputDisplay,
+  parseRupeeInputToMinor,
+} from "@/lib/format/money-format";
 
 export default function StockEditPage() {
   const router = useRouter();
@@ -38,7 +43,7 @@ export default function StockEditPage() {
     queryKey: ["inventory", "stock-register", "catalog", organizationId],
     queryFn: () =>
       fetchStockRegisterListApi(
-        { organizationId: organizationId!, page: 1, pageSize: 50, status: "active" },
+        { organizationId: organizationId!, page: 1, pageSize: 200, status: "active" },
         token!,
       ),
     enabled: !!token && !!organizationId,
@@ -50,23 +55,29 @@ export default function StockEditPage() {
       fetchOrganisationLocationsApi(token!, {
         organizationId: organizationId!,
         page: 1,
-        pageSize: 50,
+        pageSize: 200,
       }),
     enabled: !!token && !!organizationId,
   });
 
   const updateMutation = useMutation({
     mutationFn: (data: StockFormData) => {
-      const unitCost = Number(data.unitCost);
+      const unitCostMinor = parseRupeeInputToMinor(data.unitCost);
+      if (unitCostMinor === null) {
+        throw new Error("Unit cost must be a valid amount.");
+      }
       const qty = Number(data.quantityReceived);
       return updateStockReceiptApi(
         organizationId!,
         receiptId,
         {
           locationId: data.destinationLocation,
-          purchaseInvoiceReference: data.purchaseInvoice.trim(),
+          purchaseInvoiceReference:
+            data.purchaseInvoiceManualRef.trim() || undefined,
+          purchaseDate: data.purchaseDate.trim(),
+          expiryDate: data.expiryDate.trim() || undefined,
           quantityReceived: qty,
-          quantityUnitCostMinor: Math.round(unitCost * 100),
+          quantityUnitCostMinor: unitCostMinor,
           batchLotReference: data.batchLotReference.trim() || undefined,
           notes: data.notes.trim() || undefined,
         },
@@ -126,16 +137,21 @@ export default function StockEditPage() {
       isCatalogLoading={isCatalogLoading}
       purchaseInvoiceOptions={[
         {
-          value: receipt.purchaseInvoiceReference ?? "Manual / unlinked",
-          label: receipt.purchaseInvoiceReference ?? "Manual / unlinked",
+          value: STOCK_RECEIPT_MANUAL_INVOICE,
+          label: "Manual / unlinked",
         },
       ]}
       initialData={{
         part: receipt.partId,
-        purchaseInvoice: receipt.purchaseInvoiceReference ?? "",
+        purchaseInvoice: STOCK_RECEIPT_MANUAL_INVOICE,
+        purchaseInvoiceManualRef: receipt.purchaseInvoiceReference ?? "",
+        purchaseDate: receipt.purchaseDate,
+        expiryDate: receipt.expiryDate ?? "",
         destinationLocation: receipt.locationId,
         quantityReceived: String(receipt.quantityReceived),
-        unitCost: String(receipt.unitCostMinor / 100),
+        unitCost: formatRupeeInputDisplay(
+          String(receipt.unitCostMinor / 100),
+        ),
         batchLotReference: receipt.batchLotReference ?? "",
         notes: receipt.notes ?? "",
       }}

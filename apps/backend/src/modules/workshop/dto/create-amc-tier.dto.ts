@@ -9,6 +9,10 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
+import {
+  WORKSHOP_AMC_TIER_DESCRIPTION_MAX,
+  WORKSHOP_AMC_TIER_NAME_MAX,
+} from '../constants/workshop-field.constants';
 
 export class CreateAmcTierDto {
   @ApiProperty()
@@ -18,13 +22,13 @@ export class CreateAmcTierDto {
   @ApiProperty()
   @IsString()
   @MinLength(1)
-  @MaxLength(120)
+  @MaxLength(WORKSHOP_AMC_TIER_NAME_MAX)
   name!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @MaxLength(2000)
+  @MaxLength(WORKSHOP_AMC_TIER_DESCRIPTION_MAX)
   description?: string;
 
   @ApiPropertyOptional({

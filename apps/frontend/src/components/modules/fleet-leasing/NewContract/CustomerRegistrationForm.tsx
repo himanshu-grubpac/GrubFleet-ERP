@@ -573,7 +573,7 @@ export default function CustomerRegistrationForm({
                             hasAttemptedSubmit={hasAttemptedSubmit}
                             validationSummary={validationSummary}
                             isSaving={isSubmitting}
-                            canSubmit={!isSubmitting}
+                            canSubmit={canSubmit && !isSubmitting}
                             onCancel={() => onCancel?.()}
                             onSave={() => {
                                 document

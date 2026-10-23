@@ -20,6 +20,7 @@ import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { ApiClientError } from "@/lib/api/client";
 import { createWorkshopAmcTierApi } from "@/lib/api/workshop/amc";
 import { WORKSHOP_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { parseRupeeInputToMinor } from "@/lib/format/money-format";
 import {
   workshopAmcMaintenanceListHref,
   workshopAmcTierDetailHref,
@@ -43,7 +44,7 @@ export default function CreateAmcTierPage() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [priceDisplayLabel, setPriceDisplayLabel] = useState("");
+  const [tierPriceInput, setTierPriceInput] = useState("");
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
   const isSubmittingRef = useRef(false);
 
@@ -69,15 +70,16 @@ export default function CreateAmcTierPage() {
     });
     if (descriptionError) errors.description = descriptionError;
 
-    const priceLabelError = validateStringLength(priceDisplayLabel, {
-      label: "Price label",
-      required: false,
-      maxLength: WORKSHOP_INPUT_LIMITS.amcTierPriceLabel,
-    });
-    if (priceLabelError) errors.priceDisplayLabel = priceLabelError;
+    const trimmedPrice = tierPriceInput.trim();
+    if (trimmedPrice) {
+      const priceMinor = parseRupeeInputToMinor(trimmedPrice);
+      if (priceMinor === null || priceMinor < 0) {
+        errors.tierPrice = "Enter a valid price amount.";
+      }
+    }
 
     return errors;
-  }, [name, description, priceDisplayLabel]);
+  }, [name, description, tierPriceInput]);
 
   const validationSummary = useMemo(
     () => Object.values(validationErrors).filter(Boolean) as string[],
@@ -93,11 +95,17 @@ export default function CreateAmcTierPage() {
         throw new Error("Missing authentication or organization context.");
       }
 
+      const trimmedPrice = tierPriceInput.trim();
+      const pricePaise =
+        trimmedPrice.length > 0
+          ? parseRupeeInputToMinor(trimmedPrice) ?? undefined
+          : undefined;
+
       return createWorkshopAmcTierApi(token, {
         organizationId,
         name: name.trim(),
         description: description.trim() || undefined,
-        priceDisplayLabel: priceDisplayLabel.trim() || undefined,
+        ...(pricePaise !== undefined ? { pricePaise } : {}),
       });
     },
     onSuccess: (data) => {
@@ -139,7 +147,11 @@ export default function CreateAmcTierPage() {
       hasAttemptedSubmit={hasAttemptedSubmit}
       validationSummary={validationSummary}
       isSaving={createMutation.isPending}
-      canSubmit={canCreate && !createMutation.isPending}
+      canSubmit={
+        canCreate &&
+        !createMutation.isPending &&
+        !hasValidationErrors(validationErrors)
+      }
       onCancel={handleCancel}
       onSave={handleSave}
       saveLabel="Save tier"
@@ -201,22 +213,19 @@ export default function CreateAmcTierPage() {
 
             <div>
               <label className="mb-1.5 block text-xs font-medium text-gray-700">
-                Price label
+                Price (optional)
               </label>
               <RestrictedInput
-                restrictedKind="text"
-                value={priceDisplayLabel}
-                onChange={setPriceDisplayLabel}
-                maxLength={WORKSHOP_INPUT_LIMITS.amcTierPriceLabel}
-                placeholder="e.g. ₹12,000 / year (optional)"
+                restrictedKind="inrRupee"
+                value={tierPriceInput}
+                onChange={setTierPriceInput}
+                placeholder="e.g. 12,000"
                 className={mergeFormControlBorderClass(
-                  !!getFieldError("priceDisplayLabel"),
+                  !!getFieldError("tierPrice"),
                   inputClass,
                 )}
               />
-              <FormFieldInlineError
-                message={getFieldError("priceDisplayLabel")}
-              />
+              <FormFieldInlineError message={getFieldError("tierPrice")} />
             </div>
           </div>
         </section>

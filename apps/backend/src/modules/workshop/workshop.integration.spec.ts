@@ -233,6 +233,18 @@ describe('Workshop module (integration)', () => {
       expect(body.items.some((row) => row.id === laborJobCardId)).toBe(true);
     });
 
+    it('returns 400 when list search exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .get('/api/v1/workshop/labor-job-cards')
+        .query({
+          organizationId,
+          search: 'x'.repeat(121),
+        })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(400);
+    });
+
     it('gets labor job card detail', async () => {
       await request(app.getHttpServer())
         .get(`/api/v1/workshop/labor-job-cards/${laborJobCardId}`)
@@ -577,6 +589,56 @@ describe('Workshop module (integration)', () => {
         .expect(400);
     });
 
+    it('returns 400 when AMC tier name exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/workshop/amc/tiers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          name: 'n'.repeat(121),
+        })
+        .expect(400);
+    });
+
+    it('returns 400 when AMC tier description exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/workshop/amc/tiers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          name: `Long desc tier ${Date.now()}`,
+          description: 'd'.repeat(2001),
+        })
+        .expect(400);
+    });
+
+    it('returns 400 when maintenance schedule name exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/workshop/amc/schedules')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          name: 's'.repeat(256),
+        })
+        .expect(400);
+    });
+
+    it('returns 400 when maintenance schedule intervalLabel exceeds max length', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/workshop/amc/schedules')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          name: `Interval cap ${Date.now()}`,
+          intervalLabel: 'i'.repeat(121),
+        })
+        .expect(400);
+    });
+
     it('creates and updates maintenance schedule', async () => {
       const unique = Date.now();
       const createRes = await request(app.getHttpServer())
@@ -810,6 +872,18 @@ describe('Workshop module (integration)', () => {
         organizationId,
       });
     });
+  });
+
+  it('returns 400 when work order list search exceeds max length', async () => {
+    await request(app.getHttpServer())
+      .get('/api/v1/workshop/work-orders')
+      .query({
+        organizationId,
+        search: 'x'.repeat(121),
+      })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(400);
   });
 
   it('returns 400 for invalid sortBy on work order list', async () => {

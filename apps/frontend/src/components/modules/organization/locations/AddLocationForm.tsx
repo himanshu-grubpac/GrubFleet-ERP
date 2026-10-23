@@ -34,9 +34,7 @@ import {
     showLocationCreatedToast,
     showLocationUpdatedToast,
 } from "@/lib/toast/show-toast";
-import {
-    ORG_INPUT_LIMITS,
-} from "@/lib/validation/org-input-constraints";
+import { ORGANISATION_LOCATION_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import {
     DEFAULT_COUNTRY_CODE,
     getCountryDefinition,
@@ -582,6 +580,33 @@ export default function AddLocationForm({
         locationTypesQuery.isSuccess,
     ]);
 
+    const liveValidationErrors = useMemo(() => {
+        const errors: ValidationErrors = {};
+
+        const nameError = validateRequired(form.name, "Location name");
+        if (nameError) errors.name = nameError;
+
+        const typeError = validateRequired(form.type, "Location type");
+        if (typeError) errors.type = "Please select a location type.";
+
+        const phoneError = validatePhone(form.contactInformation.phone, "Phone number", {
+            required: false,
+        });
+        if (phoneError) errors["contactInformation.phone"] = phoneError;
+
+        const emailError = validateEmail(form.contactInformation.email, "Email", {
+            required: false,
+        });
+        if (emailError) errors["contactInformation.email"] = emailError;
+
+        const addressValidationErrors = validateOrganizationAddress(form.address);
+        Object.entries(addressValidationErrors).forEach(([field, message]) => {
+            errors[`address.${field}`] = message;
+        });
+
+        return errors;
+    }, [form]);
+
     const canSubmit = useMemo(() => {
         if (!canSave || isSaving || isAuthLoading) {
             return false;
@@ -602,13 +627,12 @@ export default function AddLocationForm({
         ) {
             return false;
         }
-        // Keep field validation in handleSave so users can see inline errors.
-        // This memo only guards permissions, loading state, and edit availability.
-        return true;
+        return !hasValidationErrors(liveValidationErrors);
     }, [
         canSave,
         isSaving,
         isAuthLoading,
+        liveValidationErrors,
         locationTypesQuery.isLoading,
         locationTypesQuery.isError,
         locationTypesQuery.isSuccess,
@@ -1102,7 +1126,7 @@ export default function AddLocationForm({
                 <RestrictedInput
                     id="location-name"
                     restrictedKind="name"
-                    maxLength={ORG_INPUT_LIMITS.locationName}
+                    maxLength={ORGANISATION_LOCATION_INPUT_LIMITS.name}
                     value={form.name}
                     onChange={(name) => {
                         updateForm("name", name);
@@ -1277,7 +1301,7 @@ export default function AddLocationForm({
 
                         <RestrictedInput
                             restrictedKind="phone"
-                            maxLength={ORG_INPUT_LIMITS.phone}
+                            maxLength={ORGANISATION_LOCATION_INPUT_LIMITS.sitePhone}
                             phoneDefaultCountry={sitePhoneDefaultCountry}
                             value={form.contactInformation.phone}
                             onChange={(phone) => {
@@ -1318,7 +1342,7 @@ export default function AddLocationForm({
 
                         <RestrictedInput
                             restrictedKind="email"
-                            maxLength={ORG_INPUT_LIMITS.email}
+                            maxLength={ORGANISATION_LOCATION_INPUT_LIMITS.siteEmail}
                             value={form.contactInformation.email}
                             onChange={(email) => {
                                 setForm((previous) => ({

@@ -5,6 +5,11 @@ import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
+import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+  FormFieldInlineError,
+  mergeFormControlBorderClass,
+} from "@/components/ui/form-field-inline-error";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import LocationTypeSelector, {
   type LocationType,
@@ -14,8 +19,12 @@ import {
   validatePhone,
   validateRequired,
   validateDate,
+  hasValidationErrors,
   type ValidationErrors,
-} from "@/components/common/Commonvalidation"
+} from "@/components/common/Commonvalidation";
+import { ORGANISATION_EMPLOYEE_INPUT_LIMITS } from "@/lib/forms/restricted-input";
+import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
+import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { useAuth } from "@/providers/auth-provider";
 import {
   ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE,
@@ -470,21 +479,6 @@ export default function CreateEmployeePage({
     if (locationError) errors.location = "Please select a location.";
 
 
-    const phone = form.phone.trim();
-
-    if (!phone) {
-      errors.phone = "Phone number is required.";
-    } else if (!/^\+?\d[\d\s-]*$/.test(phone)) {
-      errors.phone = "Phone number must contain only digits.";
-    } else {
-      const digits = phone.replace(/\D/g, "");
-
-      if (digits.length < 10 || digits.length > 15) {
-        errors.phone = "Enter a valid phone number (10–15 digits).";
-      }
-    }
-
-
     const employmentTypeError = validateRequired(
       form.employmentTypeUi,
       "Employment type",
@@ -537,6 +531,16 @@ export default function CreateEmployeePage({
       if (!employmentType || !dateOfJoining) {
         return;
       }
+
+      const phone = normalizePhoneForApi(form.phone);
+      if (!phone) {
+        setValidationErrors((previous) => ({
+          ...previous,
+          phone: "Enter a valid phone number.",
+        }));
+        return;
+      }
+
       const employee: EmployeeFormData = {
         fullName: form.fullName.trim(),
         designation: form.designation.trim(),
@@ -545,7 +549,7 @@ export default function CreateEmployeePage({
         reportsToEmployeeId: form.reportsToEmployeeId.trim() || undefined,
         employmentType,
         dateOfJoining,
-        phone: form.phone.trim(),
+        phone,
         email: form.email.trim(),
         isWorkshopTechnician: form.isWorkshopTechnician,
       };
@@ -574,26 +578,33 @@ export default function CreateEmployeePage({
     (message): message is string => Boolean(message),
   );
 
-  const inputClass = (field: keyof ValidationErrors) =>
-    [
-      "h-10 w-full rounded-md border bg-white px-3 text-sm text-gray-900 outline-none transition",
-      displayedErrors[field]
-        ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-        : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-    ].join(" ");
-
-  const selectClass = (field: keyof ValidationErrors) =>
-    [
-      "h-10 w-full appearance-none rounded-md border bg-white px-3 pr-10 text-sm text-gray-700 outline-none transition",
-      displayedErrors[field]
-        ? "border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500/20"
-        : "border-gray-300 focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20",
-    ].join(" ");
-
   const pickersLoading =
     isAuthLoading ||
     locationsQuery.isLoading ||
     employeesPickerQuery.isLoading;
+
+  const canSubmit = useMemo(
+    () =>
+      !isSaving &&
+      !pickersLoading &&
+      !hasValidationErrors(liveErrors),
+    [isSaving, pickersLoading, liveErrors],
+  );
+
+  const baseInputClass =
+    "h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm text-gray-900 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+  const inputClass = (field: keyof ValidationErrors) =>
+    mergeFormControlBorderClass(Boolean(displayedErrors[field]), baseInputClass);
+
+  const baseSelectClass =
+    "h-10 w-full appearance-none rounded-md border border-gray-300 bg-white px-3 pr-10 text-sm text-gray-700 outline-none transition focus:border-[#FE5720] focus:ring-1 focus:ring-[#FE5720]/20";
+
+  const selectClass = (field: keyof ValidationErrors) =>
+    mergeFormControlBorderClass(
+      Boolean(displayedErrors[field]),
+      baseSelectClass,
+    );
 
   return (
     <OrganizationFormLayout
@@ -631,7 +642,7 @@ export default function CreateEmployeePage({
             <Button
               type="button"
               onClick={() => void handleSave()}
-              disabled={isSaving || pickersLoading}
+              disabled={!canSubmit}
               className="h-10 px-5"
             >
               {isSaving
@@ -653,22 +664,20 @@ export default function CreateEmployeePage({
           Full name
           <span className="ml-1 text-red-500">*</span>
         </label>
-        <input
+        <RestrictedInput
           id="employee-full-name"
-          type="text"
+          restrictedKind="name"
+          maxLength={ORGANISATION_EMPLOYEE_INPUT_LIMITS.fullName}
           value={form.fullName}
-          onChange={(event) => {
-            updateForm("fullName", event.target.value);
+          onChange={(fullName) => {
+            updateForm("fullName", fullName);
             clearError("fullName");
           }}
           placeholder="Enter employee name"
           className={inputClass("fullName")}
+          aria-invalid={Boolean(displayedErrors.fullName)}
         />
-        {displayedErrors.fullName && (
-          <p className="mt-1 text-xs text-red-500">
-            {displayedErrors.fullName}
-          </p>
-        )}
+        <FormFieldInlineError message={displayedErrors.fullName} />
       </div>
 
       {/* Designation */}
@@ -681,22 +690,20 @@ export default function CreateEmployeePage({
             Designation
             <span className="ml-1 text-red-500">*</span>
           </label>
-          <input
+          <RestrictedInput
             id="employee-designation"
-            type="text"
+            restrictedKind="text"
+            maxLength={ORGANISATION_EMPLOYEE_INPUT_LIMITS.designation}
             value={form.designation}
-            onChange={(event) => {
-              updateForm("designation", event.target.value);
+            onChange={(designation) => {
+              updateForm("designation", designation);
               clearError("designation");
             }}
             placeholder="e.g. Workshop Technician"
             className={inputClass("designation")}
+            aria-invalid={Boolean(displayedErrors.designation)}
           />
-          {displayedErrors.designation && (
-            <p className="mt-1 text-xs text-red-500">
-              {displayedErrors.designation}
-            </p>
-          )}
+          <FormFieldInlineError message={displayedErrors.designation} />
         </div>
       </div>
 
@@ -758,11 +765,7 @@ export default function CreateEmployeePage({
               strokeWidth={1.7}
             />
           </div>
-          {displayedErrors.location && (
-            <p className="mt-1 text-xs text-red-500">
-              {displayedErrors.location}
-            </p>
-          )}
+          <FormFieldInlineError message={displayedErrors.location} />
         </div>
 
         <div>
@@ -852,11 +855,7 @@ export default function CreateEmployeePage({
             className={inputClass("dateOfJoining")}
           />
 
-          {displayedErrors.dateOfJoining && (
-            <p className="mt-1 text-xs text-red-500">
-              {displayedErrors.dateOfJoining}
-            </p>
-          )}
+          <FormFieldInlineError message={displayedErrors.dateOfJoining} />
         </div>
       </div>
 
@@ -872,38 +871,21 @@ export default function CreateEmployeePage({
             <span className="ml-1 text-red-500">*</span>
           </label>
 
-          <input
+          <RestrictedInput
             id="employee-phone"
-            type="tel"
-            inputMode="tel"
+            restrictedKind="phone"
+            maxLength={ORGANISATION_EMPLOYEE_INPUT_LIMITS.phone}
             value={form.phone}
-            onChange={(event) => {
-              const value = event.target.value;
-
-              // Allow only digits, an optional leading +, spaces, and hyphens.
-              if (/^\+?\d[\d\s-]*$/.test(value) || value === "") {
-                updateForm("phone", value);
-                clearError("phone");
-              }
+            onChange={(phone) => {
+              updateForm("phone", phone);
+              clearError("phone");
             }}
-            onKeyDown={(event) => {
-              if (
-                /^[a-zA-Z]$/.test(event.key) ||
-                /^[^\da-zA-Z\s]$/.test(event.key) &&
-                !["+", "-"].includes(event.key)
-              ) {
-                event.preventDefault();
-              }
-            }}
-            placeholder="+91 9876543210"
+            placeholder={getInternationalPhonePlaceholder()}
             className={inputClass("phone")}
+            aria-invalid={Boolean(displayedErrors.phone)}
           />
 
-          {displayedErrors.phone && (
-            <p className="mt-1 text-xs text-red-500">
-              {displayedErrors.phone}
-            </p>
-          )}
+          <FormFieldInlineError message={displayedErrors.phone} />
         </div>
 
         <div>
@@ -914,22 +896,20 @@ export default function CreateEmployeePage({
             Email
             <span className="ml-1 text-red-500">*</span>
           </label>
-          <input
+          <RestrictedInput
             id="employee-email"
-            type="email"
+            restrictedKind="email"
+            maxLength={ORGANISATION_EMPLOYEE_INPUT_LIMITS.email}
             value={form.email}
-            onChange={(event) => {
-              updateForm("email", event.target.value);
+            onChange={(email) => {
+              updateForm("email", email);
               clearError("email");
             }}
             placeholder="name@company.com"
             className={inputClass("email")}
+            aria-invalid={Boolean(displayedErrors.email)}
           />
-          {displayedErrors.email && (
-            <p className="mt-1 text-xs text-red-500">
-              {displayedErrors.email}
-            </p>
-          )}
+          <FormFieldInlineError message={displayedErrors.email} />
         </div>
       </div>
 

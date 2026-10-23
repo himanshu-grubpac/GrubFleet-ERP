@@ -101,6 +101,10 @@ async function main() {
     '-w',
     '@grubpac/validation',
   ]);
+  runStep('Module raw-input audit (frontend)', [
+    'run',
+    'audit:module-raw-inputs',
+  ]);
   runStep('Lint frontend', ['run', 'lint', '-w', 'frontend']);
   runStep('Typecheck frontend', ['run', 'typecheck', '-w', 'frontend']);
   runStep('Build frontend', ['run', 'build', '-w', 'frontend']);

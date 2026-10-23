@@ -10,6 +10,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import {
+    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS,
+    sanitizeTextValue,
+} from "@/lib/forms/restricted-input";
 import { useAuth } from "@/providers/auth-provider";
 import { assetAssignmentQueryOptions } from "@/lib/query/asset-assignment-query-options";
 import { invalidateAssetAssignmentCaches } from "@/lib/query/invalidate-asset-assignment-caches";
@@ -124,6 +128,8 @@ export default function AssetAssignmentViewPage() {
     const [selectedLeaseContractId, setSelectedLeaseContractId] = useState("");
     const [handoverDate, setHandoverDate] = useState("");
     const [odometerAtHandover, setOdometerAtHandover] = useState("");
+    const [handoverLocation, setHandoverLocation] = useState("");
+    const [assignNotes, setAssignNotes] = useState("");
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [isLeavingAssignFlow, setIsLeavingAssignFlow] = useState(false);
     const assignSucceededRef = useRef(false);
@@ -299,6 +305,8 @@ export default function AssetAssignmentViewPage() {
                 selectedContract.organisationClientId ??
                 selectedContract.fleetClientId ??
                 undefined;
+            const locationTrim = handoverLocation.trim();
+            const notesTrim = assignNotes.trim();
             return bulkAssignAssetRegisterVehiclesApi({
                 token,
                 body: {
@@ -308,6 +316,10 @@ export default function AssetAssignmentViewPage() {
                     organisationClientId,
                     handoverDate: handoverDate.trim(),
                     odometerAtHandover: parsedOdometer,
+                    ...(locationTrim
+                        ? { handoverLocation: locationTrim }
+                        : {}),
+                    ...(notesTrim ? { notes: notesTrim } : {}),
                 },
             });
         },
@@ -381,8 +393,8 @@ export default function AssetAssignmentViewPage() {
         },
         onError: (error: Error) => {
             showErrorToast(getApiErrorMessage(error, VEHICLE_ASSIGN_ERROR));
-        },
-    });
+            },
+        });
 
     if (
         isLeavingAssignFlow ||
@@ -393,7 +405,7 @@ export default function AssetAssignmentViewPage() {
         return (
             <div className="min-h-full bg-gray-50 px-5 py-4 text-sm text-gray-500">
                 Returning to assignment list…
-            </div>
+                    </div>
         );
     }
 
@@ -425,7 +437,7 @@ export default function AssetAssignmentViewPage() {
                         </h1>
                         <span className="rounded-full bg-green-50 px-2 py-0.5 text-[13px] font-medium text-green-700">
                             Available
-                        </span>
+                            </span>
                     </div>
                     <p className="mt-0.5 text-[14px] text-gray-500">
                         Choose an active lease contract with open capacity for
@@ -434,45 +446,45 @@ export default function AssetAssignmentViewPage() {
                 </div>
 
                 <div className="grid gap-4 lg:grid-cols-2">
-                    <section>
+                <section>
                         <h2 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-400">
-                            Vehicle
-                        </h2>
-                        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                        Vehicle
+                    </h2>
+                    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
                             <InfoRow label="Fleet code" value={vehicle.fleetCode} />
                             <InfoRow
                                 label="Registration"
                                 value={vehicle.registrationNumber}
                             />
-                            <InfoRow
-                                label="Asset class"
+                        <InfoRow
+                            label="Asset class"
                                 value={vehicle.assetClassName}
                             />
                             <InfoRow
                                 label="Chassis number"
                                 value={vehicle.chassisNumber}
                             />
-                            <InfoRow
+                        <InfoRow
                                 label="Model year"
                                 value={String(vehicle.modelYear)}
                             />
-                            <InfoRow
+                        <InfoRow
                                 label="Odometer"
                                 value={`${vehicle.odometer.toLocaleString("en-IN")} km`}
                             />
-                            <InfoRow
+                        <InfoRow
                                 label="Insurance valid till"
                                 value={formatAssetRegisterIsoDate(
                                     vehicle.insuranceEndDate,
                                 )}
-                            />
-                        </div>
-                    </section>
+                        />
+                    </div>
+                </section>
 
                     <section>
                         <h2 className="mb-2 text-[14px] font-semibold uppercase tracking-wide text-gray-400">
                             Choose lease contract
-                        </h2>
+                    </h2>
 
                         {showNoDemandEmptyState ? (
                             <NoDemandEmptyState
@@ -508,17 +520,19 @@ export default function AssetAssignmentViewPage() {
                                 aria-label="Filter by client"
                             >
                                 {clientFilterOptions.map((option) => (
-                                    <option
+                                        <option
                                         key={option.value || "all"}
                                         value={option.value}
                                     >
                                         {option.label}
-                                    </option>
+                                        </option>
                                 ))}
                             </select>
                             <RestrictedInput
                                 restrictedKind="text"
-                                maxLength={64}
+                                maxLength={
+                                    ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.assignableContractSearch
+                                }
                                 value={contractSearch}
                                 onChange={(value) => setContractSearch(value)}
                                 placeholder="Search contract number"
@@ -645,7 +659,9 @@ export default function AssetAssignmentViewPage() {
                                 <RestrictedInput
                                     id="handover-odometer"
                                     restrictedKind="digits"
-                                    maxLength={9}
+                                    maxLength={
+                                        ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.odometerAtHandoverMaxDigits
+                                    }
                                     value={odometerAtHandover}
                                     onChange={(value) =>
                                         setOdometerAtHandover(value)
@@ -653,21 +669,71 @@ export default function AssetAssignmentViewPage() {
                                     className="h-9 text-xs"
                                 />
                             </div>
+                            <div className="sm:col-span-2">
+                                <label
+                                    htmlFor="handover-location"
+                                    className="mb-1 block text-xs font-semibold text-gray-700"
+                                >
+                                    Handover location
+                                    <span className="ml-1 font-normal text-gray-400">
+                                        (optional)
+                                    </span>
+                                </label>
+                                <RestrictedInput
+                                    id="handover-location"
+                                    restrictedKind="text"
+                                    maxLength={
+                                        ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.handoverLocation
+                                    }
+                                    value={handoverLocation}
+                                    onChange={setHandoverLocation}
+                                    className="h-9 text-xs"
+                                />
+                            </div>
+                            <div className="sm:col-span-2">
+                                <label
+                                    htmlFor="assign-notes"
+                                    className="mb-1 block text-xs font-semibold text-gray-700"
+                                >
+                                    Notes
+                                    <span className="ml-1 font-normal text-gray-400">
+                                        (optional)
+                                    </span>
+                                </label>
+                                <textarea
+                                    id="assign-notes"
+                                    maxLength={
+                                        ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.notes
+                                    }
+                                    value={assignNotes}
+                                    onChange={(event) =>
+                                        setAssignNotes(
+                                            sanitizeTextValue(
+                                                event.target.value,
+                                                ASSET_REGISTER_ASSIGNMENT_INPUT_LIMITS.notes,
+                                            ),
+                                        )
+                                    }
+                                    rows={3}
+                                    placeholder="Handover or assignment notes"
+                                    className="w-full rounded-md border border-gray-300 px-2 py-1.5 text-xs"
+                                />
+                            </div>
                         </div>
                             </>
-                        )}
-                    </section>
+                    )}
+                </section>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-4">
                     <Link href={ASSET_ASSIGN_LIST_HREF}>
-                        <Button
-                            type="button"
-                            variant="neutral"
+                    <Button
+                        type="button"
+                        variant="neutral"
                             className="h-8 border-gray-300 bg-white px-4 text-xs text-gray-700"
-                        >
+                    >
                             Back to list
-                        </Button>
+                    </Button>
                     </Link>
                     <Button
                         type="button"
