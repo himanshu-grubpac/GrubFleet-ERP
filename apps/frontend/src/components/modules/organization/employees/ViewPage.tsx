@@ -5,6 +5,7 @@ import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entit
 import { organisationEmployeeEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateEmployeeCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -78,12 +79,7 @@ export default function EmployeeViewPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "employee", organizationId, employeeId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "employees"],
-      });
+      void invalidateEmployeeCaches(queryClient);
       setActivateOpen(false);
       setShowDeactivateModal(false);
       setStatusError(null);

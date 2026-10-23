@@ -8,6 +8,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
 import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
@@ -95,13 +96,25 @@ export class UpdateLocationDto {
   @MaxLength(320)
   siteContactEmail?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Organisation employee. Null clears the responsible person. Omit leaves the current assignment.',
+  })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsUUID()
   responsibleEmployeeId?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
+    description:
+      'Organisation employee. Null clears the deputy. Omit leaves the current assignment.',
+  })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsUUID()
   deputyEmployeeId?: string | null;
 }

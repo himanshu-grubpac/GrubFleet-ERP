@@ -16,6 +16,7 @@ import {
     showSparePartActivatedToast,
     showSparePartDeactivatedToast,
 } from "@/lib/toast/show-toast";
+import { invalidateSparePartCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { AlertTriangle } from "lucide-react";
 import Button from "@/components/ui/GrubpacButton";
@@ -109,13 +110,7 @@ export default function StockViewPage() {
             ),
 
         onSuccess: (_data, variables) => {
-            void queryClient.invalidateQueries({
-                queryKey: [
-                    "inventory",
-                    "stock-register",
-                    organizationId,
-                ],
-            });
+            void invalidateSparePartCaches(queryClient);
 
             if (variables.isActive) {
                 showSparePartActivatedToast(

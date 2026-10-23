@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { PackageSearch } from "lucide-react";
 import {
@@ -18,7 +18,12 @@ import DashboardTable from "@/components/dashboard/DashboardTable";
 import DashboardEmptyState from "@/components/dashboard/DashboardEmptyState";
 import DashboardTableActions from "@/components/dashboard/DashboardTableActions";
 import { useAuth } from "@/providers/auth-provider";
-import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import {
+  dashboardCatalogQueryOptions,
+  dashboardListQueryOptions,
+} from "@/lib/query/dashboard-list-query-options";
+import { fetchAllActiveAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { invalidateSparePartCaches } from "@/lib/query/invalidate-domain-caches";
 import { INVENTORY_SPARE_PART_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
 import {
   listSortQueryKeyPart,
@@ -96,6 +101,32 @@ export default function StockDashboardPage() {
   const [activateOpen, setActivateOpen] = useState(false);
   const [deactivateOpen, setDeactivateOpen] = useState(false);
 
+  const assetClassesQuery = useQuery({
+    queryKey: [
+      "inventory",
+      "stock-register",
+      "asset-classes",
+      organizationId,
+    ],
+    queryFn: () =>
+      fetchAllActiveAssetRegisterAssetClassesApi({
+        token: token!,
+        organizationId: organizationId!,
+      }),
+    enabled: !!token && !!organizationId && !isAuthLoading,
+    ...dashboardCatalogQueryOptions,
+  });
+
+  const compatibleClassOptions = useMemo(() => {
+    const labels = (assetClassesQuery.data ?? [])
+      .map((row) => row.specLabel?.trim() || row.name.trim())
+      .filter((label) => label.length > 0);
+    return [...new Set(labels)].map((label) => ({
+      label,
+      value: label,
+    }));
+  }, [assetClassesQuery.data]);
+
   const listQuery = useQuery({
     queryKey: [
       "inventory",
@@ -138,9 +169,7 @@ export default function StockDashboardPage() {
         token!,
       ),
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["inventory", "stock-register", organizationId],
-      });
+      void invalidateSparePartCaches(queryClient);
       if (variables.isActive) {
         showSparePartActivatedToast(variables.part.partName);
       } else {
@@ -252,16 +281,7 @@ export default function StockDashboardPage() {
             {
               key: "compatibleClass",
               label: "Compatible Class",
-              options: [
-                {
-                  label: "Petrol Scooter — Standard",
-                  value: "Petrol Scooter — Standard",
-                },
-                {
-                  label: "Petrol Auto — Cargo",
-                  value: "Petrol Auto — Cargo",
-                },
-              ],
+              options: compatibleClassOptions,
             },
           ]}
           filterValues={filters}

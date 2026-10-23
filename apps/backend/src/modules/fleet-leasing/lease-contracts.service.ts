@@ -228,6 +228,17 @@ export class LeaseContractsService {
         'Only active contracts are eligible for renewal or extension',
       );
     }
+    const currentEnd = contract.endDate
+      ? contract.endDate.toISOString().slice(0, 10)
+      : null;
+    if (!currentEnd) {
+      throw new BadRequestException('Contract has no end date');
+    }
+    if (dto.newStartDate.slice(0, 10) < currentEnd) {
+      throw new BadRequestException(
+        'newStartDate must be on or after the current contract end date',
+      );
+    }
     const startDate = parseIsoDateOnlyUtc(dto.newStartDate);
     const endDate = addMonthsUtc(startDate, dto.newTermMonths);
     const outcomeKind = classifyRenewOutcomeKind(dto.newTermMonths);

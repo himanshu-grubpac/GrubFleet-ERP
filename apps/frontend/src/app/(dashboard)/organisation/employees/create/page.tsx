@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateEmployeeCaches } from "@/lib/query/invalidate-domain-caches";
 
 import CreateEmployeePage, {
   type EmployeeFormData,
@@ -56,12 +57,7 @@ export default function CreatePage() {
         reportsToEmployeeId: data.reportsToEmployeeId,
         isWorkshopTechnician: data.isWorkshopTechnician,
       });
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "employees"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["workshop", "technicians-all"],
-      });
+      await invalidateEmployeeCaches(queryClient);
       showEmployeeCreatedToast(created.fullName);
       router.push(organisationEmployeeDetailHref(created.id));
     } catch (error) {

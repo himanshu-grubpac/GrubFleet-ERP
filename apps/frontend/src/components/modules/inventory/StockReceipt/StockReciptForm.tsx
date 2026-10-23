@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useRef, useState } from "react";
 
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { inventoryStockReceiptListHref } from "@/lib/navigation/inventory-static-routes";
 
 import FormActions from "@/components/common/FormActions";
@@ -122,36 +123,6 @@ export default function CreateStockForm({
         purchaseInvoiceManualRef:
             initialData?.purchaseInvoiceManualRef ?? "",
     });
-
-    const [partPickerOpen, setPartPickerOpen] = useState(false);
-    const [partPickerFilter, setPartPickerFilter] = useState("");
-    const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
-    const [invoicePickerFilter, setInvoicePickerFilter] = useState("");
-
-    const filteredPartOptions = useMemo(() => {
-        const q = partPickerFilter.trim().toLowerCase();
-        if (!q) return partOptions;
-        return partOptions.filter((option) =>
-            option.label.toLowerCase().includes(q),
-        );
-    }, [partOptions, partPickerFilter]);
-
-    const filteredInvoiceOptions = useMemo(() => {
-        const q = invoicePickerFilter.trim().toLowerCase();
-        if (!q) return purchaseInvoiceOptions;
-        return purchaseInvoiceOptions.filter((option) =>
-            option.label.toLowerCase().includes(q),
-        );
-    }, [purchaseInvoiceOptions, invoicePickerFilter]);
-
-    const selectedPartLabel =
-        partOptions.find((option) => option.value === form.part)?.label ??
-        "Select part";
-
-    const selectedInvoiceLabel =
-        purchaseInvoiceOptions.find(
-            (option) => option.value === form.purchaseInvoice,
-        )?.label ?? "Select purchase invoice";
 
     const isManualPurchaseInvoice =
         form.purchaseInvoice === STOCK_RECEIPT_MANUAL_INVOICE;
@@ -314,92 +285,27 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <div className="relative">
-                        <div
-                            className={mergeFormControlBorderClass(
-                                hasAttemptedSubmit && !form.part.trim(),
-                                `flex min-h-10 w-full items-center rounded-md border bg-white transition focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20 ${hasAttemptedSubmit && !form.part.trim() ? "" : "border-gray-300"}`,
-                            )}
-                        >
-                            <button
-                                id="part"
-                                type="button"
-                                onClick={() =>
-                                    setPartPickerOpen((previous) => !previous)
-                                }
-                                aria-expanded={partPickerOpen}
-                                aria-haspopup="listbox"
-                                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 outline-none"
-                            >
-                                <span
-                                    className={
-                                        form.part.trim()
-                                            ? "text-gray-900"
-                                            : "text-gray-400"
-                                    }
-                                >
-                                    {form.part.trim()
-                                        ? selectedPartLabel
-                                        : "Select part"}
-                                </span>
-                            </button>
-                        </div>
-                        {partPickerOpen ? (
-                            <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
-                                <div className="border-b border-gray-100 p-2">
-                                    <RestrictedInput
-                                        restrictedKind="text"
-                                        maxLength={
-                                            INVENTORY_INPUT_LIMITS.listSearch
-                                        }
-                                        value={partPickerFilter}
-                                        onChange={setPartPickerFilter}
-                                        placeholder="Search parts…"
-                                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm"
-                                    />
-                                </div>
-                                <div
-                                    className="max-h-56 overflow-y-auto py-1"
-                                    role="listbox"
-                                    aria-labelledby="part"
-                                >
-                                    {isCatalogLoading ? (
-                                        <p className="px-3 py-2 text-sm text-gray-500">
-                                            Loading parts…
-                                        </p>
-                                    ) : filteredPartOptions.length === 0 ? (
-                                        <p className="px-3 py-2 text-sm text-gray-500">
-                                            {partOptions.length === 0
-                                                ? "No active parts found."
-                                                : "No parts match your search."}
-                                        </p>
-                                    ) : (
-                                        filteredPartOptions.map((part) => (
-                                            <button
-                                                key={part.value}
-                                                type="button"
-                                                role="option"
-                                                aria-selected={
-                                                    form.part === part.value
-                                                }
-                                                onClick={() => {
-                                                    updateForm(
-                                                        "part",
-                                                        part.value,
-                                                    );
-                                                    setPartPickerOpen(false);
-                                                    setPartPickerFilter("");
-                                                }}
-                                                className="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                            >
-                                                {part.label}
-                                            </button>
-                                        ))
-                                    )}
-                                </div>
-                            </div>
-                        ) : null}
-                    </div>
+                    <select
+                        id="part"
+                        value={form.part}
+                        onChange={(event) =>
+                            updateForm("part", event.target.value)
+                        }
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit && !form.part.trim(),
+                            selectClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit && !form.part.trim()
+                        }
+                    >
+                        <option value="">Select part</option>
+                        {partOptions.map((part) => (
+                            <option key={part.value} value={part.value}>
+                                {part.label}
+                            </option>
+                        ))}
+                    </select>
                     {hasAttemptedSubmit && !form.part.trim() ? (
                         <FormFieldInlineError message="Part is required." />
                     ) : null}
@@ -418,111 +324,36 @@ export default function CreateStockForm({
                         </span>
                     </label>
 
-                    <div className="relative">
-                        <div
-                            className={mergeFormControlBorderClass(
-                                hasAttemptedSubmit &&
-                                    !form.purchaseInvoice.trim(),
-                                `flex min-h-10 w-full items-center rounded-md border bg-white transition focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20 ${hasAttemptedSubmit && !form.purchaseInvoice.trim() ? "" : "border-gray-300"}`,
-                            )}
-                        >
-                            <button
-                                id="purchase-invoice"
-                                type="button"
-                                onClick={() =>
-                                    setInvoicePickerOpen(
-                                        (previous) => !previous,
-                                    )
-                                }
-                                aria-expanded={invoicePickerOpen}
-                                aria-haspopup="listbox"
-                                className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 outline-none"
+                    <select
+                        id="purchase-invoice"
+                        value={form.purchaseInvoice}
+                        onChange={(event) => {
+                            const nextValue = event.target.value;
+                            updateForm("purchaseInvoice", nextValue);
+                            if (nextValue !== STOCK_RECEIPT_MANUAL_INVOICE) {
+                                updateForm("purchaseInvoiceManualRef", "");
+                            }
+                        }}
+                        className={mergeFormControlBorderClass(
+                            hasAttemptedSubmit &&
+                                !form.purchaseInvoice.trim(),
+                            selectClassName,
+                        )}
+                        aria-invalid={
+                            hasAttemptedSubmit &&
+                            !form.purchaseInvoice.trim()
+                        }
+                    >
+                        <option value="">Select purchase invoice</option>
+                        {purchaseInvoiceOptions.map((invoice) => (
+                            <option
+                                key={invoice.value}
+                                value={invoice.value}
                             >
-                                <span
-                                    className={
-                                        form.purchaseInvoice.trim()
-                                            ? "text-gray-900"
-                                            : "text-gray-400"
-                                    }
-                                >
-                                    {form.purchaseInvoice.trim()
-                                        ? selectedInvoiceLabel
-                                        : "Select purchase invoice"}
-                                </span>
-                            </button>
-                        </div>
-                        {invoicePickerOpen ? (
-                            <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
-                                <div className="border-b border-gray-100 p-2">
-                                    <RestrictedInput
-                                        restrictedKind="text"
-                                        maxLength={
-                                            INVENTORY_INPUT_LIMITS.listSearch
-                                        }
-                                        value={invoicePickerFilter}
-                                        onChange={setInvoicePickerFilter}
-                                        placeholder="Search invoices…"
-                                        className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm"
-                                    />
-                                </div>
-                                <div
-                                    className="max-h-56 overflow-y-auto py-1"
-                                    role="listbox"
-                                    aria-labelledby="purchase-invoice"
-                                >
-                                    {isCatalogLoading ? (
-                                        <p className="px-3 py-2 text-sm text-gray-500">
-                                            Loading invoices…
-                                        </p>
-                                    ) : filteredInvoiceOptions.length === 0 ? (
-                                        <p className="px-3 py-2 text-sm text-gray-500">
-                                            {purchaseInvoiceOptions.length === 0
-                                                ? "No purchase invoices found."
-                                                : "No invoices match your search."}
-                                        </p>
-                                    ) : (
-                                        filteredInvoiceOptions.map(
-                                            (invoice) => (
-                                                <button
-                                                    key={invoice.value}
-                                                    type="button"
-                                                    role="option"
-                                                    aria-selected={
-                                                        form.purchaseInvoice ===
-                                                        invoice.value
-                                                    }
-                                                    onClick={() => {
-                                                        updateForm(
-                                                            "purchaseInvoice",
-                                                            invoice.value,
-                                                        );
-                                                        if (
-                                                            invoice.value !==
-                                                            STOCK_RECEIPT_MANUAL_INVOICE
-                                                        ) {
-                                                            updateForm(
-                                                                "purchaseInvoiceManualRef",
-                                                                "",
-                                                            );
-                                                        }
-                                                        setInvoicePickerOpen(
-                                                            false,
-                                                        );
-                                                        setInvoicePickerFilter(
-                                                            "",
-                                                        );
-                                                    }}
-                                                    className="flex w-full px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                                >
-                                                    {invoice.label}
-                                                </button>
-                                            ),
-                                        )
-                                    )}
-                                </div>
-                            </div>
-                        ) : null}
-                    </div>
+                                {invoice.label}
+                            </option>
+                        ))}
+                    </select>
                     {hasAttemptedSubmit && !form.purchaseInvoice.trim() ? (
                         <FormFieldInlineError message="Purchase invoice is required." />
                     ) : null}
@@ -568,6 +399,7 @@ export default function CreateStockForm({
                     <input
                         id="purchase-date"
                         type="date"
+                        max={localTodayIsoDate()}
                         value={form.purchaseDate}
                         onChange={(event) =>
                             updateForm("purchaseDate", event.target.value)
@@ -597,6 +429,7 @@ export default function CreateStockForm({
                     <input
                         id="expiry-date"
                         type="date"
+                        min={form.purchaseDate || undefined}
                         value={form.expiryDate}
                         onChange={(event) =>
                             updateForm("expiryDate", event.target.value)

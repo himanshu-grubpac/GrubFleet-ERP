@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
 import DetailField from "@/components/common/DetailField";
 import OrganizationDetailCard, {
@@ -65,10 +66,7 @@ export default function InvoiceDetailPage() {
     onSuccess: (detail) => {
       showFinanceInvoiceCancelledToast(detail.invoiceNumber);
       setCancelOpen(false);
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoice-detail", organizationId, invoiceId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
+      void invalidateFinanceInvoiceCaches(queryClient);
     },
     onError: (error) => showApiErrorToast(error, FINANCE_INVOICE_CANCEL_ERROR),
   });
@@ -79,7 +77,7 @@ export default function InvoiceDetailPage() {
     onSuccess: (result) => {
       showFinanceInvoiceRemovedToast(result.invoiceNumber);
       setRemoveOpen(false);
-      void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
+      void invalidateFinanceInvoiceCaches(queryClient);
       router.push(financeInvoicesListHref);
     },
     onError: (error) => showApiErrorToast(error, FINANCE_INVOICE_REMOVE_ERROR),

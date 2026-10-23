@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entity-id";
 import { organisationSupplierEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateSupplierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -78,12 +79,7 @@ export default function SupplierViewPage() {
             );
         },
         onSuccess: (data) => {
-            void queryClient.invalidateQueries({
-                queryKey: ["organization", "suppliers"],
-            });
-            void queryClient.invalidateQueries({
-                queryKey: ["organization", "supplier", organizationId, supplierId],
-            });
+            void invalidateSupplierCaches(queryClient);
             setDeactivateOpen(false);
             setActivateOpen(false);
             setStatusError(null);

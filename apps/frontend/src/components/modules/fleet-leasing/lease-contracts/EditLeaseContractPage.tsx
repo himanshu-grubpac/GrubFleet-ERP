@@ -4,6 +4,10 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    invalidateClientCaches,
+    invalidateLeaseDomainCaches,
+} from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import SelectClientStep from "@/components/modules/fleet-leasing/NewContract/SelectClientStep";
@@ -21,7 +25,6 @@ import CreateClientPage, {
 } from "@/components/modules/organization/clients/CreateClientPage";
 import {
     createOrganisationClientFromForm,
-    organisationClientsQueryKey,
     requireLinkedFleetClientId,
 } from "@/lib/api/organisation/clients";
 import { ApiClientError } from "@/lib/api/client";
@@ -269,12 +272,11 @@ export default function EditLeaseContractPage({
     );
 
     const invalidateContract = useCallback(async () => {
-        await queryClient.invalidateQueries({
-            queryKey: ["lease-contract", organizationId, leaseId],
-        });
-        await queryClient.invalidateQueries({
-            queryKey: ["lease-contracts-list", organizationId],
-        });
+        await invalidateLeaseDomainCaches(
+            queryClient,
+            organizationId,
+            leaseId,
+        );
     }, [leaseId, organizationId, queryClient]);
 
     const finishNonDraftSave = useCallback(async () => {
@@ -543,17 +545,7 @@ export default function EditLeaseContractPage({
                 },
             );
             const fleetClientId = requireLinkedFleetClientId(created);
-            await Promise.all([
-                queryClient.invalidateQueries({
-                    queryKey: organisationClientsQueryKey(organizationId),
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ["organization", "clients"],
-                }),
-                queryClient.invalidateQueries({
-                    queryKey: ["fleet-leasing-clients", organizationId],
-                }),
-            ]);
+            await invalidateClientCaches(queryClient);
             await handleClientCreated({
                 id: fleetClientId,
                 companyName: created.clientName,

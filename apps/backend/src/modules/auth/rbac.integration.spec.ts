@@ -1295,4 +1295,64 @@ describe('RBAC admin (integration)', () => {
       .set('Authorization', `Bearer ${adminAccessToken}`)
       .expect(200);
   });
+
+  it('clears parent role when PATCH sends null', async () => {
+    const rootRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('clear-parent.root'),
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+    const rootId = (rootRes.body as { id: string }).id;
+
+    const childRes = await request(app.getHttpServer())
+      .post('/api/v1/roles')
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({
+        organizationId,
+        name: rbacIntegrationTestRoleName('clear-parent.child'),
+        parentRoleId: rootId,
+        moduleAccess: [{ moduleId: 'dashboard', accessLevel: 'VIEW' }],
+      })
+      .expect(201);
+    const childId = (childRes.body as { id: string }).id;
+    expect(
+      (childRes.body as { parentRoleId: string | null }).parentRoleId,
+    ).toBe(rootId);
+
+    const cleared = await request(app.getHttpServer())
+      .patch(`/api/v1/roles/${childId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .send({ parentRoleId: null })
+      .expect(200);
+    expect(
+      (cleared.body as { parentRoleId: string | null }).parentRoleId,
+    ).toBeNull();
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/roles/${childId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+    expect(
+      (detail.body as { parentRoleId: string | null }).parentRoleId,
+    ).toBeNull();
+
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${childId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+    await request(app.getHttpServer())
+      .delete(`/api/v1/roles/${rootId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${adminAccessToken}`)
+      .expect(200);
+  });
 });

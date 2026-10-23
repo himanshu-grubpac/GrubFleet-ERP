@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { assetRegisterFleetDetailHref } from "@/lib/navigation/asset-register-static-routes";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateVehicleCaches } from "@/lib/query/invalidate-domain-caches";
 
 import CreateFleetVehicleForm, {
   type FleetVehicleFormData,
@@ -65,10 +66,8 @@ export default function FleetEditPage() {
         body: fleetFormToUpdateVehiclePayload(form),
       });
     },
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "vehicles"],
-      });
+    onSuccess: async () => {
+      await invalidateVehicleCaches(queryClient);
       showFleetVehicleUpdatedToast();
       router.push(assetRegisterFleetDetailHref(vehicleId));
     },

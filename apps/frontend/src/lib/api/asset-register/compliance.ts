@@ -23,6 +23,8 @@ export type AssetRegisterComplianceCredential = {
   endDate: string | null;
   status: AssetRegisterComplianceFilterStatus;
   premium?: string;
+  policyNumber?: string | null;
+  registrationReference?: string | null;
 };
 export type AssetRegisterComplianceListItem = {
   vehicleId: string;
@@ -108,6 +110,8 @@ export async function renewAssetRegisterComplianceApi(params: {
   startDate: string;
   endDate: string;
   insurancePremium?: string | number;
+  policyNumber?: string;
+  registrationReference?: string;
 }): Promise<AssetRegisterComplianceDetail> {
   const q = new URLSearchParams({
     organizationId: params.organizationId,
@@ -130,6 +134,12 @@ export async function renewAssetRegisterComplianceApi(params: {
                 params.insurancePremium,
               ),
             }
+          : {}),
+        ...(params.policyNumber !== undefined
+          ? { policyNumber: params.policyNumber }
+          : {}),
+        ...(params.registrationReference !== undefined
+          ? { registrationReference: params.registrationReference }
           : {}),
       }),
     },

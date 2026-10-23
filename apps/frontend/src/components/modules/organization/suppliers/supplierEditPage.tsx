@@ -7,6 +7,7 @@ import {
     organisationSupplierDetailHref,
 } from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateSupplierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -75,7 +76,7 @@ export default function EditSupplierPage() {
     }, [supplierQuery.data]);
 
     const handleCancel = () => {
-        router.push("/organization/suppliers");
+        router.push("/organisation/suppliers");
     };
 
     const handleSaved = async (data: SupplierFormData) => {
@@ -110,12 +111,7 @@ export default function EditSupplierPage() {
                 supplierId,
                 payload,
             );
-            await queryClient.invalidateQueries({
-                queryKey: ["organization", "suppliers"],
-            });
-            await queryClient.invalidateQueries({
-                queryKey: ["organization", "supplier", organizationId, supplierId],
-            });
+            await invalidateSupplierCaches(queryClient);
             showSupplierUpdatedToast(updated.name);
             router.push(organisationSupplierDetailHref(supplierId));
         } catch (error) {

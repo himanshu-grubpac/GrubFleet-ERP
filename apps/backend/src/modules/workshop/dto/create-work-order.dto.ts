@@ -10,6 +10,7 @@ import {
   IsUUID,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import {
@@ -19,6 +20,7 @@ import {
   WORKSHOP_PART_LINE_MAX,
   WORKSHOP_REPORTED_BY_MAX,
 } from '../constants/workshop-field.constants';
+import { IsNotBeforeLocalToday } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 import { WorkOrderLaborLineDto } from './work-order-labor-line.dto';
 import { WorkOrderPartLineDto } from './work-order-part-line.dto';
 
@@ -32,21 +34,29 @@ export class CreateWorkOrderDto {
   vehicleId!: string;
 
   @ApiPropertyOptional({
+    format: 'uuid',
+    nullable: true,
     description:
-      'Labor job card template; copies template parts and labor charge',
+      'Labor job card template. Omit or null when no service package is selected.',
   })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsUUID()
-  laborJobCardId?: string;
+  laborJobCardId?: string | null;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ format: 'uuid', nullable: true })
   @IsOptional()
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsUUID()
-  technicianEmployeeId?: string;
+  technicianEmployeeId?: string | null;
 
-  @ApiPropertyOptional({ format: 'date' })
+  @ApiPropertyOptional({
+    format: 'date',
+    description: 'Must not be before today',
+  })
   @IsOptional()
   @IsDateString({ strict: true })
+  @IsNotBeforeLocalToday()
   expectedCompletionDate?: string;
 
   @ApiPropertyOptional()

@@ -249,6 +249,20 @@ describe('Asset Register — vehicle assignments (integration)', () => {
     return { contractId, organisationClientId, fleetClientId: clientId };
   }
 
+  it('returns 400 when handover date is after today', async () => {
+    await request(app.getHttpServer())
+      .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        leaseContractId: '00000000-0000-4000-8000-000000000001',
+        vehicleIds: ['00000000-0000-4000-8000-000000000002'],
+        handoverDate: '2099-01-01',
+      })
+      .expect(400);
+  });
+
   it('returns 401 without JWT on bulk assign', async () => {
     await request(app.getHttpServer())
       .post('/api/v1/asset-register/vehicle-assignments/bulk-assign')

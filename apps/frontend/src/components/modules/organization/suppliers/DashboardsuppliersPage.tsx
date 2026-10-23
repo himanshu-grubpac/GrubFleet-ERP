@@ -8,6 +8,7 @@ import {
     useQuery,
     useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateSupplierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -204,9 +205,7 @@ export default function SuppliersPage() {
             );
         },
         onSuccess: (_data, variables) => {
-            void queryClient.invalidateQueries({
-                queryKey: ["organization", "suppliers"],
-            });
+            void invalidateSupplierCaches(queryClient);
             setDeactivateTarget(null);
             setActivateTarget(null);
             setStatusError(null);
@@ -226,7 +225,7 @@ export default function SuppliersPage() {
 
     const handleAddSupplier = () => {
         if (!canCreate) return;
-        router.push("/organization/suppliers/create");
+        router.push("/organisation/suppliers/create");
     };
 
     const addSupplierAction = canCreate ? (
@@ -296,7 +295,7 @@ export default function SuppliersPage() {
                 title="Suppliers"
                 description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts, used across Asset Management and Inventory."
                 descriptionBreakAfter="contacts,"
-                activeTab="/organization/suppliers"
+                activeTab="/organisation/suppliers"
                 action={addSupplierAction}
             >
                 <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
@@ -314,7 +313,7 @@ export default function SuppliersPage() {
                 title="Suppliers"
                 description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts,
              used across Asset Management and Inventory."
-                activeTab="/organization/suppliers"
+                activeTab="/organisation/suppliers"
                 action={addSupplierAction}
             >
                 <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
@@ -338,7 +337,7 @@ export default function SuppliersPage() {
             title="Suppliers"
             description="Shared supplier register — vehicles, spare parts, driver staffing, and insurance/RTO compliance contacts,
              used across Asset Management and Inventory."
-            activeTab="/organization/suppliers"
+            activeTab="/organisation/suppliers"
             action={addSupplierAction}
             pagination={
                 suppliersTotal > SUPPLIERS_PAGE_SIZE

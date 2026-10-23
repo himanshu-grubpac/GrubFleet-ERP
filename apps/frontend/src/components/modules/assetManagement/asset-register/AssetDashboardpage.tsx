@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 import DashboardTable, {
   type DashboardColumn,
 } from "@/components/dashboard/DashboardTable";
@@ -223,9 +224,7 @@ export default function AssetClassesPage() {
       });
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "asset-classes"],
-      });
+      void invalidateAssetClassCaches(queryClient);
 
       setDeactivateTarget(null);
       setActivateTarget(null);

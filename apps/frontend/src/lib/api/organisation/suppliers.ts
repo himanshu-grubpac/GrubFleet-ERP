@@ -4,6 +4,10 @@ import { DEFAULT_COUNTRY_CODE, getCountryDefinition } from "@/lib/geo/countries"
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 
 export type SupplierStatus = "active" | "inactive";
@@ -253,6 +257,24 @@ export async function fetchOrganisationSuppliersApi(
       token,
       headers: orgHeaders(params.organizationId),
     },
+  );
+}
+
+export async function fetchAllActiveOrganisationSuppliersApi(
+  token: string,
+  organizationId: string,
+  filters?: { supplierType?: ListOrganisationSuppliersParams["supplierType"] },
+): Promise<OrganisationSupplierListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchOrganisationSuppliersApi(token, {
+        organizationId,
+        page,
+        pageSize,
+        status: "active",
+        supplierType: filters?.supplierType,
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
   );
 }
 

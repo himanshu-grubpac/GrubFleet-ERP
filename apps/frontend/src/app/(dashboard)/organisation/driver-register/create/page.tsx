@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateDriverCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
@@ -44,9 +45,7 @@ export default function CreateDriverRoute() {
         token,
         buildDriverPayloadFromForm({ organizationId, form: data }),
       );
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers"],
-      });
+      await invalidateDriverCaches(queryClient);
       showDriverCreatedToast(created.name);
       router.push(organisationDriverDetailHref(created.id));
     } catch (error) {

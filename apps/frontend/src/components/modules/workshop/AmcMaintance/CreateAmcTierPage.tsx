@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import FormActions from "@/components/common/FormActions";
@@ -19,6 +19,7 @@ import {
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
 import { ApiClientError } from "@/lib/api/client";
 import { createWorkshopAmcTierApi } from "@/lib/api/workshop/amc";
+import { invalidateAmcTierCaches } from "@/lib/query/invalidate-domain-caches";
 import { WORKSHOP_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { parseRupeeInputToMinor } from "@/lib/format/money-format";
 import {
@@ -36,6 +37,7 @@ const inputClass =
 
 export default function CreateAmcTierPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId, permissions } = useAuth();
 
   const canCreate =
@@ -110,6 +112,7 @@ export default function CreateAmcTierPage() {
     },
     onSuccess: (data) => {
       isSubmittingRef.current = false;
+      void invalidateAmcTierCaches(queryClient);
       showSuccessToast(`${data.name} was created`);
       router.push(workshopAmcTierDetailHref(data.id));
     },

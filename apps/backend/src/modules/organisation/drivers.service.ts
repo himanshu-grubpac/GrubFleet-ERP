@@ -1,4 +1,8 @@
 import {
+  getLocalCalendarDateToday,
+  isoDateFloorKeepingSaved,
+} from '@grubpac/validation';
+import {
   BadRequestException,
   ConflictException,
   Injectable,
@@ -190,6 +194,17 @@ export class DriversService {
       phone: nextPhone,
       excludeDriverId: driverId,
     });
+    if (dto.licenseExpiry !== undefined) {
+      const floor = isoDateFloorKeepingSaved(
+        existing.licenseExpiry,
+        getLocalCalendarDateToday(),
+      );
+      if (dto.licenseExpiry.slice(0, 10) < floor) {
+        throw new BadRequestException(
+          `licenseExpiry must be on or after ${floor}`,
+        );
+      }
+    }
     try {
       await this.repo.updateDriver(organizationId, driverId, {
         ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),

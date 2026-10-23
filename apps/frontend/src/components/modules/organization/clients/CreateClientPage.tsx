@@ -308,7 +308,7 @@ export default function CreateClientPage({
             if (onSaved) {
                 await onSaved(payload);
             } else {
-                router.push("/organization/clients");
+                router.push("/organisation/clients");
             }
         } catch (error) {
             console.error("Failed to save client:", error);
@@ -336,7 +336,7 @@ export default function CreateClientPage({
                 variant="outline"
                 onClick={
                     onCancel ??
-                    (() => router.push("/organization/clients"))
+                    (() => router.push("/organisation/clients"))
                 }
                 disabled={saving}
             >

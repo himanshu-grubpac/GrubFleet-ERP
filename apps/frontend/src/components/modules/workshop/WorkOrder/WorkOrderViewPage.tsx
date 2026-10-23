@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateWorkOrderCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -98,12 +99,7 @@ export default function WorkOrderViewPage() {
       });
     },
     onSuccess: (detail, action) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "work-order", organizationId, workOrderId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "work-orders", organizationId],
-      });
+      void invalidateWorkOrderCaches(queryClient);
       if (action === "start") {
         showSuccessToast(`Work order ${detail.workOrderNumber} started`);
       } else if (action === "close") {

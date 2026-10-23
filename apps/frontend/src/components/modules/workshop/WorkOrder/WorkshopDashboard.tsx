@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ClipboardList, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateWorkOrderCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -193,9 +194,7 @@ export default function WorkshopDashboardPage() {
       });
     },
     onSuccess: (detail) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "work-orders", organizationId],
-      });
+      void invalidateWorkOrderCaches(queryClient);
 
       setCancelTarget(null);
       showSuccessToast(

@@ -838,6 +838,57 @@ describe('Finance invoices (integration)', () => {
   describe('sale and billing invoices — boundary', () => {
     const fakeUuid = '00000000-0000-4000-8000-000000000001';
 
+    it('returns 400 when invoice date or billing month is after today', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/invoices/sale')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          vehicleId: fakeUuid,
+          buyerName: 'Buyer',
+          totalAmountMinor: 100_00,
+          invoiceDate: '2099-01-01',
+        })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/invoices/billing/lease')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({
+          organizationId,
+          clientId: fakeUuid,
+          leaseContractId: fakeUuid,
+          billingPeriod: '2099-12',
+          totalAmountMinor: 100_00,
+          invoiceDate: '2026-04-01',
+        })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .post('/api/v1/finance/invoices/purchase/vehicle')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildVehiclePurchasePayload({
+            organizationId,
+            supplierId,
+            invoiceDate: '2099-01-01',
+            lines: [
+              {
+                assetClassId,
+                quantity: 1,
+                rateMinor: 100,
+                taxMode: 'INCLUSIVE',
+                vatPercent: 18,
+              },
+            ],
+          }),
+        )
+        .expect(400);
+    });
+
     it('returns 403 on sale create for finance.view only', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/finance/invoices/sale')

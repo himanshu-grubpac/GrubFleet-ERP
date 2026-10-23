@@ -5,7 +5,8 @@ import {
   assetRegisterAssetClassDetailHref,
 } from "@/lib/navigation/asset-register-static-routes";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 
 import CreateAssetClassForm, {
   type AssetClassFormData,
@@ -27,6 +28,7 @@ import {
 
 export default function EditAssetClassPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
   const assetClassId = useAssetRegisterEntityId("assetClassId");
@@ -83,6 +85,7 @@ export default function EditAssetClassPage() {
         body: assetClassFormToUpdatePayload(data),
       });
       showAssetClassUpdatedToast(updated.name);
+      await invalidateAssetClassCaches(queryClient);
       router.push(assetRegisterAssetClassDetailHref(assetClassId));
     } catch (error) {
       showErrorToast(

@@ -21,7 +21,7 @@ import {
     fetchAssetRegisterVehiclesApi,
     type AssetRegisterVehicleDemandFilter,
 } from "@/lib/api/asset-register/vehicles";
-import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { fetchAllActiveAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
 import { assetRegisterAssetAssignDetailHref } from "@/lib/navigation/asset-register-static-routes";
 import { formatCalendarDateEnIn } from "@/lib/format/date-format";
 
@@ -137,12 +137,9 @@ export default function AssetAssignmentDashboardPage() {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssetRegisterAssetClassesApi({
+            return fetchAllActiveAssetRegisterAssetClassesApi({
                 token,
                 organizationId,
-                page: 1,
-                pageSize: 50,
-                status: "active",
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -150,7 +147,7 @@ export default function AssetAssignmentDashboardPage() {
     });
 
     const assetClassFilterOptions = useMemo(() => {
-        const items = assetClassCatalogQuery.data?.items ?? [];
+        const items = assetClassCatalogQuery.data ?? [];
         return [
             { label: "All asset classes", value: "" },
             ...items.map((row) => ({
@@ -158,7 +155,7 @@ export default function AssetAssignmentDashboardPage() {
                 value: row.id,
             })),
         ];
-    }, [assetClassCatalogQuery.data?.items]);
+    }, [assetClassCatalogQuery.data]);
 
     const selectedAssetClassLabel = useMemo(() => {
         if (!assetClassIdFilter) {

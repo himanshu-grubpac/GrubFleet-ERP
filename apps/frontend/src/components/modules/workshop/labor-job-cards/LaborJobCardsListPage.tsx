@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileText, Plus, Search } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateLaborJobCardCaches } from "@/lib/query/invalidate-domain-caches";
 
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
 import DashboardTable from "@/components/dashboard/DashboardTable";
@@ -140,9 +141,7 @@ export default function LaborJobCardsListPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "labor-job-cards"],
-      });
+      void invalidateLaborJobCardCaches(queryClient);
       setActivateTarget(null);
       setDeactivateTarget(null);
       showSuccessToast(

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+    invalidateLeaseDomainCaches,
+    invalidateVehicleCaches,
+} from "@/lib/query/invalidate-domain-caches";
 import { Loader2, Search } from "lucide-react";
 
 import OrganizationFormLayout, {
@@ -26,7 +30,7 @@ import {
 import { FLEET_SUPPORT_REPLACEMENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { ApiClientError } from "@/lib/api/client";
 import {
-    fetchFleetClients,
+    fetchAllFleetClients,
     type FleetClientListItem,
 } from "@/lib/api/lease-contracts";
 import {
@@ -108,10 +112,11 @@ export default function VehicleReplacementFlow() {
             debouncedClientSearch,
         ],
         queryFn: () =>
-            fetchFleetClients(token!, organizationId!, {
-                pageSize: 50,
-                search: debouncedClientSearch || undefined,
-            }),
+            fetchAllFleetClients(
+                token!,
+                organizationId!,
+                debouncedClientSearch || undefined,
+            ),
         enabled: orgReady && findMode === "contract" && !selectedClient,
         staleTime: 60_000,
     });
@@ -248,25 +253,15 @@ export default function VehicleReplacementFlow() {
 
     const invalidateSupportReplacementCaches = useCallback(() => {
         if (!organizationId) return;
+        void invalidateLeaseDomainCaches(queryClient, organizationId, contractId);
+        void invalidateVehicleCaches(queryClient);
         void queryClient.invalidateQueries({
             queryKey: ["fleet-support-allocated", organizationId],
         });
         void queryClient.invalidateQueries({
-            queryKey: ["replacement-candidates", organizationId],
-        });
-        void queryClient.invalidateQueries({
             queryKey: ["fleet-support-contracts", organizationId],
         });
-        void queryClient.invalidateQueries({
-            queryKey: ["lease-contracts-list", organizationId],
-        });
-        void queryClient.invalidateQueries({
-            queryKey: ["lease-contract-detail", organizationId],
-        });
-        void queryClient.invalidateQueries({
-            queryKey: ["asset-register", "vehicles"],
-        });
-    }, [organizationId, queryClient]);
+    }, [contractId, organizationId, queryClient]);
 
     const clearContractPath = () => {
         setSelectedClient(null);
@@ -533,7 +528,7 @@ export default function VehicleReplacementFlow() {
         </div>
     );
 
-    const clients = clientsQuery.data?.items ?? [];
+    const clients = clientsQuery.data ?? [];
 
     const contractPathBlock = (
         <div className="w-full space-y-4">

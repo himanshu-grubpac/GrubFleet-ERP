@@ -14,6 +14,7 @@ import { IsValidCprNo } from '../../../common/decorators/is-valid-cpr-no.decorat
 import { IsValidDriverLicenseNumber } from '../../../common/decorators/is-valid-driver-license-number.decorator';
 import { IsIso31661Alpha2Country } from '../../../common/decorators/is-iso31661-alpha2.decorator';
 import { IsValidPhone } from '../../../common/decorators/is-valid-phone.decorator';
+import { IsNotBeforeLocalToday } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 import { IsValidPostalForCountry } from '../../../common/decorators/is-valid-postal-for-country.decorator';
 import { ORGANISATION_DRIVER_FIELD_LIMITS as L } from '../constants/driver-field.constants';
 
@@ -55,10 +56,12 @@ export class CreateDriverDto {
   licenseNumber!: string;
 
   @ApiProperty({
-    description: 'ISO 8601 calendar date (YYYY-MM-DD)',
+    description:
+      'ISO 8601 calendar date (YYYY-MM-DD). Must not be before today.',
     example: '2027-04-18',
   })
   @IsDateString({ strict: true })
+  @IsNotBeforeLocalToday()
   licenseExpiry!: string;
 
   @ApiProperty({ description: 'Organisation supplier (driver staffing type)' })

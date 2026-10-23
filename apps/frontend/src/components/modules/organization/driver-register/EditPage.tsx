@@ -7,6 +7,7 @@ import {
   organisationDriverDetailHref,
 } from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateDriverCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
@@ -86,12 +87,7 @@ export default function EditDriverPage() {
         driverId,
         buildDriverUpdatePayloadFromForm(data),
       );
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers", organizationId, driverId],
-      });
+      await invalidateDriverCaches(queryClient);
       showDriverUpdatedToast(updated.name);
       router.push(organisationDriverDetailHref(driverId));
     } catch (error) {

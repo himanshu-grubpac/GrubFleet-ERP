@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateAmcTierCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
@@ -159,9 +160,7 @@ export default function AmcTierDetailsPage() {
       return updateWorkshopAmcTierApi(token, tierId, payload);
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-      });
+      void invalidateAmcTierCaches(queryClient);
       showSuccessToast(`${data.name} was updated`);
       router.push(workshopAmcTierDetailHref(tierId));
     },
@@ -191,12 +190,7 @@ export default function AmcTierDetailsPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tier", organizationId, tierId],
-      });
+      void invalidateAmcTierCaches(queryClient);
       setActivateOpen(false);
       setDeactivateOpen(false);
       showSuccessToast(
@@ -274,14 +268,7 @@ export default function AmcTierDetailsPage() {
           return [...list, row];
         },
       );
-      void queryClient.invalidateQueries({
-        queryKey: subscribersKey,
-        refetchType: "none",
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-        refetchType: "none",
-      });
+      void invalidateAmcTierCaches(queryClient);
       showSuccessToast(
         `${detail.fleetCode} was subscribed to ${tier?.name ?? "tier"}`,
       );

@@ -5,12 +5,13 @@ import {
   inventoryStockRegisterDetailHref,
 } from "@/lib/navigation/inventory-static-routes";
 import { useInventoryEntityId } from "@/lib/navigation/use-inventory-entity-id";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import CreatePartForm, {
   type PartFormData,
 } from "@/components/modules/inventory/StockRegister/StockFormRegister";
 import { useAuth } from "@/providers/auth-provider";
+import { invalidateSparePartCaches } from "@/lib/query/invalidate-domain-caches";
 import {
   fetchStockRegisterDetailApi,
   updateSparePartApi,
@@ -22,6 +23,7 @@ import {
 
 export default function StockEditPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId, isLoading: isAuthLoading } = useAuth();
 
   const stockId = useInventoryEntityId("partId");
@@ -50,6 +52,7 @@ export default function StockEditPage() {
         token!,
       ),
     onSuccess: (result) => {
+      void invalidateSparePartCaches(queryClient);
       showSparePartUpdatedToast(result.partName);
       router.push(inventoryStockRegisterDetailHref(stockId));
     },

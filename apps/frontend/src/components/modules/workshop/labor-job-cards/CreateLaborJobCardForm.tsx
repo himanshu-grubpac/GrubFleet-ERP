@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, Trash2 } from "lucide-react";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -17,6 +17,7 @@ import {
   fetchWorkshopLaborJobCardApi,
   updateWorkshopLaborJobCardApi,
 } from "@/lib/api/workshop/labor-job-cards";
+import { invalidateLaborJobCardCaches } from "@/lib/query/invalidate-domain-caches";
 import {
   workshopLabourRateCardDetailHref,
   workshopLabourRateCardListHref,
@@ -37,6 +38,7 @@ import { useAuth } from "@/providers/auth-provider";
 
 export default function CreateLaborJobCardForm() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const editCardId = searchParams.get("laborJobCardId")?.trim() ?? "";
   const isEditMode = editCardId.length > 0;
@@ -132,6 +134,7 @@ export default function CreateLaborJobCardForm() {
       return createWorkshopLaborJobCardApi(token, payload);
     },
     onSuccess: (detail) => {
+      void invalidateLaborJobCardCaches(queryClient);
       showSuccessToast(
         isEditMode ? `${detail.name} was updated` : `${detail.name} was added`,
       );

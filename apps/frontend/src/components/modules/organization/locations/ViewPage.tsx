@@ -5,6 +5,7 @@ import { useOrganisationEntityId } from "@/lib/navigation/use-organisation-entit
 import { organisationLocationEditHref } from "@/lib/navigation/organisation-static-routes";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateLocationCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -80,12 +81,7 @@ export default function LocationDetailsPage() {
       );
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "location"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "locations"],
-      });
+      void invalidateLocationCaches(queryClient);
       setDeactivateOpen(false);
       setActivateOpen(false);
       setStatusError(null);

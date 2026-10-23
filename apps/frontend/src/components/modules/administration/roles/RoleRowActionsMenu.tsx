@@ -22,6 +22,7 @@ import {
 import { useAuth } from "@/providers/auth-provider";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { deleteRoleApi, updateRoleApi } from "@/lib/api/roles";
+import { invalidateRoleCaches } from "@/lib/query/invalidate-domain-caches";
 
 type PendingConfirm =
   | { kind: "toggle-active"; nextActive: boolean }
@@ -121,7 +122,7 @@ export function RoleRowActionsMenu({
     onSuccess: async () => {
       setPendingConfirm(null);
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["roles", organizationId] });
+      await invalidateRoleCaches(queryClient);
       await refetchMe?.();
     },
   });
@@ -136,7 +137,7 @@ export function RoleRowActionsMenu({
     onSuccess: async () => {
       setPendingConfirm(null);
       setOpen(false);
-      await queryClient.invalidateQueries({ queryKey: ["roles", organizationId] });
+      await invalidateRoleCaches(queryClient);
       await refetchMe?.();
     },
   });

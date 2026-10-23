@@ -8,6 +8,7 @@ import {
 } from "@/lib/navigation/asset-register-static-routes";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateVehicleCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -169,9 +170,7 @@ export default function FleetViewPage() {
             });
         },
         onSuccess: (_data, variables) => {
-            void queryClient.invalidateQueries({
-                queryKey: ["asset-register", "vehicles"],
-            });
+            void invalidateVehicleCaches(queryClient);
             setDeactivateOpen(false);
             setShowActivateConfirm(false);
             if (variables.action === "activate") {

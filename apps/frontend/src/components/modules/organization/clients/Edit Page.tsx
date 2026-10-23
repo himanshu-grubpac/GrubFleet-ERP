@@ -7,6 +7,7 @@ import {
   organisationClientDetailHref,
 } from "@/lib/navigation/organisation-static-routes";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -102,12 +103,7 @@ export default function EditClientPage() {
         clientId,
         payload,
       );
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "clients"],
-      });
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "client", organizationId, clientId],
-      });
+      await invalidateClientCaches(queryClient);
       showClientUpdatedToast(updated.clientName);
       router.push(organisationClientDetailHref(clientId));
     } catch (error) {

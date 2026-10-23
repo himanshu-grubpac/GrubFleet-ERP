@@ -1,4 +1,8 @@
 import {
+  getLocalCalendarDateToday,
+  isoDateFloorKeepingSaved,
+} from '@grubpac/validation';
+import {
   BadRequestException,
   ForbiddenException,
   Injectable,
@@ -340,6 +344,17 @@ export class WorkOrdersService {
       patch.technicianEmployeeId = dto.technicianEmployeeId;
     }
     if (dto.expectedCompletionDate !== undefined) {
+      if (typeof dto.expectedCompletionDate === 'string') {
+        const floor = isoDateFloorKeepingSaved(
+          existing.expectedCompletionDate,
+          getLocalCalendarDateToday(),
+        );
+        if (dto.expectedCompletionDate.slice(0, 10) < floor) {
+          throw new BadRequestException(
+            `expectedCompletionDate must be on or after ${floor}`,
+          );
+        }
+      }
       patch.expectedCompletionDate = dto.expectedCompletionDate;
     }
     if (dto.reportedBy !== undefined) {

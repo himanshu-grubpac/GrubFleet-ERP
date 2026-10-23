@@ -1027,7 +1027,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"type\": \"insurance\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"insurancePremium\": \"12000.00\"\n}"
+              "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"type\": \"insurance\",\n  \"startDate\": \"2026-01-01\",\n  \"endDate\": \"2027-01-01\",\n  \"insurancePremium\": \"12000.00\",\n  \"policyNumber\": \"POL-12000\"\n}"
             },
             "url": "{{baseUrl}}/asset-register/compliance/{{assetRegisterVehicleId}}/renew",
             "description": "POST /asset-register/compliance/{vehicleId}/renew — type insurance | registration | warranty"
@@ -1822,7 +1822,7 @@
               "raw": "{\n  \"name\": \"Andheri East Hub (updated)\",\n  \"addressLine1\": \"Plot 12, MIDC — revised\",\n  \"addressCity\": \"Mumbai\",\n  \"addressCountry\": \"IN\",\n  \"addressState\": \"Maharashtra\",\n  \"addressDistrict\": \"Mumbai Suburban\",\n  \"addressPincode\": \"400069\",\n  \"siteContactPhone\": \"+919999999999\",\n  \"siteContactEmail\": \"hub-updated@example.com\",\n  \"responsibleEmployeeId\": null,\n  \"deputyEmployeeId\": null\n}"
             },
             "url": "{{baseUrl}}/organisation/locations/{{locationId}}?organizationId={{organizationId}}",
-            "description": "PATCH /organisation/locations/{id} — update fields on an active location; inactive locations return 400."
+            "description": "PATCH /organisation/locations/{id} — update fields on an active location; inactive locations return 400. responsibleEmployeeId and deputyEmployeeId null clear those assignments."
           },
           "response": []
         },
@@ -3375,7 +3375,7 @@
               "raw": "{\n  \"organizationId\": \"{{organizationId}}\",\n  \"vehicleId\": \"{{assetRegisterVehicleId}}\",\n  \"laborJobCardId\": \"{{workshopLaborJobCardId}}\",\n  \"expectedCompletionDate\": \"2026-12-15\",\n  \"issueDescription\": \"Routine service\"\n}"
             },
             "url": "{{baseUrl}}/workshop/work-orders",
-            "description": "POST /workshop/work-orders — fleet + optional template."
+            "description": "POST /workshop/work-orders — fleet + optional service package. Omit laborJobCardId or send null when no package is selected."
           },
           "response": []
         },

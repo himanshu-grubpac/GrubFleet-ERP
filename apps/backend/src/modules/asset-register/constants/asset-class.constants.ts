@@ -28,7 +28,7 @@ export const ASSET_CLASS_COLOR_CODE_MAX_LENGTH = 32;
 export const ASSET_CLASS_MILEAGE_UNIT_MAX_LENGTH = 32;
 export const ASSET_CLASS_DEFAULT_INTAKE_MAX_LENGTH = 8000;
 export const ASSET_CLASS_MANUFACTURING_YEAR_MIN = 1980;
-export const ASSET_CLASS_MANUFACTURING_YEAR_MAX = 2100;
+/** Upper bound is the current local calendar year (MaxCurrentLocalCalendarYear). */
 export const ASSET_CLASS_ENGINE_CC_MIN = 1;
 export const ASSET_CLASS_ENGINE_CC_MAX = 99999;
 export const ASSET_CLASS_INTAKE_ITEMS_MAX = 100;

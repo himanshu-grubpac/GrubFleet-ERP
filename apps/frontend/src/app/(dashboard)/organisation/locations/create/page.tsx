@@ -8,8 +8,8 @@ export default function AddLocationPage() {
 
   return (
     <AddLocationForm
-      onCancel={() => router.push("/organization/locations")}
-      onSaved={() => router.push("/organization/locations")}
+      onCancel={() => router.push("/organisation/locations")}
+      onSaved={() => router.push("/organisation/locations")}
     />
   );
 }

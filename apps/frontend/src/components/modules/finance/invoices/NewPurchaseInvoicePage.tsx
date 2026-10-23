@@ -2,7 +2,8 @@
 import FormActions from "@/components/common/FormActions";
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 import { Trash2 } from "lucide-react";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -12,13 +13,14 @@ import {
   FormFieldInlineError,
   mergeFormControlBorderClass,
 } from "@/components/ui/form-field-inline-error";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { useAuth } from "@/providers/auth-provider";
-import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
-import { fetchInventoryPartsCatalogApi } from "@/lib/api/finance/inventory-parts";
+import { fetchAllActiveOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
+import { fetchAllInventoryPartsCatalogApi } from "@/lib/api/finance/inventory-parts";
 import {
   createPurchaseSparePartsInvoiceApi,
   createPurchaseVehicleInvoiceApi,
-  fetchFinancePurchaseAssetClassesCatalogApi,
+  fetchAllFinancePurchaseAssetClassesCatalogApi,
 } from "@/lib/api/finance/invoices";
 import {
   formatInrFromMinor,
@@ -79,6 +81,7 @@ function parseVatPercent(value: string): number | null {
 
 export default function NewPurchaseInvoicePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId, isLoading: authLoading, permissions } =
     useAuth();
 
@@ -99,10 +102,6 @@ export default function NewPurchaseInvoicePage() {
   const [batchLot, setBatchLot] = useState("");
   const [spareNotes, setSpareNotes] = useState("");
   const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
-  const [assetClassPickerLineKey, setAssetClassPickerLineKey] = useState<
-    string | null
-  >(null);
-  const [assetClassPickerFilter, setAssetClassPickerFilter] = useState("");
   const isSubmittingRef = useRef(false);
 
   const catalogEnabled = !!token && !!organizationId && !authLoading;
@@ -110,34 +109,21 @@ export default function NewPurchaseInvoicePage() {
   const suppliersQuery = useQuery({
     queryKey: ["finance-invoice-suppliers", organizationId],
     queryFn: () =>
-      fetchOrganisationSuppliersApi(token!, {
-        organizationId: organizationId!,
-        page: 1,
-        pageSize: 200,
-        status: "active",
-      }),
+      fetchAllActiveOrganisationSuppliersApi(token!, organizationId!),
     enabled: catalogEnabled,
   });
 
   const assetClassesQuery = useQuery({
     queryKey: ["finance-invoice-asset-classes", organizationId],
     queryFn: () =>
-      fetchFinancePurchaseAssetClassesCatalogApi(token!, {
-        organizationId: organizationId!,
-        page: 1,
-        pageSize: 200,
-        status: "active",
-      }),
+      fetchAllFinancePurchaseAssetClassesCatalogApi(token!, organizationId!),
     enabled: catalogEnabled && tab === "vehicle",
   });
 
   const partsQuery = useQuery({
     queryKey: ["finance-invoice-parts", organizationId],
     queryFn: () =>
-      fetchInventoryPartsCatalogApi(token!, organizationId!, {
-        page: 1,
-        pageSize: 200,
-      }),
+      fetchAllInventoryPartsCatalogApi(token!, organizationId!),
     enabled: catalogEnabled && tab === "spare_parts",
   });
 
@@ -207,7 +193,7 @@ export default function NewPurchaseInvoicePage() {
         return;
       }
 
-      const catalogItems = assetClassesQuery.data?.items ?? [];
+      const catalogItems = assetClassesQuery.data ?? [];
       const assetClass = catalogItems.find((c) => c.id === line.assetClassId);
       const assetLabel =
         assetClass?.specLabel || assetClass?.name || "Asset class";
@@ -444,6 +430,7 @@ export default function NewPurchaseInvoicePage() {
       });
     },
     onSuccess: (detail) => {
+      void invalidateFinanceInvoiceCaches(queryClient);
       showFinanceInvoiceCreatedToast(detail.invoiceNumber);
       router.push(financeInvoicesListHref);
     },
@@ -476,18 +463,9 @@ export default function NewPurchaseInvoicePage() {
       ? `Invoice number is assigned automatically (${PURCHASE_INVOICE_NUMBER_FORMAT_HINT}). Add one or more asset class lines; tax breakdown follows inclusive or exclusive rules from the server.`
       : "Stock is not received on this screen — inventory stock receipt will reference this invoice later.";
 
-  const suppliers = suppliersQuery.data?.items ?? [];
-  const assetClasses = assetClassesQuery.data?.items ?? [];
-
-  const filteredAssetClasses = useMemo(() => {
-    const q = assetClassPickerFilter.trim().toLowerCase();
-    if (!q) return assetClasses;
-    return assetClasses.filter((row) => {
-      const label = (row.specLabel || row.name || "").toLowerCase();
-      return label.includes(q);
-    });
-  }, [assetClasses, assetClassPickerFilter]);
-  const parts = partsQuery.data?.items ?? [];
+  const suppliers = suppliersQuery.data ?? [];
+  const assetClasses = assetClassesQuery.data ?? [];
+  const parts = partsQuery.data ?? [];
 
   const loadingCatalog =
     suppliersQuery.isLoading ||
@@ -587,7 +565,7 @@ export default function NewPurchaseInvoicePage() {
             <input
               type="date"
               min="0001-01-01"
-              max="9999-12-31"
+              max={localTodayIsoDate()}
               className={fieldBorderClass(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
               onChange={(e) => {
@@ -670,96 +648,34 @@ export default function NewPurchaseInvoicePage() {
                   <label className="mb-1 block text-sm font-medium text-slate-700">
                     Asset class *
                   </label>
-                  <div className="relative">
-                    <div
-                      className={selectBorderClass(
-                        hasAttemptedSubmit && !line.assetClassId,
-                      )}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAssetClassPickerLineKey((previous) =>
-                            previous === line.key ? null : line.key,
-                          );
-                          setAssetClassPickerFilter("");
-                        }}
-                        aria-expanded={assetClassPickerLineKey === line.key}
-                        aria-haspopup="listbox"
-                        disabled={assetClasses.length === 0}
-                        className="flex min-h-10 w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm text-slate-900 outline-none disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        <span
-                          className={
-                            line.assetClassId
-                              ? "text-slate-900"
-                              : "text-slate-400"
-                          }
-                        >
-                          {line.assetClassId
-                            ? assetClasses.find(
-                                (c) => c.id === line.assetClassId,
-                              )?.specLabel ||
-                              assetClasses.find(
-                                (c) => c.id === line.assetClassId,
-                              )?.name ||
-                              "Select asset class"
-                            : "Select asset class"}
-                        </span>
-                      </button>
-                    </div>
-                    {assetClassPickerLineKey === line.key ? (
-                      <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-slate-300 bg-white shadow-lg">
-                        <div className="border-b border-slate-100 p-2">
-                          <RestrictedInput
-                            restrictedKind="text"
-                            maxLength={
-                              FINANCE_INVOICE_INPUT_LIMITS.invoiceListSearch
-                            }
-                            value={assetClassPickerFilter}
-                            onChange={setAssetClassPickerFilter}
-                            placeholder="Search asset classes…"
-                            className="h-9 w-full rounded-md border border-slate-300 px-3 text-sm"
-                          />
-                        </div>
-                        <div
-                          className="max-h-56 overflow-y-auto py-1"
-                          role="listbox"
-                        >
-                          {assetClassesQuery.isLoading ? (
-                            <p className="px-3 py-2 text-sm text-slate-500">
-                              Loading asset classes…
-                            </p>
-                          ) : filteredAssetClasses.length === 0 ? (
-                            <p className="px-3 py-2 text-sm text-slate-500">
-                              {assetClasses.length === 0
-                                ? "No active asset classes found."
-                                : "No asset classes match your search."}
-                            </p>
-                          ) : (
-                            filteredAssetClasses.map((c) => (
-                              <button
-                                key={c.id}
-                                type="button"
-                                role="option"
-                                aria-selected={line.assetClassId === c.id}
-                                onClick={() => {
-                                  updateVehicleLine(line.key, {
-                                    assetClassId: c.id,
-                                  });
-                                  setAssetClassPickerLineKey(null);
-                                  setAssetClassPickerFilter("");
-                                }}
-                                className="flex w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50"
-                              >
-                                {c.specLabel || c.name}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      </div>
-                    ) : null}
-                  </div>
+                  <select
+                    className={selectBorderClass(
+                      hasAttemptedSubmit && !line.assetClassId,
+                    )}
+                    value={line.assetClassId}
+                    onChange={(e) =>
+                      updateVehicleLine(line.key, {
+                        assetClassId: e.target.value,
+                      })
+                    }
+                    disabled={
+                      assetClassesQuery.isLoading || assetClasses.length === 0
+                    }
+                    aria-invalid={hasAttemptedSubmit && !line.assetClassId}
+                  >
+                    <option value="">Select asset class</option>
+                    {assetClasses.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.specLabel || c.name}
+                      </option>
+                    ))}
+                  </select>
+                  {!assetClassesQuery.isLoading && assetClasses.length === 0 ? (
+                    <p className="mt-1 text-xs text-slate-500">
+                      No active asset classes found. Add an asset class in Asset
+                      Register before creating a vehicle purchase invoice.
+                    </p>
+                  ) : null}
                   <FormFieldInlineError
                     message={
                       hasAttemptedSubmit
@@ -1188,7 +1104,7 @@ export default function NewPurchaseInvoicePage() {
             <input
               type="date"
               min="0001-01-01"
-              max="9999-12-31"
+              max={localTodayIsoDate()}
               className={fieldBorderClass(hasAttemptedSubmit && !invoiceDate)}
               value={invoiceDate}
               onChange={(e) => {

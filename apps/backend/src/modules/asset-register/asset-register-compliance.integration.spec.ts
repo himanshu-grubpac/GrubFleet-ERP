@@ -182,6 +182,19 @@ describe('Asset Register — compliance and renewals (integration)', () => {
     };
     expect(listBody.items.some((i) => i.vehicleId === vehicleId)).toBe(true);
 
+    await request(app.getHttpServer())
+      .post(`/api/v1/asset-register/compliance/${vehicleId}/renew`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        type: 'insurance',
+        startDate: '2026-01-01',
+        endDate: '2020-06-01',
+        insurancePremium: 9500,
+      })
+      .expect(400);
+
     const renewRes = await request(app.getHttpServer())
       .post(`/api/v1/asset-register/compliance/${vehicleId}/renew`)
       .set('Authorization', `Bearer ${accessToken}`)
@@ -228,6 +241,108 @@ describe('Asset Register — compliance and renewals (integration)', () => {
     };
     expect(body.fleetCode).toMatch(/^VH-/);
     expect(body.overallComplianceStatus).toBe('valid');
+  });
+
+  it('persists insurance policy number and registration reference on renew', async () => {
+    const vehicleId = await createVehicleWithDates({
+      insuranceEndDate: '2030-01-01',
+      registrationEndDate: '2030-01-01',
+      warrantyEndDate: '2030-01-01',
+    });
+
+    const policyNumber = 'P'.repeat(128);
+    const registrationReference = 'R'.repeat(128);
+
+    const insuranceRes = await request(app.getHttpServer())
+      .post(`/api/v1/asset-register/compliance/${vehicleId}/renew`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        type: 'insurance',
+        startDate: '2026-01-01',
+        endDate: '2030-06-01',
+        insurancePremium: 8000,
+        policyNumber,
+      })
+      .expect(200);
+
+    expect(
+      (insuranceRes.body as { insurance: { policyNumber: string } }).insurance
+        .policyNumber,
+    ).toBe(policyNumber);
+
+    const registrationRes = await request(app.getHttpServer())
+      .post(`/api/v1/asset-register/compliance/${vehicleId}/renew`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        type: 'registration',
+        startDate: '2026-01-01',
+        endDate: '2030-06-01',
+        registrationReference,
+      })
+      .expect(200);
+
+    expect(
+      (
+        registrationRes.body as {
+          registration: { registrationReference: string };
+        }
+      ).registration.registrationReference,
+    ).toBe(registrationReference);
+
+    const detailRes = await request(app.getHttpServer())
+      .get(`/api/v1/asset-register/compliance/${vehicleId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+
+    const detail = detailRes.body as {
+      insurance: { policyNumber: string };
+      registration: { registrationReference: string };
+    };
+    expect(detail.insurance.policyNumber).toBe(policyNumber);
+    expect(detail.registration.registrationReference).toBe(
+      registrationReference,
+    );
+  });
+
+  it('returns 400 when policyNumber or registrationReference exceeds maxLength', async () => {
+    const vehicleId = await createVehicleWithDates({
+      insuranceEndDate: '2030-01-01',
+      registrationEndDate: '2030-01-01',
+      warrantyEndDate: '2030-01-01',
+    });
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/asset-register/compliance/${vehicleId}/renew`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        type: 'insurance',
+        startDate: '2026-01-01',
+        endDate: '2027-01-01',
+        insurancePremium: 8000,
+        policyNumber: 'P'.repeat(129),
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/api/v1/asset-register/compliance/${vehicleId}/renew`)
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        organizationId,
+        type: 'registration',
+        startDate: '2026-01-01',
+        endDate: '2027-01-01',
+        registrationReference: 'R'.repeat(129),
+      })
+      .expect(400);
   });
 
   it('returns 400 for invalid sortBy on compliance list', async () => {

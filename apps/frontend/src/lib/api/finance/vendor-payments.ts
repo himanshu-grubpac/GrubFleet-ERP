@@ -1,5 +1,9 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
 
@@ -137,14 +141,14 @@ export async function fetchVendorPaymentDetailApi(
 export async function fetchVendorPaymentPurchaseInvoiceCatalogApi(
   token: string,
   organizationId: string,
-  search?: string,
+  params?: { page?: number; pageSize?: number; search?: string },
 ): Promise<PaginatedResponse<VendorPaymentPurchaseInvoiceOption>> {
   const query = new URLSearchParams({
     organizationId,
-    page: "1",
-    pageSize: "50",
+    page: String(params?.page ?? 1),
+    pageSize: String(params?.pageSize ?? DEFAULT_API_CATALOG_PAGE_SIZE),
   });
-  if (search?.trim()) query.set("search", search.trim());
+  if (params?.search?.trim()) query.set("search", params.search.trim());
   const res = await apiFetch<
     PaginatedResponse<VendorPaymentPurchaseInvoiceOption>
   >(
@@ -155,6 +159,20 @@ export async function fetchVendorPaymentPurchaseInvoiceCatalogApi(
     ...res,
     items: (res.items ?? []).map(normalizePurchaseInvoiceOption),
   };
+}
+
+export async function fetchAllVendorPaymentPurchaseInvoiceCatalogApi(
+  token: string,
+  organizationId: string,
+): Promise<VendorPaymentPurchaseInvoiceOption[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchVendorPaymentPurchaseInvoiceCatalogApi(token, organizationId, {
+        page,
+        pageSize,
+      }),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
+  );
 }
 
 export type CreateVendorPaymentPayload = {

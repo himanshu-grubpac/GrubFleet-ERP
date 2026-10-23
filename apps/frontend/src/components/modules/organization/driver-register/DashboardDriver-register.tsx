@@ -7,6 +7,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateDriverCaches } from "@/lib/query/invalidate-domain-caches";
 import { Users } from "lucide-react";
 
 import Button from "@/components/ui/GrubpacButton";
@@ -221,9 +222,7 @@ export default function DriverRegisterPage() {
       );
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers"],
-      });
+      void invalidateDriverCaches(queryClient);
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
@@ -245,7 +244,7 @@ export default function DriverRegisterPage() {
 
   const handleAddDriver = () => {
     if (!canCreate) return;
-    router.push("/organization/driver-register/create");
+    router.push("/organisation/driver-register/create");
   };
 
   const handleEdit = (driver: Driver) => {
@@ -348,10 +347,10 @@ export default function DriverRegisterPage() {
         tabs={[
           {
             label: "Drivers",
-            href: "/organization/driver-register",
+            href: "/organisation/driver-register",
           },
         ]}
-        activeTab="/organization/driver-register"
+        activeTab="/organisation/driver-register"
         action={addDriverAction}
       >
         <div className="flex min-h-[180px] items-center justify-center rounded-lg border border-gray-200 bg-white">
@@ -369,10 +368,10 @@ export default function DriverRegisterPage() {
         tabs={[
           {
             label: "Drivers",
-            href: "/organization/driver-register",
+            href: "/organisation/driver-register",
           },
         ]}
-        activeTab="/organization/driver-register"
+        activeTab="/organisation/driver-register"
         action={addDriverAction}
       >
         <div className="flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-red-100 bg-white">
@@ -398,7 +397,7 @@ export default function DriverRegisterPage() {
       <DashboardLayout
         title="Driver Register"
         description="Manage drivers, licenses, suppliers, assignments, and driver status."
-        activeTab="/organization/driver-register"
+        activeTab="/organisation/driver-register"
         action={addDriverAction}
         pagination={
           driversTotal > DRIVERS_PAGE_SIZE

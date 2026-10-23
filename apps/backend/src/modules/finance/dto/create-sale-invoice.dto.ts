@@ -12,6 +12,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { IsNotAfterLocalToday } from '../../../common/decorators/local-calendar-date-bounds.decorator';
 
 export class CreateSaleInvoiceDto {
   @ApiProperty()
@@ -43,8 +44,12 @@ export class CreateSaleInvoiceDto {
   @Max(Number.MAX_SAFE_INTEGER)
   totalAmountMinor!: number;
 
-  @ApiProperty({ format: 'date' })
+  @ApiProperty({
+    format: 'date',
+    description: 'Must not be after today',
+  })
   @IsDateString({ strict: true })
+  @IsNotAfterLocalToday()
   invoiceDate!: string;
 
   @ApiPropertyOptional({ maxLength: 2000 })

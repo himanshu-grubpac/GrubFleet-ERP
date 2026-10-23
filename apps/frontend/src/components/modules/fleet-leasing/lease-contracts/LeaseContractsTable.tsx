@@ -12,6 +12,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateLeaseDomainCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import DashboardLayout from "@/components/dashboard/DashboardLayout";
@@ -202,13 +203,12 @@ export default function LeaseContractsTable() {
     setStatusFilter("");
   };
 
-  const invalidateLeaseListQueries = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["lease-contracts-list", organizationId],
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["renewals-extensions-list", organizationId],
-    });
+  const invalidateLeaseListQueries = (contractId?: string) => {
+    void invalidateLeaseDomainCaches(
+      queryClient,
+      organizationId,
+      contractId,
+    );
   };
 
   const statusMutation = useMutation({
@@ -226,7 +226,7 @@ export default function LeaseContractsTable() {
       return api.reactivate(input.contractId);
     },
     onSuccess: (_data, variables) => {
-      invalidateLeaseListQueries();
+      invalidateLeaseListQueries(variables.contractId);
       if (variables.kind === "activate") {
         showLeaseContractActivatedToast();
       } else if (variables.kind === "deactivate") {

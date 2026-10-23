@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateLaborJobCardCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -66,12 +67,7 @@ export default function LaborJobCardViewPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "labor-job-cards"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "labor-job-card", organizationId, cardId],
-      });
+      void invalidateLaborJobCardCaches(queryClient);
       setActivateOpen(false);
       setDeactivateOpen(false);
       showSuccessToast(

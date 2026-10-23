@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useQueryClient } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 
 import CreateAssetClassForm, {
   type AssetClassFormData,
@@ -17,6 +19,7 @@ import { assetRegisterAssetClassDetailHref } from "@/lib/navigation/asset-regist
 
 export default function Page() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { token, organizationId } = useAuth();
 
   const handleSaved = async (data: AssetClassFormData) => {
@@ -29,6 +32,7 @@ export default function Page() {
         body: assetClassFormToCreatePayload(organizationId, data),
       });
       showAssetClassCreatedToast(created.name);
+      await invalidateAssetClassCaches(queryClient);
       router.push(assetRegisterAssetClassDetailHref(created.id));
     } catch (error) {
       showErrorToast(

@@ -432,16 +432,10 @@ export default function CreateAssetClassForm({
     >
       {isEditMode ? (
         <div className="max-w-xl">
-          <label htmlFor="asset-class-name-readonly" className={labelClass}>
-            Class name
-          </label>
-          <input
-            id="asset-class-name-readonly"
-            readOnly
-            tabIndex={-1}
-            value={form.name}
-            className={`${inputClassName} bg-gray-50 text-gray-600`}
-          />
+          <p className={labelClass}>Class name</p>
+          <p className="break-all text-sm text-gray-900">
+            {form.name.trim() || "—"}
+          </p>
         </div>
       ) : null}
 

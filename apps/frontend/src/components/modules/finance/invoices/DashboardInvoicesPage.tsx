@@ -23,6 +23,7 @@ import { DASHBOARD_DEFAULT_PAGE_SIZE } from "@/components/dashboard/dashboard-pa
 
 import { useAuth } from "@/providers/auth-provider";
 import { dashboardListQueryOptions } from "@/lib/query/dashboard-list-query-options";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 import { FINANCE_INVOICE_COLUMN_SORT } from "@/lib/query/dashboard-list-column-sort-maps";
 import {
   listSortQueryKeyPart,
@@ -92,6 +93,35 @@ function statusLabel(status: FinanceInvoiceStatus): string {
     default:
       return status;
   }
+}
+
+/** Native `title` hover — payment breakdown only when status implies money received. */
+function statusPaymentTitle(row: FinanceInvoiceListItem): string | undefined {
+  if (row.status === "unpaid" || row.status === "cancelled") {
+    return undefined;
+  }
+
+  const { amountPaidMinor, balanceDueMinor, totalAmountMinor } = row;
+  if (
+    !Number.isFinite(amountPaidMinor) ||
+    !Number.isFinite(balanceDueMinor) ||
+    !Number.isFinite(totalAmountMinor)
+  ) {
+    return undefined;
+  }
+
+  const total = `Total: ${formatInrFromMinor(totalAmountMinor)}`;
+
+  if (row.status === "partially_paid") {
+    const balanceDue = `Balance due: ${formatInrFromMinor(balanceDueMinor)}`;
+    return `Paid: ${formatInrFromMinor(amountPaidMinor)} · ${balanceDue} · ${total}`;
+  }
+
+  if (row.status === "paid") {
+    return `Paid: ${formatInrFromMinor(amountPaidMinor)} · ${total}`;
+  }
+
+  return undefined;
 }
 
 function typeLabel(type: FinanceInvoiceType): string {
@@ -227,9 +257,7 @@ export default function DashboardInvoicesPage() {
   };
 
   const invalidateInvoiceQueries = () => {
-    void queryClient.invalidateQueries({
-      queryKey: ["finance-invoices"],
-    });
+    void invalidateFinanceInvoiceCaches(queryClient);
   };
 
   const cancelMutation = useMutation({
@@ -303,6 +331,7 @@ export default function DashboardInvoicesPage() {
       render: (row) => (
         <span
           className={`inline-flex min-w-[132px] shrink-0 items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-xs font-semibold ${statusBadgeClass(row.status)}`}
+          title={statusPaymentTitle(row)}
         >
           {statusLabel(row.status)}
         </span>

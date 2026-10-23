@@ -557,6 +557,75 @@ describe('Organisation locations (integration)', () => {
         .expect(409);
     });
 
+    it('clears reports-to when PATCH sends null', async () => {
+      const unique = Date.now();
+      const managerRes = await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildEmployeeCreatePayload({
+            fullName: 'Reports To Manager',
+            phone: `+9193${String(unique).slice(-8)}`,
+            email: `reports.manager.${unique}@grubpac.local`,
+          }),
+        )
+        .expect(201);
+      const managerId = (managerRes.body as { id: string }).id;
+
+      const reportRes = await request(app.getHttpServer())
+        .post('/api/v1/organisation/employees')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(
+          buildEmployeeCreatePayload({
+            fullName: 'Reports To Report',
+            phone: `+9194${String(unique + 1).slice(-8)}`,
+            email: `reports.report.${unique}@grubpac.local`,
+          }),
+        )
+        .expect(201);
+      const reportId = (reportRes.body as { id: string }).id;
+
+      const linked = await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${reportId}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ reportsToEmployeeId: managerId })
+        .expect(200);
+      expect((linked.body as { reportsToId: string | null }).reportsToId).toBe(
+        managerId,
+      );
+
+      const cleared = await request(app.getHttpServer())
+        .patch(`/api/v1/organisation/employees/${reportId}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send({ reportsToEmployeeId: null })
+        .expect(200);
+      expect(
+        (cleared.body as { reportsToId: string | null }).reportsToId,
+      ).toBeNull();
+      expect(
+        (cleared.body as { reportsToName: string | null }).reportsToName,
+      ).toBeNull();
+
+      const detail = await request(app.getHttpServer())
+        .get(`/api/v1/organisation/employees/${reportId}`)
+        .query({ organizationId })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .expect(200);
+      expect(
+        (detail.body as { reportsToId: string | null }).reportsToId,
+      ).toBeNull();
+      expect(
+        (detail.body as { reportsToName: string | null }).reportsToName,
+      ).toBeNull();
+    });
+
     it('writes an audit row on deactivate', async () => {
       const id = await createEmployeeAsAdmin();
       await request(app.getHttpServer())
@@ -1055,6 +1124,122 @@ describe('Organisation locations (integration)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .set('x-organization-id', fakeOrgId)
       .expect((res) => expect([403, 404]).toContain(res.status));
+  });
+
+  it('clears responsible person and deputy when PATCH sends null', async () => {
+    type EmployeeDetail = { id: string };
+    type LocationPeopleDetail = LocationDetail & {
+      responsibleEmployeeId: string | null;
+      deputyEmployeeId: string | null;
+      responsiblePerson: string;
+      responsiblePersonPhone: string;
+      responsiblePersonEmail: string;
+      deputyName: string;
+      deputyPhone: string;
+      deputyEmail: string;
+    };
+
+    const unique = Date.now();
+    const responsibleRes = await request(app.getHttpServer())
+      .post('/api/v1/organisation/employees')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send(
+        buildEmployeeCreatePayload({
+          fullName: 'Clear Responsible Person',
+          phone: `+9191${String(unique).slice(-8)}`,
+          email: `clear.responsible.${unique}@grubpac.local`,
+        }),
+      )
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const responsibleId = (responsibleRes.body as EmployeeDetail).id;
+
+    const deputyRes = await request(app.getHttpServer())
+      .post('/api/v1/organisation/employees')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send(
+        buildEmployeeCreatePayload({
+          fullName: 'Clear Deputy Person',
+          phone: `+9192${String(unique + 1).slice(-8)}`,
+          email: `clear.deputy.${unique}@grubpac.local`,
+        }),
+      )
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const deputyId = (deputyRes.body as EmployeeDetail).id;
+
+    const createdWithoutPeople = await request(app.getHttpServer())
+      .post('/api/v1/organisation/locations')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        ...buildLocationCreatePayload({
+          name: `No People ${unique}`,
+          addressPincode: '400011',
+        }),
+        responsibleEmployeeId: null,
+        deputyEmployeeId: null,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+    const createdWithoutPeopleBody =
+      createdWithoutPeople.body as LocationPeopleDetail;
+    expect(createdWithoutPeopleBody.responsibleEmployeeId).toBeNull();
+    expect(createdWithoutPeopleBody.deputyEmployeeId).toBeNull();
+
+    const created = await request(app.getHttpServer())
+      .post('/api/v1/organisation/locations')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        ...buildLocationCreatePayload({
+          name: `Clear People ${unique}`,
+          addressPincode: '400012',
+        }),
+        responsibleEmployeeId: responsibleId,
+        deputyEmployeeId: deputyId,
+      })
+      .expect((res) => expect([200, 201]).toContain(res.status));
+
+    const createdBody = created.body as LocationPeopleDetail;
+    const locationId = createdBody.id;
+    expect(createdBody.responsibleEmployeeId).toBe(responsibleId);
+    expect(createdBody.deputyEmployeeId).toBe(deputyId);
+    expect(createdBody.responsiblePerson).toBe('Clear Responsible Person');
+    expect(createdBody.deputyName).toBe('Clear Deputy Person');
+
+    const cleared = await request(app.getHttpServer())
+      .patch(`/api/v1/organisation/locations/${locationId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .send({
+        responsibleEmployeeId: null,
+        deputyEmployeeId: null,
+      })
+      .expect(200);
+
+    const clearedBody = cleared.body as LocationPeopleDetail;
+    expect(clearedBody.responsibleEmployeeId).toBeNull();
+    expect(clearedBody.deputyEmployeeId).toBeNull();
+    expect(clearedBody.responsiblePerson).toBe('');
+    expect(clearedBody.responsiblePersonPhone).toBe('');
+    expect(clearedBody.responsiblePersonEmail).toBe('');
+    expect(clearedBody.deputyName).toBe('');
+    expect(clearedBody.deputyPhone).toBe('');
+    expect(clearedBody.deputyEmail).toBe('');
+
+    const detail = await request(app.getHttpServer())
+      .get(`/api/v1/organisation/locations/${locationId}`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .set('x-organization-id', organizationId)
+      .expect(200);
+
+    const detailBody = detail.body as LocationPeopleDetail;
+    expect(detailBody.responsibleEmployeeId).toBeNull();
+    expect(detailBody.deputyEmployeeId).toBeNull();
+    expect(detailBody.responsiblePerson).toBe('');
+    expect(detailBody.deputyName).toBe('');
   });
 
   it('lists employees with newest created first by default', async () => {

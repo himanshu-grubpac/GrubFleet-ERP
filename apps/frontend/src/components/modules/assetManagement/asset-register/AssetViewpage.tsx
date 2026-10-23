@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { assetRegisterAssetClassEditHref } from "@/lib/navigation/asset-register-static-routes";
 import { useAssetRegisterEntityId } from "@/lib/navigation/use-asset-register-entity-id";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateAssetClassCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -83,12 +84,7 @@ export default function AssetClassViewPage() {
       });
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "asset-class"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "asset-classes"],
-      });
+      void invalidateAssetClassCaches(queryClient);
       setDeactivateOpen(false);
       setActivateOpen(false);
       const displayName = detailQuery.data?.name ?? "Asset class";

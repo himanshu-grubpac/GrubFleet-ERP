@@ -11,11 +11,11 @@ export type OrganisationEntityQueryKey =
   | "driverId";
 
 const MODULE_BASE = {
-  locations: "/organization/locations",
-  suppliers: "/organization/suppliers",
-  employees: "/organization/employees",
-  clients: "/organization/clients",
-  drivers: "/organization/driver-register",
+  locations: "/organisation/locations",
+  suppliers: "/organisation/suppliers",
+  employees: "/organisation/employees",
+  clients: "/organisation/clients",
+  drivers: "/organisation/driver-register",
 } as const;
 
 function detailHref(

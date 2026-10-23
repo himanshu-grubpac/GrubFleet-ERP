@@ -1,6 +1,7 @@
 /// <reference types="jest" />
 
 import { INestApplication } from '@nestjs/common';
+import { eq } from 'drizzle-orm';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import type { AppDatabase } from '../../database/database.module';
@@ -16,6 +17,7 @@ import {
   fleetVehicles,
   leaseContractVehicles,
   leaseContracts,
+  organisationDrivers,
   organizations,
 } from '../../database/schema';
 
@@ -573,6 +575,15 @@ describe('Organisation drivers (integration)', () => {
       expect(row.metadata).toEqual({ reason: 'Audit lattice closure' });
     });
 
+    it('returns 400 when license expiry is before today', async () => {
+      await request(app.getHttpServer())
+        .post('/api/v1/organisation/drivers')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .set('x-organization-id', organizationId)
+        .send(buildDriverCreatePayload({ licenseExpiry: '2000-01-01' }))
+        .expect(400);
+    });
+
     it('creates driver as inactive by default', async () => {
       const id = await createDriverAsAdmin();
       const res = await request(app.getHttpServer())
@@ -596,13 +607,10 @@ describe('Organisation drivers (integration)', () => {
         .send({ action: 'activate' })
         .expect(200);
 
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send({ licenseExpiry: '2020-01-01' })
-        .expect(200);
+      await db
+        .update(organisationDrivers)
+        .set({ licenseExpiry: '2020-01-01' })
+        .where(eq(organisationDrivers.id, id));
 
       const expiredRes = await request(app.getHttpServer())
         .get('/api/v1/organisation/drivers')
@@ -826,13 +834,10 @@ describe('Organisation drivers (integration)', () => {
         .send({ action: 'activate' })
         .expect(200);
 
-      await request(app.getHttpServer())
-        .patch(`/api/v1/organisation/drivers/${id}`)
-        .query({ organizationId })
-        .set('Authorization', `Bearer ${accessToken}`)
-        .set('x-organization-id', organizationId)
-        .send({ licenseExpiry: '2020-01-01' })
-        .expect(200);
+      await db
+        .update(organisationDrivers)
+        .set({ licenseExpiry: '2020-01-01' })
+        .where(eq(organisationDrivers.id, id));
 
       await request(app.getHttpServer())
         .post(`/api/v1/organisation/drivers/${id}/assign`)

@@ -8,7 +8,7 @@ import { useGrubpacAuth } from "@/lib/auth-context";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
 
 import {
-    fetchFleetClients,
+    fetchAllFleetClients,
     type FleetClientListItem,
 } from "@/lib/api/lease-contracts";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
@@ -49,16 +49,18 @@ export default function SelectClientStep({
                 );
             }
 
-            return fetchFleetClients(token, organizationId, {
-                search: debouncedSearch || undefined,
-            });
+            return fetchAllFleetClients(
+                token,
+                organizationId,
+                debouncedSearch || undefined,
+            );
         },
         enabled: Boolean(token && organizationId),
         staleTime: 30_000,
         refetchOnWindowFocus: false,
     });
 
-    const clients = clientsQuery.data?.items ?? [];
+    const clients = clientsQuery.data ?? [];
     const trimmedSearch = search.trim();
 
     const showNoResultsEmpty =

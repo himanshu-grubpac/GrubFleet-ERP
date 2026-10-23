@@ -9,6 +9,10 @@ import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ReasonRequiredDialog } from "@/components/ui/reason-required-dialog";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  invalidateAmcScheduleCaches,
+  invalidateAmcTierCaches,
+} from "@/lib/query/invalidate-domain-caches";
 
 import { ApiClientError } from "@/lib/api/client";
 import {
@@ -129,9 +133,7 @@ export default function AmcMaintenancePage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-tiers"],
-      });
+      void invalidateAmcTierCaches(queryClient);
       setTierActivateTarget(null);
       setTierDeactivateTarget(null);
       showSuccessToast(
@@ -167,9 +169,7 @@ export default function AmcMaintenancePage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-schedules"],
-      });
+      void invalidateAmcScheduleCaches(queryClient);
       setScheduleActivateTarget(null);
       setScheduleDeactivateTarget(null);
       showSuccessToast(

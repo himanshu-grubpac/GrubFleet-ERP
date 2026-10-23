@@ -2,13 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { useAuth } from "@/providers/auth-provider";
-import { fetchAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
+import { fetchAllAvailableActiveAssetRegisterVehiclesApi } from "@/lib/api/asset-register/vehicles";
 import {
   createSaleInvoiceApi,
   fetchFinanceInvoiceDetailApi,
@@ -35,6 +37,7 @@ import {
 
 export default function NewSaleInvoicePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchParams = useSearchParams();
   const editInvoiceId = searchParams.get("invoiceId")?.trim() || null;
 
@@ -81,18 +84,14 @@ export default function NewSaleInvoicePage() {
   const vehiclesQuery = useQuery({
     queryKey: ["finance-sale-vehicles", organizationId],
     queryFn: () =>
-      fetchAssetRegisterVehiclesApi({
+      fetchAllAvailableActiveAssetRegisterVehiclesApi({
         token: token!,
         organizationId: organizationId!,
-        page: 1,
-        pageSize: 50,
-        operationalStatus: "available",
-        status: "active",
       }),
     enabled: catalogEnabled && !editInvoiceId,
   });
 
-  const vehicles = vehiclesQuery.data?.items ?? [];
+  const vehicles = vehiclesQuery.data ?? [];
 
   const vehicleOptions = useMemo(() => {
     if (editInvoiceId && editQuery.data?.vehicleId && editQuery.data.vehicleLabel) {
@@ -145,6 +144,7 @@ export default function NewSaleInvoicePage() {
       });
     },
     onSuccess: (detail) => {
+      void invalidateFinanceInvoiceCaches(queryClient);
       if (editInvoiceId) {
         showFinanceInvoiceUpdatedToast(detail.invoiceNumber);
         router.push(financeInvoiceDetailHref(detail.id));
@@ -283,6 +283,7 @@ export default function NewSaleInvoicePage() {
             </label>
             <input
               type="date"
+              max={localTodayIsoDate()}
               className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
               value={invoiceDate}
               onChange={(e) => setInvoiceDate(e.target.value)}

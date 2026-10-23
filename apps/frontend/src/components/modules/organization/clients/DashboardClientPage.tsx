@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -161,9 +162,7 @@ export default function ClientDashboardPage() {
       );
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "clients"],
-      });
+      void invalidateClientCaches(queryClient);
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
@@ -182,7 +181,7 @@ export default function ClientDashboardPage() {
 
   const handleAddClient = () => {
     if (!canCreate) return;
-    router.push("/organization/clients/create");
+    router.push("/organisation/clients/create");
   };
 
   const addClientAction = canCreate ? (

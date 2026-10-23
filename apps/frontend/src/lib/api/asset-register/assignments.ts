@@ -1,5 +1,9 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 
 export type AssignableLeaseContractForVehicle = {
   leaseContractId: string;
@@ -187,6 +191,40 @@ export async function fetchAssignableLeaseContractsForVehicleApi(params: {
       headers: orgHeaders(params.organizationId),
     },
   );
+}
+
+/** Walks page size 50 until every assignable contract for the vehicle is loaded. */
+export async function fetchAllAssignableLeaseContractsForVehicleApi(
+  params: Omit<
+    Parameters<typeof fetchAssignableLeaseContractsForVehicleApi>[0],
+    "page" | "pageSize"
+  >,
+): Promise<AssignableLeaseContractsForVehicleResponse> {
+  let firstPage: AssignableLeaseContractsForVehicleResponse | undefined;
+  const items = await fetchAllPaginatedItems(async (page, pageSize) => {
+    const response = await fetchAssignableLeaseContractsForVehicleApi({
+      ...params,
+      page,
+      pageSize,
+    });
+    if (!firstPage) {
+      firstPage = response;
+    }
+    return response;
+  }, DEFAULT_API_CATALOG_PAGE_SIZE);
+
+  if (!firstPage) {
+    throw new Error("Assignable lease contracts catalog returned no page.");
+  }
+
+  return {
+    ...firstPage,
+    items,
+    total: Math.max(firstPage.total, items.length),
+    page: 1,
+    pageSize: items.length || DEFAULT_API_CATALOG_PAGE_SIZE,
+    totalPages: 1,
+  };
 }
 
 export async function validateBulkAssignAssetRegisterVehiclesApi(params: {

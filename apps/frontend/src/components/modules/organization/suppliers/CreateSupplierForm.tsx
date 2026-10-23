@@ -131,7 +131,7 @@ export default function CreateSupplierForm({
             return;
         }
 
-        router.push("/organization/suppliers");
+        router.push("/organisation/suppliers");
     };
 
     /* ---------------------------------------------------------------------- */
@@ -1005,6 +1005,7 @@ export default function CreateSupplierForm({
 
                         <RestrictedInput
                             restrictedKind="phone"
+                            maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.phone}
                             value={form.phone}
                             onChange={(value) => {
                                 updateForm("phone", value);
@@ -1039,6 +1040,7 @@ export default function CreateSupplierForm({
 
                         <RestrictedInput
                             restrictedKind="email"
+                            maxLength={ORGANISATION_SUPPLIER_INPUT_LIMITS.email}
                             value={form.email}
                             onChange={(value) => {
                                 updateForm("email", value);

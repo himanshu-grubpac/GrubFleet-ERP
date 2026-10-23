@@ -15,6 +15,7 @@ import {
     sanitizeTextValue,
 } from "@/lib/forms/restricted-input";
 import { useAuth } from "@/providers/auth-provider";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { assetAssignmentQueryOptions } from "@/lib/query/asset-assignment-query-options";
 import { invalidateAssetAssignmentCaches } from "@/lib/query/invalidate-asset-assignment-caches";
 import { useDebouncedValue } from "@/lib/hooks/use-debounced-value";
@@ -29,7 +30,7 @@ import {
 import { fetchAssetRegisterVehicleApi } from "@/lib/api/asset-register/vehicles";
 import {
     bulkAssignAssetRegisterVehiclesApi,
-    fetchAssignableLeaseContractsForVehicleApi,
+    fetchAllAssignableLeaseContractsForVehicleApi,
     unassignAssetRegisterVehicleApi,
     type AssignableLeaseContractForVehicle,
 } from "@/lib/api/asset-register/assignments";
@@ -170,12 +171,10 @@ export default function AssetAssignmentViewPage() {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssignableLeaseContractsForVehicleApi({
+            return fetchAllAssignableLeaseContractsForVehicleApi({
                 token,
                 organizationId,
                 vehicleId,
-                page: 1,
-                pageSize: 50,
             });
         },
         enabled:
@@ -196,12 +195,10 @@ export default function AssetAssignmentViewPage() {
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchAssignableLeaseContractsForVehicleApi({
+            return fetchAllAssignableLeaseContractsForVehicleApi({
                 token,
                 organizationId,
                 vehicleId,
-                page: 1,
-                pageSize: 50,
                 search: debouncedContractSearch || undefined,
                 organisationClientId: clientFilterId || undefined,
             });
@@ -642,6 +639,7 @@ export default function AssetAssignmentViewPage() {
                                 <input
                                     id="handover-date"
                                     type="date"
+                                    max={localTodayIsoDate()}
                                     value={handoverDate}
                                     onChange={(event) =>
                                         setHandoverDate(event.target.value)

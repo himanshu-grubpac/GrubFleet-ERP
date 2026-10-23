@@ -9,7 +9,8 @@ export class RenewLeaseContractDto {
 
   @ApiProperty({
     example: '2027-01-12',
-    description: 'New contract start date (ISO date)',
+    description:
+      'New contract start date (ISO date). Must be on or after the current contract end date.',
   })
   @IsDateString({ strict: true })
   newStartDate!: string;

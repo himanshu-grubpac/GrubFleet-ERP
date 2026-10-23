@@ -27,14 +27,10 @@ import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
 import { normalizePhoneForApi } from "@/lib/format/phone-format";
 import { useAuth } from "@/providers/auth-provider";
 import {
-  ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE,
   fetchOrganisationEmployeeDepartmentsApi,
-  fetchOrganisationEmployeesApi,
+  fetchAllActiveOrganisationEmployeesApi,
 } from "@/lib/api/organisation/employees";
-import {
-  ORGANISATION_LOCATION_FORM_PICKER_PAGE_SIZE,
-  fetchOrganisationLocationsApi,
-} from "@/lib/api/organisation/locations";
+import { fetchAllActiveOrganisationLocationsApi } from "@/lib/api/organisation/locations";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { PRESET_EMPLOYEE_DEPARTMENTS } from "./employeeDepartmentCatalog";
 import {
@@ -271,12 +267,7 @@ export default function CreateEmployeePage({
         throw new Error("Missing auth context");
       }
 
-      return fetchOrganisationLocationsApi(token, {
-        organizationId,
-        status: "active",
-        page: 1,
-        pageSize: ORGANISATION_LOCATION_FORM_PICKER_PAGE_SIZE,
-      });
+      return fetchAllActiveOrganisationLocationsApi(token, organizationId);
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
     ...dashboardCatalogQueryOptions,
@@ -302,12 +293,7 @@ export default function CreateEmployeePage({
         throw new Error("Missing auth context");
       }
 
-      return fetchOrganisationEmployeesApi(token, {
-        organizationId,
-        page: 1,
-        pageSize: ORGANISATION_EMPLOYEE_FORM_PICKER_PAGE_SIZE,
-        status: "active",
-      });
+      return fetchAllActiveOrganisationEmployeesApi(token, organizationId);
     },
     enabled: !!token && !!organizationId && !isAuthLoading,
     ...dashboardCatalogQueryOptions,
@@ -339,13 +325,13 @@ export default function CreateEmployeePage({
     });
   }, [departmentsQuery.data, form.department, initialData?.department]);
 
-  const locationOptions = locationsQuery.data?.items ?? [];
+  const locationOptions = locationsQuery.data ?? [];
   const reportingEmployees = useMemo(
     () =>
-      (employeesPickerQuery.data?.items ?? []).filter(
+      (employeesPickerQuery.data ?? []).filter(
         (employee) => employee.id !== excludeEmployeeId,
       ),
-    [employeesPickerQuery.data?.items, excludeEmployeeId],
+    [employeesPickerQuery.data, excludeEmployeeId],
   );
 
   const updateForm = <K extends keyof FormState>(
@@ -460,7 +446,7 @@ export default function CreateEmployeePage({
       return;
     }
 
-    router.push("/organization/employees");
+    router.push("/organisation/employees");
   };
 
   const validateForm = (): ValidationErrors => {
@@ -557,7 +543,7 @@ export default function CreateEmployeePage({
       await onSaved?.(employee);
 
       if (!onSaved) {
-        router.push("/organization/employees");
+        router.push("/organisation/employees");
       }
     } catch (saveError) {
       console.error("Failed to save employee:", saveError);
@@ -769,12 +755,26 @@ export default function CreateEmployeePage({
         </div>
 
         <div>
-          <label
-            htmlFor="employee-reports-to"
-            className="mb-1 block text-xs font-semibold text-gray-700"
-          >
-            Reports to
-          </label>
+          <div className="mb-1 flex items-center justify-between gap-2">
+            <label
+              htmlFor="employee-reports-to"
+              className="block text-xs font-semibold text-gray-700"
+            >
+              Reports to
+            </label>
+            {form.reportsToEmployeeId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  updateForm("reportsToEmployeeId", "");
+                  clearError("reportsTo");
+                }}
+                className="text-xs text-gray-500 hover:text-red-500"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
           <div className="relative">
             <select
               id="employee-reports-to"

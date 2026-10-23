@@ -9,6 +9,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateDriverCaches } from "@/lib/query/invalidate-domain-caches";
 import {
   Phone,
   Mail,
@@ -84,12 +85,7 @@ export default function ViewPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers", organizationId, driverId],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "drivers"],
-      });
+      void invalidateDriverCaches(queryClient);
       setActivateOpen(false);
       setDeactivateOpen(false);
       setStatusError(null);

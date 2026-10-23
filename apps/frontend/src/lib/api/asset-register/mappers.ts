@@ -9,12 +9,14 @@ import type { FleetVehicleFormData } from "@/components/modules/assetManagement/
 import {
   getChassisVinValidationError,
   getColorCodeValidationError,
+  getLocalCalendarYear,
   getVehicleRegistrationValidationError,
   isValidDecimalMoneyNumber,
   normalizeChassisVin,
   normalizeVehicleRegistrationNumber,
 } from "@grubpac/validation";
 import {
+  formatLeaseDecimalMoneyForInput,
   parseRupeeInputToMajorNumber,
   stripRupeeInputGrouping,
 } from "@/lib/format/money-format";
@@ -132,8 +134,9 @@ export function validateAssetClassOptionalSpecFields(
   const yearStr = form.manufacturingYear.trim();
   if (yearStr) {
     const year = Number(yearStr);
-    if (!Number.isInteger(year) || year < 1980 || year > 2100) {
-      return "Manufacturing year must be between 1980 and 2100, or leave it empty.";
+    const maxYear = getLocalCalendarYear();
+    if (!Number.isInteger(year) || year < 1980 || year > maxYear) {
+      return `Manufacturing year must be between 1980 and ${maxYear}, or leave it empty.`;
     }
   }
   const ccStr = form.engineDisplacementCc.trim();
@@ -495,6 +498,52 @@ export function validateComplianceRenewFormForSubmit(
   return { canSubmit: true, blockReason: null };
 }
 
+export function toRenewAssetRegisterCompliancePayload(
+  form: ComplianceRenewFormData,
+  context: { startDate: string },
+): {
+  type: "insurance" | "registration" | "warranty";
+  startDate: string;
+  endDate: string;
+  insurancePremium?: number;
+  policyNumber?: string;
+  registrationReference?: string;
+} {
+  const type =
+    form.renewalType === "Insurance"
+      ? "insurance"
+      : form.renewalType === "Registration"
+        ? "registration"
+        : "warranty";
+
+  const payload: {
+    type: "insurance" | "registration" | "warranty";
+    startDate: string;
+    endDate: string;
+    insurancePremium?: number;
+    policyNumber?: string;
+    registrationReference?: string;
+  } = {
+    type,
+    startDate: context.startDate,
+    endDate: form.newExpiryDate.trim(),
+  };
+
+  if (type === "insurance") {
+    payload.insurancePremium = parseRupeeInputToMajorNumber(form.premium);
+    payload.policyNumber = form.policyNumber.trim();
+  }
+
+  if (type === "registration") {
+    const ref = form.registrationReference.trim();
+    if (ref) {
+      payload.registrationReference = ref;
+    }
+  }
+
+  return payload;
+}
+
 export function formatMileageRangeFromSpec(spec: {
   mileageFrom: string | null;
   mileageTo: string | null;
@@ -517,7 +566,6 @@ export function formatRatedLoadRange(from: string | null, to: string | null): st
 }
 
 const FLEET_VEHICLE_MODEL_YEAR_MIN = 1900;
-const FLEET_VEHICLE_MODEL_YEAR_MAX = 2100;
 const FLEET_VEHICLE_ODOMETER_MAX = 9_999_999;
 
 export type FleetVehicleFormFieldErrors = Partial<
@@ -557,9 +605,9 @@ export function validateFleetVehicleFormFields(
   } else if (
     !/^\d{4}$/.test(yearRaw) ||
     Number(yearRaw) < FLEET_VEHICLE_MODEL_YEAR_MIN ||
-    Number(yearRaw) > FLEET_VEHICLE_MODEL_YEAR_MAX
+    Number(yearRaw) > getLocalCalendarYear()
   ) {
-    errors.modelYear = `Enter a valid model year between ${FLEET_VEHICLE_MODEL_YEAR_MIN} and ${FLEET_VEHICLE_MODEL_YEAR_MAX}.`;
+    errors.modelYear = `Enter a valid model year between ${FLEET_VEHICLE_MODEL_YEAR_MIN} and ${getLocalCalendarYear()}.`;
   }
 
   const odometerRaw = form.odometerReading.trim();
@@ -672,7 +720,7 @@ export function vehicleDetailToFleetFormData(
     odometerReading: String(detail.odometer),
     registrationStartDate: detail.registrationStartDate,
     registrationEndDate: detail.registrationEndDate,
-    insurancePremium: detail.insurancePremium,
+    insurancePremium: formatLeaseDecimalMoneyForInput(detail.insurancePremium),
     insuranceStartDate: detail.insuranceStartDate,
     insuranceEndDate: detail.insuranceEndDate,
     warrantyStartDate: detail.warrantyStartDate,
@@ -725,10 +773,8 @@ export function fleetFormToUpdateVehiclePayload(form: FleetVehicleFormData) {
     warrantyStartDate: form.warrantyStartDate,
     warrantyEndDate: form.warrantyEndDate,
     specialNotes: form.notes.trim() || undefined,
-    purchaseInvoiceId: form.purchaseInvoiceId.trim() || undefined,
-    insuranceSupplierId: form.insuranceSupplierId.trim()
-      ? form.insuranceSupplierId.trim()
-      : null,
+    purchaseInvoiceId: form.purchaseInvoiceId.trim() || null,
+    insuranceSupplierId: form.insuranceSupplierId.trim() || null,
   };
 }
 

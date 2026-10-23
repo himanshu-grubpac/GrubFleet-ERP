@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinancePaymentCaches } from "@/lib/query/invalidate-domain-caches";
 
 import DetailField from "@/components/common/DetailField";
 import OrganizationDetailCard, {
@@ -53,10 +54,7 @@ export default function VendorPaymentDetailPage() {
       removeVendorPaymentApi(token!, organizationId!, paymentId!),
     onSuccess: (data) => {
       showFinanceVendorPaymentRemovedToast(data.paymentNumber);
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-vendor-payments"],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
+      void invalidateFinancePaymentCaches(queryClient);
       router.push(financeVendorPaymentsListHref);
     },
     onError: (error) => {

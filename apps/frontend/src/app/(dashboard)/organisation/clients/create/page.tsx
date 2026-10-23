@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
+import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import { useAuth } from "@/providers/auth-provider";
 import {
@@ -53,9 +54,7 @@ export default function CreateOrganisationClientRoute() {
 
     try {
       const created = await createOrganisationClientApi(token, payload);
-      await queryClient.invalidateQueries({
-        queryKey: ["organization", "clients"],
-      });
+      await invalidateClientCaches(queryClient);
       showClientCreatedToast(created.clientName);
       router.push(organisationClientDetailHref(created.id));
     } catch (error) {

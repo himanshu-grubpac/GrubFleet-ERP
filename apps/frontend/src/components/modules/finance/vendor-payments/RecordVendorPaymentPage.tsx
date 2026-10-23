@@ -4,6 +4,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinancePaymentCaches } from "@/lib/query/invalidate-domain-caches";
 
 import FormActions from "@/components/common/FormActions";
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
@@ -12,6 +13,7 @@ import {
   FormFieldInlineError,
   mergeFormControlBorderClass,
 } from "@/components/ui/form-field-inline-error";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { useAuth } from "@/providers/auth-provider";
 
 import {
@@ -20,7 +22,7 @@ import {
 
 import {
   createVendorPaymentApi,
-  fetchVendorPaymentPurchaseInvoiceCatalogApi,
+  fetchAllVendorPaymentPurchaseInvoiceCatalogApi,
 } from "@/lib/api/finance/vendor-payments";
 
 import {
@@ -37,7 +39,6 @@ import {
   validateRequired,
   validateNumber,
   validateDate,
-  sanitizeDDMMYYYYInput,
 } from "@/components/common/Commonvalidation";
 
 import { FINANCE_VENDOR_PAYMENT_INPUT_LIMITS } from "@/lib/forms/restricted-input";
@@ -47,47 +48,6 @@ import {
   showApiErrorToast,
   showFinanceVendorPaymentRecordedToast,
 } from "@/lib/toast/show-toast";
-
-/**
- * Convert a displayed DD-MM-YYYY date into the ISO date format
- * expected by the API. Invalid or incomplete dates return an empty string.
- */
-function toISODate(value: string): string {
-  if (!/^\d{2}-\d{2}-\d{4}$/.test(value)) {
-    return "";
-  }
-
-  const [day, month, year] = value.split("-").map(Number);
-
-  if (year < 1 || month < 1 || month > 12 || day < 1 || day > 31) {
-    return "";
-  }
-
-  const date = new Date(Date.UTC(year, month - 1, day));
-
-  if (
-    date.getUTCFullYear() !== year ||
-    date.getUTCMonth() !== month - 1 ||
-    date.getUTCDate() !== day
-  ) {
-    return "";
-  }
-
-  return `${String(year).padStart(4, "0")}-${String(month).padStart(
-    2,
-    "0",
-  )}-${String(day).padStart(2, "0")}`;
-}
-
-function getTodayDisplayDate(): string {
-  const today = new Date();
-
-  const day = String(today.getDate()).padStart(2, "0");
-  const month = String(today.getMonth() + 1).padStart(2, "0");
-  const year = String(today.getFullYear()).padStart(4, "0");
-
-  return `${day}-${month}-${year}`;
-}
 
 export default function RecordVendorPaymentPage() {
   const router = useRouter();
@@ -108,8 +68,8 @@ export default function RecordVendorPaymentPage() {
 
   const [purchaseInvoiceId, setPurchaseInvoiceId] = useState("");
   const [amount, setAmount] = useState("");
-  const [paymentDateInput, setPaymentDateInput] = useState(
-    getTodayDisplayDate,
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().slice(0, 10),
   );
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentReference, setPaymentReference] = useState("");
@@ -120,7 +80,7 @@ export default function RecordVendorPaymentPage() {
   const catalogQuery = useQuery({
     queryKey: ["finance-vendor-payment-invoice-catalog", organizationId],
     queryFn: () =>
-      fetchVendorPaymentPurchaseInvoiceCatalogApi(token!, organizationId!),
+      fetchAllVendorPaymentPurchaseInvoiceCatalogApi(token!, organizationId!),
     enabled: !!token && !!organizationId && !authLoading,
     staleTime: 30_000,
   });
@@ -135,17 +95,14 @@ export default function RecordVendorPaymentPage() {
 
   const selectedInvoice = useMemo(
     () =>
-      catalogQuery.data?.items.find(
+      catalogQuery.data?.find(
         (invoice) => invoice.id === purchaseInvoiceId,
       ) ?? null,
-    [catalogQuery.data?.items, purchaseInvoiceId],
+    [catalogQuery.data, purchaseInvoiceId],
   );
 
   const maxPaymentMinor = selectedInvoice?.balanceDueMinor ?? 0;
   const amountMinor = parseRupeeInputToMinor(amount);
-
-  // Keep the displayed date in DD-MM-YYYY format, but send ISO to the API.
-  const paymentDate = toISODate(paymentDateInput);
 
   const validationErrors = useMemo(() => {
     const errors: string[] = [];
@@ -187,14 +144,12 @@ export default function RecordVendorPaymentPage() {
 
     const dateError = validateDate(paymentDate, {
       label: "Payment date",
+      maxDate: localTodayIsoDate(),
+      minDate: selectedInvoice?.invoiceDate?.slice(0, 10) || undefined,
     });
 
     if (dateError) {
-      errors.push(
-        paymentDateInput.trim()
-          ? "Enter a valid payment date in DD-MM-YYYY format."
-          : dateError,
-      );
+      errors.push(dateError);
     }
 
     const methodError = validateRequired(paymentMethod, "Payment method");
@@ -210,8 +165,8 @@ export default function RecordVendorPaymentPage() {
     amountMinor,
     maxPaymentMinor,
     paymentDate,
-    paymentDateInput,
     paymentMethod,
+    selectedInvoice?.invoiceDate,
   ]);
 
   const recordMutation = useMutation({
@@ -233,17 +188,7 @@ export default function RecordVendorPaymentPage() {
     onSuccess: (data) => {
       showFinanceVendorPaymentRecordedToast(data.paymentNumber);
 
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-vendor-payments"],
-      });
-
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoices"],
-      });
-
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoice-detail"],
-      });
+      void invalidateFinancePaymentCaches(queryClient);
 
       router.push(financeVendorPaymentsListHref);
     },
@@ -291,13 +236,8 @@ export default function RecordVendorPaymentPage() {
   const controlBaseClass =
     "w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-1 focus:ring-slate-200";
 
-  const dateInputBaseClass = `${controlBaseClass} pr-11`;
-
   const controlBorderClass = (hasError: boolean) =>
     mergeFormControlBorderClass(hasError, controlBaseClass);
-
-  const dateInputBorderClass = (hasError: boolean) =>
-    mergeFormControlBorderClass(hasError, dateInputBaseClass);
 
   const purchaseInvoiceInvalid = hasAttemptedSubmit && !purchaseInvoiceId;
   const amountRequiredInvalid = hasAttemptedSubmit && !amount.trim();
@@ -370,7 +310,7 @@ export default function RecordVendorPaymentPage() {
                   : "Select purchase invoice"}
               </option>
 
-              {(catalogQuery.data?.items ?? []).map((invoice) => (
+              {(catalogQuery.data ?? []).map((invoice) => (
                 <option key={invoice.id} value={invoice.id}>
                   {invoice.invoiceNumber} — {invoice.vendorName} (balance{" "}
                   {formatInrFromMinor(invoice.balanceDueMinor)})
@@ -428,80 +368,21 @@ export default function RecordVendorPaymentPage() {
 
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">
             Payment date *
-            <div className="relative">
-              <input
-                type="text"
-                inputMode="numeric"
-                autoComplete="off"
-                placeholder="DD-MM-YYYY"
-                maxLength={10}
-                className={dateInputBorderClass(paymentDateInvalid)}
-                value={paymentDateInput}
-                onChange={(event) => {
-                  setPaymentDateInput(
-                    sanitizeDDMMYYYYInput(event.target.value),
-                  );
-                }}
-                disabled={recordMutation.isPending}
-                aria-invalid={hasAttemptedSubmit && !paymentDate}
-              />
-
-              {/* Calendar icon and native date picker */}
-              <div className="absolute inset-y-0 right-0 flex items-center pr-3">
-                <label
-                  className={`relative flex items-center ${recordMutation.isPending
-                    ? "cursor-not-allowed opacity-50"
-                    : "cursor-pointer"
-                    }`}
-                  aria-label="Choose payment date"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.8}
-                    className="h-5 w-5 text-slate-500"
-                    aria-hidden="true"
-                  >
-                    <rect x="3" y="5" width="18" height="16" rx="2" />
-                    <path d="M16 3v4M8 3v4M3 10h18" />
-                  </svg>
-
-                  <input
-                    type="date"
-                    value={paymentDate}
-                    onChange={(event) => {
-                      const value = event.target.value;
-
-                      if (value) {
-                        const [year, month, day] = value.split("-");
-                        setPaymentDateInput(`${day}-${month}-${year}`);
-                      } else {
-                        setPaymentDateInput("");
-                      }
-                    }}
-                    disabled={recordMutation.isPending}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    aria-label="Choose payment date"
-                  />
-                </label>
-              </div>
-            </div>
-
-            {paymentDateInvalid ? (
-              <FormFieldInlineError
-                message={
-                  paymentDateInput.trim()
-                    ? "Enter a valid payment date in DD-MM-YYYY format."
-                    : "Payment date is required."
-                }
-              />
-            ) : (
-              <span className="text-xs font-normal text-slate-500">
-                Enter the date as DD-MM-YYYY or select it from the calendar.
-              </span>
-            )}
+            <input
+              type="date"
+              max={localTodayIsoDate()}
+              min={selectedInvoice?.invoiceDate?.slice(0, 10) || undefined}
+              className={controlBorderClass(paymentDateInvalid)}
+              value={paymentDate}
+              onChange={(event) => setPaymentDate(event.target.value)}
+              disabled={recordMutation.isPending}
+              aria-invalid={hasAttemptedSubmit && !paymentDate}
+            />
+            <FormFieldInlineError
+              message={
+                paymentDateInvalid ? "Payment date is required." : undefined
+              }
+            />
           </label>
 
           <label className="flex flex-col gap-1 text-sm font-medium text-slate-700">

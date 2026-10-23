@@ -2,7 +2,10 @@ import type {
     BulkAssignCatalogContract,
     BulkAssignCatalogLine,
 } from "@/lib/api/asset-register/assignments";
-import { formatCalendarDateEnIn } from "@/lib/format/date-format";
+import {
+    formatCalendarDateEnIn,
+    localTodayIsoDate,
+} from "@/lib/format/date-format";
 
 export function contractStatusLabel(status: string): string {
     if (status === "active") return "Active";
@@ -42,9 +45,5 @@ export function lineStatusPill(line: BulkAssignCatalogLine): {
 }
 
 export function todayIsoDate(): string {
-    const now = new Date();
-    const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, "0");
-    const d = String(now.getDate()).padStart(2, "0");
-    return `${y}-${m}-${d}`;
+    return localTodayIsoDate();
 }

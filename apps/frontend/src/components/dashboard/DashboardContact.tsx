@@ -34,7 +34,7 @@ export default function DashboardContact({
         <div className="flex items-center gap-3">
             {/* Phone */}
             {phone && (
-                <div className="group relative">
+                <div className="group/contact relative inline-flex">
                     <button
                         type="button"
                         aria-label="Copy phone number"
@@ -75,7 +75,7 @@ export default function DashboardContact({
                             text-xs
                             text-white
                             shadow-lg
-                            group-hover:block
+                            group-hover/contact:block
                         "
                     >
                         {copied === "phone" ? "Copied!" : phone}
@@ -85,7 +85,7 @@ export default function DashboardContact({
 
             {/* Email */}
             {email && (
-                <div className="group relative">
+                <div className="group/contact relative inline-flex">
                     <button
                         type="button"
                         aria-label="Copy email address"
@@ -126,7 +126,7 @@ export default function DashboardContact({
                             text-xs
                             text-white
                             shadow-lg
-                            group-hover:block
+                            group-hover/contact:block
                         "
                     >
                         {copied === "email" ? "Copied!" : email}

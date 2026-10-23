@@ -3,10 +3,12 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinancePaymentCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
+import { localTodayIsoDate } from "@/lib/format/date-format";
 import { useAuth } from "@/providers/auth-provider";
 import {
   fetchFinanceInvoiceDetailApi,
@@ -70,12 +72,17 @@ export default function RecordPaymentPage() {
     if (amountMinor == null || amountMinor < 1) return false;
     if (amountMinor > maxPaymentMinor) return false;
     if (!paymentDate.trim()) return false;
+    const today = localTodayIsoDate();
+    const invoiceDate = invoice?.invoiceDate?.slice(0, 10) ?? "";
+    if (paymentDate > today) return false;
+    if (invoiceDate && paymentDate < invoiceDate) return false;
     if (!paymentMethod.trim()) return false;
     return true;
   }, [
     amountMinor,
     canUpdate,
     invoice?.availableActions.recordPayment,
+    invoice?.invoiceDate,
     maxPaymentMinor,
     paymentDate,
     paymentMethod,
@@ -99,10 +106,7 @@ export default function RecordPaymentPage() {
     },
     onSuccess: (detail) => {
       showFinanceInvoicePaymentRecordedToast(detail.invoiceNumber);
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-invoice-detail", organizationId, invoiceId],
-      });
-      void queryClient.invalidateQueries({ queryKey: ["finance-invoices"] });
+      void invalidateFinancePaymentCaches(queryClient);
       router.push(financeInvoiceDetailHref(invoiceId!));
     },
     onError: (error) =>
@@ -233,6 +237,8 @@ export default function RecordPaymentPage() {
           </label>
           <input
             type="date"
+            max={localTodayIsoDate()}
+            min={invoice?.invoiceDate?.slice(0, 10) || undefined}
             className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm"
             value={paymentDate}
             onChange={(e) => setPaymentDate(e.target.value)}

@@ -15,6 +15,10 @@ import {
 
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
+import {
+    isoDateFloorKeepingSaved,
+    localTodayIsoDate,
+} from "@/lib/format/date-format";
 
 
 import OrganizationAddressForm, {
@@ -38,7 +42,7 @@ import {
 
 import { useAuth } from "@/providers/auth-provider";
 import { ApiClientError } from "@/lib/api/client";
-import { fetchOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
+import { fetchAllActiveOrganisationSuppliersApi } from "@/lib/api/organisation/suppliers";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { DRIVER_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { getInternationalPhonePlaceholder } from "@/lib/geo/placeholders";
@@ -97,12 +101,8 @@ export default function CreateDriverForm({
             if (!token || !organizationId) {
                 throw new Error("Missing auth context");
             }
-            return fetchOrganisationSuppliersApi(token, {
-                organizationId,
-                page: 1,
-                pageSize: 50,
+            return fetchAllActiveOrganisationSuppliersApi(token, organizationId, {
                 supplierType: "driver",
-                status: "active",
             });
         },
         enabled: !!token && !!organizationId && !isAuthLoading,
@@ -111,7 +111,7 @@ export default function CreateDriverForm({
 
 
     const supplierOptions = useMemo(() => {
-        const items = suppliersQuery.data?.items ?? [];
+        const items = suppliersQuery.data ?? [];
         const selectedId = initialData?.supplier?.trim();
         if (
             selectedId &&
@@ -132,7 +132,7 @@ export default function CreateDriverForm({
             id: item.id,
             name: item.name,
         }));
-    }, [suppliersQuery.data?.items, initialData?.supplier]);
+    }, [suppliersQuery.data, initialData?.supplier]);
 
 
     /* ---------------------------------------------------------------------- */
@@ -195,7 +195,7 @@ export default function CreateDriverForm({
         }
 
 
-        router.push("/organization/driver-register");
+        router.push("/organisation/driver-register");
     };
 
 
@@ -591,6 +591,10 @@ export default function CreateDriverForm({
                     <input
                         id="license-expiry"
                         type="date"
+                        min={isoDateFloorKeepingSaved(
+                            initialData?.licenseExpiryDate,
+                            localTodayIsoDate(),
+                        )}
                         value={
                             form.licenseExpiryDate
                         }

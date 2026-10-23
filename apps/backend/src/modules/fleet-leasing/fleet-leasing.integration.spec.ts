@@ -1542,12 +1542,20 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .set('x-organization-id', organizationId)
       .expect(200);
 
+    await request(app.getHttpServer())
+      .post(`/api/v1/fleet-leasing/lease-contracts/${activeId}/renew`)
+      .query({ organizationId })
+      .set('Authorization', `Bearer ${updateOnlyToken}`)
+      .set('x-organization-id', organizationId)
+      .send({ newTermMonths: 12, newStartDate: '2026-06-01' })
+      .expect(400);
+
     const renewRes = await request(app.getHttpServer())
       .post(`/api/v1/fleet-leasing/lease-contracts/${activeId}/renew`)
       .query({ organizationId })
       .set('Authorization', `Bearer ${updateOnlyToken}`)
       .set('x-organization-id', organizationId)
-      .send({ newTermMonths: 24, newStartDate: '2027-02-01' })
+      .send({ newTermMonths: 24, newStartDate: '2028-01-12' })
       .expect((res) => expect([200, 201]).toContain(res.status));
     const renewBody = renewRes.body as {
       outcomeKind: string;
@@ -1575,7 +1583,7 @@ describe('Fleet leasing lease contracts (integration)', () => {
       .query({ organizationId })
       .set('Authorization', `Bearer ${updateOnlyToken}`)
       .set('x-organization-id', organizationId)
-      .send({ newTermMonths: 6, newStartDate: '2028-03-01' })
+      .send({ newTermMonths: 6, newStartDate: '2030-01-12' })
       .expect((res) => expect([200, 201]).toContain(res.status));
     expect((extendRes.body as { outcomeKind: string }).outcomeKind).toBe(
       'extension',

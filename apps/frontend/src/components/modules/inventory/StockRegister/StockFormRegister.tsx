@@ -11,7 +11,7 @@ import {
     mergeFormControlBorderClass,
 } from "@/components/ui/form-field-inline-error";
 import { RestrictedInput } from "@/components/ui/RestrictedInput";
-import { fetchAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
+import { fetchAllActiveAssetRegisterAssetClassesApi } from "@/lib/api/asset-register/asset-classes";
 import { INVENTORY_INPUT_LIMITS } from "@/lib/forms/restricted-input";
 import { dashboardCatalogQueryOptions } from "@/lib/query/dashboard-list-query-options";
 import { useAuth } from "@/providers/auth-provider";
@@ -127,22 +127,19 @@ export default function CreatePartForm({
             organizationId,
         ],
         queryFn: () =>
-            fetchAssetRegisterAssetClassesApi({
+            fetchAllActiveAssetRegisterAssetClassesApi({
                 token: token!,
                 organizationId: organizationId!,
-                page: 1,
-                pageSize: 200,
-                status: "active",
             }),
         enabled: !!token && !!organizationId && !isAuthLoading,
         ...dashboardCatalogQueryOptions,
     });
 
     const assetClassOptions = useMemo(() => {
-        return (assetClassesQuery.data?.items ?? []).map(
+        return (assetClassesQuery.data ?? []).map(
             (row) => row.specLabel?.trim() || row.name.trim(),
         );
-    }, [assetClassesQuery.data?.items]);
+    }, [assetClassesQuery.data]);
 
     const catalogLoading =
         isCatalogLoading ||
@@ -152,18 +149,6 @@ export default function CreatePartForm({
     /* ---------------------------------------------------------------------- */
     /* Form                                                                   */
     /* ---------------------------------------------------------------------- */
-
-    const [assetClassFilter, setAssetClassFilter] = useState("");
-
-    const filteredAssetClassOptions = useMemo(() => {
-        const query = assetClassFilter.trim().toLowerCase();
-        if (!query) {
-            return assetClassOptions;
-        }
-        return assetClassOptions.filter((label) =>
-            label.toLowerCase().includes(query),
-        );
-    }, [assetClassFilter, assetClassOptions]);
 
     const [form, setForm] = useState<PartFormData>({
         name: initialData?.name ?? "",
@@ -187,8 +172,6 @@ export default function CreatePartForm({
     const [isSaving, setIsSaving] = useState(false);
     const [hasAttemptedSubmit, setHasAttemptedSubmit] = useState(false);
     const isSubmittingRef = useRef(false);
-    const [isAssetClassDropdownOpen, setIsAssetClassDropdownOpen] =
-        useState(false);
 
     const validationSummary = useMemo(
         () => getPartFormValidationErrors(form),
@@ -221,27 +204,26 @@ export default function CreatePartForm({
     /* Asset Class Selection                                                  */
     /* ---------------------------------------------------------------------- */
 
-    const toggleAssetClass = (assetClass: string) => {
+    const addAssetClass = (assetClass: string) => {
+        if (!assetClass.trim()) {
+            return;
+        }
+
         setForm((previous) => {
-            const alreadySelected =
-                previous.compatibleAssetClasses.includes(assetClass);
+            if (previous.compatibleAssetClasses.includes(assetClass)) {
+                return previous;
+            }
 
             return {
                 ...previous,
-                compatibleAssetClasses: alreadySelected
-                    ? previous.compatibleAssetClasses.filter(
-                        (item) => item !== assetClass,
-                    )
-                    : [
-                        ...previous.compatibleAssetClasses,
-                        assetClass,
-                    ],
+                compatibleAssetClasses: [
+                    ...previous.compatibleAssetClasses,
+                    assetClass,
+                ],
             };
         });
 
         setError("");
-        // Close after each selection; reopen to choose another item.
-        setIsAssetClassDropdownOpen(false);
     };
 
     const removeAssetClass = (assetClass: string) => {
@@ -426,113 +408,35 @@ export default function CreatePartForm({
                     </span>
                 </label>
 
-                <div className="relative">
-                    <div className={`flex min-h-10 w-full items-center rounded-md border bg-white transition focus-within:border-[#FE5720] focus-within:ring-1 focus-within:ring-[#FE5720]/20 ${hasAttemptedSubmit && form.compatibleAssetClasses.length === 0 ? "border-red-500" : "border-gray-300"}`}>
-                        <button
-                            id="compatible-asset-classes"
-                            type="button"
-                            onClick={() =>
-                                setIsAssetClassDropdownOpen((previous) => !previous)
-                            }
-                            aria-expanded={isAssetClassDropdownOpen}
-                            aria-haspopup="listbox"
-                            className="flex min-w-0 flex-1 items-center justify-between gap-3 px-3 py-2 text-left text-sm text-gray-900 outline-none"
-                        >
-                            <span className={form.compatibleAssetClasses.length === 0 ? "text-gray-400" : "text-gray-900"}>
-                                {form.compatibleAssetClasses.length === 0
-                                    ? "Select asset class(es)"
-                                    : `${form.compatibleAssetClasses.length} asset class${form.compatibleAssetClasses.length > 1 ? "es" : ""} selected`}
-                            </span>
-                        </button>
-
-                        <div className="flex shrink-0 items-center gap-1 pr-2">
-                            <button
-                                type="button"
-                                onClick={() => setIsAssetClassDropdownOpen((previous) => !previous)}
-                                aria-label={isAssetClassDropdownOpen ? "Close asset class options" : "Open asset class options"}
-                                aria-expanded={isAssetClassDropdownOpen}
-                                className="flex h-7 w-7 items-center justify-center rounded text-gray-500 transition hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FE5720]"
-                            >
-                                <svg
-                                    className={`h-4 w-4 transition-transform ${isAssetClassDropdownOpen ? "rotate-180" : ""}`}
-                                    viewBox="0 0 20 20"
-                                    fill="currentColor"
-                                    aria-hidden="true"
-                                >
-                                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clipRule="evenodd" />
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
-
-                    {isAssetClassDropdownOpen && (
-                        <div className="absolute left-0 top-full z-50 mt-1 w-full overflow-hidden rounded-md border border-gray-300 bg-white shadow-lg">
-                            <div className="border-b border-gray-100 p-2">
-                                <RestrictedInput
-                                    restrictedKind="text"
-                                    maxLength={INVENTORY_INPUT_LIMITS.listSearch}
-                                    value={assetClassFilter}
-                                    onChange={setAssetClassFilter}
-                                    placeholder="Search asset classes…"
-                                    className="h-9 w-full rounded-md border border-gray-300 px-3 text-sm"
-                                />
-                            </div>
-                            <div className="max-h-56 overflow-y-auto py-1" role="listbox" aria-multiselectable="true" aria-labelledby="compatible-asset-classes">
-                                {catalogLoading ? (
-                                    <p className="px-3 py-2 text-sm text-gray-500">
-                                        Loading asset classes…
-                                    </p>
-                                ) : filteredAssetClassOptions.length === 0 ? (
-                                    <p className="px-3 py-2 text-sm text-gray-500">
-                                        {assetClassOptions.length === 0
-                                            ? "No active asset classes found. Add asset classes in Asset Register first."
-                                            : "No asset classes match your search."}
-                                    </p>
-                                ) : (
-                                    filteredAssetClassOptions.map((assetClass) => {
-                                        const isSelected =
-                                            form.compatibleAssetClasses.includes(
-                                                assetClass,
-                                            );
-
-                                        return (
-                                            <button
-                                                key={assetClass}
-                                                type="button"
-                                                role="option"
-                                                aria-selected={isSelected}
-                                                onClick={() =>
-                                                    toggleAssetClass(assetClass)
-                                                }
-                                                className="flex w-full items-center gap-3 px-3 py-2 text-left text-sm text-gray-700 hover:bg-gray-50"
-                                            >
-                                                <span
-                                                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${isSelected ? "border-[#FE5720] bg-[#FE5720] text-white" : "border-gray-300 bg-white"}`}
-                                                >
-                                                    {isSelected && (
-                                                        <svg
-                                                            className="h-3 w-3"
-                                                            viewBox="0 0 20 20"
-                                                            fill="currentColor"
-                                                            aria-hidden="true"
-                                                        >
-                                                            <path
-                                                                fillRule="evenodd"
-                                                                d="M16.704 5.29a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 111.414-1.414l2.543 2.543 6.543-6.543a1 1 0 011.414 0z"
-                                                                clipRule="evenodd"
-                                                            />
-                                                        </svg>
-                                                    )}
-                                                </span>
-                                                <span>{assetClass}</span>
-                                            </button>
-                                        );
-                                    })
-                                )}
-                            </div>
-                        </div>
-                    )}
-                </div>
+                <select
+                    id="compatible-asset-classes"
+                    value=""
+                    onChange={(event) => addAssetClass(event.target.value)}
+                    disabled={catalogLoading || assetClassOptions.length === 0}
+                    className={`${selectClassName} ${hasAttemptedSubmit && form.compatibleAssetClasses.length === 0 ? "border-red-500" : ""}`}
+                    aria-invalid={
+                        hasAttemptedSubmit &&
+                        form.compatibleAssetClasses.length === 0
+                    }
+                >
+                    <option value="">
+                        {catalogLoading
+                            ? "Loading asset classes…"
+                            : "Select asset class(es)"}
+                    </option>
+                    {assetClassOptions
+                        .filter(
+                            (assetClass) =>
+                                !form.compatibleAssetClasses.includes(
+                                    assetClass,
+                                ),
+                        )
+                        .map((assetClass) => (
+                            <option key={assetClass} value={assetClass}>
+                                {assetClass}
+                            </option>
+                        ))}
+                </select>
                 <FormFieldInlineError
                     message={
                         hasAttemptedSubmit &&

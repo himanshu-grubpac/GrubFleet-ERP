@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { invalidateVehicleCaches } from "@/lib/query/invalidate-domain-caches";
 
 import FleetFormPage, {
   type FleetVehicleFormData,
@@ -37,9 +38,7 @@ export default function FleetCreatePage() {
       });
     },
     onSuccess: (created) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["asset-register", "vehicles"],
-      });
+      void invalidateVehicleCaches(queryClient);
       showFleetVehicleAddedToast();
       router.push(assetRegisterFleetDetailHref(created.id));
     },

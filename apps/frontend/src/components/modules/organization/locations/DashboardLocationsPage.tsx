@@ -8,6 +8,7 @@ import {
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
+import { invalidateLocationCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -209,9 +210,7 @@ export default function LocationsPage() {
       );
     },
     onSuccess: (_data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "locations"],
-      });
+      void invalidateLocationCaches(queryClient);
       setDeactivateTarget(null);
       setActivateTarget(null);
       setStatusError(null);
@@ -235,7 +234,7 @@ export default function LocationsPage() {
   const handleAddLocation = () => {
     if (!canCreate) return;
     router.push(
-      "/organization/locations/create"
+      "/organisation/locations/create"
     );
   };
 
@@ -406,7 +405,7 @@ export default function LocationsPage() {
     <DashboardLayout
       title="Locations"
       description="The organisation's physical footprint — offices, workshops, warehouses, retail outlets, and more."
-      activeTab="/organization/locations"
+      activeTab="/organisation/locations"
       action={addLocationAction}
       pagination={
         locationsTotal > LOCATIONS_PAGE_SIZE
@@ -424,48 +423,46 @@ export default function LocationsPage() {
       {/* Filters                                                            */}
       {/* ------------------------------------------------------------------ */}
 
-      {locationsTotal > 0 && (
-        <DashboardFilters
-          searchValue={searchInput}
-          searchPlaceholder="Search locations..."
-          onSearchChange={onLocationListSearchChange}
-          selectFilters={[
-            {
-              key: "type",
-              label: "All types",
-              options: (locationTypesQuery.data?.items ?? []).map(
-                (type) => ({
-                  label: type.name,
-                  value: type.presetKey ?? type.id,
-                }),
-              ),
-            },
+      <DashboardFilters
+        searchValue={searchInput}
+        searchPlaceholder="Search locations..."
+        onSearchChange={onLocationListSearchChange}
+        selectFilters={[
+          {
+            key: "type",
+            label: "All types",
+            options: (locationTypesQuery.data?.items ?? []).map(
+              (type) => ({
+                label: type.name,
+                value: type.presetKey ?? type.id,
+              }),
+            ),
+          },
 
-            {
-              key: "status",
-              label: "All statuses",
-              options: [
-                {
-                  label: "Active",
-                  value: "active",
-                },
-                {
-                  label: "Deactivated",
-                  value: "inactive",
-                },
-              ],
-            },
-          ]}
-          filterValues={filters}
-          onFilterChange={(key, value) => {
-            setFilters((previous) => ({
-              ...previous,
-              [key]: value,
-            }));
-          }}
-          onClear={handleClearFilters}
-        />
-      )}
+          {
+            key: "status",
+            label: "All statuses",
+            options: [
+              {
+                label: "Active",
+                value: "active",
+              },
+              {
+                label: "Deactivated",
+                value: "inactive",
+              },
+            ],
+          },
+        ]}
+        filterValues={filters}
+        onFilterChange={(key, value) => {
+          setFilters((previous) => ({
+            ...previous,
+            [key]: value,
+          }));
+        }}
+        onClear={handleClearFilters}
+      />
 
       {/* ------------------------------------------------------------------ */}
       {/* Empty State                                                        */}

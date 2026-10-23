@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateFinanceInvoiceCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationDetailCard from "@/components/common/OrganizationDetailCard";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
@@ -111,9 +112,7 @@ export default function ClientStatementDetailPage() {
       const name = detailQuery.data?.clientName ?? "Client";
       showFinanceClientStatementSendRecordedToast(name);
       setSendConfirmOpen(false);
-      void queryClient.invalidateQueries({
-        queryKey: ["finance-client-statement-detail"],
-      });
+      void invalidateFinanceInvoiceCaches(queryClient);
     },
     onError: (error) =>
       showApiErrorToast(error, FINANCE_CLIENT_STATEMENT_SEND_ERROR),

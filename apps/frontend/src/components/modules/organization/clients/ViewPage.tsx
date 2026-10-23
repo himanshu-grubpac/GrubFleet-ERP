@@ -7,6 +7,7 @@ import { organisationClientEditHref } from "@/lib/navigation/organisation-static
 import Link from "next/link";
 import { Truck } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateClientCaches } from "@/lib/query/invalidate-domain-caches";
 
 import Button from "@/components/ui/GrubpacButton";
 import OrganizationViewLayout from "@/components/common/OrganizationViewLayout";
@@ -97,12 +98,7 @@ export default function ViewPage() {
       );
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "clients"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["organization", "client", organizationId, clientId],
-      });
+      void invalidateClientCaches(queryClient);
       setDeactivateOpen(false);
       setActivateOpen(false);
       setStatusError(null);

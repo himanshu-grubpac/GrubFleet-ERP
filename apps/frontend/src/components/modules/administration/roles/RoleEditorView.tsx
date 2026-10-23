@@ -9,9 +9,10 @@ import {
   createRoleApi,
   fetchRoleByIdApi,
   fetchRoleEditorMatrixApi,
-  fetchRolesApi,
+  fetchAllRolesApi,
   updateRoleApi,
 } from "@/lib/api/roles";
+import { invalidateRoleCaches } from "@/lib/query/invalidate-domain-caches";
 import { LoadingState, ErrorState } from "@/components/states/async-states";
 import {
   getApiErrorMessage,
@@ -104,26 +105,26 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
     queryKey: ["roles", organizationId],
     queryFn: () => {
       if (!token || !organizationId) throw new Error("Missing auth context");
-      return fetchRolesApi(token, organizationId);
+      return fetchAllRolesApi(token, organizationId);
     },
     enabled: !!token && !!organizationId,
   });
 
   const parentRoleOptions = useMemo(() => {
-    const items = rolesCatalog?.items ?? [];
+    const items = rolesCatalog ?? [];
     return items
       .filter((role) => !(isEdit && roleId && role.id === roleId))
       .slice()
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [rolesCatalog?.items, isEdit, roleId]);
+  }, [rolesCatalog, isEdit, roleId]);
 
   const parentRoleNameById = useMemo(() => {
     const map = new Map<string, string>();
-    for (const role of rolesCatalog?.items ?? []) {
+    for (const role of rolesCatalog ?? []) {
       map.set(role.id, role.name);
     }
     return map;
-  }, [rolesCatalog?.items]);
+  }, [rolesCatalog]);
 
   const resolvedParentLabel = useMemo(() => {
     if (!parentRoleId) {
@@ -221,15 +222,7 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
           : `Role "${savedRole.name}" created successfully.`,
       );
       setDirty(false);
-      await queryClient.invalidateQueries({ queryKey: ["roles", organizationId] });
-      if (isEdit && roleId) {
-        await queryClient.invalidateQueries({
-          queryKey: ["role", organizationId, roleId],
-        });
-      }
-      await queryClient.invalidateQueries({
-        queryKey: ["role-matrix", organizationId],
-      });
+      await invalidateRoleCaches(queryClient);
       await refetchMe?.();
       if (!isEdit) {
         router.push("/administration/roles/");
@@ -379,12 +372,26 @@ export function RoleEditorView({ mode, roleId, viewOnly = false }: RoleEditorVie
                 />
               </div>
               <div className="md:col-span-1">
-                <label className="block text-xs font-semibold uppercase text-slate-700">
-                  Organisation hierarchy
-                  {!canSetRootRole ? (
-                    <span className="ml-0.5 text-red-500">*</span>
+                <div className="flex items-center justify-between gap-2">
+                  <label className="block text-xs font-semibold uppercase text-slate-700">
+                    Organisation hierarchy
+                    {!canSetRootRole ? (
+                      <span className="ml-0.5 text-red-500">*</span>
+                    ) : null}
+                  </label>
+                  {!readOnly && canSetRootRole && parentRoleId ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setParentRoleId(null);
+                        setDirty(true);
+                      }}
+                      className="text-xs text-gray-500 hover:text-red-500"
+                    >
+                      Clear
+                    </button>
                   ) : null}
-                </label>
+                </div>
                 {rolesCatalogLoading ? (
                   <p className="mt-1 text-sm text-slate-500">
                     Loading roles…

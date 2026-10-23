@@ -1,5 +1,9 @@
 import type { PaginatedResponse } from "@grubpac/shared-types";
 import { apiFetch } from "../client";
+import {
+  DEFAULT_API_CATALOG_PAGE_SIZE,
+  fetchAllPaginatedItems,
+} from "../fetch-all-paginated";
 import { serializeOrgScopedPatchBody } from "../omit-org-context-from-write-body";
 import type { ListSortParams } from "@/lib/query/list-sort-params";
 import { appendListSortSearchParams } from "@/lib/query/list-sort-params";
@@ -77,6 +81,21 @@ export async function fetchStockRegisterListApi(
   return apiFetch<PaginatedResponse<StockRegisterListItem>>(
     `/inventory/stock-register?${query.toString()}`,
     { method: "GET", ...orgHeaders(params.organizationId, token) },
+  );
+}
+
+/** Active spare parts for receipt / picker dropdowns (API max pageSize 50). */
+export async function fetchAllActiveStockRegisterPartsApi(
+  organizationId: string,
+  token: string,
+): Promise<StockRegisterListItem[]> {
+  return fetchAllPaginatedItems(
+    (page, pageSize) =>
+      fetchStockRegisterListApi(
+        { organizationId, page, pageSize, status: "active" },
+        token,
+      ),
+    DEFAULT_API_CATALOG_PAGE_SIZE,
   );
 }
 

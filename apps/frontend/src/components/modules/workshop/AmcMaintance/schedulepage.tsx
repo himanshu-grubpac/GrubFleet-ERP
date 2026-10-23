@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { invalidateAmcScheduleCaches } from "@/lib/query/invalidate-domain-caches";
 
 import OrganizationFormLayout from "@/components/common/OrganizationFormLayout";
 import Button from "@/components/ui/GrubpacButton";
@@ -147,9 +148,7 @@ export default function AmcScheduleDetailsPage() {
       });
     },
     onSuccess: (data) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-schedules"],
-      });
+      void invalidateAmcScheduleCaches(queryClient);
       showSuccessToast(`${data.name} was updated`);
       router.push(workshopAmcScheduleDetailHref(scheduleId));
     },
@@ -179,12 +178,7 @@ export default function AmcScheduleDetailsPage() {
       );
     },
     onSuccess: (data, variables) => {
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-schedules"],
-      });
-      void queryClient.invalidateQueries({
-        queryKey: ["workshop", "amc-schedule", organizationId, scheduleId],
-      });
+      void invalidateAmcScheduleCaches(queryClient);
       setActivateOpen(false);
       setDeactivateOpen(false);
       showSuccessToast(
