@@ -5,6 +5,11 @@ on:
   push:
     branches: [pre-prod]
 
+# Only the newest pre-prod promotion needs to set fleet-beta parity.
+concurrency:
+  group: sync-fleet-beta-with-preprod
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -15,9 +20,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Fast-forward fleet-beta to pre-prod
+      - name: Align fleet-beta with the promoted pre-prod commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git fetch origin pre-prod
-          git push origin "origin/pre-prod:refs/heads/fleet-beta"
+          git fetch origin fleet-beta
+
+          # Fleet Beta must contain the exact promoted pre-prod commit. A
+          # lease-protected update also repairs a prior Fleet Beta-only commit
+          # without overwriting an unexpected concurrent branch update.
+          fleet_beta_sha="$(git rev-parse origin/fleet-beta)"
+          git push \
+            --force-with-lease="refs/heads/fleet-beta:${fleet_beta_sha}" \
+            origin "${GITHUB_SHA}:refs/heads/fleet-beta"
